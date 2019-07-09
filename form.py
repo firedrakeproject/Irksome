@@ -55,7 +55,8 @@ AGaussLeg = np.array([[0.25, 0.25 - np.sqrt(3) / 6],
                       [0.25+np.sqrt(3)/6, 0.25]])
 
 if __name__ == "__main__":
-    msh = UnitSquareMesh(2, 2)
+    N = 10
+    msh = UnitSquareMesh(N, N)
     V = FunctionSpace(msh, "CG", 1)
     u = TrialFunction(V)
     v = TestFunction(V)
@@ -65,7 +66,20 @@ if __name__ == "__main__":
     dt = Constant(0.1)
     
     Vfs, anew = getForm(a, AGaussLeg, dt)
-    print(anew)
+
+    F = Function(Vfs)
+    F.dat.data[:] = np.random.rand(*F.dat.data.shape)
+
+    uu = Function(Vfs)
+    L = inner(F, anew.arguments()[0])*dx
+
+    params = {"mat_type": "aij",
+              "ksp_type": "preonly",
+              "pc_type": "lu"}
+    
+    solve(anew==L, uu)
+    
+    
 
         
 
