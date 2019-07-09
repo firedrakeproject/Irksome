@@ -1,0 +1,8 @@
+Papers to read:
+https://arxiv.org/pdf/1703.06463.pdf
+
+recognizes "sum of Kronecker" format but focuses on diagonal preconditioning (which is not crazy for parabolic problems if dt is small but we should be able to do better).
+
+They want real parts of Butcher matrix eigenvalues to be nonnegative.
+
+Fully implicit methods use (real) Jordan form
