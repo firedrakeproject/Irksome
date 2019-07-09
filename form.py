@@ -77,7 +77,7 @@ if __name__ == "__main__":
               "ksp_type": "preonly",
               "pc_type": "lu"}
     
-    solve(anew==L, uu)
+    solve(anew==L, uu, solver_parameters=params)
     
     
 
