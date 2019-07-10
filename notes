@@ -1,8 +1,18 @@
 Papers to read:
-https://arxiv.org/pdf/1703.06463.pdf
+* https://arxiv.org/pdf/1703.06463.pdf
 
 recognizes "sum of Kronecker" format but focuses on diagonal preconditioning (which is not crazy for parabolic problems if dt is small but we should be able to do better).
 
 They want real parts of Butcher matrix eigenvalues to be nonnegative.
 
 Fully implicit methods use (real) Jordan form
+
+But, can we use this technique to wedge any preconditioner (not just diagonal) for the simple BE heat equation into an implicit RK method?  And can that be related algebraically to doing monolithic MG?
+
+
+Other things to consider:
+* Dirichlet BC -- what BC do we impose on the stages, especially inhomogeneous?  We might need to rederive the weak form to see.
+
+* Nonlinear problems.  Officially, Newton is used to compute all the stages concurrently, which means that we have to then re-form the Jacobian and its preconditioner at each iterate.  This could get messy for the fully implicit case.  Start by converting F(u) into the nonlinear residual for all the stages for u_t + F(u) = 0 and cross our fingers!
+
+

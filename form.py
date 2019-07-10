@@ -54,9 +54,13 @@ def getForm(a, butcher, dt):
 AGaussLeg = np.array([[0.25, 0.25 - np.sqrt(3) / 6],
                       [0.25+np.sqrt(3)/6, 0.25]])
 
+
+
 if __name__ == "__main__":
-    N = 10
+    N = 8
     msh = UnitSquareMesh(N, N)
+    hierarchy = MeshHierarchy(msh, 4)
+    msh = hierarchy[-1]
     V = FunctionSpace(msh, "CG", 1)
     u = TrialFunction(V)
     v = TestFunction(V)
@@ -74,8 +78,14 @@ if __name__ == "__main__":
     L = inner(F, anew.arguments()[0])*dx
 
     params = {"mat_type": "aij",
-              "ksp_type": "preonly",
-              "pc_type": "lu"}
+              "ksp_monitor": None,
+              "ksp_type": "gmres",
+              "pc_type": "mg",
+              "mg_levels": {
+                  "ksp_type": "chebyshev",
+                  "ksp_max_it": 2,
+                  "pc_type": "bjacobi"}
+    }
     
     solve(anew==L, uu, solver_parameters=params)
     
