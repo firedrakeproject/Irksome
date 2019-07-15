@@ -32,7 +32,7 @@ def getForm(a, butcher, dt):
     fs = test.function_space()
     fel = fs.ufl_element()
     msh = fs.mesh()
-    
+
     num_stages = butcher.shape[0]
 
     Vfs = VectorFunctionSpace(msh, fel, dim=num_stages)
@@ -54,6 +54,10 @@ def getForm(a, butcher, dt):
 AGaussLeg4 = np.array([[0.25, 0.25 - np.sqrt(3) / 6],
                        [0.25+np.sqrt(3)/6, 0.25]])
 
+Radau35 = np.array([[11/45 - 7*sqrt(6)/360, 37/225 - 169*sqrt(6)/1800, -2/225 + sqrt(6)/75],
+                    [37/225 - 169*sqrt(6)/1800, 11/45 - 7*sqrt(6)/360, -2/225 - sqrt(6)/75],
+                    [4/9 - sqrt(6)/36, 4/9 + sqrt(6)/36, 1/9]])
+
 AGaussLeg6 = np.array([[5./36, 2/9 - 1./np.sqrt(15), 5./36 - np.sqrt(15)/30],
                        [5./36+np.sqrt(15)/24, 2./9, 5./36 - np.sqrt(15)/24],
                        [5./36 + np.sqrt(15)/30, 2./9 + np.sqrt(15)/15, 5./36]])
@@ -69,35 +73,37 @@ if __name__ == "__main__":
     # good Helmholtz so we can use Neumann BC for now
     a = inner(grad(u), grad(v))*dx + inner(u, v)*dx
 
-    dt = Constant(10.0)
-    
-    Vfs, anew = getForm(a, AGaussLeg6, dt)
+    dt = Constant(0.1)
 
-#    print(np.linalg.eig(AGaussLeg4)[0])
+    Vfs, anew = getForm(a, Radau35, dt)
 
     
     F = Function(Vfs)
-    F.dat.data[:] = np.random.rand(*F.dat.data.shape)
+    L = inner(F, anew.arguments()[0])*dx
 
     uu = Function(Vfs)
-    L = inner(F, anew.arguments()[0])*dx
+    with uu.dat.vec_wo as x:
+        x.setRandom()
 
     params = {"mat_type": "aij",
               "ksp_monitor": None,
               "ksp_type": "gmres",
               "pc_type": "mg",
               "mg_levels": {
-                  "ksp_type": "chebyshev",
+                  "ksp_type": "richardson",
+                  "ksp_richardson_scale": 3/4,
                   "ksp_max_it": 2,
-                  "pc_type": "bjacobi"}
+                  "ksp_monitor_true_residual": None,
+                  "ksp_norm_type": "unpreconditioned",
+                  "pc_type": "pbjacobi"}
     }
-    
+
     solve(anew==L, uu, solver_parameters=params)
-    
-    
 
-        
 
-    
 
-    
+
+
+
+
+
