@@ -32,7 +32,7 @@ def getForm(a, butcher, dt):
     fs = test.function_space()
     fel = fs.ufl_element()
     msh = fs.mesh()
-    
+
     num_stages = butcher.shape[0]
 
     Vfs = VectorFunctionSpace(msh, fel, dim=num_stages)
@@ -68,31 +68,35 @@ if __name__ == "__main__":
     a = inner(grad(u), grad(v))*dx + inner(u, v)*dx
 
     dt = Constant(0.1)
-    
+
     Vfs, anew = getForm(a, AGaussLeg, dt)
 
     F = Function(Vfs)
-    F.dat.data[:] = np.random.rand(*F.dat.data.shape)
+    L = inner(F, anew.arguments()[0])*dx
 
     uu = Function(Vfs)
-    L = inner(F, anew.arguments()[0])*dx
+    with uu.dat.vec_wo as x:
+        x.setRandom()
 
     params = {"mat_type": "aij",
               "ksp_monitor": None,
               "ksp_type": "gmres",
               "pc_type": "mg",
               "mg_levels": {
-                  "ksp_type": "chebyshev",
+                  "ksp_type": "richardson",
+                  "ksp_richardson_scale": 3/4,
                   "ksp_max_it": 2,
-                  "pc_type": "bjacobi"}
+                  "ksp_monitor_true_residual": None,
+                  "ksp_norm_type": "unpreconditioned",
+                  "pc_type": "pbjacobi"}
     }
-    
+
     solve(anew==L, uu, solver_parameters=params)
-    
-    
 
-        
 
-    
 
-    
+
+
+
+
+

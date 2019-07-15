@@ -9,6 +9,8 @@ Fully implicit methods use (real) Jordan form
 
 But, can we use this technique to wedge any preconditioner (not just diagonal) for the simple BE heat equation into an implicit RK method?  And can that be related algebraically to doing monolithic MG?
 
+* https://doi.org/10.1016/j.jcp.2017.01.050
+
 
 Other things to consider:
 * Dirichlet BC -- what BC do we impose on the stages, especially inhomogeneous?  We might need to rederive the weak form to see.
