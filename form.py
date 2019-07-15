@@ -51,13 +51,15 @@ def getForm(a, butcher, dt):
     return Vfs, anew
 
 
-AGaussLeg = np.array([[0.25, 0.25 - np.sqrt(3) / 6],
-                      [0.25+np.sqrt(3)/6, 0.25]])
+AGaussLeg4 = np.array([[0.25, 0.25 - np.sqrt(3) / 6],
+                       [0.25+np.sqrt(3)/6, 0.25]])
 
-
+AGaussLeg6 = np.array([[5./36, 2/9 - 1./np.sqrt(15), 5./36 - np.sqrt(15)/30],
+                       [5./36+np.sqrt(15)/24, 2./9, 5./36 - np.sqrt(15)/24],
+                       [5./36 + np.sqrt(15)/30, 2./9 + np.sqrt(15)/15, 5./36]])
 
 if __name__ == "__main__":
-    N = 8
+    N = 16
     msh = UnitSquareMesh(N, N)
     hierarchy = MeshHierarchy(msh, 4)
     msh = hierarchy[-1]
@@ -67,10 +69,13 @@ if __name__ == "__main__":
     # good Helmholtz so we can use Neumann BC for now
     a = inner(grad(u), grad(v))*dx + inner(u, v)*dx
 
-    dt = Constant(0.1)
+    dt = Constant(10.0)
     
-    Vfs, anew = getForm(a, AGaussLeg, dt)
+    Vfs, anew = getForm(a, AGaussLeg6, dt)
 
+#    print(np.linalg.eig(AGaussLeg4)[0])
+
+    
     F = Function(Vfs)
     F.dat.data[:] = np.random.rand(*F.dat.data.shape)
 
