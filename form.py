@@ -54,6 +54,10 @@ def getForm(a, butcher, dt):
 AGaussLeg = np.array([[0.25, 0.25 - np.sqrt(3) / 6],
                       [0.25+np.sqrt(3)/6, 0.25]])
 
+Radau35 = np.array([[11/45 - 7*sqrt(6)/360, 37/225 - 169*sqrt(6)/1800, -2/225 + sqrt(6)/75],
+                    [37/225 - 169*sqrt(6)/1800, 11/45 - 7*sqrt(6)/360, -2/225 - sqrt(6)/75],
+                    [4/9 - sqrt(6)/36, 4/9 + sqrt(6)/36, 1/9]])
+
 
 
 if __name__ == "__main__":
@@ -69,7 +73,7 @@ if __name__ == "__main__":
 
     dt = Constant(0.1)
 
-    Vfs, anew = getForm(a, AGaussLeg, dt)
+    Vfs, anew = getForm(a, Radau35, dt)
 
     F = Function(Vfs)
     L = inner(F, anew.arguments()[0])*dx
