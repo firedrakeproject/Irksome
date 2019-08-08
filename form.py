@@ -46,7 +46,7 @@ def getForm(a, butcher, dt):
         for j in range(num_stages):
             mapper = ArgumentReplacer({test: vnew[i],
                                        trial: unew[j]})
-            anew += dt * map_integrands.map_integrand_dags(mapper, a)
+            anew += dt * Constant(butcher[i, j]) * map_integrands.map_integrand_dags(mapper, a)
 
     return Vfs, anew
 
