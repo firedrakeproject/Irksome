@@ -11,6 +11,14 @@ But, can we use this technique to wedge any preconditioner (not just diagonal) f
 
 * https://doi.org/10.1016/j.jcp.2017.01.050
 
+Good write-up of RK, Newton, and a reformulation to sparsify the Jacobian part assuming Butcher matrix is invertible.
+
+* http://femhub.com/pavel/papers/2011/butcher.pdf, which appears in a journal:
+* https://www.sciencedirect.com/science/article/pii/S0021999111006231
+
+Does higher-order embedded RK methods (adaptive-in-time) for PDE.
+Has a nice model problem with exact solution under homogeneous BC.  Asks about spatial refinement over time, but does not address efficient system solution (e.g. by preconditioners)
+
 
 Other things to consider:
 * Dirichlet BC -- what BC do we impose on the stages, especially inhomogeneous?  We might need to rederive the weak form to see.
