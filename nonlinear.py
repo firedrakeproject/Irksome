@@ -39,12 +39,12 @@ def getForm(F, butcher, t, dt, u0):
             unew = u0 + dt * numpy.sum([Constant(A[i, j]) * k[j] for j in range(num_stages)])
             tnew = t + Constant(c[i]) * dt
             Fnew += replace(F, {t: tnew,
-                                u: unew,
-                                v: vnew[i]})
+                                u0: unew,
+                                test: vnew[i]})
     else:
         tnew = t + Constant(c[0])*dt
         unew = u0 + dt * Constant(A[0, 0]) * k
-        Fnew += replace(F, {t: tnew, u: unew, v: vnew})
+        Fnew += replace(F, {t: tnew, u0: unew, test: vnew})
             
     return Fnew, k
 
