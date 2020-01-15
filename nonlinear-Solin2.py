@@ -2,6 +2,7 @@ from firedrake import *
 
 import numpy
 from ufl import replace
+from ufl.algorithms.ad import expand_derivatives
 import butcher
 from nonlinear import getForm
 
@@ -38,7 +39,7 @@ uexact = B*atan(t)*(pi/2.0-atan(S*(R-t)))
 
 # MMS works on symbolic differentiation of true solution, not weak form
 # Except we might need to futz with this since replacement is breaking on this!
-rhs = diff(uexact,t) - div(grad(uexact))
+rhs = expand_derivatives(diff(uexact,t) - div(grad(uexact)))
 
 tc=0
 dtc=0.1
@@ -81,3 +82,6 @@ while (tc<5.0):
     tc+=dtc
     t.assign(tc)  # takes a new value, not a Constant
     print(tc, assemble(u**2*dx))
+
+plot(u)
+plt.show()
