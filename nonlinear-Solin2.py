@@ -81,7 +81,8 @@ while (tc<5.0):
 
     tc+=dtc
     t.assign(tc)  # takes a new value, not a Constant
-    print(tc, assemble(u**2*dx))
+    print(t)
 
-plot(u)
-plt.show()
+print(errornorm(uexact, unew)
+
+
