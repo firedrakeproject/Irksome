@@ -5,7 +5,7 @@ from ufl import replace
 import butcher
 
 
-def getForm(F, butcher, t, dt, u0):
+def getForm(F, butcher, t, dt, u0, bcs=None):
     # F: UFL
     # butcher: object with properties .A, .b, and .c
     # t and dt: Constant
@@ -45,7 +45,7 @@ def getForm(F, butcher, t, dt, u0):
         tnew = t + Constant(c[0])*dt
         unew = u0 + dt * Constant(A[0, 0]) * k
         Fnew += replace(F, {t: tnew, u0: unew, test: vnew})
-            
+
     return Fnew, k
 
 

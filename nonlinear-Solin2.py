@@ -9,9 +9,9 @@ from nonlinear import getForm
 import matplotlib.pyplot as plt
 
 
-BT = butcher.BackwardEuler()
+BT = butcher.LobattoIIIAButcherTableau(3)
 ns = len(BT.b)
-N = 16
+N = 8
 
 # Single point of entry in case you want to change the size of the box.
 x0 = 0.0
@@ -20,13 +20,15 @@ y0 = 0.0
 y1 = 10.0
 
 msh= RectangleMesh(N, N, x1, y1)
-V = FunctionSpace(msh, "CG", 1)
+V = FunctionSpace(msh, "CG", 4)
 x, y = SpatialCoordinate(msh)
 
 # Stores initial condition!
 S= Constant(2.0)
 C= Constant(1000.0)
-dt = Constant(0.1)
+tc=0
+dtc=1.0/N
+dt = Constant(dtc)
 t = Constant(0.0)
 
 # We can just let these and the true solutions be expressions!
@@ -41,8 +43,7 @@ uexact = B*atan(t)*(pi/2.0-atan(S*(R-t)))
 # Except we might need to futz with this since replacement is breaking on this!
 rhs = expand_derivatives(diff(uexact,t) - div(grad(uexact)))
 
-tc=0
-dtc=0.1
+
 
 u = interpolate(uexact, V)
 
@@ -64,13 +65,20 @@ params = {"mat_type": "aij",
           "ksp_type": "preonly",
           "pc_type": "lu"}
 
-prob = NonlinearVariationalProblem(Fnew, k)
+# Hack: apply homogeneous BC at each stage.  We need to do more general
+# things in getForm.
+#bcs = DirichletBC(Fnew.arguments()[0].function_space(), 0, "on_boundary")
+fs = Fnew.arguments()[0].function_space()
+bcs = [DirichletBC(fs[i], 0, "on_boundary") for i in range(len(fs))]
+
+
+prob = NonlinearVariationalProblem(Fnew, k, bcs=bcs)
 solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
 # get a tuple of the stages, each as a Coefficient
 ks = k.split()
 
-while (tc<5.0):
+while (tc<2.0):
     solver.solve()
 
     # update unew
@@ -81,8 +89,9 @@ while (tc<5.0):
 
     tc+=dtc
     t.assign(tc)  # takes a new value, not a Constant
-    print(t)
+    print(tc)
 
-print(errornorm(uexact, unew)
+print()
+print(errornorm(uexact, unew))
 
 
