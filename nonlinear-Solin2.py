@@ -9,9 +9,9 @@ from nonlinear import getForm
 import matplotlib.pyplot as plt
 
 
-BT = butcher.LobattoIIIAButcherTableau(3)
+BT = butcher.GaussLegendreButcherTableau(3)
 ns = len(BT.b)
-N = 8
+N = 32
 
 # Single point of entry in case you want to change the size of the box.
 x0 = 0.0
@@ -27,7 +27,7 @@ x, y = SpatialCoordinate(msh)
 S= Constant(2.0)
 C= Constant(1000.0)
 tc=0
-dtc=1.0/N
+dtc=10./N
 dt = Constant(dtc)
 t = Constant(0.0)
 
