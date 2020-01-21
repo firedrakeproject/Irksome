@@ -63,6 +63,6 @@ while (tc < 1.0):
 
     tc += dtc
     t.assign(tc)
-    print(tc, assemble(E), assemble()
+    print(tc, assemble(E), assemble())
 
     
