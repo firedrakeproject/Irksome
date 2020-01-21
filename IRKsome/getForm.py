@@ -36,46 +36,66 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     assert V == u0.function_space()
 
 
-    A = butch.A
+    AA = butch.A
+    A = numpy.array([[Constant(aa) for aa in arow] for arow in AA])
     c = butch.c
 
     num_stages = len(c)
+    num_fields = len(V)
     
-    if len(V) == 1 and num_stages == 1:
+    if num_fields == 1 and num_stages == 1:
         # don't need a new test function in this case.
         k = Function(V)
         Fnew = inner(k, v)*dx
         tnew = t + Constant(c[0]) * dt
-        unew = u0 + dt * Constant(A[0, 0]) * k
+        unew = u0 + dt * A[0, 0] * k
         Fnew += replace(F, {t: tnew, u0: unew})
-    elif len(V) == 1 and num_stages > 1:  # multi-stage method
+    elif num_fields == 1 and num_stages > 1:  # multi-stage method
         Vbig = numpy.prod([V for i in range(num_stages)])
         vnew = TestFunction(Vbig)
         k = Function(Vbig)
-        
         Fnew = inner(k, vnew)*dx
+        Ak = A @ k
         for i in range(num_stages):
-            unew = u0 + dt * numpy.sum([Constant(A[i, j]) * k[j]
-                                        for j in range(num_stages)])
+            unew = u0 + dt * Ak[i]
             tnew = t + Constant(c[i]) * dt
             Fnew += replace(F, {t: tnew,
                                 u0: unew,
-                                test: vnew[i]})
-    elif len(V) > 1 and num_stages == 1:
+                                v: vnew[i]})
+    elif num_fields > 1 and num_stages == 1:
         k = Function(V)
         Fnew = inner(k, v)*dx
         tnew = t + Constant(c[0]) * dt
         ubits = split(u0)
         kbits = split(k)
-        repl = {ubits[i]: ubits[i] + dt * Constant(A[0, 0]) * kbits[i] \
-                for i in range(len(V))}
+        repl = {}
+        repl[t] = t + Constant(c[0]) * dt
+        for ell in range(num_fields):
+            repl[ubits[ell]] = ubits[ell] + dt * A[0, 0] * kbits[ell]
         Fnew += replace(F, repl)
-    elif len(V) > 1 and num_stages > 1:
-        Vbig = numpy.prod([V for i in range(num_stages)])
+    elif num_fields > 1 and num_stages > 1:
+        Vbig = numpy.prod([V for ell in range(num_stages)])
+        k = Function(Vbig)
+        
+        # what to do with test functions?
         vnew = TestFunction(Vbig)
-        Fnew = inner(k, v)*dx
-        1/0  # still working on it!
+        vbits = split(v)
+        vnew_array = numpy.reshape(split(vnew), (num_stages, num_fields))
+        Fnew = inner(k, vnew) * dx
+        ubits = split(u0)
+        kbits = split(k)    # num_stages times larger than ubits
+        assert len(kbits) == num_stages * len(ubits)
 
+        # Ak is num_stages by num_fields 
+        Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
+        for i in range(num_stages):
+            repl = {}
+            tnew = t + Constant(c[i]) * dt
+            repl[t] = tnew
+            for ell in range(num_fields):
+                repl[ubits[ell]] = ubits[ell] + dt * Ak[i, ell]
+                repl[vbits[ell]] = vnew_array[i, ell]
+            Fnew += replace(F, repl)
 
     return Fnew, k
 

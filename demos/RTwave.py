@@ -6,7 +6,7 @@
 from firedrake import *
 from IRKsome import GaussLegendreButcherTableau, LobattoIIIAButcherTableau, getForm
 
-N = 100
+N = 10
 
 msh = UnitSquareMesh(N, N)
 V = FunctionSpace(msh, "RT", 1)
@@ -56,10 +56,13 @@ while (tc < 1.0):
         unew.dat.data[:] += dtc * BT.b[i] * ks[2*i].dat.data
         pnew.dat.data[:] += dtc * BT.b[i] * ks[2*i+1].dat.data
 
+    for j in range(len(ks)):
+        ks[j].dat.data[:] = 0.0
+        
     up0.assign(upnew)
 
     tc += dtc
     t.assign(tc)
-    print(tc, assemble(E))
+    print(tc, assemble(E), assemble()
 
     
