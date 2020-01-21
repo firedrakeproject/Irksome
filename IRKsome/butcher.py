@@ -9,12 +9,12 @@ class ButcherTableau(object):
         self.c = c
 
 
-class BackwardEuler(ButcherTableau):
+class BackwardEulerButcherTableau(ButcherTableau):
     def __init__(self):
         A = numpy.array([[1.0]])
         b = numpy.array([1.0])
         c = numpy.array([1.0])
-        super(BackwardEuler, self).__init__(A, b, c)
+        super(BackwardEulerButcherTableau, self).__init__(A, b, c)
 
 
 class CollocationButcherTableau(ButcherTableau):

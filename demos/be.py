@@ -1,5 +1,4 @@
 from firedrake import *
-import numpy
 
 N = 4
 msh = UnitSquareMesh(N, N)
@@ -21,17 +20,7 @@ uu = Function(V)
 
 t = Constant(0.0)
 
-#params = {"mat_type": "aij",
-#          "ksp_type": "preonly",
-#          "pc_type": "lu"}
+solve(a == L, uu)
 
-solve(a==L, uu)
-
-#    print(u.dat.data)
-print(assemble(u**2*dx))
-print(assemble(uu**2*dx))
-
-    
-
-
-
+print(assemble(u ** 2 * dx))
+print(assemble(uu ** 2 * dx))

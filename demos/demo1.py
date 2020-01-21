@@ -1,15 +1,10 @@
-from firedrake import *
+from firedrake import *  # noqa: F403
 
-import numpy
-from ufl import replace
 from ufl.algorithms.ad import expand_derivatives
-import butcher
-from nonlinear import getForm
 
-import matplotlib.pyplot as plt
+from IRKsome import GaussLegendreButcherTableau, getForm
 
-
-BT = butcher.GaussLegendreButcherTableau(3)
+BT = GaussLegendreButcherTableau(1)
 ns = len(BT.b)
 N = 32
 
@@ -19,31 +14,29 @@ x1 = 10.0
 y0 = 0.0
 y1 = 10.0
 
-msh= RectangleMesh(N, N, x1, y1)
+msh = RectangleMesh(N, N, x1, y1)
 V = FunctionSpace(msh, "CG", 4)
 x, y = SpatialCoordinate(msh)
 
 # Stores initial condition!
-S= Constant(2.0)
-C= Constant(1000.0)
-tc=0
-dtc=10./N
+S = Constant(2.0)
+C = Constant(1000.0)
+tc = 0
+dtc = 10. / N
 dt = Constant(dtc)
 t = Constant(0.0)
 
 # We can just let these and the true solutions be expressions!
-B= (x-Constant(x0))*(x-Constant(x1))*(y-Constant(y0))*(y-Constant(y1))/C
-R= (x*x+y*y)**0.5
+B = (x-Constant(x0))*(x-Constant(x1))*(y-Constant(y0))*(y-Constant(y1))/C
+R = (x * x + y * y) ** 0.5
 
 # This will give the exact solution at any time t.  We just have
 # to t.assign(time_we_want)
-uexact = B*atan(t)*(pi/2.0-atan(S*(R-t)))    
+uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
 
 # MMS works on symbolic differentiation of true solution, not weak form
 # Except we might need to futz with this since replacement is breaking on this!
-rhs = expand_derivatives(diff(uexact,t) - div(grad(uexact)))
-
-
+rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
 u = interpolate(uexact, V)
 
@@ -67,7 +60,7 @@ params = {"mat_type": "aij",
 
 # Hack: apply homogeneous BC at each stage.  We need to do more general
 # things in getForm.
-#bcs = DirichletBC(Fnew.arguments()[0].function_space(), 0, "on_boundary")
+# bcs = DirichletBC(Fnew.arguments()[0].function_space(), 0, "on_boundary")
 fs = Fnew.arguments()[0].function_space()
 bcs = [DirichletBC(fs[i], 0, "on_boundary") for i in range(len(fs))]
 
@@ -78,7 +71,7 @@ solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 # get a tuple of the stages, each as a Coefficient
 ks = k.split()
 
-while (tc<2.0):
+while (tc < 2.0):
     solver.solve()
 
     # update unew
@@ -87,11 +80,9 @@ while (tc<2.0):
 
     u.assign(unew)
 
-    tc+=dtc
+    tc += dtc
     t.assign(tc)  # takes a new value, not a Constant
     print(tc)
 
 print()
 print(errornorm(uexact, unew))
-
-
