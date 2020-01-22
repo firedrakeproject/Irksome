@@ -35,9 +35,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
     assert V == u0.function_space()
 
-
-    AA = butch.A
-    A = numpy.array([[Constant(aa) for aa in arow] for arow in AA])
+    A = numpy.array([[Constant(aa) for aa in arow] for arow in butch.A])
     c = butch.c
 
     num_stages = len(c)

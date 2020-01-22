@@ -4,7 +4,7 @@
 # with homogeneous Dirichlet BC p=0 (which are weakly enforced in mixed methods)
 
 from firedrake import *
-from IRKsome import GaussLegendreButcherTableau, LobattoIIIAButcherTableau, getForm, BackwardEulerButcherTableau
+from IRKsome import GaussLegendreButcherTableau
 
 N = 10
 
@@ -17,45 +17,41 @@ v, w = TestFunctions(Z)
 x, y = SpatialCoordinate(msh)
 up0 = project(as_vector([0, 0, sin(pi*x)*sin(pi*y)]), Z)
 
-upnew = Function(Z)
-
 u0, p0 = split(up0)
 
-F = inner(div(u0), w) * dx - inner(p0, div(v)) * dx
-
-E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)
+kup = Function(Z)
 
 tc = 0.0
 t = Constant(tc)
 dtc = 1.0 / N
 dt = Constant(dtc)
 
-#BT = LobattoIIIAButcherTableau(2)
-BT = GaussLegendreButcherTableau(1)
-#BT = BackwardEulerButcherTableau()
+E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)
 
-num_stages = len(BT.b)
-num_fields = len(Z)
-
-bigF, k = getForm(F, BT, t, dt, up0)
 
 params = {"mat_type": "aij",
           "ksp_type": "preonly",
           "pc_type": "lu"}
 
-prob = NonlinearVariationalProblem(bigF, k)
+bt = GaussLegendreButcherTableau(1)
+A = bt.A
+
+ku, kp = split(kup)
+
+F = (inner(ku, v) * dx + inner(kp, w) * dx
+     + inner(div(u0 + dt * A[0, 0] * ku), w) * dx
+     - inner(p0 + dt * A[0, 0] * kp, div(v)) * dx)
+
+prob = NonlinearVariationalProblem(F, kup)
 solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
 while (tc < 1.0):
     solver.solve()
-
-    print(norm(k))
-    
-    for i in range(num_stages):
-        for j in range(num_fields):
-            up0.dat.data[j][:] += dtc + BT.b[i] * k.dat.data[num_fields*i+j][:]
+    print(tc, assemble(E))
+        
+    up0 += dt * kup
 
     tc += dtc
     t.assign(tc)
-    print(tc, assemble(E))
 
+    
