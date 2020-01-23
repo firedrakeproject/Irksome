@@ -2,6 +2,7 @@ from firedrake import *
 from firedrake.petsc import PETSc
 import numpy as np
 import os
+import IRKsome
 
 if not os.path.exists("pictures/cahnhilliard"):
     os.makedirs("pictures/cahnhilliard")
@@ -20,25 +21,19 @@ V = FunctionSpace(msh, "Bell", 5)
 lmbda = 1.e-2
 delta_t = 5.0e-6
 dt = Constant(delta_t)
-theta = Constant(0.5)
+t = 0.0
+T = 0.0025
+t_ufl = Constant(t)
 M = Constant(1)
 
-theta = Constant(0.5)
 beta = Constant(250.0)
-
 
 # set up initial condition
 np.random.seed(42)
-c0 = Function(V)
-c0.dat.data[::6] = 0.63 + 0.2*(0.5 - np.random.random(c0.dat.data[::6].shape))
-
-
 c = Function(V)
-c.assign(c0)
+c.dat.data[::6] = 0.63 + 0.2*(0.5 - np.random.random(c.dat.data[::6].shape))
+
 v = TestFunction(V)
-
-ctheta = theta*c+(1-theta)*c0
-
 
 def dfdc(cc):
     return 200*(cc*(1-cc)**2-cc**2*(1-cc))
@@ -51,19 +46,23 @@ def lap(u):
 n = FacetNormal(msh)
 h = CellSize(msh)
 
-eFF = (inner((c-c0), v)*dx +
-       dt*inner(M*grad(dfdc(ctheta)), grad(v))*dx +
-       dt*inner(M*lmbda*lap(ctheta), lap(v))*dx -
-       dt*inner(M*lmbda*lap(ctheta), dot(grad(v), n))*ds -
-       dt*inner(M*lmbda*dot(grad(ctheta), n), lap(v))*ds +
-       dt*inner(beta/h*M*lmbda*dot(grad(ctheta), n), dot(grad(v), n))*ds)
+eFF = (inner(M*grad(dfdc(c)), grad(v))*dx +
+       inner(M*lmbda*lap(c), lap(v))*dx -
+       inner(M*lmbda*lap(c), dot(grad(v), n))*ds -
+       inner(M*lmbda*dot(grad(c), n), lap(v))*ds +
+       inner(beta/h*M*lmbda*dot(grad(c), n), dot(grad(v), n))*ds)
 
-prob = NonlinearVariationalProblem(eFF, c)
+#BT = IRKsome.BackwardEulerButcherTableau()
+BT = IRKsome.GaussLegendreButcherTableau(2)
+num_stages = len(BT.b)
+Fnew, k = IRKsome.getForm(eFF, BT, t_ufl, dt, c)
 
-params = {'snes_max_it': 100,
+prob = NonlinearVariationalProblem(Fnew, k)
+
+params = {'snes_monitor': None, 'snes_max_it': 100,
           'snes_linesearch_type': 'basic',
           'ksp_type': 'preonly',
-          'pc_type': 'lu'}
+          'pc_type': 'lu', 'mat_type': 'aij'}
 
 solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
@@ -92,8 +91,6 @@ else:
     get_output = project_output
 
 # fl = File("pictures/cahnhilliard/ch.pvd")
-t = 0.0
-T = 0.0025
 # fl.write(get_output())
 
 
@@ -132,7 +129,12 @@ while t < T:
     PETSc.Sys.Print("Time: %s" % t)
     t += delta_t
     solver.solve()
-    c0.assign(c)
+    if num_stages == 1:
+        c += delta_t * k
+    else:
+        for s in range(num_stages):
+            c.dat.data[:] += delta_t * BT.b[s] * k.dat.data[s][:]
+    
     # fl.write(get_output())
 surfplot("final")
-print(np.max(c0.dat.data[::6]))
+print(np.max(c.dat.data[::6]))
