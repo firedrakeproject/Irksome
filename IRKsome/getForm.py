@@ -29,7 +29,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     if bcs is not None:
         raise NotImplementedError("Don't have BCs worked out yet")
     
-    v, = F.arguments()
+    v = F.arguments()[0]
 
     V = v.function_space()
 
@@ -62,38 +62,17 @@ def getForm(F, butch, t, dt, u0, bcs=None):
                                 v: vnew[i]})
     elif num_fields > 1 and num_stages == 1:
         k = Function(V)
-        Fnew = inner(k, v)*dx
-        tnew = t + Constant(c[0]) * dt
-        ubits = split(u0)
         kbits = split(k)
-        repl = {}
-        repl[t] = t + Constant(c[0]) * dt
-        for ell in range(num_fields):
-            repl[ubits[ell]] = ubits[ell] + dt * A[0, 0] * kbits[ell]
-        Fnew += replace(F, repl)
+        u0bits = split(u0)
+        repl = {t: t + Constant(c[0]) * dt}
+        for ubit, kbit in zip(u0bits, kbits):
+            repl[ubit] = ubit + dt * A[0, 0] * kbit
+        Fnew = inner(k, v)*dx + replace(F, repl)
     elif num_fields > 1 and num_stages > 1:
-        Vbig = numpy.prod([V for ell in range(num_stages)])
-        k = Function(Vbig)
-        
-        # what to do with test functions?
+        Vbig = numpy.prod([V for i in range(num_stages)])
         vnew = TestFunction(Vbig)
-        vbits = split(v)
-        vnew_array = numpy.reshape(split(vnew), (num_stages, num_fields))
-        Fnew = inner(k, vnew) * dx
-        ubits = split(u0)
-        kbits = split(k)    # num_stages times larger than ubits
-        assert len(kbits) == num_stages * len(ubits)
-
-        # Ak is num_stages by num_fields 
-        Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
-        for i in range(num_stages):
-            repl = {}
-            tnew = t + Constant(c[i]) * dt
-            repl[t] = tnew
-            for ell in range(num_fields):
-                repl[ubits[ell]] = ubits[ell] + dt * Ak[i, ell]
-                repl[vbits[ell]] = vnew_array[i, ell]
-            Fnew += replace(F, repl)
+        k = Function(Vbig)
+        1/0
 
     return Fnew, k
 

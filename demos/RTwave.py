@@ -31,8 +31,8 @@ dtc = 1.0 / N
 dt = Constant(dtc)
 
 #BT = LobattoIIIAButcherTableau(2)
-BT = GaussLegendreButcherTableau(1)
-#BT = BackwardEulerButcherTableau()
+#BT = GaussLegendreButcherTableau(1)
+BT = BackwardEulerButcherTableau()
 
 num_stages = len(BT.b)
 num_fields = len(Z)
@@ -48,14 +48,11 @@ solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
 while (tc < 1.0):
     solver.solve()
-
-    print(norm(k))
-    
-    for i in range(num_stages):
-        for j in range(num_fields):
-            up0.dat.data[j][:] += dtc + BT.b[i] * k.dat.data[num_fields*i+j][:]
+    print(tc, assemble(E))
+        
+    up0 += dt * k
 
     tc += dtc
     t.assign(tc)
-    print(tc, assemble(E))
+
 

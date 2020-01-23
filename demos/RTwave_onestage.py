@@ -4,7 +4,7 @@
 # with homogeneous Dirichlet BC p=0 (which are weakly enforced in mixed methods)
 
 from firedrake import *
-from IRKsome import GaussLegendreButcherTableau
+from IRKsome import GaussLegendreButcherTableau, BackwardEulerButcherTableau
 
 N = 10
 
@@ -34,6 +34,7 @@ params = {"mat_type": "aij",
           "pc_type": "lu"}
 
 bt = GaussLegendreButcherTableau(1)
+#bt = BackwardEulerButcherTableau()
 A = bt.A
 
 ku, kp = split(kup)
@@ -41,6 +42,7 @@ ku, kp = split(kup)
 F = (inner(ku, v) * dx + inner(kp, w) * dx
      + inner(div(u0 + dt * A[0, 0] * ku), w) * dx
      - inner(p0 + dt * A[0, 0] * kp, div(v)) * dx)
+
 
 prob = NonlinearVariationalProblem(F, kup)
 solver = NonlinearVariationalSolver(prob, solver_parameters=params)
