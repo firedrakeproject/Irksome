@@ -9,8 +9,8 @@ from IRKsome import GaussLegendreButcherTableau, LobattoIIIAButcherTableau, getF
 N = 10
 
 msh = UnitSquareMesh(N, N)
-V = FunctionSpace(msh, "RT", 1)
-W = FunctionSpace(msh, "DG", 0)
+V = FunctionSpace(msh, "RT", 2)
+W = FunctionSpace(msh, "DG", 1)
 Z = V*W
 
 v, w = TestFunctions(Z)
@@ -30,11 +30,12 @@ t = Constant(tc)
 dtc = 1.0 / N
 dt = Constant(dtc)
 
-#BT = LobattoIIIAButcherTableau(2)
-#BT = GaussLegendreButcherTableau(1)
-BT = BackwardEulerButcherTableau()
+BT = LobattoIIIAButcherTableau(3)
+#BT = GaussLegendreButcherTableau(2)
+#BT = BackwardEulerButcherTableau()
 
-num_stages = len(BT.b)
+b = BT.b
+num_stages = len(b)
 num_fields = len(Z)
 
 bigF, k = getForm(F, BT, t, dt, up0)
@@ -46,11 +47,14 @@ params = {"mat_type": "aij",
 prob = NonlinearVariationalProblem(bigF, k)
 solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
+
 while (tc < 1.0):
     solver.solve()
     print(tc, assemble(E))
-        
-    up0 += dt * k
+
+    for s in range(num_stages):
+        for i in range(num_fields):
+            up0.dat.data[i][:] += dtc * b[s] * k.dat.data[num_fields*s+i][:]
 
     tc += dtc
     t.assign(tc)

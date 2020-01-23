@@ -52,7 +52,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         Vbig = numpy.prod([V for i in range(num_stages)])
         vnew = TestFunction(Vbig)
         k = Function(Vbig)
-        Fnew = inner(k, vnew)*dx
+        Fnew = inner(k, vnew) * dx
         Ak = A @ k
         for i in range(num_stages):
             unew = u0 + dt * Ak[i]
@@ -72,7 +72,20 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         Vbig = numpy.prod([V for i in range(num_stages)])
         vnew = TestFunction(Vbig)
         k = Function(Vbig)
-        1/0
+        vbits = split(v)
+        vbigbits = split(vnew)
+        u0bits = split(u0)
+        kbits = split(k)
+        
+        Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
+        Fnew = inner(k, vnew) * dx
+        for i in range(num_stages):
+            repl = {t: t + Constant(c[i]) * dt}
+            for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
+                repl[ubit] = ubit + dt * Ak[i, j]
+                repl[vbit] = vbigbits[num_fields * i + j]
+
+            Fnew += replace(F, repl)
 
     return Fnew, k
 
