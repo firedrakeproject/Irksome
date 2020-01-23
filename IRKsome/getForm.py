@@ -28,15 +28,13 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 """
     if bcs is not None:
         raise NotImplementedError("Don't have BCs worked out yet")
-    
+
     v = F.arguments()[0]
-
     V = v.function_space()
-
     assert V == u0.function_space()
 
     A = numpy.array([[Constant(aa) for aa in arow] for arow in butch.A])
-    c = butch.c
+    c = numpy.array([Constant(ci) for ci in butch.c])
 
     num_stages = len(c)
     num_fields = len(V)
@@ -52,7 +50,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
     Fnew = inner(k, vnew) * dx
     for i in range(num_stages):
-        repl = {t: t + Constant(c[i]) * dt}
+        repl = {t: t + c[i] * dt}
         for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
             repl[ubit] = ubit + dt * Ak[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
