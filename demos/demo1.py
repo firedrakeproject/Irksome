@@ -4,9 +4,9 @@ from ufl.algorithms.ad import expand_derivatives
 
 from IRKsome import GaussLegendreButcherTableau, getForm
 
-BT = GaussLegendreButcherTableau(2)
+BT = GaussLegendreButcherTableau(1)
 ns = len(BT.b)
-N = 64
+N = 32
 
 # Single point of entry in case you want to change the size of the box.
 x0 = 0.0
@@ -15,14 +15,14 @@ y0 = 0.0
 y1 = 10.0
 
 msh = RectangleMesh(N, N, x1, y1)
-V = FunctionSpace(msh, "CG", 4)
+V = FunctionSpace(msh, "CG", 1)
 x, y = SpatialCoordinate(msh)
 
 # Stores initial condition!
 S = Constant(2.0)
 C = Constant(1000.0)
 tc = 0
-dtc = 10. / N
+dtc = 1. / N
 dt = Constant(dtc)
 t = Constant(0.0)
 

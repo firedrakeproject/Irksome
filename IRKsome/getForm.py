@@ -40,15 +40,19 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
     num_stages = len(c)
     num_fields = len(V)
-    
-    if num_fields == 1 and num_stages == 1:
-        # don't need a new test function in this case.
+
+    # since split(u) == (u,) if u is not from a MixedFunctionSpace,
+    # we can fuse the mixed and not-mixed notation. 
+    if num_stages == 1:
         k = Function(V)
-        Fnew = inner(k, v)*dx
-        tnew = t + Constant(c[0]) * dt
-        unew = u0 + dt * A[0, 0] * k
-        Fnew += replace(F, {t: tnew, u0: unew})
-    elif num_fields == 1 and num_stages > 1:  # multi-stage method
+        kbits = split(k) 
+        u0bits = split(u0)
+        repl = {t: t + Constant(c[0]) * dt}
+        for ubit, kbit in zip(u0bits, kbits):
+            repl[ubit] = ubit + dt * A[0, 0] * kbit
+        Fnew = inner(k, v)*dx + replace(F, repl)
+        
+    elif num_fields == 1:  
         Vbig = numpy.prod([V for i in range(num_stages)])
         vnew = TestFunction(Vbig)
         k = Function(Vbig)
@@ -60,14 +64,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             Fnew += replace(F, {t: tnew,
                                 u0: unew,
                                 v: vnew[i]})
-    elif num_fields > 1 and num_stages == 1:
-        k = Function(V)
-        kbits = split(k)
-        u0bits = split(u0)
-        repl = {t: t + Constant(c[0]) * dt}
-        for ubit, kbit in zip(u0bits, kbits):
-            repl[ubit] = ubit + dt * A[0, 0] * kbit
-        Fnew = inner(k, v)*dx + replace(F, repl)
+
     elif num_fields > 1 and num_stages > 1:
         Vbig = numpy.prod([V for i in range(num_stages)])
         vnew = TestFunction(Vbig)
