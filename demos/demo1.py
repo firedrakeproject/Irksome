@@ -4,9 +4,9 @@ from ufl.algorithms.ad import expand_derivatives
 
 from IRKsome import GaussLegendreButcherTableau, getForm
 
-BT = GaussLegendreButcherTableau(1)
+BT = GaussLegendreButcherTableau(2)
 ns = len(BT.b)
-N = 32
+N = 16
 
 # Single point of entry in case you want to change the size of the box.
 x0 = 0.0

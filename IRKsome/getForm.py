@@ -51,21 +51,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         for ubit, kbit in zip(u0bits, kbits):
             repl[ubit] = ubit + dt * A[0, 0] * kbit
         Fnew = inner(k, v)*dx + replace(F, repl)
-        
-    elif num_fields == 1:  
-        Vbig = numpy.prod([V for i in range(num_stages)])
-        vnew = TestFunction(Vbig)
-        k = Function(Vbig)
-        Fnew = inner(k, vnew) * dx
-        Ak = A @ k
-        for i in range(num_stages):
-            unew = u0 + dt * Ak[i]
-            tnew = t + Constant(c[i]) * dt
-            Fnew += replace(F, {t: tnew,
-                                u0: unew,
-                                v: vnew[i]})
-
-    elif num_fields > 1 and num_stages > 1:
+    else:
         Vbig = numpy.prod([V for i in range(num_stages)])
         vnew = TestFunction(Vbig)
         k = Function(Vbig)
