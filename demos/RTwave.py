@@ -30,9 +30,9 @@ t = Constant(tc)
 dtc = 1.0 / N
 dt = Constant(dtc)
 
-BT = LobattoIIIAButcherTableau(3)
+#BT = LobattoIIIAButcherTableau(2)
 #BT = GaussLegendreButcherTableau(2)
-#BT = BackwardEulerButcherTableau()
+BT = BackwardEulerButcherTableau()
 
 b = BT.b
 num_stages = len(b)

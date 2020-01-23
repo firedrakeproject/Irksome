@@ -41,34 +41,23 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     num_stages = len(c)
     num_fields = len(V)
 
-    # since split(u) == (u,) if u is not from a MixedFunctionSpace,
-    # we can fuse the mixed and not-mixed notation. 
-    if num_stages == 1:
-        k = Function(V)
-        kbits = split(k) 
-        u0bits = split(u0)
-        repl = {t: t + Constant(c[0]) * dt}
-        for ubit, kbit in zip(u0bits, kbits):
-            repl[ubit] = ubit + dt * A[0, 0] * kbit
-        Fnew = inner(k, v)*dx + replace(F, repl)
-    else:
-        Vbig = numpy.prod([V for i in range(num_stages)])
-        vnew = TestFunction(Vbig)
-        k = Function(Vbig)
-        vbits = split(v)
-        vbigbits = split(vnew)
-        u0bits = split(u0)
-        kbits = split(k)
-        
-        Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
-        Fnew = inner(k, vnew) * dx
-        for i in range(num_stages):
-            repl = {t: t + Constant(c[i]) * dt}
-            for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
-                repl[ubit] = ubit + dt * Ak[i, j]
-                repl[vbit] = vbigbits[num_fields * i + j]
+    Vbig = numpy.prod([V for i in range(num_stages)])
+    vnew = TestFunction(Vbig)
+    k = Function(Vbig)
+    vbits = split(v)
+    vbigbits = split(vnew)
+    u0bits = split(u0)
+    kbits = split(k)
 
-            Fnew += replace(F, repl)
+    Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
+    Fnew = inner(k, vnew) * dx
+    for i in range(num_stages):
+        repl = {t: t + Constant(c[i]) * dt}
+        for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
+            repl[ubit] = ubit + dt * Ak[i, j]
+            repl[vbit] = vbigbits[num_fields * i + j]
+
+        Fnew += replace(F, repl)
 
     return Fnew, k
 

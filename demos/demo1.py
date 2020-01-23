@@ -4,7 +4,7 @@ from ufl.algorithms.ad import expand_derivatives
 
 from IRKsome import GaussLegendreButcherTableau, getForm
 
-BT = GaussLegendreButcherTableau(2)
+BT = GaussLegendreButcherTableau(1)
 ns = len(BT.b)
 N = 16
 
