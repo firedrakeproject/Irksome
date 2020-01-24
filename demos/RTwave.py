@@ -4,7 +4,7 @@
 # with homogeneous Dirichlet BC p=0 (which are weakly enforced in mixed methods)
 
 from firedrake import *
-from IRKsome import GaussLegendreButcherTableau, LobattoIIIAButcherTableau, getForm, BackwardEulerButcherTableau
+from IRKsome import GaussLegendre, LobattoIIIA, getForm, BackwardEuler
 
 N = 10
 
@@ -30,9 +30,9 @@ t = Constant(tc)
 dtc = 1.0 / N
 dt = Constant(dtc)
 
-#BT = LobattoIIIAButcherTableau(2)
-#BT = GaussLegendreButcherTableau(2)
-BT = BackwardEulerButcherTableau()
+#BT = LobattoIIIA(2)
+#BT = GaussLegendre(2)
+BT = BackwardEuler()
 
 b = BT.b
 num_stages = len(b)

@@ -52,8 +52,8 @@ eFF = (inner(M*grad(dfdc(c)), grad(v))*dx +
        inner(M*lmbda*dot(grad(c), n), lap(v))*ds +
        inner(beta/h*M*lmbda*dot(grad(c), n), dot(grad(v), n))*ds)
 
-#BT = IRKsome.BackwardEulerButcherTableau()
-BT = IRKsome.GaussLegendreButcherTableau(2)
+#BT = IRKsome.BackwardEuler()
+BT = IRKsome.GaussLegendre(2)
 num_stages = len(BT.b)
 Fnew, k = IRKsome.getForm(eFF, BT, t_ufl, dt, c)
 

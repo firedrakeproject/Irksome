@@ -2,9 +2,9 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import GaussLegendreButcherTableau, getForm
+from IRKsome import GaussLegendre, getForm
 
-BT = GaussLegendreButcherTableau(1)
+BT = GaussLegendre(1)
 ns = len(BT.b)
 N = 16
 

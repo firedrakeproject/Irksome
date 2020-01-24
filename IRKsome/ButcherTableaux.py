@@ -9,12 +9,12 @@ class ButcherTableau(object):
         self.c = c
 
 
-class BackwardEulerButcherTableau(ButcherTableau):
+class BackwardEuler(ButcherTableau):
     def __init__(self):
         A = numpy.array([[1.0]])
         b = numpy.array([1.0])
         c = numpy.array([1.0])
-        super(BackwardEulerButcherTableau, self).__init__(A, b, c)
+        super(BackwardEuler, self).__init__(A, b, c)
 
 
 class CollocationButcherTableau(ButcherTableau):
@@ -49,17 +49,17 @@ class CollocationButcherTableau(ButcherTableau):
         super(CollocationButcherTableau, self).__init__(A, b, c)
 
 
-class GaussLegendreButcherTableau(CollocationButcherTableau):
+class GaussLegendre(CollocationButcherTableau):
     def __init__(self, num_stages):
         assert num_stages > 0
         U = FIAT.ufc_simplex(1)
         L = FIAT.GaussLegendre(U, num_stages - 1)
-        super(GaussLegendreButcherTableau, self).__init__(L)
+        super(GaussLegendre, self).__init__(L)
 
 
-class LobattoIIIAButcherTableau(CollocationButcherTableau):
+class LobattoIIIA(CollocationButcherTableau):
     def __init__(self, num_stages):
         assert num_stages > 1
         U = FIAT.ufc_simplex(1)
         L = FIAT.GaussLobattoLegendre(U, num_stages - 1)
-        super(LobattoIIIAButcherTableau, self).__init__(L)
+        super(LobattoIIIA, self).__init__(L)
