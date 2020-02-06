@@ -3,6 +3,19 @@ from firedrake import TestFunction, Function, inner, Constant, dx, split
 from ufl import replace
 
 
+class RK(object):
+    def __init__(F, butch, t, dt, u0, bcs=None):
+        self.BT = butch
+        self.F = F
+        self.t = t
+        self.dt = dt
+        self.u0 = u0
+        self.bcs = bcs
+        self.bigF = None
+        
+    def advance(self):
+        pass
+
 def getForm(F, butch, t, dt, u0, bcs=None):
     """Given a variational form F(u; v) describing a nonlinear
     time-dependent problem (u_t, v, t) + F(u, t; v) and a

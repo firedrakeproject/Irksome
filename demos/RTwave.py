@@ -31,11 +31,10 @@ dtc = 1.0 / N
 dt = Constant(dtc)
 
 #BT = LobattoIIIA(2)
-#BT = GaussLegendre(2)
-BT = BackwardEuler()
+BT = GaussLegendre(2)
+#BT = BackwardEuler()
 
 b = BT.b
-num_stages = len(b)
 num_fields = len(Z)
 
 bigF, k = getForm(F, BT, t, dt, up0)
@@ -52,7 +51,7 @@ while (tc < 1.0):
     solver.solve()
     print(tc, assemble(E))
 
-    for s in range(num_stages):
+    for s in range(BT.num_stages):
         for i in range(num_fields):
             up0.dat.data[i][:] += dtc * b[s] * k.dat.data[num_fields*s+i][:]
 

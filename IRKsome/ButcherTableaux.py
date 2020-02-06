@@ -8,6 +8,10 @@ class ButcherTableau(object):
         self.b = b
         self.c = c
 
+    @property
+    def num_stages(self):
+        return len(self.b)
+
 
 class BackwardEuler(ButcherTableau):
     def __init__(self):
