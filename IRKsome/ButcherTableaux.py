@@ -1,5 +1,6 @@
 import FIAT
 import numpy
+from numpy import sqrt
 
 
 class ButcherTableau(object):
@@ -63,3 +64,22 @@ class LobattoIIIA(CollocationButcherTableau):
         U = FIAT.ufc_simplex(1)
         L = FIAT.GaussLobattoLegendre(U, num_stages - 1)
         super(LobattoIIIA, self).__init__(L)
+
+class Radau23(ButcherTableau):
+    def __init__(self):
+        A = numpy.array([[5./12, -1./12], [3./4, 1./4]])
+        b = numpy.array([3./4, 1./4])
+        c = numpy.array([1./3, 1.])
+        super(Radau23, self).__init__(A, b, c)
+        
+
+class Radau35(ButcherTableau):
+    def __init__(self):
+        A = numpy.array([[11./45 - 7*sqrt(6)/360, 37./225 - 169*sqrt(6)/1800,
+                          -2./225 + sqrt(6)/75],
+                         [37./225 + 169*sqrt(6)/1800, 11./45 - 7*sqrt(6) / 360,
+                          -2./225 - sqrt(6)/75],
+                         [4./9 - sqrt(6)/36, 4./9 + sqrt(6)/36, 1./9]])
+        b = numpy.array([4./9-sqrt(6)/36, 4./9 + sqrt(6)/36, 1./9])
+        c = numpy.array([2./5 - sqrt(6)/10, 2./5 + sqrt(6)/10, 1.0])
+        super(Radau35, self).__init__(A, b, c)       

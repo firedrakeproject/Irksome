@@ -51,7 +51,7 @@ v = TestFunction(V)
 F = inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 
 # hand off the nonlinear function F to get weak form for RK method
-Fnew, k = getForm(F, BT, t, dt, u)
+Fnew, k, _ = getForm(F, BT, t, dt, u)
 
 # We only need to set up the solver one time!
 params = {"mat_type": "aij",
@@ -71,7 +71,7 @@ solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 # get a tuple of the stages, each as a Coefficient
 ks = k.split()
 
-while (tc < 2.0):
+while (tc < 1.0):
     solver.solve()
 
     # update unew
@@ -85,4 +85,4 @@ while (tc < 2.0):
     print(tc)
 
 print()
-print(errornorm(uexact, unew))
+print(errornorm(uexact, unew)/norm(uexact))

@@ -2,11 +2,12 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import GaussLegendreButcherTableau, getForm
+from IRKsome import GaussLegendre, LobattoIIIA, getForm
 
-BT = GaussLegendreButcherTableau(2)
+BT = LobattoIIIA(2)
+print(BT.A)
 ns = len(BT.b)
-N = 16
+N = 64
 
 # Single point of entry in case you want to change the size of the box.
 x0 = 0.0
@@ -22,7 +23,7 @@ x, y = SpatialCoordinate(msh)
 S = Constant(2.0)
 C = Constant(1000.0)
 tc = 0
-dtc = 10. / N
+dtc = 100. / N
 dt = Constant(dtc)
 t = Constant(0.0)
 
@@ -64,7 +65,7 @@ params = {"mat_type": "aij",
 # parameters.
 
 per_field = {"ksp_type": "preonly",  
-              "pc_type": "gamg"}
+              "pc_type": "lu"}
 
 num_stages = len(BT.b)
 

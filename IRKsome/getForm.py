@@ -1,6 +1,7 @@
 import numpy
-from firedrake import TestFunction, Function, inner, Constant, dx, split
-from ufl import replace
+from firedrake import TestFunction, Function, inner, Constant, dx, split, DirichletBC, interpolate
+from ufl import replace, diff
+from ufl.algorithms import expand_derivatives
 
 
 def getForm(F, butch, t, dt, u0, bcs=None):
@@ -26,8 +27,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     used to store the RK stages.  This would be the starting function/solution
     to a :class:`NonlinearVariationalProblem` for all the stages.
 """
-    if bcs is not None:
-        raise NotImplementedError("Don't have BCs worked out yet")
 
     v = F.arguments()[0]
     V = v.function_space()
@@ -49,6 +48,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
     Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
     Fnew = inner(k, vnew) * dx
+
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
         for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
@@ -57,7 +57,29 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
         Fnew += replace(F, repl)
 
-    return Fnew, k
+    bcnew = []
+    gblah = []
+
+    if bcs is None:
+        bcs = []
+    for bc in bcs:
+        if bc.domain_args[0] == "on_boundary":
+            boundary = "on_boundary"
+        else:
+            boundary = ()
+            for j in bc.domain_args[1][1]:
+                boundary += j 
+        gfoo = expand_derivatives(diff(bc._original_val, t))
+        print(gfoo)
+        for i in range(num_stages):
+            gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
+            gdat = interpolate(gcur, V)
+
+            gblah.append((gdat, gcur))
+
+            bcnew.append(DirichletBC(Vbig[i], gdat, "on_boundary"))
+
+    return Fnew, k, (bcnew, gblah)
 
 
 def getFormW(F, butch, t, dt, u0):
