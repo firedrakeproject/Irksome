@@ -54,7 +54,6 @@ eFF = (inner(M*grad(dfdc(c)), grad(v))*dx +
 
 #BT = IRKsome.BackwardEuler()
 BT = IRKsome.GaussLegendre(2)
-num_stages = len(BT.b)
 Fnew, k = IRKsome.getForm(eFF, BT, t_ufl, dt, c)
 
 prob = NonlinearVariationalProblem(Fnew, k)
@@ -129,10 +128,10 @@ while t < T:
     PETSc.Sys.Print("Time: %s" % t)
     t += delta_t
     solver.solve()
-    if num_stages == 1:
+    if BT.num_stages == 1:
         c += delta_t * k
     else:
-        for s in range(num_stages):
+        for s in range(BT.num_stages):
             c.dat.data[:] += delta_t * BT.b[s] * k.dat.data[s][:]
     
     # fl.write(get_output())
