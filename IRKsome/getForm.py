@@ -13,9 +13,10 @@ class RK(object):
         self.u0 = u0
         self.bcs = bcs
         self.bigF = None
-        
+
     def advance(self):
         pass
+
 
 def getForm(F, butch, t, dt, u0, bcs=None):
     """Given a variational form F(u; v) describing a nonlinear
@@ -83,7 +84,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             for j in bc.domain_args[1][1]:
                 boundary += j 
         gfoo = expand_derivatives(diff(bc._original_val, t))
-        print(gfoo)
+
         for i in range(num_stages):
             gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
             gdat = interpolate(gcur, V)
@@ -92,7 +93,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
             bcnew.append(DirichletBC(Vbig[i], gdat, "on_boundary"))
 
-    return Fnew, k, (bcnew, gblah)
+    return Fnew, k, bcnew, gblah
 
 
 def getFormW(F, butch, t, dt, u0):

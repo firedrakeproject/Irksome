@@ -26,18 +26,15 @@ dtc = 1. / N
 dt = Constant(dtc)
 t = Constant(0.0)
 
-# We can just let these and the true solutions be expressions!
+# We can just let these and the true solutions be expressions
 B = (x-Constant(x0))*(x-Constant(x1))*(y-Constant(y0))*(y-Constant(y1))/C
 R = (x * x + y * y) ** 0.5
-
-# This will give the exact solution at any time t.  We just have
-# to t.assign(time_we_want)
 uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
 
 # MMS works on symbolic differentiation of true solution, not weak form
-# Except we might need to futz with this since replacement is breaking on this!
 rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
+# Holds the initial condition
 u = interpolate(uexact, V)
 
 # Build it once and update it rather than deepcopying in the
@@ -50,8 +47,10 @@ unew = Function(V)
 v = TestFunction(V)
 F = inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 
+bc = DirichletBC(V, 0, "on_boundary")
+
 # hand off the nonlinear function F to get weak form for RK method
-Fnew, k, _ = getForm(F, BT, t, dt, u)
+Fnew, k, bcnew, bcdata = getForm(F, BT, t, dt, u)
 
 # We only need to set up the solver one time!
 params = {"mat_type": "aij",
