@@ -2,25 +2,14 @@ import numpy
 from firedrake import TestFunction, Function, inner, Constant, dx, split, DirichletBC, interpolate
 from ufl import replace, diff
 from ufl.algorithms import expand_derivatives
+from ufl.algorithms.map_integrands import map_integrand_dags
+from ufl.corealg.map_dag import MultiFunction
 
-
-class RK(object):
-    def __init__(F, butch, t, dt, u0, bcs=None):
-        self.BT = butch
-        self.F = F
-        self.t = t
-        self.dt = dt
-        self.u0 = u0
-        self.bcs = bcs
-        self.bigF = None
-
-    def advance(self):
-        pass
+from .formmanipulation import split_time_terms
 
 
 def getForm(F, butch, t, dt, u0, bcs=None):
-    """Given a variational form F(u; v) describing a nonlinear
-    time-dependent problem (u_t, v, t) + F(u, t; v) and a
+    """Given a time-dependent variational form and a
     Butcher tableau, produce UFL for the s-stage RK method.
 
     :arg F: UFL form for the ODE part (leaving off the time derivative)
@@ -61,16 +50,28 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     kbits = split(k)
 
     Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
-    Fnew = inner(k, vnew) * dx
 
+    F_notime, F_time = split_time_terms(F)
+
+    class MapFTime(MultiFunction):
+        expr = MultiFunction.reuse_if_untouched
+        def time_derivative(self, o):
+            return o.ufl_operands[0]
+
+    Fnew = replace(map_integrand_dags(MapFTime(), F_time),
+                   {u0: k, v: vnew})
+
+    print(Fnew)
+    print()
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
         for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
             repl[ubit] = ubit + dt * Ak[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
 
-        Fnew += replace(F, repl)
+        Fnew += replace(F_notime, repl)
 
+ 
     bcnew = []
     gblah = []
 

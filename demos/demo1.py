@@ -2,7 +2,7 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import GaussLegendre, getForm
+from IRKsome import GaussLegendre, getForm, Dt
 
 BT = GaussLegendre(1)
 ns = len(BT.b)
@@ -13,7 +13,6 @@ x0 = 0.0
 x1 = 10.0
 y0 = 0.0
 y1 = 10.0
-
 msh = RectangleMesh(N, N, x1, y1)
 V = FunctionSpace(msh, "CG", 1)
 x, y = SpatialCoordinate(msh)
@@ -45,12 +44,12 @@ unew = Function(V)
 # notice that there is no time derivative term.  Our function
 # supplies that.
 v = TestFunction(V)
-F = inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
+F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 
 bc = DirichletBC(V, 0, "on_boundary")
 
 # hand off the nonlinear function F to get weak form for RK method
-Fnew, k, bcnew, bcdata = getForm(F, BT, t, dt, u)
+Fnew, k, bcnew, bcdata = getForm(F, BT, t, dt, u, bcs=bc)
 
 # We only need to set up the solver one time!
 params = {"mat_type": "aij",
