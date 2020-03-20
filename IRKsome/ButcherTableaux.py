@@ -69,6 +69,7 @@ class LobattoIIIA(CollocationButcherTableau):
         L = FIAT.GaussLobattoLegendre(U, num_stages - 1)
         super(LobattoIIIA, self).__init__(L)
 
+
 class Radau23(ButcherTableau):
     def __init__(self):
         A = numpy.array([[5./12, -1./12], [3./4, 1./4]])
@@ -86,4 +87,4 @@ class Radau35(ButcherTableau):
                          [4./9 - sqrt(6)/36, 4./9 + sqrt(6)/36, 1./9]])
         b = numpy.array([4./9-sqrt(6)/36, 4./9 + sqrt(6)/36, 1./9])
         c = numpy.array([2./5 - sqrt(6)/10, 2./5 + sqrt(6)/10, 1.0])
-        super(Radau35, self).__init__(A, b, c)       
+        super(Radau35, self).__init__(A, b, c)

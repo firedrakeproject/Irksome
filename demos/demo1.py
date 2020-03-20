@@ -6,7 +6,7 @@ from IRKsome import GaussLegendre, getForm, Dt
 
 BT = GaussLegendre(1)
 ns = len(BT.b)
-N = 16
+N = 32
 
 # Single point of entry in case you want to change the size of the box.
 x0 = 0.0

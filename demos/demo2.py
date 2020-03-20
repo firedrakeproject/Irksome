@@ -5,12 +5,12 @@ from firedrake import *  # noqa: F403
 from ufl.algorithms.ad import expand_derivatives
 from ufl import replace
 
-from IRKsome import LobattoIIIA, getForm
+from IRKsome import LobattoIIIA, getForm, Dt
 
 BT = LobattoIIIA(2)
 
 ns = len(BT.b)
-N = 32
+N = 16
 msh = UnitSquareMesh(N, N)
 
 V = FunctionSpace(msh, "CG", 1)
@@ -33,7 +33,7 @@ u = interpolate(uexact, V)
 # supplies that.
 v = TestFunction(V)
 
-F = inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
+F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(rhs, v) * dx
 bcs= DirichletBC(V, uexact, "on_boundary") 
 
 Fnew, k, bcnew, gblah = getForm(F, BT, t, dt, u, bcs=bcs)

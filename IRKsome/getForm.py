@@ -4,6 +4,7 @@ from ufl import replace, diff
 from ufl.algorithms import expand_derivatives
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.corealg.map_dag import MultiFunction
+from ufl.classes import Zero
 
 from .formmanipulation import split_time_terms
 
@@ -58,11 +59,14 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         def time_derivative(self, o):
             return o.ufl_operands[0]
 
-    Fnew = replace(map_integrand_dags(MapFTime(), F_time),
-                   {u0: k, v: vnew})
+    Fstripdt = map_integrand_dags(MapFTime(), F_time)
+    Fnew = Zero()
+    for i in range(num_stages):
+        for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
+            Fnew += replace(Fstripdt, {ubit: kbits[num_fields * i + j],
+                                       vbit: vbigbits[num_fields * i + j]})
 
-    print(Fnew)
-    print()
+
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
         for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
