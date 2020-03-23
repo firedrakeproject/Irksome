@@ -76,7 +76,7 @@ class Radau23(ButcherTableau):
         b = numpy.array([3./4, 1./4])
         c = numpy.array([1./3, 1.])
         super(Radau23, self).__init__(A, b, c)
-        
+
 
 class Radau35(ButcherTableau):
     def __init__(self):

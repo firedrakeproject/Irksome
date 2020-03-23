@@ -1,10 +1,10 @@
 import numpy
-from firedrake import TestFunction, Function, inner, Constant, dx, split, DirichletBC, interpolate
+from firedrake import (TestFunction, Function, Constant,
+                       split, DirichletBC, interpolate)
 from ufl import replace, diff
 from ufl.algorithms import expand_derivatives
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.corealg.map_dag import MultiFunction
-from ufl.classes import Zero
 
 from .formmanipulation import split_time_terms
 
@@ -54,9 +54,9 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
     F_notime, F_time = split_time_terms(F)
 
-    print(F_time, "\n")
     class MapFTime(MultiFunction):
         expr = MultiFunction.reuse_if_untouched
+
         def time_derivative(self, o):
             return o.ufl_operands[0]
 
@@ -65,7 +65,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
             Fnew = replace(Fnew, {ubit: kbits[num_fields * i + j],
                                   vbit: vbigbits[num_fields * i + j]})
-            
+
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
         for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
@@ -85,7 +85,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         else:
             boundary = ()
             for j in bc.domain_args[1][1]:
-                boundary += j 
+                boundary += j
         gfoo = expand_derivatives(diff(bc._original_val, t))
 
         for i in range(num_stages):

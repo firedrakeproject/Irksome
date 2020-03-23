@@ -1,6 +1,6 @@
 from ufl.differentiation import Derivative
 from ufl.core.ufl_type import ufl_type
-from ufl import Coefficient
+
 
 @ufl_type(num_ops=1,
           inherit_shape_from_operand=0,
@@ -20,4 +20,3 @@ class TimeDerivative(Derivative):
 
 def Dt(f):
     return TimeDerivative(f)
-
