@@ -4,7 +4,7 @@
 # with homogeneous Dirichlet BC p=0 (which are weakly enforced in mixed methods)
 
 from firedrake import *
-from IRKsome import GaussLegendre, LobattoIIIA, getForm, BackwardEuler
+from IRKsome import GaussLegendre, LobattoIIIA, getForm, BackwardEuler, Dt
 
 N = 10
 
@@ -21,7 +21,9 @@ upnew = Function(Z)
 
 u0, p0 = split(up0)
 
-F = inner(div(u0), w) * dx - inner(p0, div(v)) * dx
+#F =inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
+
+F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
 
 E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)
 
@@ -37,13 +39,14 @@ BT = GaussLegendre(2)
 b = BT.b
 num_fields = len(Z)
 
-bigF, k = getForm(F, BT, t, dt, up0)
+Fnew, k, bcnew, bcdata = getForm(F, BT, t, dt, up0)
 
 params = {"mat_type": "aij",
           "ksp_type": "preonly",
           "pc_type": "lu"}
 
-prob = NonlinearVariationalProblem(bigF, k)
+
+prob = NonlinearVariationalProblem(Fnew, k)
 solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
 
@@ -54,6 +57,7 @@ while (tc < 1.0):
     for s in range(BT.num_stages):
         for i in range(num_fields):
             up0.dat.data[i][:] += dtc * b[s] * k.dat.data[num_fields*s+i][:]
+
 
     tc += dtc
     t.assign(tc)
