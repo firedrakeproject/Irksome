@@ -2,7 +2,7 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import GaussLegendre, BackwardEuler, LobattoIIIA, Radau35, Radau23, getForm
+from IRKsome import GaussLegendre, BackwardEuler, LobattoIIIA, Radau35, Radau23, getForm, Dt
 
 BT = Radau23()
 ns = len(BT.b)
@@ -27,13 +27,11 @@ rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 u = interpolate(uexact, V)
 
 # define the variational form once outside the loop
-# notice that there is no time derivative term.  Our function
-# supplies that.
 h = CellSize(msh)
 n = FacetNormal(msh)
 beta = Constant(100.0)
 v = TestFunction(V)
-F = (inner(grad(u), grad(v))*dx - inner(rhs, v) * dx
+F = inner(Dt(u), v)*dx + (inner(grad(u), grad(v))*dx - inner(rhs, v) * dx
      - inner(dot(grad(u), n), v) * ds
      - inner(dot(grad(v), n), u - uexact) * ds
      + beta/h * inner(u - uexact, v) * ds)

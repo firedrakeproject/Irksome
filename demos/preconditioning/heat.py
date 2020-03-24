@@ -2,7 +2,7 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import GaussLegendre, LobattoIIIA, getForm
+from IRKsome import GaussLegendre, LobattoIIIA, getForm, Dt
 
 BT = LobattoIIIA(2)
 print(BT.A)
@@ -46,13 +46,11 @@ u = interpolate(uexact, V)
 unew = Function(V)
 
 # define the variational form once outside the loop
-# notice that there is no time derivative term.  Our function
-# supplies that.
 v = TestFunction(V)
-F = inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
+F =  inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 
 # hand off the nonlinear function F to get weak form for RK method
-Fnew, k = getForm(F, BT, t, dt, u)
+Fnew, k, _, _ = getForm(F, BT, t, dt, u)
 
 params = {"mat_type": "aij",
           "snes_type": "ksponly",

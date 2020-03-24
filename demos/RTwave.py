@@ -21,8 +21,6 @@ upnew = Function(Z)
 
 u0, p0 = split(up0)
 
-#F =inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
-
 F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
 
 E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)

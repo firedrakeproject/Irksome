@@ -44,8 +44,6 @@ u, p = split(up)
 upnew = project(up, Z)
 
 # define the variational form once outside the loop
-# notice that there is no time derivative term.  Our function
-# supplies that.
 v, w = TestFunctions(Z)
 
 F = (inner(Dt(p), w) * dx + inner(div(u), w) * dx - inner(rhs, w) * dx
