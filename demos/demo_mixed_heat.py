@@ -6,7 +6,7 @@ from IRKsome import GaussLegendre, BackwardEuler, getForm, Dt
 
 import matplotlib.pyplot as plt
 
-BT = GaussLegendre(1)
+BT = GaussLegendre(2)
 ns = len(BT.b)
 N = 32
 
@@ -83,7 +83,7 @@ while (tc < 1.0):
 
 print()
 print(errornorm(pexact, upnewbits[1])/norm(pexact))
-# import matplotlib.pyplot as plt
-# tricontourf(project(upnewbits[1], W))
-# tricontourf(project(pexact, W))
-# plt.show()
+import matplotlib.pyplot as plt
+tricontourf(project(upnewbits[1], W))
+tricontourf(project(pexact, W))
+plt.show()
