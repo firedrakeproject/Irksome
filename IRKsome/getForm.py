@@ -8,6 +8,7 @@ from ufl.corealg.map_dag import MultiFunction
 from ufl.classes import Zero
 
 from .formmanipulation import split_time_terms
+from .deriv import TimeDerivative
 
 
 def getForm(F, butch, t, dt, u0, bcs=None):
@@ -53,32 +54,15 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
     Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
 
-    F_notime, F_time = split_time_terms(F)
-
-    class MapFTime(MultiFunction):
-        expr = MultiFunction.reuse_if_untouched
-
-        def time_derivative(self, o):
-            return o.ufl_operands[0]
-
-    Ffoo = map_integrand_dags(MapFTime(), F_time)
     Fnew = Zero()
-    for i in range(num_stages):
-        for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
-            Fbar = replace(Ffoo, {ubit: kbits[num_fields * i + j],
-                                  vbit: vbigbits[num_fields * i + j]})
-            # detects if we really made a change, i.e. if this piece
-            # of u was actually present.
-            if str(Fbar) != str(Ffoo):
-                Fnew += Fbar
 
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
-        for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
+        for j, (ubit, vbit, kbit) in enumerate(zip(u0bits, vbits, kbits)):
             repl[ubit] = ubit + dt * Ak[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
-
-        Fnew += replace(F_notime, repl)
+            repl[TimeDerivative(ubit)] = kbits[num_fields * i + j]
+        Fnew += replace(F, repl)
 
     bcnew = []
     gblah = []
