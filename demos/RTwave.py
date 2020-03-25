@@ -4,7 +4,7 @@
 # with homogeneous Dirichlet BC p=0 (which are weakly enforced in mixed methods)
 
 from firedrake import *
-from IRKsome import GaussLegendre, LobattoIIIA, getForm, BackwardEuler, Dt
+from IRKsome import GaussLegendre, getForm, Dt
 
 N = 10
 
@@ -17,8 +17,6 @@ v, w = TestFunctions(Z)
 x, y = SpatialCoordinate(msh)
 up0 = project(as_vector([0, 0, sin(pi*x)*sin(pi*y)]), Z)
 
-upnew = Function(Z)
-
 u0, p0 = split(up0)
 
 F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
@@ -30,9 +28,8 @@ t = Constant(tc)
 dtc = 1.0 / N
 dt = Constant(dtc)
 
-#BT = LobattoIIIA(2)
+# Note: LobattoIIIA works for energy conservation, BackwardEuler does not!
 BT = GaussLegendre(2)
-#BT = BackwardEuler()
 
 b = BT.b
 num_fields = len(Z)
