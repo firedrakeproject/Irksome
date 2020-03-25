@@ -53,7 +53,6 @@ while (tc < 1.0):
         for i in range(num_fields):
             up0.dat.data[i][:] += dtc * b[s] * k.dat.data[num_fields*s+i][:]
 
-
     tc += dtc
     t.assign(tc)
 

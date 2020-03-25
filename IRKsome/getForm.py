@@ -3,11 +3,7 @@ from firedrake import (TestFunction, Function, Constant,
                        split, DirichletBC, interpolate)
 from ufl import replace, diff
 from ufl.algorithms import expand_derivatives
-from ufl.algorithms.map_integrands import map_integrand_dags
-from ufl.corealg.map_dag import MultiFunction
 from ufl.classes import Zero
-
-from .formmanipulation import split_time_terms
 from .deriv import TimeDerivative
 
 
