@@ -4,7 +4,7 @@ from firedrake import (TestFunction, Function, Constant,
 from ufl import replace, diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
-from .deriv import TimeDerivative
+from .deriv import TimeDerivative, apply_time_derivatives
 
 
 def getForm(F, butch, t, dt, u0, bcs=None):
@@ -50,6 +50,9 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
     Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
 
+    # Let's splat out time derivatives in F
+    #F = apply_time_derivatives(F, t, [u0])
+    
     Fnew = Zero()
 
     for i in range(num_stages):
