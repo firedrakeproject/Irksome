@@ -52,7 +52,7 @@ F =  inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 bc = DirichletBC(V, 0, "on_boundary")
 
 # hand off the nonlinear function F to get weak form for RK method
-Fnew, k, bcnew, gblah = getForm(F, BT, t, dt, u, bcs=bc)
+Fnew, k, bcnew, bcdata = getForm(F, BT, t, dt, u, bcs=bc)
 
 params = {"mat_type": "aij",
           "snes_type": "ksponly",
