@@ -23,7 +23,7 @@ x, y = SpatialCoordinate(msh)
 S = Constant(2.0)
 C = Constant(1000.0)
 tc = 0
-dtc = 100. / N
+dtc = 1. / N
 dt = Constant(dtc)
 t = Constant(0.0)
 
@@ -49,8 +49,10 @@ unew = Function(V)
 v = TestFunction(V)
 F =  inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 
+bc = DirichletBC(V, 0, "on_boundary")
+
 # hand off the nonlinear function F to get weak form for RK method
-Fnew, k, _, _ = getForm(F, BT, t, dt, u)
+Fnew, k, bcnew, gblah = getForm(F, BT, t, dt, u, bcs=bc)
 
 params = {"mat_type": "aij",
           "snes_type": "ksponly",
@@ -70,15 +72,9 @@ num_stages = len(BT.b)
 for s in range(num_stages):
     params["fieldsplit_%s" % (s,)] = per_field
 
+ks = k.split()
 
-# Hack: apply homogeneous BC at each stage.  We need to do more general
-# things in getForm.
-# bcs = DirichletBC(Fnew.arguments()[0].function_space(), 0, "on_boundary")
-fs = Fnew.arguments()[0].function_space()
-bcs = [DirichletBC(fs[i], 0, "on_boundary") for i in range(len(fs))]
-
-
-prob = NonlinearVariationalProblem(Fnew, k, bcs=bcs)
+prob = NonlinearVariationalProblem(Fnew, k, bcs=bcnew)
 solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
 solver.solve()
