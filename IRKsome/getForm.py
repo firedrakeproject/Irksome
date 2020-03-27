@@ -51,8 +51,8 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
 
     # Let's splat out time derivatives in F
-    #F = apply_time_derivatives(F, t, [u0])
-    
+    # F = apply_time_derivatives(F, t, [u0])
+
     Fnew = Zero()
 
     for i in range(num_stages):

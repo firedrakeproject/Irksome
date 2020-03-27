@@ -88,3 +88,26 @@ class Radau35(ButcherTableau):
         b = numpy.array([4./9-sqrt(6)/36, 4./9 + sqrt(6)/36, 1./9])
         c = numpy.array([2./5 - sqrt(6)/10, 2./5 + sqrt(6)/10, 1.0])
         super(Radau35, self).__init__(A, b, c)
+
+
+class LobattoIIIC(ButcherTableau):
+    def __init__(self, num_stages):
+        assert num_stages > 1
+        # mooch the b and c from IIIA
+        IIIA = LobattoIIIA(num_stages)
+        b = IIIA.b
+        c = IIIA.c
+
+        A = numpy.zeros((num_stages, num_stages))
+        for i in range(num_stages):
+            A[i, 0] = b[0]
+        for j in range(num_stages):
+            A[-1, j] = b[j]
+
+        mat = numpy.vander(c[1:], increasing=True).T
+        for i in range(num_stages-1):
+            rhs = numpy.array([(c[i]**(k+1))/(k+1) - b[0] * c[0]**k
+                               for k in range(num_stages-1)])
+            A[i, 1:] = numpy.linalg.solve(mat, rhs)
+
+        super(LobattoIIIC, self).__init__(A, b, c)
