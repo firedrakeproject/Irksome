@@ -54,14 +54,15 @@ eFF = (inner(M*grad(dfdc(c)), grad(v))*dx +
 
 #BT = IRKsome.BackwardEuler()
 BT = IRKsome.GaussLegendre(2)
-Fnew, k = IRKsome.getForm(eFF, BT, t_ufl, dt, c)
+Fnew, k, _, _ = IRKsome.getForm(eFF, BT, t_ufl, dt, c)
 
 prob = NonlinearVariationalProblem(Fnew, k)
 
 params = {'snes_monitor': None, 'snes_max_it': 100,
-          'snes_linesearch_type': 'basic',
+          'snes_linesearch_type': 'l2',
           'ksp_type': 'preonly',
-          'pc_type': 'lu', 'mat_type': 'aij'}
+          'pc_type': 'lu', 'mat_type': 'aij',
+          'pc_factor_mat_solver_type': 'mumps'}
 
 solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
@@ -123,7 +124,7 @@ def surfplot(name):
                 format='pdf', bbox_inches='tight', pad_inches=0)
 
 
-surfplot("initial")
+#surfplot("initial")
 while t < T:
     PETSc.Sys.Print("Time: %s" % t)
     t += delta_t
@@ -135,5 +136,5 @@ while t < T:
             c.dat.data[:] += delta_t * BT.b[s] * k.dat.data[s][:]
     
     # fl.write(get_output())
-surfplot("final")
+#surfplot("final")
 print(np.max(c.dat.data[::6]))
