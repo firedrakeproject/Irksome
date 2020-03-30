@@ -2,7 +2,7 @@ from firedrake import *
 from firedrake.petsc import PETSc
 import numpy as np
 import os
-import IRKsome
+from IRKsome import Dt, getForm, BackwardEuler, LobattoIIIA
 
 if not os.path.exists("pictures/cahnhilliard"):
     os.makedirs("pictures/cahnhilliard")
@@ -46,15 +46,17 @@ def lap(u):
 n = FacetNormal(msh)
 h = CellSize(msh)
 
-eFF = (inner(M*grad(dfdc(c)), grad(v))*dx +
+eFF = (inner(Dt(c), v) * dx +
+       inner(M*grad(dfdc(c)), grad(v))*dx +
        inner(M*lmbda*lap(c), lap(v))*dx -
        inner(M*lmbda*lap(c), dot(grad(v), n))*ds -
        inner(M*lmbda*dot(grad(c), n), lap(v))*ds +
        inner(beta/h*M*lmbda*dot(grad(c), n), dot(grad(v), n))*ds)
 
-#BT = IRKsome.BackwardEuler()
-BT = IRKsome.GaussLegendre(2)
-Fnew, k, _, _ = IRKsome.getForm(eFF, BT, t_ufl, dt, c)
+# Crank-Nicolson, like in Kirby/Mitchell
+# But takes some work since it's coded as a two-stage method
+ButcherTableau = LobattoIIIA(2)  
+Fnew, k, _, _ = getForm(eFF, ButcherTableau, t_ufl, dt, c)
 
 prob = NonlinearVariationalProblem(Fnew, k)
 
@@ -124,17 +126,27 @@ def surfplot(name):
                 format='pdf', bbox_inches='tight', pad_inches=0)
 
 
-#surfplot("initial")
+import matplotlib.pyplot as plt
+get_output()
+cs = tripcolor(output, vmin=0, vmax=1)
+plt.colorbar(cs)
+plt.savefig('pictures/cahnhilliard/init.pdf', format='pdf', bbox_inches='tight', pad_inches=0)
+
 while t < T:
     PETSc.Sys.Print("Time: %s" % t)
     t += delta_t
     solver.solve()
-    if BT.num_stages == 1:
+    if ButcherTableau.num_stages == 1:
         c += delta_t * k
     else:
-        for s in range(BT.num_stages):
-            c.dat.data[:] += delta_t * BT.b[s] * k.dat.data[s][:]
+        for s in range(ButcherTableau.num_stages):
+            c.dat.data[:] += delta_t * ButcherTableau.b[s] * k.dat.data[s][:]
     
-    # fl.write(get_output())
-#surfplot("final")
+    #fl.write(get_output())
+
+get_output()
+cs = tripcolor(output, vmin=0, vmax=1)
+plt.colorbar(cs)
+plt.savefig('pictures/cahnhilliard/final.pdf', format='pdf', bbox_inches='tight', pad_inches=0)
+
 print(np.max(c.dat.data[::6]))
