@@ -59,9 +59,10 @@ luparams = {"mat_type": "aij",
 stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                       solver_parameters=luparams)
 
-while (t.values()[0] < 1.0):
+while (float(t) < 1.0):
     stepper.advance()
-    print(t.values()[0])
+    print(float(t))
+    t.assign(float(t) + float(dt))
  
 print()
 print(norm(u-uexact)/norm(uexact))

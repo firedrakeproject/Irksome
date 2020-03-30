@@ -37,19 +37,17 @@ class TimeStepper:
         self.solver.solve()
         self.update_solution()
 
-        self.t.assign(self.t.values()[0] + self.dt.values()[0])
-
     def _update_simple(self):
         b = self.butcher_tableau.b
         ks = self.ks
-        dtc = self.dt.values()[0]
+        dtc = float(self.dt)
         for i in range(self.num_stages):
             self.u0 += dtc * b[i] * ks[i]
 
     def _update_mixed(self):
         b = self.butcher_tableau.b
         u0 = self.u0
-        dtc = self.dt.values()[0]
+        dtc = float(self.dt)
         k = self.stages
         num_fields = self.num_fields
 
