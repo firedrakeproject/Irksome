@@ -120,10 +120,10 @@ class AdaptiveTimeStepper:
         else:
             k = self.stages
             for i in range(self.num_fields):
-                self.error_func[i][:] = 0.0
+                self.error_func.dat.data[i][:] = 0.0
             for s in range(self.num_stages):
                 for i in range(self.num_fields):
-                    self.error_func[i][:] += \
+                    self.error_func.dat.data[i][:] += \
                         dtc * delb[s] * k.dat.data[self.num_fields*s+i][:]
 
         return norm(self.error_func)
