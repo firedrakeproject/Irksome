@@ -5,6 +5,7 @@
 
 from firedrake import *
 from IRKsome import GaussLegendre, Dt, TimeStepper
+import numpy
 
 N = 10
 
@@ -43,10 +44,12 @@ stepper = TimeStepper(F, butcher_tableau, t, dt, up0,
                       solver_parameters=params)
 
 
+flip = 1
 while (float(t) < 1.0):
     stepper.advance()
     print(float(t), assemble(E))
 
     t.assign(float(t) + float(dt))
+    dt.assign((1 + (numpy.random.rand()-0.5)/10)*float(dt))
 
 

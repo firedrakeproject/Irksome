@@ -4,9 +4,8 @@ from ufl.algorithms.ad import expand_derivatives
 
 from IRKsome import GaussLegendre, getForm, Dt, AdaptiveTimeStepper
 
-butcher_tableau = GaussLegendre(1)
-ns = len(butcher_tableau.b)
-N = 100
+butcher_tableau = GaussLegendre(2)
+N = 64
 
 # Single point of entry in case you want to change the size of the box.
 x0 = 0.0
@@ -58,13 +57,12 @@ luparams = {"mat_type": "aij",
 # step.  u is also updated in place.
 
 stepper = AdaptiveTimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
-                              tol=1.e-3, dtmin = 1.e-4,
+                              tol=1.e-4, dtmin = 1.e-4,
                               solver_parameters=luparams)
 
 while (float(t) < 1.0):
     if (float(t) + float(dt)) >= 1.0:
         dt.assign(1.0 - float(t))
-    stepper.advance()
     print(float(t), float(dt))
     t.assign(float(t) + float(dt))
  

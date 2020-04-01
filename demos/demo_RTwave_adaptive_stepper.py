@@ -6,7 +6,7 @@
 from firedrake import *
 from IRKsome import GaussLegendre, Dt, AdaptiveTimeStepper
 
-N = 10
+N = 64
 
 msh = UnitSquareMesh(N, N)
 V = FunctionSpace(msh, "RT", 1)
@@ -40,14 +40,15 @@ params = {"mat_type": "aij",
           "pc_type": "lu"}
 
 stepper = AdaptiveTimeStepper(F, butcher_tableau, t, dt, up0,
-                              tol=1.e-2, dtmin=1.e-5,
+                              tol=1.e-3, dtmin=1.e-5,
                               solver_parameters=params)
 
-
+initial_energy = assemble(E)
 while (float(t) < 1.0):
-    stepper.advance()
+    err = stepper.advance()
     print(float(t), float(dt), assemble(E))
 
     t.assign(float(t) + float(dt))
+final_energy = assemble(E)
 
-
+print("Energy difference: ", abs(final_energy - initial_energy))
