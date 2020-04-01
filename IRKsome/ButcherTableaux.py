@@ -4,10 +4,11 @@ from numpy import sqrt
 
 
 class ButcherTableau(object):
-    def __init__(self, A, b, c):
+    def __init__(self, A, b, c, order):
         self.A = A
         self.b = b
         self.c = c
+        self.order = order
 
     @property
     def num_stages(self):
@@ -19,11 +20,11 @@ class BackwardEuler(ButcherTableau):
         A = numpy.array([[1.0]])
         b = numpy.array([1.0])
         c = numpy.array([1.0])
-        super(BackwardEuler, self).__init__(A, b, c)
+        super(BackwardEuler, self).__init__(A, b, c, 1)
 
 
 class CollocationButcherTableau(ButcherTableau):
-    def __init__(self, L):
+    def __init__(self, L, order):
         assert L.ref_el == FIAT.ufc_simplex(1)
 
         for ell in L.dual.nodes:
@@ -51,7 +52,7 @@ class CollocationButcherTableau(ButcherTableau):
             Lvals_i = L.tabulate(0, qpts_i)[0, ]
             A[i, :] = Lvals_i @ qwts_i
 
-        super(CollocationButcherTableau, self).__init__(A, b, c)
+        super(CollocationButcherTableau, self).__init__(A, b, c, order)
 
 
 class GaussLegendre(CollocationButcherTableau):
@@ -59,7 +60,7 @@ class GaussLegendre(CollocationButcherTableau):
         assert num_stages > 0
         U = FIAT.ufc_simplex(1)
         L = FIAT.GaussLegendre(U, num_stages - 1)
-        super(GaussLegendre, self).__init__(L)
+        super(GaussLegendre, self).__init__(L, 2 * num_stages)
 
 
 class LobattoIIIA(CollocationButcherTableau):
@@ -67,7 +68,7 @@ class LobattoIIIA(CollocationButcherTableau):
         assert num_stages > 1
         U = FIAT.ufc_simplex(1)
         L = FIAT.GaussLobattoLegendre(U, num_stages - 1)
-        super(LobattoIIIA, self).__init__(L)
+        super(LobattoIIIA, self).__init__(L, 2 * num_stages - 2)
 
 
 class Radau23(ButcherTableau):
@@ -75,7 +76,7 @@ class Radau23(ButcherTableau):
         A = numpy.array([[5./12, -1./12], [3./4, 1./4]])
         b = numpy.array([3./4, 1./4])
         c = numpy.array([1./3, 1.])
-        super(Radau23, self).__init__(A, b, c)
+        super(Radau23, self).__init__(A, b, c, 3)
 
 
 class Radau35(ButcherTableau):
@@ -87,7 +88,7 @@ class Radau35(ButcherTableau):
                          [4./9 - sqrt(6)/36, 4./9 + sqrt(6)/36, 1./9]])
         b = numpy.array([4./9-sqrt(6)/36, 4./9 + sqrt(6)/36, 1./9])
         c = numpy.array([2./5 - sqrt(6)/10, 2./5 + sqrt(6)/10, 1.0])
-        super(Radau35, self).__init__(A, b, c)
+        super(Radau35, self).__init__(A, b, c, 5)
 
 
 class LobattoIIIC(ButcherTableau):
@@ -110,4 +111,4 @@ class LobattoIIIC(ButcherTableau):
                                for k in range(num_stages-1)])
             A[i, 1:] = numpy.linalg.solve(mat, rhs)
 
-        super(LobattoIIIC, self).__init__(A, b, c)
+        super(LobattoIIIC, self).__init__(A, b, c, 2 * num_stages - 2)
