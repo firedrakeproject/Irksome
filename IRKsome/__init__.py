@@ -7,3 +7,4 @@ from .ButcherTableaux import Radau35          # noqa: F401
 from .getForm import getForm                  # noqa: F401
 from .deriv import Dt                         # noqa: F401
 from .stepper import TimeStepper              # noqa: F401
+from .stepper import AdaptiveTimeStepper      # noqa: F401
