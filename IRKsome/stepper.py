@@ -76,8 +76,8 @@ class AdaptiveTimeStepper(TimeStepper):
             err = self.estimate_error()
 
             print("\tTruncation error" ,err)
-            q = 0.84 * (self.tol / err)**(self.butcher_tableau.order-1)
-            # print("\tq factor:", q)
+            q = 0.84 * (self.tol / err)**(1./(self.butcher_tableau.order-1))
+            print("\tq factor:", q)
             if q <= 0.1:
                 q = 0.1
             elif q >= 4.0:

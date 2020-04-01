@@ -63,7 +63,9 @@ stepper = AdaptiveTimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
 while (float(t) < 1.0):
     if (float(t) + float(dt)) >= 1.0:
         dt.assign(1.0 - float(t))
-    print(float(t), float(dt))
+    err = stepper.advance()
+    print(float(t), float(dt), err[0])
+
     t.assign(float(t) + float(dt))
  
 print()
