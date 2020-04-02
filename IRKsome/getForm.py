@@ -76,14 +76,14 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             for j in bc.domain_args[1][1]:
                 boundary += j
         gfoo = expand_derivatives(diff(bc._original_val, t))
-
+        sub=bc.function_space_index()
         for i in range(num_stages):
             gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
-            gdat = interpolate(gcur, V)
+            gdat = interpolate(gcur, V.sub(sub))
 
             gblah.append((gdat, gcur))
 
-            bcnew.append(DirichletBC(Vbig[i], gdat, "on_boundary"))
+            bcnew.append(DirichletBC(Vbig[sub+(num_fields)*i], gdat, boundary))
 
     return Fnew, k, bcnew, gblah
 
