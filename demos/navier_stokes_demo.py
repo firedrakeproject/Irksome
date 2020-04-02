@@ -2,9 +2,9 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import LobattoIIIC, getForm, Dt, TimeStepper
+from IRKsome import GaussLegendre, getForm, Dt, TimeStepper
 
-BT = LobattoIIIC(3)
+BT = GaussLegendre(1)
 ns = len(BT.b)
 
 # Single point of entry in case you want to change the size of the box.
@@ -38,7 +38,7 @@ E = 0.5 * (inner(u, u)*dx + inner(p, p)*dx)
 
 # Stores initial condition!
 tc = 0
-dtc = 1. / 1600
+dtc = 1. /1600
 dt = Constant(dtc)
 t = Constant(0.0)
 nu=0.001
@@ -53,15 +53,14 @@ F = inner(Dt(u), v) * dx + inner(dot(u, grad(u)), v) * dx + nu*inner(grad(u), gr
     #+inner(div(u), w) * dx \
 
 # boundary conditions are specified for each subspace
-bcs_V = [ DirichletBC(Z.sub(0), as_vector( (4*1.5*sin(pi*t/8)*(y1-y)/(y1**2),0)) ,(4,)), DirichletBC(Z.sub(0), Constant((0,0)), (1,3,5)) ] 
-bcs_W = [ ] 
-bcs=[bcs_V,bcs_W]
+bcs = [ DirichletBC(Z.sub(0), as_vector( (4*1.5*sin(pi*t/8)*(y1-y)/(y1**2),0)) ,(4,)), DirichletBC(Z.sub(0), Constant((0,0)), (1,3,5)) ] 
+
 
 #nullspace = MixedVectorSpaceBasis(
 #    Z, [Z.sub(0), VectorSpaceBasis(constant=True)])
 
 # We only need to set up the solver one time!
-s_param={'ksp_type': 'preonly', 'pc_type': 'lu', 'pc_factor_shift_type': 'inblocks'}
+s_param={'ksp_type': 'preonly', 'pc_type': 'lu', 'pc_factor_shift_type': 'inblocks', "mat_type": "aij"}
 
 
 # the TimeStepper object builds the UFL for the multi-stage RK method
@@ -76,9 +75,8 @@ b = BT.b
 
 CD=[]
 CL=[]
-while (float(t) < 0.01):
+while (float(t) < 8):
     #Update step
-    print(tc, assemble(up[0]*dx))
     stepper.advance()
     print(float(t))
     t.assign(float(t) + float(dt))
