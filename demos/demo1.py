@@ -59,10 +59,14 @@ bc = DirichletBC(V, 0, "on_boundary")
 # hand off the nonlinear function F to get weak form for RK method
 Fnew, k, bcnew, bcdata = getForm(F, BT, t, dt, u, bcs=bc)
 
-# We only need to set up the solver one time!
+# We only need to set up the solver one time.  We could do a brute-force
+# LU factorization
 luparams = {"mat_type": "aij",
           "ksp_type": "preonly",
           "pc_type": "lu"}
+
+# Or geometric multigrid (monolithic!) with a num_stages x num_stages
+# block for each degree of freedom.
 
 mgparams = {"mat_type": "aij",
             "snes_type": "ksponly",

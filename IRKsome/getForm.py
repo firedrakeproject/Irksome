@@ -1,6 +1,6 @@
 import numpy
 from firedrake import (TestFunction, Function, Constant,
-                       split, DirichletBC, interpolate)
+                       split, DirichletBC, interpolate, project)
 from ufl import replace, diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
