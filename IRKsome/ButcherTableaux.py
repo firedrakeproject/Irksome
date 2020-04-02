@@ -117,3 +117,19 @@ class LobattoIIIC(ButcherTableau):
             A[i, 1:] = numpy.linalg.solve(mat, rhs)
 
         super(LobattoIIIC, self).__init__(A, b, None, c, 2 * num_stages - 2)
+
+
+class PareschiRusso(ButcherTableau):
+    """Diagonally implicit, 2-stage.  A-stable if x >= 1/4 and L-stable
+    iff x = 1 \pm 1/sqrt(2)."""
+    def __init__(self, x):
+        A = numpy.array([[x, 0.0], [1-2*x, x]])
+        b = numpy.array([0.5, 0.5])
+        c = numpy.array([x, 1-x])
+        super(PareschiRusso, self).__init__(A, b, None, c, 2)
+
+
+def QinZhang(x):
+    "Symplectic Pareschi-Russo DIRK"
+    return PareschiRusso(0.25)
+
