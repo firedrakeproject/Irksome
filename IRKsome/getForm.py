@@ -1,7 +1,7 @@
 import numpy
 from firedrake import (TestFunction, Function, Constant,
                        split, DirichletBC, interpolate, project)
-from ufl import replace, diff
+from ufl import replace, diff, as_vector, as_tensor
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from .deriv import TimeDerivative, apply_time_derivatives
@@ -51,7 +51,9 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
 
     # Let's splat out time derivatives in F
+    # print(F)
     # F = apply_time_derivatives(F, t, [u0])
+    # print(F)
 
     Fnew = Zero()
 
@@ -61,6 +63,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             repl[ubit] = ubit + dt * Ak[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
             repl[TimeDerivative(ubit)] = kbits[num_fields * i + j]
+
         Fnew += replace(F, repl)
 
     bcnew = []

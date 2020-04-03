@@ -24,7 +24,7 @@ F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p
 E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)
 
 t = Constant(0.0)
-dt = Constant(1.0/N)
+dt = Constant(1.0 / N)
 
 butcher_tableau = GaussLegendre(2)
 

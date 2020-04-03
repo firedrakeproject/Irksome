@@ -6,7 +6,7 @@
 from firedrake import *
 from IRKsome import GaussLegendre, getForm, Dt
 
-N = 10
+N = 64
 
 msh = UnitSquareMesh(N, N)
 V = FunctionSpace(msh, "RT", 2)
@@ -23,12 +23,9 @@ F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p
 
 E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)
 
-tc = 0.0
-t = Constant(tc)
-dtc = 1.0 / N
-dt = Constant(dtc)
+t = Constant(0.0)
+dt = Constant(10 / N)
 
-# Note: LobattoIIIA works for energy conservation, BackwardEuler does not!
 BT = GaussLegendre(2)
 
 b = BT.b
@@ -40,20 +37,22 @@ params = {"mat_type": "aij",
           "ksp_type": "preonly",
           "pc_type": "lu"}
 
-
 prob = NonlinearVariationalProblem(Fnew, k)
 solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
+while (float(t) < 1.0):
+    if (float(t) + float(dt) > 1.0):
+        dt.assign(1.0 - float(t))
 
-while (tc < 1.0):
     solver.solve()
-    print(tc, assemble(E))
+    print(float(t), assemble(E))
 
     for s in range(BT.num_stages):
         for i in range(num_fields):
-            up0.dat.data[i][:] += dtc * b[s] * k.dat.data[num_fields*s+i][:]
+            up0.dat.data[i][:] += float(dt) * b[s] * k.dat.data[num_fields*s+i][:]
 
-    tc += dtc
-    t.assign(tc)
+    t.assign(float(t) + float(dt))
+
+print(float(t), assemble(E))
 
 

@@ -18,12 +18,10 @@ vizmesh = MeshHierarchy(msh, 2)[-1]
 
 V = FunctionSpace(msh, "Bell", 5)
 
-lmbda = 1.e-2
-delta_t = 5.0e-6
-dt = Constant(delta_t)
-t = 0.0
-T = 0.0025
-t_ufl = Constant(t)
+lmbda = Constant(1.e-2)
+dt = Constant(5.0e-6)
+T = Constant(0.0025)
+t = Constant(0.0)
 M = Constant(1)
 
 beta = Constant(250.0)
@@ -56,7 +54,7 @@ eFF = (inner(Dt(c), v) * dx +
 # Crank-Nicolson, like in Kirby/Mitchell
 # But takes some work since it's coded as a two-stage method
 ButcherTableau = LobattoIIIA(2)  
-Fnew, k, _, _ = getForm(eFF, ButcherTableau, t_ufl, dt, c)
+Fnew, k, _, _ = getForm(eFF, ButcherTableau, t, dt, c)
 
 prob = NonlinearVariationalProblem(Fnew, k)
 
@@ -132,15 +130,14 @@ cs = tripcolor(output, vmin=0, vmax=1)
 plt.colorbar(cs)
 plt.savefig('pictures/cahnhilliard/init.pdf', format='pdf', bbox_inches='tight', pad_inches=0)
 
-while t < T:
-    PETSc.Sys.Print("Time: %s" % t)
-    t += delta_t
+
+ks = k.split()
+while float(t) < float(T):
+    PETSc.Sys.Print("Time: %s" % float(t))
+    t.assign(float(t) + float(dt))
     solver.solve()
-    if ButcherTableau.num_stages == 1:
-        c += delta_t * k
-    else:
-        for s in range(ButcherTableau.num_stages):
-            c.dat.data[:] += delta_t * ButcherTableau.b[s] * k.dat.data[s][:]
+    for s in range(ButcherTableau.num_stages):
+        c += float(dt) * ButcherTableau.b[s] * ks[s]
     
     #fl.write(get_output())
 

@@ -2,11 +2,11 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import GaussLegendre, BackwardEuler, getForm, Dt
+from IRKsome import LobattoIIIC, getForm, Dt
 
 import matplotlib.pyplot as plt
 
-BT = GaussLegendre(2)
+BT = LobattoIIIC(2)
 ns = len(BT.b)
 N = 32
 
@@ -24,9 +24,8 @@ x, y = SpatialCoordinate(msh)
 # Stores initial condition!
 S = Constant(2.0)
 C = Constant(1000.0)
-tc = 0
-dtc = 1. / N
-dt = Constant(dtc)
+
+dt = Constant(10.0 / N)
 t = Constant(0.0)
 
 # We can just let these and the true solutions be expressions
@@ -65,23 +64,19 @@ ks = k.split()
 upnewbits = upnew.split()
 num_fields = len(upnewbits)
 
-while (tc < 1.0):
+while (float(t) < 1.0):
+    if (float(t) + float(dt) > 1.0):
+        dt.assign(1.0 - float(t))
+
     solver.solve()
 
-    # update unew
+    # update
     for i in range(ns):
         for j in range(num_fields):
-            upnewbits[j].dat.data[:] += dtc * BT.b[i] * ks[i*num_fields+j].dat.data[:]
+            up.dat.data[j][:] += float(dt) * BT.b[i] * ks[i*num_fields+j].dat.data[:]
 
-    up.assign(upnew)
+    t.assign(float(t) + float(dt))
+    print(float(t))
 
-    tc += dtc
-    t.assign(tc)  # takes a new value, not a Constant
-    print(tc)
-
-print()
-print(errornorm(pexact, upnewbits[1])/norm(pexact))
-import matplotlib.pyplot as plt
-tricontourf(project(upnewbits[1], W))
-tricontourf(project(pexact, W))
-plt.show()
+u, p = up.split()
+print(errornorm(pexact, p) / norm(pexact))

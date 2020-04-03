@@ -39,6 +39,12 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
         else:
             return self.independent_terminal(o)
 
+    # def indexed(self, o, Ap, ii):
+    #     print(o, type(o))
+    #     print(Ap, type(Ap))
+    #     print(ii, type(ii))
+    #     1/0
+
 
 # mapping rules to splat out time derivatives so that replacement should
 # work on more complex problems.
@@ -57,6 +63,9 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
     expr = MultiFunction.reuse_if_untouched
 
     def grad(self, o):
+        from firedrake import grad
+        if isinstance(o, TimeDerivative):
+            return TimeDerivative(grad(*o.ufl_operands))
         return o
 
     def div(self, o):

@@ -21,9 +21,7 @@ x, y = SpatialCoordinate(msh)
 # Stores initial condition
 S = Constant(2.0)
 C = Constant(1000.0)
-tc = 0
-dtc = 10. / N
-dt = Constant(dtc)
+dt = Constant(10.0 / N)
 t = Constant(0.0)
 
 
@@ -60,6 +58,8 @@ stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                       solver_parameters=luparams)
 
 while (float(t) < 1.0):
+    if (float(t) + float(dt) > 1.0):
+        dt.assign(1.0 - float(t))
     stepper.advance()
     print(float(t))
     t.assign(float(t) + float(dt))

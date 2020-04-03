@@ -21,7 +21,7 @@ x, y = SpatialCoordinate(msh)
 S = Constant(2.0)
 C = Constant(1000.0)
 
-dt = Constant(1.0/N)
+dt = Constant(1.0 / N)
 t = Constant(0.0)
 
 
@@ -44,7 +44,7 @@ bc = DirichletBC(V, 0, "on_boundary")
 
 
 # Use very simple parameters.  More sophisticated options are possible.
-# However, the problem with LU is that we have to re-factor the stiffness
+# The problem with LU is that we have to re-factor the global stiffness
 # matrix each time we change the time step (bad news)
 luparams = {"mat_type": "aij",
             "ksp_type": "preonly",
