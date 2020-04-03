@@ -79,7 +79,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             for j in bc.domain_args[1][1]:
                 boundary += j
         gfoo = expand_derivatives(diff(bc._original_val, t))
-        if len(bc.function_space()) == 1:
+        if len(V) == 1:
             for i in range(num_stages):
                 gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
                 gdat = interpolate(gcur, V)
