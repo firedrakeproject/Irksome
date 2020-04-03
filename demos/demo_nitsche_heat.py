@@ -2,19 +2,17 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import GaussLegendre, BackwardEuler, LobattoIIIA, Radau35, Radau23, getForm, Dt
+from IRKsome import LobattoIIIC, getForm, Dt, TimeStepper
 
-BT = Radau23()
-ns = len(BT.b)
-N = 32
+ButcherTableau = LobattoIIIC(2)
+ns = ButcherTableau.num_stages
+N = 64
 
 msh = UnitSquareMesh(N, N)
 V = FunctionSpace(msh, "CG", 1)
 x, y = SpatialCoordinate(msh)
 
-tc = 0
-dtc = 1 / N
-dt = Constant(dtc)
+dt = Constant(10.0 / N)
 t = Constant(0.0)
 
 # This will give the exact solution at any time t.  We just have
@@ -31,37 +29,27 @@ h = CellSize(msh)
 n = FacetNormal(msh)
 beta = Constant(100.0)
 v = TestFunction(V)
-F = inner(Dt(u), v)*dx + (inner(grad(u), grad(v))*dx - inner(rhs, v) * dx
+F = (inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v) * dx
      - inner(dot(grad(u), n), v) * ds
      - inner(dot(grad(v), n), u - uexact) * ds
      + beta/h * inner(u - uexact, v) * ds)
-
-
-# hand off the nonlinear function F to get weak form for RK method
-# No DirichletBC objects.
-Fnew, k, _, _ = getForm(F, BT, t, dt, u)
-fs = Fnew.arguments()[0].function_space()
 
 params={"mat_type": "aij",
         "snes_type": "ksponly",
         "ksp_type": "preonly",
         "pc_type": "lu"}
 
-prob = NonlinearVariationalProblem(Fnew, k)
-solver = NonlinearVariationalSolver(prob, solver_parameters=params)
 
-# get a tuple of the stages, each as a Coefficient
-ks = k.split()
+stepper = TimeStepper(F, ButcherTableau, t, dt, u, solver_parameters=params)
 
-while (tc < 1.0):
-    solver.solve()
+while (float(t) < 1.0):
+    if (float(t) + float(dt) > 1.0):
+        dt.assign(1.0 - float(t))
 
-    for i in range(ns):
-        u += dtc * BT.b[i] * ks[i]
+    stepper.advance()
 
-    tc += dtc
-    t.assign(tc)  # takes a new value, not a Constant
-    print(tc)
+    t.assign(float(t) + float(dt))
+    print(float(t))
 
 print()
 print(errornorm(uexact, u)/norm(uexact))
