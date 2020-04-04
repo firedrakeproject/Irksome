@@ -30,15 +30,16 @@ u, p = split(up)
 
 n= FacetNormal(msh)
 
-nu=0.001
+nu = Constant(0.001)
 rho=1.0
 r=0.05
 Umean=1.0
 L=0.1
 
 # define the variational form once outside the loop
-F = (inner(dot(u, grad(u)), v) * dx
-     + nu*inner(grad(u), grad(v)) * dx - inner(p, div(v)) * dx
+F = (inner(dot(grad(u), u), v) * dx
+     + nu * inner(grad(u), grad(v)) * dx
+     - inner(p, div(v)) * dx
      + inner(div(u), w) * dx)
 
 # boundary conditions are specified for each subspace
@@ -69,11 +70,5 @@ print("Level", lvl)
 print("CD", CD)
 print("CL", CL)
 
-import matplotlib.pyplot as plt
-cs = tripcolor(interpolate(p, W))
-plt.colorbar(cs)
-
-cs = tripcolor(interpolate(dot(u, u), W))
-plt.colorbar(cs)
-
-plt.show()
+u, p = up.split()
+File("nse_stead.pvd").write(u, p)
