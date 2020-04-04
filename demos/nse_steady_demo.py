@@ -11,15 +11,15 @@ y1 = 0.41
 stepfile = "circle.step"
 h = 0.1 # Close to what Turek's benchmark has on coarsest mesh
 order = 2
-lvl=2
+lvl=3
 mh = OpenCascadeMeshHierarchy(stepfile, element_size=h,
                               levels=lvl, order=order, cache=False,
                               verbose=True)
 
-msh = mh[2]
+msh = mh[-1]
 
 V = VectorFunctionSpace(msh, "CG", 2)
-W = FunctionSpace(msh, "CG", 1)
+W = FunctionSpace(msh, "DG", 0)
 Z = V * W
 
 v, w = TestFunctions(Z)
@@ -33,7 +33,7 @@ n= FacetNormal(msh)
 nu = Constant(0.001)
 rho=1.0
 r=0.05
-Umean=1.0
+Umean=0.2
 L=0.1
 
 # define the variational form once outside the loop
@@ -43,7 +43,7 @@ F = (inner(dot(grad(u), u), v) * dx
      + inner(div(u), w) * dx)
 
 # boundary conditions are specified for each subspace
-UU = Constant(3)
+UU = Constant(0.3)
 bcs = [DirichletBC(Z.sub(0),
                    as_vector([4 * UU * y * (y1 - y) / (y1**2), 0]), (4,)),
        DirichletBC(Z.sub(0), Constant((0, 0)), (1, 3, 5))]
