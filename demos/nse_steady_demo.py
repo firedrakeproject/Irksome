@@ -18,6 +18,12 @@ mh = OpenCascadeMeshHierarchy(stepfile, element_size=h,
 
 msh = mh[-1]
 
+#CG1 = FunctionSpace(msh, "CG", 1)
+#bcvals = Function(CG1)
+#for i in range(1, 6):
+#    DirichletBC(CG1, i, i).apply(bcvals)
+#File("/tmp/colours.pvd").write(bcvals)
+
 V = VectorFunctionSpace(msh, "CG", 2)
 W = FunctionSpace(msh, "DG", 0)
 Z = V * W
@@ -60,8 +66,8 @@ ut1 = dot(u, as_vector([n[1], -n[0]]))
 
 solve(F==0, up, bcs=bcs, solver_parameters=s_param)
 
-FD = assemble((nu*dot(grad(ut1), n)*n[1] - p*n[0])*ds(2) )
-FL = assemble(-(nu*inner(grad(ut1), n)*n[0]-p*n[1])*ds(2) )
+FD = assemble(-(nu*dot(grad(ut1), n)*n[1] - p*n[0])*ds(5) )
+FL = assemble(-(nu*inner(grad(ut1), n)*n[0]-p*n[1])*ds(5) )
 
 CD = [2 * FD / (Umean**2) / L] #Drag coefficient
 CL = [2 * FL / (Umean**2) / L] #Lift coefficient
