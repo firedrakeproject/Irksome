@@ -120,8 +120,8 @@ class LobattoIIIC(ButcherTableau):
 
 
 class PareschiRusso(ButcherTableau):
-    """Diagonally implicit, 2-stage.  A-stable if x >= 1/4 and L-stable
-    iff x = 1 \pm 1/sqrt(2)."""
+    """Second order, diagonally implicit, 2-stage.  
+    A-stable if x >= 1/4 and L-stable iff x = 1 plus/minus 1/sqrt(2)."""
     def __init__(self, x):
         A = numpy.array([[x, 0.0], [1-2*x, x]])
         b = numpy.array([0.5, 0.5])
@@ -129,7 +129,8 @@ class PareschiRusso(ButcherTableau):
         super(PareschiRusso, self).__init__(A, b, None, c, 2)
 
 
-def QinZhang(x):
+class QinZhang(PareschiRusso):
     "Symplectic Pareschi-Russo DIRK"
-    return PareschiRusso(0.25)
+    def __init__(self):
+        super(QinZhang, self).__init__(0.25)
 
