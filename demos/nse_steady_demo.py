@@ -1,6 +1,33 @@
 from firedrake import *  # noqa: F403
 import numpy
 
+
+class DGMassInv(PCBase):
+
+    def initialize(self, pc):
+        _, P = pc.getOperators()
+        appctx = self.get_appctx(pc)
+        V = dmhooks.get_function_space(pc.getDM())
+        # get function spaces
+        u = TrialFunction(V)
+        v = TestFunction(V)
+        massinv = assemble(Tensor(inner(u, v)*dx).inv)
+        self.massinv = massinv.petscmat
+        self.nu = appctx["nu"]
+        self.gamma = appctx["gamma"]
+
+    def update(self, pc):
+        pass
+
+    def apply(self, pc, x, y):
+        self.massinv.mult(x, y)
+        scaling = float(self.nu) + float(self.gamma)
+        y.scale(-scaling)
+
+    def applyTranspose(self, pc, x, y):
+        raise NotImplementedError("Sorry!")
+
+
 # Corners of the box.
 x0 = 0.0
 x1 = 2.2
@@ -9,20 +36,15 @@ y1 = 0.41
 
 #Mesh
 stepfile = "circle.step"
-h = 0.1 # Close to what Turek's benchmark has on coarsest mesh
+# Close to what Turek's time-dependent benchmark has on coarsest mesh
+h = 0.1 
 order = 2
-lvl=3
+lvl = 3
 mh = OpenCascadeMeshHierarchy(stepfile, element_size=h,
                               levels=lvl, order=order, cache=False,
                               verbose=True)
 
 msh = mh[-1]
-
-#CG1 = FunctionSpace(msh, "CG", 1)
-#bcvals = Function(CG1)
-#for i in range(1, 6):
-#    DirichletBC(CG1, i, i).apply(bcvals)
-#File("/tmp/colours.pvd").write(bcvals)
 
 V = VectorFunctionSpace(msh, "CG", 2)
 W = FunctionSpace(msh, "DG", 0)
@@ -43,7 +65,9 @@ Umean=0.2
 L=0.1
 
 # define the variational form once outside the loop
+gamma = Constant(1.e4)
 F = (inner(dot(grad(u), u), v) * dx
+     + gamma * inner(div(u), div(v)) * dx
      + nu * inner(grad(u), grad(v)) * dx
      - inner(p, div(v)) * dx
      + inner(div(u), w) * dx)
@@ -54,17 +78,26 @@ bcs = [DirichletBC(Z.sub(0),
                    as_vector([4 * UU * y * (y1 - y) / (y1**2), 0]), (4,)),
        DirichletBC(Z.sub(0), Constant((0, 0)), (1, 3, 5))]
 
-s_param={'ksp_type': 'preonly',
-         'pc_type': 'lu',
-         'pc_factor_shift_type': 'inblocks',
-         'mat_type': 'aij',
-         'snes_max_it': 100,
-         'snes_monitor': None}
+
+s_param = {'snes_monitor': None,
+           'ksp_type': 'gmres',
+           'ksp_monitor': None,
+           'pc_type': 'fieldsplit',
+           'pc_fieldsplit_type': 'schur',
+           'fieldsplit_0': {
+               'ksp_type': 'preonly',
+               'pc_type': 'lu'},
+           'fieldsplit_1': {
+               'ksp_type': 'preonly',
+               'pc_type': 'python',
+               'pc_python_type': '__main__.DGMassInv'
+               }}
 
 
+appctx = {'nu': nu, 'gamma': float(gamma), 'velocity_space': 0}
 ut1 = dot(u, as_vector([n[1], -n[0]]))
 
-solve(F==0, up, bcs=bcs, solver_parameters=s_param)
+solve(F==0, up, bcs=bcs, solver_parameters=s_param, appctx=appctx)
 
 FD = assemble(-(nu*dot(grad(ut1), n)*n[1] - p*n[0])*ds(5) )
 FL = assemble(-(nu*inner(grad(ut1), n)*n[0]-p*n[1])*ds(5) )
@@ -77,4 +110,7 @@ print("CD", CD)
 print("CL", CL)
 
 u, p = up.split()
-File("nse_stead.pvd").write(u, p)
+print(p((0.15, .2)) - p((0.250, 0.2)))
+
+# u, p = up.split()
+# File("nse_steady.pvd").write(u, p)
