@@ -65,9 +65,9 @@ Umean=0.2
 L=0.1
 
 # define the variational form once outside the loop
-gamma = Constant(1.e4)
+gamma = Constant(1.e2)
 F = (inner(dot(grad(u), u), v) * dx
-     + gamma * inner(div(u), div(v)) * dx
+     + gamma * inner(cell_avg(div(u)), cell_avg(div(v))) * dx
      + nu * inner(grad(u), grad(v)) * dx
      - inner(p, div(v)) * dx
      + inner(div(u), w) * dx)
@@ -80,15 +80,18 @@ bcs = [DirichletBC(Z.sub(0),
 
 
 s_param = {'snes_monitor': None,
-           'ksp_type': 'gmres',
+           'ksp_type': 'fgmres',
+           #'ksp_view': None,
            'ksp_monitor': None,
            'pc_type': 'fieldsplit',
            'pc_fieldsplit_type': 'schur',
+           'pc_fieldsplit_schur_fact_type': 'full',
            'fieldsplit_0': {
                'ksp_type': 'preonly',
                'pc_type': 'lu'},
            'fieldsplit_1': {
-               'ksp_type': 'preonly',
+               'ksp_type': 'gmres',
+               'ksp_max_it': 1,
                'pc_type': 'python',
                'pc_python_type': '__main__.DGMassInv'
                }}
