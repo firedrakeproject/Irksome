@@ -1,10 +1,10 @@
 import numpy
 from firedrake import (TestFunction, Function, Constant,
-                       split, DirichletBC, interpolate, project)
-from ufl import replace, diff, as_vector, as_tensor
+                       split, DirichletBC, interpolate)  # , project)
+from ufl import replace, diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
-from .deriv import TimeDerivative, apply_time_derivatives
+from .deriv import TimeDerivative  # , apply_time_derivatives
 
 
 def getForm(F, butch, t, dt, u0, bcs=None):
@@ -84,14 +84,15 @@ def getForm(F, butch, t, dt, u0, bcs=None):
                 gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
                 gdat = interpolate(gcur, V)
                 gblah.append((gdat, gcur))
-                bcnew.append(DirichletBC(Vbig[i], gdat, boundary))            
+                bcnew.append(DirichletBC(Vbig[i], gdat, boundary))
         else:
-            sub=bc.function_space_index()
+            sub = bc.function_space_index()
             for i in range(num_stages):
                 gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
                 gdat = interpolate(gcur, V.sub(sub))
                 gblah.append((gdat, gcur))
-                bcnew.append(DirichletBC(Vbig[sub+(num_fields)*i], gdat, boundary))
+                bcnew.append(DirichletBC(Vbig[sub+(num_fields)*i],
+                                         gdat, boundary))
 
     return Fnew, k, bcnew, gblah
 
