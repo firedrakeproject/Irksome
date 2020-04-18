@@ -1,7 +1,7 @@
 from .getForm import getForm
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import norm, Function
+from firedrake import Function, norm
 
 
 class TimeStepper:
@@ -65,65 +65,6 @@ class AdaptiveTimeStepper(TimeStepper):
         self.delb = butcher_tableau.b - butcher_tableau.btilde
         self.error_func = Function(u0.function_space())
 
-
-    def advance(self):
-        print("\tTrying dt=", float(self.dt))
-        while 1:
-            for gdat, gcur in self.bigBCdata:
-                gdat.interpolate(gcur)
-
-            self.solver.solve()
-            err = self.estimate_error()
-
-            print("\tTruncation error" ,err)
-            q = 0.84 * (self.tol / err)**(1./(self.butcher_tableau.order-1))
-            print("\tq factor:", q)
-            if q <= 0.1:
-                q = 0.1
-            elif q >= 4.0:
-                q = 4.0
-
-            dtnew = q * float(self.dt)
-
-            if err >= self.tol:
-                print("\tShrinking time step to ", dtnew)
-                self.dt.assign(dtnew)
-            elif dtnew <= self.dt_min:
-                raise RuntimeError("Minimum time step threshold violated")
-            else:
-                print("\tStep accepted, new time step is ", dtnew)
-                self.update()
-                self.dt.assign(dtnew)
-                return (err, dtnew)
-
-
-        # ord_m1 = self.butcher_tableau.order - 1
-
-        # err = 2.0 * self.tol
-
-        # while err >= self.tol:
-        #     print("\tTrying dt = ", float(self.dt))
-        #     for gdat, gcur in self.bigBCdata:
-        #         gdat.interpolate(gcur)
-
-        #     self.solver.solve()
-
-        #     err = self.estimate_error()
-        #     print("\t truncation error: ", err)
-
-        #     q = 0.84 * (self.tol / err)**(ord_m1)
-        #     q = min(max(q, 0.1), 4.0)
-
-        #     dtnew = q * float(self.dt)
-
-        #     if dtnew <= self.dt_min:
-        #         raise RuntimeError("minimum time step encountered")
-        #     else:
-        #         self.dt.assign(dtnew)
-        #     if err < self.tol:
-        #         print("\tSuccess")
-
-
     def estimate_error(self):
         dtc = float(self.dt)
         delb = self.delb
@@ -144,3 +85,32 @@ class AdaptiveTimeStepper(TimeStepper):
 
         return norm(self.error_func)
 
+    def advance(self):
+        print("\tTrying dt=", float(self.dt))
+        while 1:
+            for gdat, gcur in self.bigBCdata:
+                gdat.interpolate(gcur)
+
+            self.solver.solve()
+            err = self.estimate_error()
+
+            print("\tTruncation error", err)
+            q = 0.84 * (self.tol / err)**(1./(self.butcher_tableau.order-1))
+            print("\tq factor:", q)
+            if q <= 0.1:
+                q = 0.1
+            elif q >= 4.0:
+                q = 4.0
+
+            dtnew = q * float(self.dt)
+
+            if err >= self.tol:
+                print("\tShrinking time step to ", dtnew)
+                self.dt.assign(dtnew)
+            elif dtnew <= self.dt_min:
+                raise RuntimeError("Minimum time step threshold violated")
+            else:
+                print("\tStep accepted, new time step is ", dtnew)
+                self.update()
+                self.dt.assign(dtnew)
+                return (err, dtnew)
