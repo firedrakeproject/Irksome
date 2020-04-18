@@ -15,6 +15,9 @@ class ButcherTableau(object):
     def num_stages(self):
         return len(self.b)
 
+    def __str__(self):
+        return str(self.__class__).split(".")[-1][:-2]+"()"
+
 
 class BackwardEuler(ButcherTableau):
     def __init__(self):
@@ -56,7 +59,7 @@ class CollocationButcherTableau(ButcherTableau):
         V = vander(c, increasing=True)
         rhs = numpy.array([1.0/(s+1) for s in range(num_stages-1)] + [0])
         btilde = numpy.linalg.solve(V.T, rhs)
-            
+
         super(CollocationButcherTableau, self).__init__(A, b, btilde, c, order)
 
 
@@ -67,6 +70,9 @@ class GaussLegendre(CollocationButcherTableau):
         L = FIAT.GaussLegendre(U, num_stages - 1)
         super(GaussLegendre, self).__init__(L, 2 * num_stages)
 
+    def __str__(self):
+        return "GaussLegendre(%d)" % self.num_stages
+
 
 class LobattoIIIA(CollocationButcherTableau):
     def __init__(self, num_stages):
@@ -74,6 +80,9 @@ class LobattoIIIA(CollocationButcherTableau):
         U = FIAT.ufc_simplex(1)
         L = FIAT.GaussLobattoLegendre(U, num_stages - 1)
         super(LobattoIIIA, self).__init__(L, 2 * num_stages - 2)
+
+    def __str__(self):
+        return "LobattoIIIA(%d)" % self.num_stages
 
 
 class Radau23(ButcherTableau):
@@ -118,15 +127,22 @@ class LobattoIIIC(ButcherTableau):
 
         super(LobattoIIIC, self).__init__(A, b, None, c, 2 * num_stages - 2)
 
+    def __str__(self):
+        return "LobattoIIIC(%d)" % self.num_stages
+
 
 class PareschiRusso(ButcherTableau):
-    """Second order, diagonally implicit, 2-stage.  
+    """Second order, diagonally implicit, 2-stage.
     A-stable if x >= 1/4 and L-stable iff x = 1 plus/minus 1/sqrt(2)."""
     def __init__(self, x):
+        self.x = x
         A = numpy.array([[x, 0.0], [1-2*x, x]])
         b = numpy.array([0.5, 0.5])
         c = numpy.array([x, 1-x])
         super(PareschiRusso, self).__init__(A, b, None, c, 2)
+
+    def __str__(self):
+        return "PareschiRusso(%f)" % self.x
 
 
 class QinZhang(PareschiRusso):
@@ -134,3 +150,5 @@ class QinZhang(PareschiRusso):
     def __init__(self):
         super(QinZhang, self).__init__(0.25)
 
+    def __str__(self):
+        return "QinZhang()"
