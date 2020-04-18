@@ -72,13 +72,15 @@ for s in range(butcher_tableau.num_stages):
 
 per_field = {"ksp_type": "preonly",
              "pc_type": "lu"}
-for i in range(2):
+for i in range(butcher_tableau.num_stages):
     params["fieldsplit_%d" % i] = per_field
 
 
 stepper = TimeStepper(F, butcher_tableau, t, dt, up0,
                       solver_parameters=params)
 
+# We just take one step to show that energy is conserved, so we're probably
+# solving the system exactly.
 print(float(t), assemble(E))
 stepper.advance()
 print(float(t), assemble(E))
