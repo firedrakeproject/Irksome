@@ -89,4 +89,3 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
 def apply_time_derivatives(expression, t, timedep_coeffs=[]):
     rules = TimeDerivativeRuleDispatcher(t, timedep_coeffs)
     return map_integrand_dags(rules, expression)
-
