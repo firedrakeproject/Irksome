@@ -7,7 +7,7 @@ class ButcherTableau(object):
     """Top-level class representing a Butcher tableau encoding
        a Runge-Kutta method.  It has members
 
-    :arg A: a 2d array containing the Butcher matrix 
+    :arg A: a 2d array containing the Butcher matrix
     :arg b: a 1d array giving weights assigned to each stage when
             computing the solution at time n+1.
     :arg b: If present, a 1d array giving weights for an embedded
@@ -44,7 +44,14 @@ class BackwardEuler(ButcherTableau):
 
 
 class CollocationButcherTableau(ButcherTableau):
-    
+    """When an RK method is based on collocation with point sets present
+    in FIAT, we have a general formula for producing the Butcher tableau.
+
+    :arg L: a one-dimensional class :class:`FIAT.FiniteElement`
+            of Lagrange type -- the degrees of freedom must all be point
+            evaluation.
+    :arg order: the order of the resulting RK method.
+    """
     def __init__(self, L, order):
         assert L.ref_el == FIAT.ufc_simplex(1)
 
@@ -81,6 +88,12 @@ class CollocationButcherTableau(ButcherTableau):
 
 
 class GaussLegendre(CollocationButcherTableau):
+    """Collocation method based on the Gauss-Legendre points.
+    The order of accuracy is 2 * `num_stages`.
+    GL methods are A-stable, B-stable, and symplectic.
+
+    :arg num_stages: The number of stages (1 or greater)
+    """
     def __init__(self, num_stages):
         assert num_stages > 0
         U = FIAT.ufc_simplex(1)
@@ -92,6 +105,12 @@ class GaussLegendre(CollocationButcherTableau):
 
 
 class LobattoIIIA(CollocationButcherTableau):
+    """Collocation method based on the Gauss-Lobatto points.
+    The order of accuracy is 2 * `num_stages` - 2.
+    LobattoIIIA methods are A-stable but not B- or L-stable.
+
+    :arg num_stages: The number of stages (2 or greater)
+    """
     def __init__(self, num_stages):
         assert num_stages > 1
         U = FIAT.ufc_simplex(1)
@@ -103,6 +122,7 @@ class LobattoIIIA(CollocationButcherTableau):
 
 
 class Radau23(ButcherTableau):
+    """Third order RadauIIA method.  A-stable"""
     def __init__(self):
         A = numpy.array([[5./12, -1./12], [3./4, 1./4]])
         b = numpy.array([3./4, 1./4])
@@ -111,6 +131,7 @@ class Radau23(ButcherTableau):
 
 
 class Radau35(ButcherTableau):
+    """Fifth order RadauIIA method.  A-stable"""
     def __init__(self):
         A = numpy.array([[11./45 - 7*sqrt(6)/360, 37./225 - 169*sqrt(6)/1800,
                           -2./225 + sqrt(6)/75],
@@ -123,6 +144,12 @@ class Radau35(ButcherTableau):
 
 
 class LobattoIIIC(ButcherTableau):
+    """Discontinuous collocation method based on the Lobatto points.
+    The order of accuracy is 2 * `num_stages` - 2.
+    LobattoIIIC methods are A-, L-, algebraically, and B- stable.
+
+    :arg num_stages: The number of stages (2 or greater)
+    """
     def __init__(self, num_stages):
         assert num_stages > 1
         # mooch the b and c from IIIA

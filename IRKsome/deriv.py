@@ -10,6 +10,10 @@ from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
           inherit_shape_from_operand=0,
           inherit_indices_from_operand=0)
 class TimeDerivative(Derivative):
+    """UFL node representing a time derivative of some quantity/field.
+    Note: Currently form compilers do not understand how to process
+    these nodes.  Instead, Irksome pre-processes forms containing
+    `TimeDerivative` nodes."""
     __slots__ = ()
 
     def __new__(cls, f):
@@ -23,11 +27,13 @@ class TimeDerivative(Derivative):
 
 
 def Dt(f):
+    """Short-hand function to produce a :class:`TimeDerivative` of the
+    input."""
     return TimeDerivative(f)
 
 
 class TimeDerivativeRuleset(GenericDerivativeRuleset):
-    """Apply AD rules to time derivative expressions."""
+    """Apply AD rules to time derivative expressions.  WIP"""
     def __init__(self, t, timedep_coeffs):
         GenericDerivativeRuleset.__init__(self, ())
         self.t = t
