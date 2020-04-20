@@ -45,15 +45,22 @@ TARGETS = html dirhtml singlehtml pickle json htmlhelp qthelp devhelp epub latex
 
 GENERATED_FILES = source/demos
 
-publish: html
-# The raw IP address is used to circumvent some dns fiddling which
-# Imperial's ICT department are doing.
-	rsync --rsh=ssh -rv -r build/html/* 'o3ce6600@146.255.44.1:html/'
+#webgit:
+#	git clone git@github.com:finite-element/finite-element.github.io.git webgit
 
-scp:
-# The raw IP address is used to circumvent some dns fiddling which
-# Imperial's ICT department are doing.
-	rsync --rsh=ssh -rv build/html/* 'o3ce6600@146.255.44.1:html/'
+html: apidoc #webgit
+	#rm webgit/* || true
+	#rm -rf $(BUILDDIR)/doctrees || true
+	#rm $(BUILDDIR)/html || rm -rf $(BUILDDIR)/html
+	#install -d $(BUILDDIR)
+	#ln -s $(PWD)/webgit $(BUILDDIR)/html
+	PYTHONPATH=$(PWD)/..:$(PYTHONPATH) $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	#cp source/demos/*.py source/demos/*.geo source/demos/*.msh $(BUILDDIR)/html/demos
+	@echo
+	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
+
+make publish:
+	cd webgit; git add -A; git commit -am "Website build"; git push --force
 
 livehtml: html
 	python server.py
@@ -79,11 +86,6 @@ clean:
 
 buildhtml: apidoc
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
-
-html: apidoc buildhtml
-	#cp source/demos/*.py source/demos/*.geo source/demos/*.msh $(BUILDDIR)/html/demos
-	@echo
-	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
 dirhtml: apidoc
 	$(SPHINXBUILD) -b dirhtml $(ALLSPHINXOPTS) $(BUILDDIR)/dirhtml
