@@ -276,11 +276,11 @@ div.warning div.last {
    font-style: italic
 }
 
-#firedrake-package #id1 {
+#irksome-package #id1 {
     display: none;
 }
 
-#firedrake-package h2 {
+#irksome-package h2 {
     background-color: #fafafa;                   
     border: 2px solid #8c1b1e;
 	border-right-style: none;
@@ -288,7 +288,7 @@ div.warning div.last {
 	padding: 10px 20px 10px 60px;
 }
 
-#firedrake-package div.section>dl {
+#irksome-package div.section>dl {
     border: 2px solid #ddd;
 	border-right-style: none;
 	border-bottom-style: none;
@@ -669,7 +669,7 @@ display: none;
   margin-right: 1em;
 }
 
-#the-firedrake-team td {
+#the-irksome-team td {
   text-align: center;
 }
 
@@ -700,12 +700,12 @@ img[alt="build status"] {
 }
 
 /* Equispace the logos. */
-#firedrake-is-supported-by tr {
+#irksome-is-supported-by tr {
     width: 100%;
 }
 
 /* Equispace the logos. */
-#firedrake-is-supported-by td {
+#irksome-is-supported-by td {
     width: 25%;
     text-align: center;
 }

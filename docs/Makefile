@@ -43,7 +43,7 @@ help:
 
 TARGETS = html dirhtml singlehtml pickle json htmlhelp qthelp devhelp epub latex latexpdf text man changes linkcheck doctest gettext
 
-GENERATED_FILES = source/teamgrid.rst source/teaminactive.rst source/demos source/element_list.csv
+GENERATED_FILES = source/demos
 
 publish: html
 # The raw IP address is used to circumvent some dns fiddling which
@@ -67,20 +67,11 @@ source/demos: copy_demos
 
 copy_demos:
 	install -d source/demos
-	cp ../demos/*/*.rst ../demos/demo_references.bib ../demos/*/*.geo ../demos/*/*.msh ../demos/*/*.png source/demos
-	for file in source/demos/*.py.rst; do ../pylit/pylit.py $$file; done
-
-source/element_list.csv: source/element_list.py
-	cd source; python element_list.py
-
-source/teamgrid.rst: source/team.py
-	cd source; python team.py teamgrid.rst
-
-source/teaminactive.rst: source/team.py
-	cd source; python team.py teaminactive.rst
+	cp ../demos/*/*.rst ../demos/demo_references.bib ../demos/*/*.geo ../demos/*/*.msh ../demos/*/*.png source/demos || true
+	#for file in source/demos/*.py.rst; do ../pylit/pylit.py $$file; done
 
 apidoc: $(GENERATED_FILES) copy_demos
-	sphinx-apidoc ../firedrake -o source/ -f -T
+	sphinx-apidoc ../IRKsome -o source/ -f -T
 
 clean:
 	-rm -rf $(BUILDDIR)/*
@@ -90,7 +81,7 @@ buildhtml: apidoc
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 
 html: apidoc buildhtml
-	cp source/demos/*.py source/demos/*.geo source/demos/*.msh $(BUILDDIR)/html/demos
+	#cp source/demos/*.py source/demos/*.geo source/demos/*.msh $(BUILDDIR)/html/demos
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
