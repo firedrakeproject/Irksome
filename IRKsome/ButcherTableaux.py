@@ -4,7 +4,21 @@ from numpy import sqrt, vander
 
 
 class ButcherTableau(object):
+    """Top-level class representing a Butcher tableau encoding
+       a Runge-Kutta method.  It has members
+
+    :arg A: a 2d array containing the Butcher matrix 
+    :arg b: a 1d array giving weights assigned to each stage when
+            computing the solution at time n+1.
+    :arg b: If present, a 1d array giving weights for an embedded
+            lower-order method (used in estimating temporal
+            truncation error.)
+    :arg c: a 1d array containing weights at which time-dependent
+            terms are evaluated.
+    :arg order: the (integer) formal order of accuracy of the method
+    """
     def __init__(self, A, b, btilde, c, order):
+
         self.A = A
         self.b = b
         self.btilde = btilde
@@ -13,6 +27,7 @@ class ButcherTableau(object):
 
     @property
     def num_stages(self):
+        """Return the number of stages the method has."""
         return len(self.b)
 
     def __str__(self):
@@ -20,6 +35,7 @@ class ButcherTableau(object):
 
 
 class BackwardEuler(ButcherTableau):
+    """First-order implicit, very stable method."""
     def __init__(self):
         A = numpy.array([[1.0]])
         b = numpy.array([1.0])
@@ -28,6 +44,7 @@ class BackwardEuler(ButcherTableau):
 
 
 class CollocationButcherTableau(ButcherTableau):
+    
     def __init__(self, L, order):
         assert L.ref_el == FIAT.ufc_simplex(1)
 
