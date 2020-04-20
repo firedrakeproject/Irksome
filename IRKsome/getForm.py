@@ -9,25 +9,35 @@ from .deriv import TimeDerivative  # , apply_time_derivatives
 
 def getForm(F, butch, t, dt, u0, bcs=None):
     """Given a time-dependent variational form and a
-    Butcher tableau, produce UFL for the s-stage RK method.
+    :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
-    :arg F: UFL form for the ODE part (leaving off the time derivative)
-    :arg butch: the Butcher tableu for the RK method being used to
+    :arg F: UFL form for the semidiscrete ODE/DAE
+    :arg butch: the :class:`ButcherTableau` for the RK method being used to
          advance in time.
     :arg t: a :class:`Constant` referring to the current time level.
-         Any explicit time-dependence in F is included here
+         Any explicit time-dependence in F is included 
     :arg dt: a :class:`Constant` referring to the size of the current
          time step.
-    :arg u0: a :class:`Function` referring to the current state of
-         the PDE system
+    :arg u0: a :class:`Function` referring to the state of
+         the PDE system at time `t`
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possible time-dependent) boundary conditions imposed
-         on the system.  CURRENTLY ASSUMED to be None
+         on the system.
 
-    On output, we return UFL for a single time-step of the RK method and a
-    handle on the :class:`Function` on the product function space that is
-    used to store the RK stages.  This would be the starting function/solution
-    to a :class:`NonlinearVariationalProblem` for all the stages.
+    On output, we return a tuple consisting of four parts:
+
+       - Fnew, the :class:`Form`
+       - k, the :class:`firedrake.Function` holding all the stages.
+         It lives in a :class:`firedrake.FunctionSpace` corresponding to the
+         s-way tensor product of the space on which the semidiscrete
+         form lives.
+       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
+         on the stages, 
+       - `gblah`, a list of pairs of the form (f, expr), where f is
+         a :class:`firedrake.Function` and expr is a :class:`ufl.Expr`.
+         at each time step, each expr needs to be re-interpolated/projected
+         onto the corresponding f in order for Firedrake to pick up that
+         time-dependent boundary conditions need to be re-applied.
 """
 
     v = F.arguments()[0]
@@ -95,13 +105,3 @@ def getForm(F, butch, t, dt, u0, bcs=None):
                                          gdat, boundary))
 
     return Fnew, k, bcnew, gblah
-
-
-def getFormW(F, butch, t, dt, u0):
-    """When the Butcher matrix butch.A is invertible, it is possible
-    to reformulate the variational problem to make the mass part of
-    the Jacobian denser but the stiffness part block diagonal.  This
-    can make certain kinds of block preconditioners far more
-    effective, and assembly of the Jacobian cheaper as well."""
-
-    raise NotImplementedError()
