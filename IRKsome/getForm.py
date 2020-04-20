@@ -15,7 +15,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
          advance in time.
     :arg t: a :class:`Constant` referring to the current time level.
-         Any explicit time-dependence in F is included 
+         Any explicit time-dependence in F is included
     :arg dt: a :class:`Constant` referring to the size of the current
          time step.
     :arg u0: a :class:`Function` referring to the state of
@@ -32,7 +32,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
          s-way tensor product of the space on which the semidiscrete
          form lives.
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
-         on the stages, 
+         on the stages,
        - `gblah`, a list of pairs of the form (f, expr), where f is
          a :class:`firedrake.Function` and expr is a :class:`ufl.Expr`.
          at each time step, each expr needs to be re-interpolated/projected
