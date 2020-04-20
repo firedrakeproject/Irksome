@@ -253,9 +253,8 @@ texinfo_documents = [
 # -- Options for intersphinx ---------------------------------------------
 
 intersphinx_mapping = {
-    'pyop2': ('https://op2.github.io/PyOP2', None),
+    'fiat': ('https://github.com/FEniCS/fiat', None),
+    'firedrake': ('https://github.com/firedrakeproject/firedrake/', None),
     'ufl': ('https://fenics.readthedocs.io/projects/ufl/en/latest/', None),
-    'h5py': ('http://docs.h5py.org/en/latest/', None),
-    'matplotlib': ('https://matplotlib.org/', None),
     'python':('https://docs.python.org/3/', None),
 }

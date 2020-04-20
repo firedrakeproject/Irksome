@@ -78,7 +78,7 @@ copy_demos:
 	#for file in source/demos/*.py.rst; do ../pylit/pylit.py $$file; done
 
 apidoc: $(GENERATED_FILES) copy_demos
-	sphinx-apidoc ../IRKsome -o source/ -f -T
+	sphinx-apidoc ../irksome -o source/ -f -T
 
 clean:
 	-rm -rf $(BUILDDIR)/*
