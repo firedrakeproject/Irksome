@@ -1,5 +1,5 @@
 from firedrake import *  # noqa: F403
-from IRKsome import LobattoIIIC, getForm, Dt, TimeStepper
+from irksome import LobattoIIIC, getForm, Dt, TimeStepper
 import numpy
 
 ButcherTableau = LobattoIIIC(3)

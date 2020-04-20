@@ -4,7 +4,7 @@
 # with homogeneous Dirichlet BC p=0 (which are weakly enforced in mixed methods)
 
 from firedrake import *
-from IRKsome import GaussLegendre, Dt, AdaptiveTimeStepper
+from irksome import GaussLegendre, Dt, AdaptiveTimeStepper
 
 N = 64
 

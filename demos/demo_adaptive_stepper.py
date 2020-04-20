@@ -2,7 +2,7 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import GaussLegendre, getForm, Dt, AdaptiveTimeStepper
+from irksome import GaussLegendre, getForm, Dt, AdaptiveTimeStepper
 
 butcher_tableau = GaussLegendre(2)
 N = 64

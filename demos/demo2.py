@@ -5,7 +5,7 @@ from firedrake import *  # noqa: F403
 from ufl.algorithms.ad import expand_derivatives
 from ufl import replace
 
-from IRKsome import LobattoIIIA, getForm, Dt
+from irksome import LobattoIIIA, getForm, Dt
 
 BT = LobattoIIIA(2)
 

@@ -2,7 +2,7 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import LobattoIIIC, getForm, Dt, TimeStepper
+from irksome import LobattoIIIC, getForm, Dt, TimeStepper
 
 ButcherTableau = LobattoIIIC(2)
 ns = ButcherTableau.num_stages

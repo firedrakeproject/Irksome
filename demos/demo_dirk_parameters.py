@@ -5,7 +5,7 @@
 # We are using a symplectic DIRK (Qin-Zhang)
 
 from firedrake import *
-from IRKsome import QinZhang, Dt, TimeStepper
+from irksome import QinZhang, Dt, TimeStepper
 import numpy
 
 N = 10

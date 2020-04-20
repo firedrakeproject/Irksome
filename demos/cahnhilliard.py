@@ -2,7 +2,7 @@ from firedrake import *
 from firedrake.petsc import PETSc
 import numpy as np
 import os
-from IRKsome import Dt, getForm, BackwardEuler, LobattoIIIA
+from irksome import Dt, getForm, BackwardEuler, LobattoIIIA
 
 if not os.path.exists("pictures/cahnhilliard"):
     os.makedirs("pictures/cahnhilliard")

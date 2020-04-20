@@ -2,7 +2,7 @@ from firedrake import *
 from firedrake.petsc import PETSc
 import numpy as np
 import os
-from IRKsome import Dt, GaussLegendre, AdaptiveTimeStepper
+from irksome import Dt, GaussLegendre, AdaptiveTimeStepper
 
 if not os.path.exists("pictures/cahnhilliard"):
     os.makedirs("pictures/cahnhilliard")

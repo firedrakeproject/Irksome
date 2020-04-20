@@ -7,7 +7,7 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import LobattoIIIC, getForm, Dt
+from irksome import LobattoIIIC, getForm, Dt
 
 ButcherTableau = LobattoIIIC(2)
 

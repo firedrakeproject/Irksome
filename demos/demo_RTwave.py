@@ -4,7 +4,7 @@
 # with homogeneous Dirichlet BC p=0 (which are weakly enforced in mixed methods)
 
 from firedrake import *
-from IRKsome import GaussLegendre, getForm, Dt
+from irksome import GaussLegendre, getForm, Dt
 
 N = 64
 

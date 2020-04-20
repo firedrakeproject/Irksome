@@ -2,7 +2,7 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from IRKsome import GaussLegendre, getForm, Dt
+from irksome import GaussLegendre, getForm, Dt
 
 BT = GaussLegendre(1)
 ns = len(BT.b)
@@ -36,7 +36,7 @@ rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 # Holds the initial condition
 u = interpolate(uexact, V)
 
-# define the semi-discrete form using Dt from IRKsome.
+# define the semi-discrete form using Dt from irksome.
 v = TestFunction(V)
 F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 
