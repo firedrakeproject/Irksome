@@ -18,7 +18,7 @@ Here is some typical Firedrake boilerplate and the construction of a simple
 mesh and the approximating spaces::
    
   from firedrake import *
-  from irksome import GaussLegendre, Dt, TimeStepper
+  from irksome import GaussLegendre, Dt, AdaptiveTimeStepper
   import numpy
 
   N = 10
@@ -37,8 +37,8 @@ Now we can build the initial condition, which has zero velocity and a sinusoidal
 
 We build the variational form in UFL::
 
-   v, w = TestFunctions(Z)
-   F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
+  v, w = TestFunctions(Z)
+  F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
 
 Energy conservation is an important principle of the wave equation, and we can
 test how well the spatial discretization conserves energy by creating a
@@ -53,7 +53,7 @@ The time and time step variables::
 
 The two-stage Gauss-Legendre method is, like all instances of that family,
 A-stable and symplectic.  This gives us a fourth order method in time, although
-our spatial accuracy is of lower order.  Feel free to experiment!
+our spatial accuracy is of lower order.  Feel free to experiment!::
 
   butcher_tableau = GaussLegendre(2)
 
@@ -71,7 +71,7 @@ optional extra parameters specifying the temporal truncation error
 tolerance and the minimal acceptable time step::
 	    
   stepper = AdaptiveTimeStepper(F, butcher_tableau, t, dt, up0,
-                                tol=1.e-3, dtmin=1.e-5
+                                tol=1.e-3, dtmin=1.e-5,
                                 solver_parameters=params)
 
 Now, the stepping logic is very similar to before, although irksome

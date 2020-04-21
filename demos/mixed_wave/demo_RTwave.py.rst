@@ -54,8 +54,8 @@ Now we can build the initial condition, which has zero velocity and a sinusoidal
 
 We build the variational form in UFL::
 
-   v, w = TestFunctions(Z)
-   F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
+  v, w = TestFunctions(Z)
+  F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
 
 Energy conservation is an important principle of the wave equation, and we can
 test how well the spatial discretization conserves energy by creating a
@@ -70,7 +70,7 @@ The time and time step variables::
 
 The two-stage Gauss-Legendre method is, like all instances of that family,
 A-stable and symplectic.  This gives us a fourth order method in time, although
-our spatial accuracy is of lower order.  Feel free to experiment!
+our spatial accuracy is of lower order.  Feel free to experiment!::
 
   butcher_tableau = GaussLegendre(2)
 
