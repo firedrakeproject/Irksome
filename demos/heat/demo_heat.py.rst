@@ -86,7 +86,10 @@ standard UFL notation, augmented by the `Dt` operator from Irksome::
 
 Later demos will show how to use Firedrake's sophisticated interface
 to PETSc for efficient block solvers, but for now, we will solve the
-system with a direct method::
+system with a direct method (Note: the matrix type needs to be
+explicitly set to aij if sparse direct factorization were used with a
+multi-stage method, as we wind up with a mixed problem that Firedrake
+will assemble into a PETSc MatNest otherwise):: 
 
   luparams = {"mat_type": "aij",
               "ksp_type": "preonly",
