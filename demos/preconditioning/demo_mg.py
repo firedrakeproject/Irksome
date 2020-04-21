@@ -2,10 +2,9 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from irksome import GaussLegendre, getForm, Dt
+from irksome import GaussLegendre, TimeStepper, Dt
 
-BT = GaussLegendre(1)
-ns = len(BT.b)
+butcher_tableau = GaussLegendre(2)
 N = 128
 coarseN = 8 # size of coarse grid
 
@@ -48,44 +47,31 @@ F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 
 bc = DirichletBC(V, 0, "on_boundary")
 
-# hand off the nonlinear function F to get weak form for RK method
-Fnew, k, bcnew, bcdata = getForm(F, BT, t, dt, u, bcs=bc)
-
 
 # monolithic MG for all stages concurrently, using a pointwise block Jacobi
 # smoother.
 
 mgparams = {"mat_type": "aij",
             "snes_type": "ksponly",
-            #"snes_monitor": None,
             "ksp_type": "fgmres",
             "ksp_monitor_true_residual": None,
             "pc_type": "mg",
             "mg_levels_ksp_type": "chebyshev",
             "mg_levels_ksp_norm_type": "unpreconditioned",
-            #"mg_levels_ksp_monitor_true_residual": None,
             "mg_levels_pc_type": "pbjacobi",
             "mg_coarse_pc_type": "lu",
             "mg_coarse_pc_factor_mat_solver_type": "mumps"}
 
+stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
+                      solver_parameters=mgparams)
 
-prob = NonlinearVariationalProblem(Fnew, k, bcs=bcnew)
-solver = NonlinearVariationalSolver(prob, solver_parameters=mgparams)
-
-# get a tuple of the stages, each as a Coefficient
-ks = k.split()
 
 while (float(t) < 1.0):
-    # no need to update BC since they are all zero for each stage for each time..
-    if float(t) + float(dt) > 1.0:
+    if (float(t) + float(dt) > 1.0):
         dt.assign(1.0 - float(t))
-    solver.solve()
-
-    for i in range(ns):
-        u += float(dt) * BT.b[i] * ks[i]
-
-    t.assign(float(t) + float(dt))  # takes a new value, not a Constant
+    stepper.advance()
     print(float(t))
+    t.assign(float(t) + float(dt))
 
 print()
 print(errornorm(uexact, u)/norm(uexact))
