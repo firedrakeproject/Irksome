@@ -1,6 +1,7 @@
 import numpy
 from firedrake import (TestFunction, Function, Constant,
                        split, DirichletBC, interpolate)  # , project)
+from firedrake.dmhooks import push_parent
 from ufl import replace, diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
@@ -51,6 +52,9 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     num_fields = len(V)
 
     Vbig = numpy.prod([V for i in range(num_stages)])
+    # Silence a warning about transfer managers when we
+    # coarsen coefficients in V
+    push_parent(V.dm, Vbig.dm)
     vnew = TestFunction(Vbig)
     k = Function(Vbig)
     vbits = split(v)
