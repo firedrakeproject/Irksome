@@ -20,7 +20,8 @@ variational problem of finding :math:`u:[0,T]\rightarrow V` such
 that 
 
 .. math::
-   (u_t, v) + (\nabla u, \nabla v) & = (f, v)
+
+   (u_t, v) + (\nabla u, \nabla v) = (f, v)
 
 This demo implements an example used by Solin with a particular choice
 of :math:`f` given below

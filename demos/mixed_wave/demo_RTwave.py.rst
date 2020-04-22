@@ -1,27 +1,28 @@
-Solving the Wave Equation with Irksome
-======================================
+Solving the Mixed Wave Equation: Energy conservation 
+====================================================
 
-Let :math:`Omega` be the unit square with boundary :math:`Gamma`.  We write
+Let :math:`\Omega` be the unit square with boundary :math:`\Gamma`.  We write
 the wave equation as a first-order system of PDE:
 
-.. math:
+.. math::
 
    u_t + grad(p) & = 0
+   
    p_t + div(u) & = 0
 
 together with homogeneous Dirichlet boundary conditions
 
-.. math:
+.. math::
 
-   p = 0 
+   p = 0 \quad \textrm{on}\ \Gamma
 
 In this form, at each time, :math:`u` is a vector-valued function in the Soboleve space :math:`H(\mathrm{div})` and `p` is a scalar-valued function.  If we select appropriate test functions :math:`v` and :math:`w`, then we can arrive at the weak form
 
-.. math:
+.. math::
 
-   (u_t, v) - (p, div(v)) & = 0
+   (u_t, v) - (p, \nabla \cdot v) & = 0
 
-   (p_t, w) + (div(u), w) & = 0
+   (p_t, w) + (\nabla \cdot u, w) & = 0
 
 Note that in mixed formulations, the Dirichlet boundary condition is weakly
 enforced via integration by parts rather than strongly in the definition of

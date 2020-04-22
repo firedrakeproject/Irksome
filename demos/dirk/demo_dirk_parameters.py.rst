@@ -7,7 +7,8 @@ used to retain this efficiency.
 
 Abstractly, if one has a 2-stage DIRK, one has a linear system of the form
 
-.. math:
+.. math::
+
    \left[ \begin{array}{cc} A_{11} & 0 \\ A_{12} & A_{22} \end{array} \right]
    \left[ \begin{array}{c} k_1 \\ k_2 \end{array} \right]
    &= \left[ \begin{array}{c} f_1 \\ f_2 \end{array} \right]
@@ -23,77 +24,21 @@ one obtains an exact inverse so that a single application of the preconditioner
 solves the linear system.  Hence, we can provide the efficiency of DIRKs within
 the framework of Irksome with a special case of solver parameters.
 
-This example uses this idea to attack the mixed form of the wave equation:
-
-Last login: Sun Apr 19 21:03:59 on ttys001
-c02yf10ljgh8:cahnhilliard robert_kirby$ top
-c02yf10ljgh8:cahnhilliard robert_kirby$ top
-c02yf10ljgh8:cahnhilliard robert_kirby$ cd ~/Code/Irksome/demos/
-c02yf10ljgh8:demos robert_kirby$ ls
-Makefile				demo_dirk_parameters.py			demo_lowlevel_mixed_heat.py		navier_stokes_demo.py
-cahnhilliard				demo_heat_adaptivestepper.py.rst	demo_nitsche_heat.py			nse_steady_demo.py
-circle.step				demo_heat_pc.py				demo_nse_unsteady.py			preconditioning
-coarse-circle.geo			demo_lowlevel_homogbc.py		heat
-coarse-circle.msh			demo_lowlevel_inhomogbc.py		mixed_wave
-c02yf10ljgh8:demos robert_kirby$ mkdir dirk
-c02yf10ljgh8:demos robert_kirby$ cd dirk/
-c02yf10ljgh8:dirk robert_kirby$ ls
-c02yf10ljgh8:dirk robert_kirby$ mv ../demo_dirk_parameters.py .
-c02yf10ljgh8:dirk robert_kirby$ ls
-demo_dirk_parameters.py
-c02yf10ljgh8:dirk robert_kirby$ emacs demo_dirk_parameters.py 
-c02yf10ljgh8:dirk robert_kirby$ mv demo_dirk_parameters.py demo_dirk_parameters.py.rst
-c02yf10ljgh8:dirk robert_kirby$ emacs demo_dirk_parameters.py.rst &
-[1] 98250
-c02yf10ljgh8:dirk robert_kirby$ 2020-04-21 15:56:17.802 Emacs-x86_64-10_14[98250:744064] Failed to initialize color list unarchiver: Error Domain=NSCocoaErrorDomain Code=4864 "*** -[NSKeyedUnarchiver _initForReadingFromData:error:throwLegacyExceptions:]: non-keyed archive cannot be decoded by NSKeyedUnarchiver" UserInfo={NSDebugDescription=*** -[NSKeyedUnarchiver _initForReadingFromData:error:throwLegacyExceptions:]: non-keyed archive cannot be decoded by NSKeyedUnarchiver}
-
-c02yf10ljgh8:dirk robert_kirby$ less ../mixed_wave/
-README                               demo_RTwave.py.rst                   demo_RTwave_adaptive_stepper.py.rst  
-demo_RTwave.py                       demo_RTwave_adaptive_stepper.py      
-c02yf10ljgh8:dirk robert_kirby$ less ../mixed_wave/demo_RTwave.py
-c02yf10ljgh8:dirk robert_kirby$ less ../mixed_wave/demo_RTwave.py.rst 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+This example uses this idea to attack the mixed form of the wave equation.
 Let :math:`Omega` be the unit square with boundary :math:`Gamma`.  We write
 the wave equation as a first-order system of PDE:
 
-.. math:
+.. math::
 
-   u_t + grad(p) & = 0
-   p_t + div(u) & = 0
+   u_t + \nabla p & = 0
+
+   p_t + \nabla \cdot u & = 0
 
 together with homogeneous Dirichlet boundary conditions
 
-.. math:
+.. math::
 
-   p = 0 
+   p = 0 {\quad} \textrm{on}\ \Gamma
 
 In this form, at each time, :math:`u` is a vector-valued function in
 the Soboleve space :math:`H(\mathrm{div})` and `p` is a scalar-valued
@@ -101,11 +46,11 @@ function.  If we select appropriate test functions :math:`v` and
 :math:`w`, then we can arrive at the weak form (see the mixed wave
 demos for more information):
 
-.. math:
+.. math::
 
-   (u_t, v) - (p, div(v)) & = 0
+   (u_t, v) - (p, \nabla \cdot v) & = 0
 
-   (p_t, w) + (div(u), w) & = 0
+   (p_t, w) + (\nabla \cdot u, w) & = 0
 
 As in that case, we will use the next-to-lowest order Raviart-Thomas
 space for :math:`u` and discontinuous piecewise linear elements for
@@ -114,7 +59,7 @@ space for :math:`u` and discontinuous piecewise linear elements for
 As an example, we will use the two-stage A-stable and symplectic DIRK of Qin and
 Zhang, given by Butcher tableau:
 
-.. math:
+.. math::
 
    \begin{tabular}{cc|c}
    1/4 & 1/4 & 0 \\

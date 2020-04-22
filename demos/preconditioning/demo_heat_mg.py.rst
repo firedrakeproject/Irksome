@@ -1,5 +1,5 @@
-Solving the Heat Equation with Irksome
-======================================
+Solving the heat equation with monolithic multigrid
+===================================================
 
 This reprise of the heat equation demo uses a monolithic multigrid
 algorithm suggested by Patrick Farrell to perform time advancement.
@@ -8,7 +8,8 @@ We consider the heat equation on :math:`\Omega = [0,10]
 \times [0,10]`, with boundary :math:`\Gamma`: giving rise to the weak form
 
 .. math::
-   (u_t, v) + (\nabla u, \nabla v) & = (f, v)
+
+   (u_t, v) + (\nabla u, \nabla v) = (f, v)
 
 This demo implements an example used by Solin with a particular choice
 of :math:`f` given below

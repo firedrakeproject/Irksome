@@ -1,8 +1,7 @@
-Solving the Wave Equation with Irksome
-======================================
+The Wave equation with adaptive time stepping
+=============================================
 
-The reader should first peruse the other demo in this directory.  The
-present example builds on that, but uses the adaptive time-stepping
+We now build on our previous example, present example builds on that, but uses the adaptive time-stepping
 capabilities.
 
 Let :math:`Omega` be the unit square with boundary :math:`Gamma`.  As

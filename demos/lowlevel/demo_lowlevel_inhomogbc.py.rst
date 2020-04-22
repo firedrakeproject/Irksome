@@ -39,7 +39,7 @@ process the semidiscrete problem::
 
   Fnew, k, bcnew, bcdata = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
 
-Recall that `getForm produces:
+Recall that `getForm` produces:
 
 * `Fnew` is the UFL variational form for the fully discrete method.
 * `k` is a new :class:`firedrake.Function` for  holding all the

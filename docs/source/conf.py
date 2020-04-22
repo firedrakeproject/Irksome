@@ -99,7 +99,7 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'firedrake'
+html_theme = 'irksome'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -253,8 +253,8 @@ texinfo_documents = [
 # -- Options for intersphinx ---------------------------------------------
 
 intersphinx_mapping = {
-    'fiat': ('https://github.com/FEniCS/fiat', None),
-    'firedrake': ('https://github.com/firedrakeproject/firedrake/', None),
+    'ufl': ('https://fenics.readthedocs.io/projects/fiat/en/latest/', None),
+    'firedrake': ('https://www.firedrakeproject.org', None),
     'ufl': ('https://fenics.readthedocs.io/projects/ufl/en/latest/', None),
     'python':('https://docs.python.org/3/', None),
 }

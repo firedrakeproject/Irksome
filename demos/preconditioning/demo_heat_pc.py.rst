@@ -7,9 +7,10 @@ Mardal, Nilssen, Staff, "Order-optimal preconditioners for implicit
 Runge-Kutta schemes applied to parabolic PDEs", SISC 29(1): 361--375 (2007),
 
 to our ongoing heat equation demonstration problem on :math:`\Omega = [0,10]
-\times [0,10]`, with boundary :math:`\Gamma`: giving rise to the weak form
+\times [0,10]`, with boundary :math:`\Gamma`, giving rise to the weak form
 
 .. math::
+
    (u_t, v) + (\nabla u, \nabla v) & = (f, v)
 
 A multi-stage RK method applied to the heat equation gives a
@@ -18,7 +19,8 @@ what one obtains from a backward Euler discretization of the equation.
 
 With a 2-stage method, we have
 
-.. math:
+.. math::
+   
    \left[ \begin{array}{cc} A_{11} & A_{12} \\ A_{21} & A_{22} \end{array} \right]
    \left[ \begin{array}{c} k_1 \\ k_2 \end{array} \right]
    &= \left[ \begin{array}{c} f_1 \\ f_2 \end{array} \right]
@@ -26,8 +28,10 @@ With a 2-stage method, we have
 And the suggestion (analyzed rigorously) of Mardal, Nilssen, and Staff
 is to use a block diagonal preconditioner::
 
-.. math:
-   P = \left[ \begin{array}{cc} A_{11} & 0 \\ 0 & A_{22} \end{array} \right]
+.. math::
+
+  P & = \left[ \begin{array}{cc} A_{11} & 0 \\ 0 & A_{22} \end{array} \right]
+
 
 This allows one to leverage an existing methodology for a low order
 method like backward Euler for the diagonal blocks.  In our case, we

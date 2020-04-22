@@ -1,5 +1,5 @@
-Solving the Mixed form of the Heat Equation with Irksome
-========================================================
+Solving the Mixed form of the Heat Equation
+===========================================
 
 This shows a different variational formulation of the heat equation.
 As before, we put :math:`\Omega = [0,10] \times [0,10]`, with boundary :math:`\Gamma`: but now we write the heat equation in mixed form:
@@ -19,12 +19,14 @@ which gives rise to the weak form
 
    (u_t, w) + (\nabla \cdot \sigma, w) &= (f, w)
 
-Here, :math`\sigma` is a vector-valued variable and will be discretized in
+Here, :math:`\sigma` is a vector-valued variable and will be discretized in
 a suitable :math:`H(\mathrm{div})` -conforming space.  The variable :math:`u`
 actually only requires :math:`L^2` regularity and will be discretized with
 discontinuous piecewise polynomials.
 
-Standard imports, although we're using a different time-stepper this time::
+Note that this gives us a differential-algebraic system at the fully discrete level as there is no time derivative on :math:`\sigma`.
+
+Standard imports, although we're using a different RK scheme this time::
 
   from firedrake import *
   from irksome import LobattoIIIC, Dt, TimeStepper
