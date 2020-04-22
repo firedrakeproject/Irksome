@@ -88,16 +88,17 @@ system at each time step::
 
 And, as with the heat equation, our time-stepping logic is quite simple.  At easch time step, we print out the energy in the system::
 
+  print("Time    Energy")
+  print("==============")
+
   while (float(t) < 1.0):
       if float(t) + float(dt) > 1.0:
           dt.assign(1.0 - float(t))
 
       stepper.advance()
-      print(float(t), assemble(E))
 
       t.assign(float(t) + float(dt))
-
-  print(float(t), assemble(E))
+      print("{0:1.1e} {1:5e}".format(float(t), assemble(E)))
 
 If all is well with the world, the energy will be nearly identical (up
 to roundoff error) at each time step because the GL methods are

@@ -1,0 +1,1 @@
+This directory contains two demos for the mixed form of the wave equation using the TimeStepper and AdaptiveTimeStepper classes.  The point is that if one uses a symplectic RK method, then energy will be conserved up to roundoff error and solver tolerances for linear problems.
