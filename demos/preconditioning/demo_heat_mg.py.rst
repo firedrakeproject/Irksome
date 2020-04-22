@@ -14,11 +14,11 @@ This demo implements an example used by Solin with a particular choice
 of :math:`f` given below
 
 We perform similar imports and setup as before::
-  
-  from firedrake import *   
+
+  from firedrake import *
   from irksome import GaussLegendre, Dt, TimeStepper
   from ufl.algorithms.ad import expand_derivatives
-  butcher_tableau = GaussLegendre(1)
+  butcher_tableau = GaussLegendre(2)
 
 
 However, we need to set up a :class:`firedrake.MeshHierarchy` to
@@ -41,12 +41,12 @@ enable multigrid within Firedrake::
 
 From here, setting up the function space, manufactured solution, etc,
 are just as for the regular heat equation demo::
-  
+
   V = FunctionSpace(msh, "CG", 1)
 
   dt = Constant(10.0 / N)
   t = Constant(0.0)
- 
+
   x, y = SpatialCoordinate(msh)
   S = Constant(2.0)
   C = Constant(1000.0)
@@ -55,7 +55,7 @@ are just as for the regular heat equation demo::
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
   rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
-  u = interpolate(uexact, V)  
+  u = interpolate(uexact, V)
   v = TestFunction(V)
   F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
   bc = DirichletBC(V, 0, "on_boundary")
@@ -63,7 +63,7 @@ are just as for the regular heat equation demo::
 And now for the solver parameters.  Note that we are solving a
 block-wise system with all stages coupled together.  This performs a
 monolithic multigrid with pointwise block Jacobi preconditioning::
-  
+
   mgparams = {"mat_type": "aij",
               "snes_type": "ksponly",
               "ksp_type": "fgmres",
@@ -71,7 +71,17 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
               "pc_type": "mg",
               "mg_levels_ksp_type": "chebyshev",
               "mg_levels_ksp_norm_type": "unpreconditioned",
-              "mg_levels_pc_type": "pbjacobi",
+              "mg_levels_pc_type": "python",
+              "mg_levels_pc_python_type": "firedrake.PatchPC",
+              "mg_levels_patch_pc_patch_save_operators": True,
+              "mg_levels_patch_pc_patch_partition_of_unity": False,
+              "mg_levels_patch_pc_patch_construct_type": "star",
+              "mg_levels_patch_pc_patch_construct_dim": 0,
+              "mg_levels_patch_pc_patch_sub_mat_type": "seqdense",
+              "mg_levels_patch_pc_patch_dense_inverse": True,
+              "mg_levels_patch_pc_patch_precompute_element_tensors": None,
+              "mg_levels_patch_sub_ksp_type": "preonly",
+              "mg_levels_patch_sub_pc_type": "lu",
               "mg_coarse_pc_type": "lu",
               "mg_coarse_pc_factor_mat_solver_type": "mumps"}
 
@@ -81,12 +91,12 @@ These solver parameters work just fine in the :class:`TimeStepper`::
                         solver_parameters=mgparams)
 
 And we can advance the solution in time in typical fashion::
-		
+
   while (float(t) < 1.0):
       if (float(t) + float(dt) > 1.0):
           dt.assign(1.0 - float(t))
       stepper.advance()
-      print(float(t))
+      print(float(t), flush=True)
       t.assign(float(t) + float(dt))
 
 Finally, we print out the relative :math:`L^2` error::
