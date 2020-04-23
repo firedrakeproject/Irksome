@@ -12,7 +12,7 @@ So, instead of manually coding UFL for backward Euler for the heat equation::
 
   F = inner((unew - uold) / dt, v) * dx + inner(grad(unew), grad(v)) * dx
 
-Irksome lets you write UFL for a semidiscrete form::
+and rewriting this if you want a different time-stepping method, Irksome lets you write UFL for a semidiscrete form::
   
   F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
 
@@ -61,6 +61,12 @@ to deploy more efficient methods:
    demos/demo_heat_mg.py
    demos/demo_dirk_parameters.py
 
+Yes, Irksome can handle nonlinear problems as well:
+
+.. toctree::
+   ..maxdepth: 1
+   demos/demo_cahnhilliard.py
+   
 If you feel you must bypass the :class:`TimeStepper` abstraction, we have
 some examples how to interact with Irksome at a slightly lower level:
 

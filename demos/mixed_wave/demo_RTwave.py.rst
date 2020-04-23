@@ -6,9 +6,9 @@ the wave equation as a first-order system of PDE:
 
 .. math::
 
-   u_t + grad(p) & = 0
+   u_t + \nabla p & = 0
    
-   p_t + div(u) & = 0
+   p_t + \nabla \cdot u & = 0
 
 together with homogeneous Dirichlet boundary conditions
 
