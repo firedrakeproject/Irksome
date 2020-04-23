@@ -88,11 +88,11 @@ while (float(t) < 1.0):
     stepper.advance()
 
     # Numerical quantities
-    FD= assemble(-(nu*dot(grad(ut1), n)*n[1] - p*n[0])*ds(5) )
-    FL= assemble(-(nu*inner(grad(ut1), n)*n[0]-p*n[1])*ds(5) )
-    
-    CD+= [2 * FD / (Umean**2) / L] #Drag coefficient
-    CL+= [2 * FL / (Umean**2) / L] #Lift coefficient
+    FD= assemble((nu*dot(grad(ut1), n)*n[1] - p*n[0])*ds(5) )
+    FL= assemble(-(nu*inner(grad(ut1), n)*n[0]+p*n[1])*ds(5) )
+
+    CD+= [-2 * FD / (Umean**2) / L] #Drag coefficient
+    CL+= [-2 * FL / (Umean**2) / L] #Lift coefficient
 
     t.assign(float(t) + float(dt))
 
