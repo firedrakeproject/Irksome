@@ -7,6 +7,27 @@ representation of time dericvatives in UFL, allowing users to write weak forms
 of semidiscrete PDE.  Irksome maps this and a Butcher tableau encoding a Runge-Kutta method Runge-Kutta method into a fully discrete variational problem for the stage values.  Irksome then leverages existing advanced solver technology in Firedrake and PETSc to allow for efficient computation of the Runge-Kutta stages.
 Convenience classes package the underlying lower-level manipulations and present users with a friendly high-level interface time stepping.
 
+
+So, instead of manually coding UFL for backward Euler for the heat equation::
+
+  F = inner((unew - uold) / dt, v) * dx + inner(grad(unew), grad(v)) * dx
+
+Irksome lets you write UFL for a semidiscrete form::
+  
+  F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+
+and maps this and a Butcher tableau for some Runge-Kutta method to UFL for a fully-discrete method.  Hence, switching between RK methods is plug-and-lay. 
+
+Irksome provides convenience classes to package the transformation of
+forms and boundary conditions and provide a method to advance by a
+time step.  The underlying variational problem for the (possibly
+implicit!) Runge Kutta stages composes fully with advanced
+Firedrake/PETSc solver technology, so you can use block
+preconditioners, multigrid with patch smooters, and more -- and in
+parallel, too!
+ 
+
+
 Getting started
 ===============
 
