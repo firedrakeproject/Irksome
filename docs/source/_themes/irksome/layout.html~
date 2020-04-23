@@ -1,0 +1,52 @@
+{% extends "basic/layout.html" %}
+
+{% block extrahead %}
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="{{ pathto('_static/ie6.css', 1) }}" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="{{ pathto('_static/featured.css', 1) }}">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'firedrakeproject.org');
+  ga('send', 'pageview');
+</script>
+
+{% if theme_favicon %}
+<link rel="shortcut icon" href="{{ pathto('_static/'+theme_favicon, 1) }}" />
+{% endif %}
+{% endblock %}
+
+{%- block document %}
+    <div class="{{pagename}}">
+      {{ super() }}
+    </div>
+{%- endblock %}
+
+{# override upper relbar to show our navigation menu #}
+{% block relbar1 %}
+<div class="wrapper">
+  {% if pagename[:9] == "fenics_15" %}
+  <a href="{{ pathto('fenics_15.html', 1) }}"><img src="{{ pathto('_static/%s.%s' % ('banner_fenics_15', 'png'), 1) }}" width="900px" alt="firedrake Project Banner" /></a>
+  {% else %}
+  <a href="{{ pathto('index.html', 1) }}"><img src="{{ pathto('_static/%s.%s' % ('banner', 'png'), 1) }}" width="900px" alt="firedrake Project Banner" /></a>
+  {% endif %}
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/rckirby/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+{% endblock %}
+
+{# do not display lower relbar #}
+{% block relbar2 %}{% endblock %}
+
+{# do not display sidebars #}
+{% block sidebar1 %}{% endblock %}
+{% block sidebar2 %}{% endblock %}
