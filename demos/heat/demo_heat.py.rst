@@ -79,7 +79,7 @@ will get overwritten at each time step::
   u = interpolate(uexact, V)
 
 Now, we will define the semidiscrete variational problem using
-standard UFL notation, augmented by the `Dt` operator from Irksome::
+standard UFL notation, augmented by the ``Dt`` operator from Irksome::
   
   v = TestFunction(V)
   F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
@@ -96,7 +96,7 @@ will assemble into a PETSc MatNest otherwise)::
               "ksp_type": "preonly",
               "pc_type": "lu"}
 
-Most of Irksome's magic happens in the :class:`TimeStepper`.  It
+Most of Irksome's magic happens in the :class:`.TimeStepper`.  It
 transforms our semidiscrete form `F` into a fully discrete form for
 the stage unknowns and sets up a variational problem to solve for the
 stages at each time step.::
@@ -105,7 +105,7 @@ stages at each time step.::
                         solver_parameters=luparams)
 
 This logic is pretty self-explanatory.  We use the
-:class:`TimeStepper`'s `advance` method, which solves the variational
+:class:`.TimeStepper`'s :meth:`~.TimeStepper.advance` method, which solves the variational
 problem to compute the Runge-Kutta stage values and then updates the solution.::
 		
   while (float(t) < 1.0):

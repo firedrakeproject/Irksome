@@ -22,8 +22,8 @@ We perform similar imports and setup as before::
   butcher_tableau = GaussLegendre(2)
 
 
-However, we need to set up a :class:`firedrake.MeshHierarchy` to
-enable multigrid within Firedrake::
+However, we need to set up a mesh hierarchy to enable geometric multigrid
+within Firedrake::
 
   N = 128
   x0 = 0.0
@@ -86,7 +86,7 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
               "mg_coarse_pc_type": "lu",
               "mg_coarse_pc_factor_mat_solver_type": "mumps"}
 
-These solver parameters work just fine in the :class:`TimeStepper`::
+These solver parameters work just fine in the :class:`.TimeStepper`::
 
   stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                         solver_parameters=mgparams)

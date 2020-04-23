@@ -25,7 +25,7 @@ solves the linear system.  Hence, we can provide the efficiency of DIRKs within
 the framework of Irksome with a special case of solver parameters.
 
 This example uses this idea to attack the mixed form of the wave equation.
-Let :math:`Omega` be the unit square with boundary :math:`Gamma`.  We write
+Let :math:`\Omega` be the unit square with boundary :math:`\Gamma`.  We write
 the wave equation as a first-order system of PDE:
 
 .. math::
@@ -61,11 +61,11 @@ Zhang, given by Butcher tableau:
 
 .. math::
 
-   \begin{tabular}{cc|c}
-   1/4 & 1/4 & 0 \\
-   3/4 & 1/2 & 1/4 \\ \hline
+   \begin{array}{c|cc}
+   1/4 & 1/4 & 0  \\
+   3/4 & 1/2 & 1/4  \\ \hline
        & 1/2 & 1/2
-   \end{tabular}
+   \end{array}
 
 Imports from Firedrake and Irksome::
      

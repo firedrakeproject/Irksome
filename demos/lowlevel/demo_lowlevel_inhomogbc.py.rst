@@ -41,24 +41,17 @@ process the semidiscrete problem::
 
 Recall that `getForm` produces:
 
-* `Fnew` is the UFL variational form for the fully discrete method.
-* `k` is a new :class:`firedrake.Function` for  holding all the
-  stages.  It lives on the s-way product of the space on which the
-  problem was originally posed
-* `bcnew` is a list of new :class:`firedrake.DirichletBC` that need to
+* ``Fnew`` is the UFL variational form for the fully discrete method.
+* ``k`` is a new :class:`~firedrake.function.Function` of stages on the s-way product of the space on which the problem was originally posed
+* ``bcnew`` is a list of new :class:`~firedrake.bcs.DirichletBC` that need to
   be enforced on the variational problem for the stages
-* `bcdata` contains information needed to update the boundary
-  conditions.  It is a list of pairs of the form (`f`, `expr`), where
-  `f` is a :class:`firedrake.Function` and `expr` is a
-  :class:`ufl.Expr` for each of the Dirichlet boundary conditions.
-  Because Firedrake isn't smart enough to detect that `t` changes in
-  the expression for the boundary condition, we need to manually
-  interpolate or project each `expr` onto the corresponding `f` at the
-  beginning of each time step.  Firedrake will notice this change and
-  re-apply the boundary conditions.  This hassle is easy to overlook
-  (not needed in this demo with homogeneous BC) and part of the reason
-  we recommend using the :class:`TimeStepper` interface that does this
-  for you.
+* ``bcdata`` contains information needed to update the boundary
+  conditions.  It is a list of pairs of the form (``f``, ``expr``), where
+  ``f`` is a :class:`~firedrake.function.Function` and ``expr`` is an
+  :class:`~ufl.core.expr.Expr` for each of the Dirichlet boundary conditions.
+  You're using the low-level interface and have to force Firedrake to reapply
+  the boundary conditions.
+
 
 We just use basic solver parameters and set up the variational problem
 and solver::

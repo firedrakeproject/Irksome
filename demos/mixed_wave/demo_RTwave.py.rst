@@ -105,6 +105,6 @@ If all is well with the world, the energy will be nearly identical (up
 to roundoff error) at each time step because the GL methods are
 symplectic and applied to a linear Hamiltonian system.  As an
 exercise, the reader should edit this code to use other RK methods.
-In particular, LobattoIIIC and Backward Euler or other Radau methods
-as well as the symplectic DIRK by Qin and Zhang.
+In particular, :class:`.LobattoIIIC` and :class:`.BackwardEuler` or other
+Radau methods as well as the symplectic DIRK :class:`.QinZhang`.
 

@@ -11,7 +11,7 @@ to our ongoing heat equation demonstration problem on :math:`\Omega = [0,10]
 
 .. math::
 
-   (u_t, v) + (\nabla u, \nabla v) & = (f, v)
+   (u_t, v) + (\nabla u, \nabla v) = (f, v)
 
 A multi-stage RK method applied to the heat equation gives a
 block-structured system.  The on-diagonal blocks are quite similar to
@@ -26,11 +26,11 @@ With a 2-stage method, we have
    &= \left[ \begin{array}{c} f_1 \\ f_2 \end{array} \right]
 
 And the suggestion (analyzed rigorously) of Mardal, Nilssen, and Staff
-is to use a block diagonal preconditioner::
+is to use a block diagonal preconditioner:
 
 .. math::
 
-  P & = \left[ \begin{array}{cc} A_{11} & 0 \\ 0 & A_{22} \end{array} \right]
+  P = \left[ \begin{array}{cc} A_{11} & 0 \\ 0 & A_{22} \end{array} \right]
 
 
 This allows one to leverage an existing methodology for a low order

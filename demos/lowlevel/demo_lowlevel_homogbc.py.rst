@@ -1,8 +1,9 @@
 Not using the TimeStepper interface for the heat equation
 =========================================================
 
-Invariably, somebody will have a (possible) compelling reason to avoid
-the top-level interface.  This demo shows how one can do just that.
+Invariably, somebody will have a (possibly) compelling reason or
+at least urgent desire to avoid the top-level interface.  This demo
+shows how one can do just that. 
 It will be sparsely documented except for the critical bits and should
 only be read after perusing the more basic demos.
 
@@ -10,12 +11,12 @@ We're solving the same problem that is done in the heat equation demos.
 
 Imports::
   
-  from firedrake import *  
+  from firedrake import *
   from ufl.algorithms.ad import expand_derivatives
  
   from irksome import GaussLegendre, getForm, Dt
 
-Note that we imported `getForm` rather than :class:`TimeStepper`.  That's the
+Note that we imported :func:`.getForm` rather than :class:`.TimeStepper`.  That's the
 lower-level function inside Irksome that manipulates UFL and boundary conditions.
 
 Continuing::
@@ -51,29 +52,29 @@ Continuing::
 
   bc = DirichletBC(V, 0, "on_boundary")
 
-Now, we use the `getForm` method, which processes the semidiscrete problem::
+Now, we use the :func:`.getForm` function, which processes the semidiscrete problem::
 
   Fnew, k, bcnew, bcdata = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
 
 This returns several things:
 
-* `Fnew` is the UFL variational form for the fully discrete method.
-* `k` is a new :class:`firedrake.Function` for  holding all the
+* ``Fnew`` is the UFL variational form for the fully discrete method.
+* ``k`` is a new :class:`~firedrake.function.Function` for  holding all the
   stages.  It lives on the s-way product of the space on which the
   problem was originally posed
-* `bcnew` is a list of new :class:`firedrake.DirichletBC` that need to
+* ``bcnew`` is a list of new :class:`~firedrake.bcs.DirichletBC` that need to
   be enforced on the variational problem for the stages
-* `bcdata` contains information needed to update the boundary
-  conditions.  It is a list of pairs of the form (`f`, `expr`), where
-  `f` is a :class:`firedrake.Function` and `expr` is a
-  :class:`ufl.Expr` for each of the Dirichlet boundary conditions.
+* ``bcdata`` contains information needed to update the boundary
+  conditions.  It is a list of pairs of the form (``f``, ``expr``), where
+  ``f`` is a :class:`~firedrake.function.Function` and ``expr`` is an
+  :class:`~ufl.core.expr.Expr` for each of the Dirichlet boundary conditions.
   Because Firedrake isn't smart enough to detect that `t` changes in
   the expression for the boundary condition, we need to manually
-  interpolate or project each `expr` onto the corresponding `f` at the
+  interpolate or project each :py:class:`~ufl.core.expr.Expr` onto the corresponding ``f`` at the
   beginning of each time step.  Firedrake will notice this change and
   re-apply the boundary conditions.  This hassle is easy to overlook
   (not needed in this demo with homogeneous BC) and part of the reason
-  we recommend using the :class:`TimeStepper` interface that does this
+  we recommend using the :class:`.TimeStepper` interface that does this
   for you.
 
 Solver parameters are just blunt-force LU.  Other options are surely possible::
