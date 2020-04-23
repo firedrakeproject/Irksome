@@ -6,9 +6,9 @@ Kirby, Mitchell, "Code generation for generally mapped finite
 elements," ACM TOMS 45(4), 2019.  But now, we use Irksome to perform
 the time stepping.
 
-The model is, with :math:`Omega` the unit square,
+The model is, with :math:`\Omega` the unit square,
 
-.. math:
+.. math::
 
   \frac{\partial c}{\partial t} - \nabla \cdot M \left(\nabla\left(\frac{d f}{d c}
         - \lambda \nabla^{2}c\right)\right) = 0 \quad {\rm in}
@@ -22,12 +22,12 @@ independent of :math:`c`.
 
 We close the system with boundary conditions
 
-.. math:
+.. math::
 
   M\left(\nabla\left(\frac{d f}{d c} - \lambda \nabla^{2}c\right)\right)
-  \cdot n &= 0 \quad {\rm on} \ \partial\Omega,
+  \cdot n &= 0 \quad {\rm on} \ \Gamma,
 
-  M \lambda \nabla c \cdot n &= 0 \quad {\rm on} \ \partial\Omega
+  M \lambda \nabla c \cdot n &= 0 \quad {\rm on} \ \Gamma
 
 Since we have a nonlinear problem that must be solved at each time
 step, there is no performance penalty to using a direct method with an
@@ -49,7 +49,7 @@ We create a directory to store some output pictures::
       raise RuntimeError("Cannot create output directory, file of given name exists")
 
 Set up the mesh and approximating space, including some refined ones
-to allow visualizing our higher-order element on a :math:`P^1` mesh::
+to allow visualizing our higher-order element on a :math:`P^1` space::
       
   N = 16
   msh = UnitSquareMesh(N, N)
