@@ -121,26 +121,30 @@ class LobattoIIIA(CollocationButcherTableau):
         return "LobattoIIIA(%d)" % self.num_stages
 
 
-class Radau23(ButcherTableau):
-    """Third order RadauIIA method.  A-stable"""
-    def __init__(self):
-        A = numpy.array([[5./12, -1./12], [3./4, 1./4]])
-        b = numpy.array([3./4, 1./4])
-        c = numpy.array([1./3, 1.])
-        super(Radau23, self).__init__(A, b, None, c, 3)
+class RadauIIA(CollocationButcherTableau):
+    """Collocation method based on the Gauss-Radau points.
+    The order of accuracy is 2 * `num_stages` - 1.
+    RadauIIA methods are algebraically (hence B-) stable.
+
+    :arg num_stages: The number of stages (2 or greater)
+    """
+    def __init__(self, num_stages):
+        assert num_stages >= 1
+        U = FIAT.ufc_simplex(1)
+        L = FIAT.GaussRadau(U, num_stages - 1)
+        super(RadauIIA, self).__init__(L, 2 * num_stages - 1)
+
+    def __str__(self):
+        return "RadauIIA(%d)" % self.num_stages        
 
 
-class Radau35(ButcherTableau):
-    """Fifth order RadauIIA method.  A-stable"""
+class BackwardEuler(RadauIIA):
+    """The rock-solid first-order implicit method."""
     def __init__(self):
-        A = numpy.array([[11./45 - 7*sqrt(6)/360, 37./225 - 169*sqrt(6)/1800,
-                          -2./225 + sqrt(6)/75],
-                         [37./225 + 169*sqrt(6)/1800, 11./45 - 7*sqrt(6) / 360,
-                          -2./225 - sqrt(6)/75],
-                         [4./9 - sqrt(6)/36, 4./9 + sqrt(6)/36, 1./9]])
-        b = numpy.array([4./9-sqrt(6)/36, 4./9 + sqrt(6)/36, 1./9])
-        c = numpy.array([2./5 - sqrt(6)/10, 2./5 + sqrt(6)/10, 1.0])
-        super(Radau35, self).__init__(A, b, None, c, 5)
+        super(BackwardEuler, self).__init__(1)
+
+    def __str__(self):
+        return ButcherTableau.__str__(self)
 
 
 class LobattoIIIC(ButcherTableau):
