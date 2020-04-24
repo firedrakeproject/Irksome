@@ -10,7 +10,7 @@ class ButcherTableau(object):
     :arg A: a 2d array containing the Butcher matrix
     :arg b: a 1d array giving weights assigned to each stage when
             computing the solution at time n+1.
-    :arg b: If present, a 1d array giving weights for an embedded
+    :arg btilde: If present, a 1d array giving weights for an embedded
             lower-order method (used in estimating temporal
             truncation error.)
     :arg c: a 1d array containing weights at which time-dependent
