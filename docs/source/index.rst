@@ -65,6 +65,7 @@ Yes, Irksome can handle nonlinear problems as well:
 
 .. toctree::
    :maxdepth: 1
+
    demos/demo_cahnhilliard.py
    
 If you feel you must bypass the :py:class:`.TimeStepper` abstraction, we have
