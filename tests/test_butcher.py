@@ -1,5 +1,3 @@
-import pytest
-
 from numpy import sqrt, array, allclose
 from irksome import GaussLegendre, LobattoIIIA, LobattoIIIC, RadauIIA
 
@@ -12,9 +10,9 @@ def test_GaussLegendre():
     A = array([[1 / 4, 1 / 4 - sqrt(3) / 6],
                [1 / 4 + sqrt(3) / 6, 1 / 4]])
     b = array([1 / 2, 1 / 2])
-    #btilde = array([1 / 2 + sqrt(3) / 6, 1 / 2 - sqrt(3) / 6])
+    # btilde = array([1 / 2 + sqrt(3) / 6, 1 / 2 - sqrt(3) / 6])
     c = array([1 / 2 - sqrt(3) / 6, 1 / 2 + sqrt(3) / (6)])
-    #assert allclose(btilde, bt.btilde)
+    # assert allclose(btilde, bt.btilde)
     for (X, Y) in zip([A, b, c], [bt.A, bt.b, bt.c]):
         assert allclose(X, Y)
 
@@ -28,8 +26,7 @@ def test_LobattoIIIA():
     for (X, Y) in zip([A, b, c], [bt.A, bt.b, bt.c]):
         assert allclose(X, Y)
 
-    print(bt.btilde)
-    
+
 def test_LobattoIIIC():
     bt = LobattoIIIC(3)
     A = array([[1/6, -1/3, 1/6], [1/6, 5/12, -1/12], [1/6, 2/3, 1/6]])
