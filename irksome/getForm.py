@@ -1,6 +1,6 @@
 import numpy
 from firedrake import (TestFunction, Function, Constant,
-                       split, DirichletBC, interpolate)  # , project)
+                       split, DirichletBC, interpolate, project)
 from firedrake.dmhooks import push_parent
 from ufl import replace, diff
 from ufl.algorithms import expand_derivatives
@@ -96,14 +96,20 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         if len(V) == 1:
             for i in range(num_stages):
                 gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
-                gdat = interpolate(gcur, V)
+                try:
+                    gdat = interpolate(gcur, V)
+                except NotImplementedError:
+                    gdat = project(gcur, V)
                 gblah.append((gdat, gcur))
                 bcnew.append(DirichletBC(Vbig[i], gdat, boundary))
         else:
             sub = bc.function_space_index()
             for i in range(num_stages):
                 gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
-                gdat = interpolate(gcur, V.sub(sub))
+                try:
+                    gdat = interpolate(gcur, V)
+                except NotImplementedError:
+                    gdat = project(gcur, V)
                 gblah.append((gdat, gcur))
                 bcnew.append(DirichletBC(Vbig[sub+(num_fields)*i],
                                          gdat, boundary))

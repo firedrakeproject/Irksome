@@ -1,6 +1,6 @@
 import FIAT
 import numpy
-from numpy import sqrt, vander
+from numpy import vander
 
 
 class ButcherTableau(object):
@@ -32,15 +32,6 @@ class ButcherTableau(object):
 
     def __str__(self):
         return str(self.__class__).split(".")[-1][:-2]+"()"
-
-
-class BackwardEuler(ButcherTableau):
-    """First-order implicit, very stable method."""
-    def __init__(self):
-        A = numpy.array([[1.0]])
-        b = numpy.array([1.0])
-        c = numpy.array([1.0])
-        super(BackwardEuler, self).__init__(A, b, None, c, 1)
 
 
 class CollocationButcherTableau(ButcherTableau):
@@ -135,7 +126,7 @@ class RadauIIA(CollocationButcherTableau):
         super(RadauIIA, self).__init__(L, 2 * num_stages - 1)
 
     def __str__(self):
-        return "RadauIIA(%d)" % self.num_stages        
+        return "RadauIIA(%d)" % self.num_stages
 
 
 class BackwardEuler(RadauIIA):
