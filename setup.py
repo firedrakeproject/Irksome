@@ -11,6 +11,6 @@ setup(
     author_email='Robert_Kirby@baylor.edu',
     description='A library for fully implicit Runge-Kutta methods in Firedrake',
     long_description='',
-    packages=['IRKsome'],
+    packages=['irksome'],
     zip_safe=False,
 )
