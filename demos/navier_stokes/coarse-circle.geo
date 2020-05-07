@@ -1,5 +1,5 @@
 SetFactory("OpenCASCADE");
-a() = ShapeFromFile("/Users/robert_kirby/Code/Irksome/demos/circle.step");
+a() = ShapeFromFile("/Users/robert_kirby/Code/Irksome/demos/navier_stokes/circle.step");
 
 Mesh.CharacteristicLengthMin = 0.1;
 Mesh.CharacteristicLengthMax = 0.1;

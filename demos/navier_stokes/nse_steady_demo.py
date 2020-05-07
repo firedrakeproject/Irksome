@@ -39,15 +39,17 @@ stepfile = "circle.step"
 # Close to what Turek's time-dependent benchmark has on coarsest mesh
 h = 0.1 
 order = 2
-lvl = 3
+lvl = 2
 mh = OpenCascadeMeshHierarchy(stepfile, element_size=h,
                               levels=lvl, order=order, cache=False,
                               verbose=True)
 
 msh = mh[-1]
 
-V = VectorFunctionSpace(msh, "CG", 2)
-W = FunctionSpace(msh, "DG", 0)
+
+
+V = VectorFunctionSpace(msh, "CG", 4)
+W = FunctionSpace(msh, "DG", 3)
 Z = V * W
 
 v, w = TestFunctions(Z)
@@ -67,7 +69,7 @@ L=0.1
 # define the variational form once outside the loop
 gamma = Constant(1.e2)
 F = (inner(dot(grad(u), u), v) * dx
-     + gamma * inner(cell_avg(div(u)), cell_avg(div(v))) * dx
+     + gamma * inner(div(u),div(v)) * dx
      + nu * inner(grad(u), grad(v)) * dx
      - inner(p, div(v)) * dx
      + inner(div(u), w) * dx)
@@ -81,7 +83,6 @@ bcs = [DirichletBC(Z.sub(0),
 
 s_param = {'snes_monitor': None,
            'ksp_type': 'fgmres',
-           #'ksp_view': None,
            'ksp_monitor': None,
            'pc_type': 'fieldsplit',
            'pc_fieldsplit_type': 'schur',
@@ -97,23 +98,33 @@ s_param = {'snes_monitor': None,
                }}
 
 
-appctx = {'nu': nu, 'gamma': float(gamma), 'velocity_space': 0}
+appctx = {'nu': nu, 'gamma': float(gamma)}
 ut1 = dot(u, as_vector([n[1], -n[0]]))
 
 solve(F==0, up, bcs=bcs, solver_parameters=s_param, appctx=appctx)
 
-FD = assemble(-(nu*dot(grad(ut1), n)*n[1] - p*n[0])*ds(5) )
-FL = assemble(-(nu*inner(grad(ut1), n)*n[0]-p*n[1])*ds(5) )
+FD= assemble((nu*dot(grad(ut1), n)*n[1] - p*n[0])*ds(5) )
+FL= assemble(-(nu*inner(grad(ut1), n)*n[0]+p*n[1])*ds(5) )
 
-CD = [2 * FD / (Umean**2) / L] #Drag coefficient
-CL = [2 * FL / (Umean**2) / L] #Lift coefficient
+CD = [-2 * FD / (Umean**2) / L] #Drag coefficient
+CL = [-2 * FL / (Umean**2) / L] #Lift coefficient
 
 print("Level", lvl)
 print("CD", CD)
 print("CL", CL)
 
 u, p = up.split()
-print(p((0.15, .2)) - p((0.250, 0.2)))
+
+import time
+tstart = time.time()
+pdiffat = p.at((0.15, .2)) - p.at((0.250, 0.2))
+tat = time.time() - tstart
+print("time using at ", tat)
+tstart = time.time()
+pdiffnotat = p((0.15, .2)) - p((0.25, .2))
+tnotat = time.time() - tstart
+print("time without at ", tnotat)
+
 
 # u, p = up.split()
 # File("nse_steady.pvd").write(u, p)
