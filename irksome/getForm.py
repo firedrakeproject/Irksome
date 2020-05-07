@@ -95,7 +95,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         gfoo = expand_derivatives(diff(bc._original_val, t))
         if len(V) == 1:
             for i in range(num_stages):
-                gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
+                gcur = replace(gfoo, {t: t + c[i] * dt})
                 try:
                     gdat = interpolate(gcur, V)
                 except NotImplementedError:
@@ -105,13 +105,13 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         else:
             sub = bc.function_space_index()
             for i in range(num_stages):
-                gcur = replace(gfoo, {t: t+Constant(butch.c[i])*dt})
+                gcur = replace(gfoo, {t: t + butch.c[i] * dt})
                 try:
                     gdat = interpolate(gcur, V)
                 except NotImplementedError:
                     gdat = project(gcur, V)
                 gblah.append((gdat, gcur))
-                bcnew.append(DirichletBC(Vbig[sub+(num_fields)*i],
+                bcnew.append(DirichletBC(Vbig[sub + num_fields * i],
                                          gdat, boundary))
 
     return Fnew, k, bcnew, gblah
