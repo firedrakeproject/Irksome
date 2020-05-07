@@ -1,5 +1,7 @@
 import numpy
 from firedrake import (TestFunction, Function, Constant,
+                       VectorFunctionSpace,
+                       as_vector,
                        split, DirichletBC, interpolate, project)
 from firedrake.dmhooks import push_parent
 from ufl import replace, diff
@@ -48,10 +50,14 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     A = numpy.array([[Constant(aa) for aa in arow] for arow in butch.A])
     c = numpy.array([Constant(ci) for ci in butch.c])
 
-    num_stages = len(c)
+    num_stages = butch.num_stages
     num_fields = len(V)
 
-    Vbig = numpy.prod([V for i in range(num_stages)])
+    if V.value_size == 1 and num_stages > 1:
+        Vbig = VectorFunctionSpace(V.mesh(), V.ufl_element(), dim=num_stages)
+    else:
+        Vbig = numpy.prod([V for i in range(num_stages)])
+
     # Silence a warning about transfer managers when we
     # coarsen coefficients in V
     push_parent(V.dm, Vbig.dm)
@@ -93,7 +99,19 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             for j in bc.domain_args[1][1]:
                 boundary += j
         gfoo = expand_derivatives(diff(bc._original_val, t))
-        if len(V) == 1:
+        if V.value_size == 1:
+            curbc_stuff = []
+            for i in range(num_stages):
+                gcur = replace(gfoo, {t: t + c[i] * dt})
+                try:
+                    gdat = interpolate(gcur, V)
+                except NotImplementedError:
+                    gdat = project(gcur, V)
+                gblah.append((gdat, gcur))
+                curbc_stuff.append(gdat)
+            print(Vbig.value_size, len(curbc_stuff))
+            bcnew.append(DirichletBC(Vbig, as_vector(curbc_stuff), boundary))
+        elif len(V) == 1:
             for i in range(num_stages):
                 gcur = replace(gfoo, {t: t + c[i] * dt})
                 try:

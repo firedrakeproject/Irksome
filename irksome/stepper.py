@@ -1,7 +1,9 @@
 from .getForm import getForm
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import Function, norm
+from firedrake import Function, norm, VectorFunctionSpace
+from ufl import VectorElement
+import numpy
 
 
 class TimeStepper:
@@ -60,7 +62,10 @@ class TimeStepper:
         ns = self.num_stages
         nf = self.num_fields
 
-        if nf == 1:
+        if isinstance(self.stages.function_space().ufl_element(),
+                      VectorElement):
+            u0.dat.data[:] += dtc * numpy.dot(self.stages.dat.data, b)
+        elif nf == 1:
             ks = self.ks
             for i in range(ns):
                 u0 += dtc * b[i] * ks[i]
@@ -69,7 +74,7 @@ class TimeStepper:
 
             for s in range(ns):
                 for i in range(nf):
-                    u0.dat.data[i][:] += dtc * b[s] * k.dat.data[nf*s+i][:]
+                    u0.dat.data[i][:] += dtc * b[s] * k.dat.data[nf * s + i][:]
 
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
