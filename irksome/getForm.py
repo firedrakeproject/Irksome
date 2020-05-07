@@ -70,10 +70,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
     Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
 
-    # Let's splat out time derivatives in F
-    # print(F)
-    # F = apply_time_derivatives(F, t, [u0])
-    # print(F)
 
     Fnew = Zero()
 
@@ -109,7 +105,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
                     gdat = project(gcur, V)
                 gblah.append((gdat, gcur))
                 curbc_stuff.append(gdat)
-            print(Vbig.value_size, len(curbc_stuff))
             bcnew.append(DirichletBC(Vbig, as_vector(curbc_stuff), boundary))
         elif len(V) == 1:
             for i in range(num_stages):

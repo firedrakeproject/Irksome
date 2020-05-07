@@ -6,7 +6,7 @@ from irksome import LobattoIIIC, getForm, Dt, TimeStepper
 
 ButcherTableau = LobattoIIIC(2)
 ns = ButcherTableau.num_stages
-N = 64
+N = 128
 
 msh = UnitSquareMesh(N, N)
 V = FunctionSpace(msh, "CG", 1)
