@@ -107,7 +107,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             for i in range(num_stages):
                 gcur = replace(gfoo, {t: t + butch.c[i] * dt})
                 try:
-                    gdat = interpolate(gcur, V)
+                    gdat = interpolate(gcur, V.sub(sub))
                 except NotImplementedError:
                     gdat = project(gcur, V)
                 gblah.append((gdat, gcur))
