@@ -1,0 +1,39 @@
+name: CI
+
+on: [push]
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: docker://firedrakeproject/firedrake-vanilla:latest
+
+    steps:
+      # Firedrake's Dockerfile sets USER to firedrake instead of using the default user, so we need to update file permissions for this image to work on GH Actions.
+      # See https://help.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners#docker-container-filesystem
+      # (copied from https://help.github.com/en/actions/migrating-to-github-actions/migrating-from-circleci-to-github-actions)
+      - name: Setup file system permissions
+        run: sudo chmod -R 777 $GITHUB_WORKSPACE /github /__w/_temp
+
+      - uses: actions/checkout@v2
+
+      - name: Python info
+        shell: bash -l {0}
+        run: |
+          source /home/firedrake/firedrake/bin/activate
+          which python
+          python -c "import sys; print('\n'.join(sys.path))"
+          python -c "from firedrake import *"
+
+      - name: Install Irksome
+        shell: bash -l {0}
+        run: |
+          source /home/firedrake/firedrake/bin/activate
+          python -m pip install -e .
+
+      - name: Tests
+        shell: bash -l {0}
+        run: |
+          source /home/firedrake/firedrake/bin/activate
+          make test
