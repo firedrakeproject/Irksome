@@ -51,10 +51,6 @@ Set up problem parameters, etc::
 
   x, = SpatialCoordinate(msh)
 
-  V = FunctionSpace(msh, "CG", 1)
-  u = project(uexact, V)
-  v = TestFunction(V)
-
 Here is the true solution, which is right-moving solitary wave (but not a soliton)::
 
   c = Constant(0.5)
@@ -64,6 +60,14 @@ Here is the true solution, which is right-moving solitary wave (but not a solito
 
   uexact = 3 * c**2 / (1-c**2) * sech(0.5 * (c * x  - c * t / (1 - c ** 2) + delta))**2
 
+Create the approximating space and project true solution::
+
+  V = FunctionSpace(msh, "CG", 1)
+  u = project(uexact, V)
+  v = TestFunction(V)
+
+
+  
 The symplectic Gauss-Legendre methods are of interest here::
   
   butcher_tableau = GaussLegendre(2)
@@ -84,6 +88,7 @@ For a 1d problem, we don't worry much about efficient solvers.::
 
 
 UFL for the mathematical invariants and containers to track them over time::
+
   I1 = u * dx
   I2 = (u**2 + (u.dx(0))**2) * dx
   I3 = ((u.dx(0))**2 - u**3 / 3) * dx
