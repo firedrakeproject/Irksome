@@ -191,3 +191,58 @@ class QinZhang(PareschiRusso):
 
     def __str__(self):
         return "QinZhang()"
+
+
+# Some classical explicit methods.
+
+class ForwardEuler(ButcherTableau):
+    """The classic forward Euler method."""
+    def __init__(self):
+        A = numpy.array([[0.0]])
+        b = numpy.array([1.0])
+        c = numpy.array([0.0])
+        super(ForwardEuler, self).__init__(A, b, None, c, 1)
+
+
+class ExplicitMidpoint(ButcherTableau):
+    """A classic second-order explicit method."""
+    def __init__(self):
+        A = numpy.array([[0.0, 0.0],
+                         [0.5, 0.0]])
+        b = numpy.array([0.0, 1.0])
+        c = numpy.array([0.0, 0.5])
+        super(ExplicitMidpoint, self).__init__(A, b, None, c, 1)
+
+
+class Heun(ButcherTableau):
+    """A classic second-order explicit method."""
+    def __init__(self):
+        A = numpy.array([[0.0, 0.0],
+                         [1.0, 0.0]])
+        b = numpy.array([0.5, 0.5])
+        c = numpy.array([0.0, 1.0])
+        super(Heun, self).__init__(A, b, None, c, 1)
+
+
+class SSPRK3(ButcherTableau):
+    """Third-order strong stability preserving RK method.  Useful for
+    advection problems."""
+    def __init__(self):
+        A = numpy.array([[0.0, 0.0, 0.0],
+                         [1.0, 0.0, 0.0],
+                         [0.25, 0.25, 0.0]])
+        b = numpy.array([1./6, 1./6, 2./3])
+        c = numpy.array([0.0, 1.0, 0.5])
+        super(SSPRK3, self).__init__(A, b, None, c, 1)
+
+
+class RK4(ButcherTableau):
+    """Classic fourth order method, sometimes called 'the' Runge-Kutta method."""
+    def __init__(self):
+        A = numpy.array([[0.0, 0.0, 0.0, 0.0],
+                         [0.5, 0.0, 0.0, 0.0],
+                         [0.0, 0.5, 0.0, 0.0],
+                         [0.0, 0.0, 1.0, 0.0]])
+        b = numpy.array([1./6, 1./3, 1./3, 1./6])
+        c = numpy.array([0, 0.5, 0.5, 1.0])
+        super(RK4, self).__init__(A, b, None, c, 1)
