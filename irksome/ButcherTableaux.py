@@ -211,7 +211,7 @@ class ExplicitMidpoint(ButcherTableau):
                          [0.5, 0.0]])
         b = numpy.array([0.0, 1.0])
         c = numpy.array([0.0, 0.5])
-        super(ExplicitMidpoint, self).__init__(A, b, None, c, 1)
+        super(ExplicitMidpoint, self).__init__(A, b, None, c, 2)
 
 
 class Heun(ButcherTableau):
@@ -221,7 +221,7 @@ class Heun(ButcherTableau):
                          [1.0, 0.0]])
         b = numpy.array([0.5, 0.5])
         c = numpy.array([0.0, 1.0])
-        super(Heun, self).__init__(A, b, None, c, 1)
+        super(Heun, self).__init__(A, b, None, c, 2)
 
 
 class SSPRK3(ButcherTableau):
@@ -233,7 +233,7 @@ class SSPRK3(ButcherTableau):
                          [0.25, 0.25, 0.0]])
         b = numpy.array([1./6, 1./6, 2./3])
         c = numpy.array([0.0, 1.0, 0.5])
-        super(SSPRK3, self).__init__(A, b, None, c, 1)
+        super(SSPRK3, self).__init__(A, b, None, c, 3)
 
 
 class RK4(ButcherTableau):
@@ -245,4 +245,35 @@ class RK4(ButcherTableau):
                          [0.0, 0.0, 1.0, 0.0]])
         b = numpy.array([1./6, 1./3, 1./3, 1./6])
         c = numpy.array([0, 0.5, 0.5, 1.0])
-        super(RK4, self).__init__(A, b, None, c, 1)
+
+        super(RK4, self).__init__(A, b, None, c, 4)
+
+
+class Alexander2(ButcherTableau):
+    """Two-stage, second order L-stable DIRK per
+    Alexander, SINUM 14(6), 1977"""
+    def __init__(self):
+        alpha = 1 + 1.0 / numpy.sqrt(2)
+        A = numpy.array([[alpha, 0.0],
+                         [1-alpha, alpha]])
+        b = numpy.array([1-alpha, alpha])
+        c = numpy.array([alpha, 1])
+
+        super(Alexander2, self).__init__(A, b, None, c, 2)
+
+
+class Alexander3(ButcherTableau):
+    """Three-stage, third order L-stable DIRK per
+    Alexander, SINUM 14(6), 1977"""
+    def __init__(self):
+        alpha = 0.435866521508459
+        tau2 = (1 + alpha) / 2
+        b1 = -(6 * alpha ** 2 - 16 * alpha + 1) / 4
+        b2 = (6 * alpha ** 2 - 20 * alpha + 5) / 4
+        A = numpy.array([[alpha, 0, 0],
+                         [tau2 - alpha, alpha, 0],
+                         [b1, b2, alpha]])
+        b = numpy.array([b1, b2, alpha])
+        c = numpy.array([alpha, tau2, 1])
+
+        super(Alexander2, self).__init__(A, b, None, c, 3)
