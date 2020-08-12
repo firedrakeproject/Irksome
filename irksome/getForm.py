@@ -92,7 +92,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             boundary = ()
             for j in bc.domain_args[1][1]:
                 boundary += j
-        gfoo = expand_derivatives(diff(bc._original_val, t))
+        gfoo = expand_derivatives(diff(bc._original_arg, t))
         if len(V) == 1:
             for i in range(num_stages):
                 gcur = replace(gfoo, {t: t + c[i] * dt})
