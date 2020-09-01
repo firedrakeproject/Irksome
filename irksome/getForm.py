@@ -59,10 +59,22 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     k = Function(Vbig)
     vbits = split(v)
     vbigbits = split(vnew)
-    u0bits = split(u0)
+    if len(V) == 1:
+        u0bits = [u0]
+        vbits = [v]
+    else:
+        u0bits = split(u0)
+        vbits = split(v)
     kbits = split(k)
 
-    Ak = A @ numpy.reshape(kbits, (num_stages, num_fields))
+    kbits_np = numpy.zeros((num_stages, num_fields), dtype="object")
+
+    for i in range(num_stages):
+        for j in range(num_fields):
+            kbits_np[i, j] = kbits[i*num_fields+j]
+
+    Ak = A @ kbits_np
+
 
     # Let's splat out time derivatives in F
     # print(F)
