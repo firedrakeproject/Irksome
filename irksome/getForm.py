@@ -57,15 +57,19 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     push_parent(V.dm, Vbig.dm)
     vnew = TestFunction(Vbig)
     k = Function(Vbig)
-    vbits = split(v)
-    vbigbits = split(vnew)
     if len(V) == 1:
         u0bits = [u0]
         vbits = [v]
+        if num_stages == 1:
+            vbigbits = [vnew]
+            kbits = [k]
+        else:
+            vbigbits = split(vnew)
+            kbits = split(k)
     else:
         u0bits = split(u0)
         vbits = split(v)
-    kbits = split(k)
+        vbigbits = split(vnew)
 
     kbits_np = numpy.zeros((num_stages, num_fields), dtype="object")
 
@@ -74,7 +78,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             kbits_np[i, j] = kbits[i*num_fields+j]
 
     Ak = A @ kbits_np
-
 
     # Let's splat out time derivatives in F
     # print(F)
@@ -88,8 +91,10 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         for j, (ubit, vbit, kbit) in enumerate(zip(u0bits, vbits, kbits)):
             repl[ubit] = ubit + dt * Ak[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
-            repl[TimeDerivative(ubit)] = kbits[num_fields * i + j]
-
+            repl[TimeDerivative(ubit)] = kbits_np[i, j]
+            print(repl[ubit].ufl_shape)
+            print(repl[vbit].ufl_shape)
+            
         Fnew += replace(F, repl)
 
     bcnew = []
