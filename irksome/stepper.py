@@ -48,7 +48,10 @@ class TimeStepper:
         problem = NLVP(bigF, stages, bigBCs)
         self.solver = NLVS(problem, solver_parameters=solver_parameters)
 
-        self.ks = stages.split()
+        if self.num_stages == 1 and self.num_fields == 1:
+            self.ks = (stages,)
+        else:
+            self.ks = stages.split()
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -63,7 +66,7 @@ class TimeStepper:
         if nf == 1:
             ks = self.ks
             for i in range(ns):
-                u0 += dtc * b[i] * ks[i]
+                u0.dat.data[:] += dtc * b[i] * ks[i].dat.data[:]
         else:
             k = self.stages
 

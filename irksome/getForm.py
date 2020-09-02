@@ -70,6 +70,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
         u0bits = split(u0)
         vbits = split(v)
         vbigbits = split(vnew)
+        kbits = split(k)
 
     kbits_np = numpy.zeros((num_stages, num_fields), dtype="object")
 
@@ -92,9 +93,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             repl[ubit] = ubit + dt * Ak[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
             repl[TimeDerivative(ubit)] = kbits_np[i, j]
-            print(repl[ubit].ufl_shape)
-            print(repl[vbit].ufl_shape)
-            
+
         Fnew += replace(F, repl)
 
     bcnew = []
