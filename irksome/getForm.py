@@ -81,13 +81,16 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     Ak = A @ kbits_np
 
     Fnew = Zero()
-
+    
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
         for j, (ubit, vbit, kbit) in enumerate(zip(u0bits, vbits, kbits)):
             repl[ubit] = ubit + dt * Ak[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
             repl[TimeDerivative(ubit)] = kbits_np[i, j]
+            if len(ubit) > 1:
+                for ubitbit, kbitbit in zip(split(ubit), kbits_np[i, j]):
+                    repl[TimeDerivative(ubitbit)] = kbitbit
 
         Fnew += replace(F, repl)
 
