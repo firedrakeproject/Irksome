@@ -80,11 +80,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
     Ak = A @ kbits_np
 
-    # Let's splat out time derivatives in F
-    # print(F)
-    # F = apply_time_derivatives(F, t, [u0])
-    # print(F)
-
     Fnew = Zero()
 
     for i in range(num_stages):
@@ -102,8 +97,8 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
     for bc in bcs:
-        if bc.domain_args[0] == "on_boundary":
-            boundary = "on_boundary"
+        if isinstance(bc.domain_args[0], str):
+            boundary = bc.domain_args[0]
         else:
             boundary = ()
             for j in bc.domain_args[1][1]:
