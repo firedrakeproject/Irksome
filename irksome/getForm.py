@@ -90,8 +90,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             repl[TimeDerivative(ubit)] = kbits_np[i, j]
 
         Fnew += replace(F, repl)
-    from petsc4py import PETSc
-    PETSc.Sys.Print(Fnew)
 
     bcnew = []
     gblah = []
