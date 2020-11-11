@@ -88,7 +88,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             repl[ubit] = ubit + dt * Ak[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
             repl[TimeDerivative(ubit)] = kbits_np[i, j]
-            if len(ubit) > 1:
+            if (len(ubit.ufl_shape) == 1):
                 for ubitbit, kbitbit in zip(split(ubit), kbits_np[i, j]):
                     repl[TimeDerivative(ubitbit)] = kbitbit
 
