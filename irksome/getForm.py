@@ -148,5 +148,4 @@ def getForm(F, butch, t, dt, u0, bcs=None):
                 bcnew.append(DirichletBC(Vbig[sub + num_fields * i],
                                          gdat, boundary))
 
-
     return Fnew, k, bcnew, gblah
