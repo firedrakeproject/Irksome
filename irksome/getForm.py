@@ -2,10 +2,30 @@ import numpy
 from firedrake import (TestFunction, Function, Constant,
                        split, DirichletBC, interpolate, project)
 from firedrake.dmhooks import push_parent
-from ufl import replace, diff
+from ufl import diff, replace
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from .deriv import TimeDerivative  # , apply_time_derivatives
+
+# from gem.node import Memoizer
+# from tsfc.ufl_utils import ufl_reuse_if_untouched
+# from functools import singledispatch
+# import ufl
+
+
+# @singledispatch
+# def _replace(o, self):
+#     raise AssertionError(f"Unhandled node type {type(o)}")
+# @_replace.register(ufl.classes.Expr)
+# def _replace_expr(o, self):
+#     if o in self.replacements:
+#         return self.replacements[o]
+#     else:
+#         return ufl_reuse_if_untouched(o, *map(self, o.ufl_operands))
+# def replace(expr, replacements):
+#     mapper = Memoizer(_replacer)
+#     mapper.replacements = replacements
+#     return mapper(expr)
 
 
 def getForm(F, butch, t, dt, u0, bcs=None):
@@ -89,8 +109,8 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             repl[vbit] = vbigbits[num_fields * i + j]
             repl[TimeDerivative(ubit)] = kbits_np[i, j]
             if (len(ubit.ufl_shape) == 1):
-                for ubitbit, kbitbit in zip(split(ubit), kbits_np[i, j]):
-                    repl[TimeDerivative(ubitbit)] = kbitbit
+                for kk, kbitbit in enumerate(kbits_np[i, j]):
+                    repl[TimeDerivative(ubit[kk])] = kbitbit
 
         Fnew += replace(F, repl)
 
@@ -127,5 +147,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
                 gblah.append((gdat, gcur))
                 bcnew.append(DirichletBC(Vbig[sub + num_fields * i],
                                          gdat, boundary))
+
 
     return Fnew, k, bcnew, gblah
