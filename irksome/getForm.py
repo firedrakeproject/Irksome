@@ -2,10 +2,60 @@ import numpy
 from firedrake import (TestFunction, Function, Constant,
                        split, DirichletBC, interpolate, project)
 from firedrake.dmhooks import push_parent
-from ufl import replace, diff
+from ufl import diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from .deriv import TimeDerivative  # , apply_time_derivatives
+from ufl.constantvalue import as_ufl
+from ufl.corealg.multifunction import MultiFunction
+from ufl.algorithms.analysis import has_exact_type
+from ufl.classes import CoefficientDerivative
+from ufl.algorithms.map_integrands import map_integrand_dags
+from ufl.log import error
+
+
+class MyReplacer(MultiFunction):
+    def __init__(self, mapping):
+        super().__init__()
+        self.replacements = mapping
+        if not all(k.ufl_shape == v.ufl_shape for k, v in mapping.items()):
+            error("Replacement expressions must have the same shape as what they replace.")
+
+    def expr(self, o):
+        if o in self.replacements:
+            return self.replacements[o]
+        else:
+            return self.reuse_if_untouched(o, *map(self, o.ufl_operands))
+
+    # def coefficient_derivative(self, o):
+    #     error("Derivatives should be applied before executing replace.")
+
+
+def replace(e, mapping):
+    """Replace subexpressions in expression.
+
+    @param e:
+        An Expr or Form.
+    @param mapping:
+        A dict with from:to replacements to perform.
+    """
+    mapping2 = dict((k, as_ufl(v)) for (k, v) in mapping.items())
+
+    # Workaround for problem with delayed derivative evaluation
+    # The problem is that J = derivative(f(g, h), g) does not evaluate immediately
+    # So if we subsequently do replace(J, {g: h}) we end up with an expression:
+    # derivative(f(h, h), h)
+    # rather than what were were probably thinking of:
+    # replace(derivative(f(g, h), g), {g: h})
+    #
+    # To fix this would require one to expand derivatives early (which
+    # is not attractive), or make replace lazy too.
+    if has_exact_type(e, CoefficientDerivative):
+        # Hack to avoid circular dependencies
+        from ufl.algorithms.ad import expand_derivatives
+        e = expand_derivatives(e)
+
+    return map_integrand_dags(MyReplacer(mapping2), e)
 
 
 def getForm(F, butch, t, dt, u0, bcs=None):
@@ -88,7 +138,11 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             repl[ubit] = ubit + dt * Ak[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
             repl[TimeDerivative(ubit)] = kbits_np[i, j]
-
+            if (len(ubit.ufl_shape) == 1):
+                for kk, kbitbit in enumerate(kbits_np[i, j]):
+                    repl[TimeDerivative(ubit[kk])] = kbitbit
+                    repl[ubit[kk]] = repl[ubit][kk]
+                    repl[vbit[kk]] = repl[vbit][kk]
         Fnew += replace(F, repl)
 
     bcnew = []

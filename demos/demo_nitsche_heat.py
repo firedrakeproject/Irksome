@@ -2,7 +2,7 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from irksome import LobattoIIIC, getForm, Dt, TimeStepper
+from irksome import LobattoIIIC, Dt, TimeStepper
 
 ButcherTableau = LobattoIIIC(2)
 ns = ButcherTableau.num_stages
@@ -34,11 +34,10 @@ F = (inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v) * dx
      - inner(dot(grad(v), n), u - uexact) * ds
      + beta/h * inner(u - uexact, v) * ds)
 
-params={"mat_type": "aij",
-        "snes_type": "ksponly",
-        "ksp_type": "preonly",
-        "pc_type": "lu"}
-
+params = {"mat_type": "aij",
+          "snes_type": "ksponly",
+          "ksp_type": "preonly",
+          "pc_type": "lu"}
 
 stepper = TimeStepper(F, ButcherTableau, t, dt, u, solver_parameters=params)
 
