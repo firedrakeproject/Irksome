@@ -155,8 +155,11 @@ def getForm(F, butch, t, dt, u0, bcs=None):
             boundary = bc.domain_args[0]
         else:
             boundary = ()
-            for j in bc.domain_args[1][1]:
-                boundary += j
+            try:
+                for j in bc.sub_domain:
+                    boundary += j
+            except TypeError:
+                boundary = (bc.sub_domain,)
         gfoo = expand_derivatives(diff(bc._original_arg, t))
         if len(V) == 1:
             for i in range(num_stages):
