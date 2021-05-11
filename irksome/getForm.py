@@ -90,7 +90,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
          onto the corresponding f in order for Firedrake to pick up that
          time-dependent boundary conditions need to be re-applied.
 """
-
     v = F.arguments()[0]
     V = v.function_space()
     assert V == u0.function_space()
@@ -151,15 +150,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
     for bc in bcs:
-        if isinstance(bc.domain_args[0], str):
-            boundary = bc.domain_args[0]
-        else:
-            boundary = ()
-            try:
-                for j in bc.sub_domain:
-                    boundary += j
-            except TypeError:
-                boundary = (bc.sub_domain,)
         gfoo = expand_derivatives(diff(bc._original_arg, t))
         if len(V) == 1:
             for i in range(num_stages):
@@ -169,7 +159,7 @@ def getForm(F, butch, t, dt, u0, bcs=None):
                 except NotImplementedError:
                     gdat = project(gcur, V)
                 gblah.append((gdat, gcur))
-                bcnew.append(DirichletBC(Vbig[i], gdat, boundary))
+                bcnew.append(DirichletBC(Vbig[i], gdat, bc.sub_domain))
         else:
             sub = bc.function_space_index()
             for i in range(num_stages):
@@ -180,6 +170,6 @@ def getForm(F, butch, t, dt, u0, bcs=None):
                     gdat = project(gcur, V)
                 gblah.append((gdat, gcur))
                 bcnew.append(DirichletBC(Vbig[sub + num_fields * i],
-                                         gdat, boundary))
+                                         gdat, bc.sub_domain))
 
     return Fnew, k, bcnew, gblah
