@@ -27,7 +27,6 @@ def RTCFtest(N, deg, butcher_tableau):
     u = project(uexact, V)
 
     v = TestFunction(V)
-    n = FacetNormal(msh)
     F = inner(Dt(u), v)*dx + inner(div(u), div(v))*dx - inner(rhs, v)*dx
     bc = DirichletBC(V, uexact, "on_boundary")
 
