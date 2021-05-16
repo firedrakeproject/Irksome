@@ -29,6 +29,7 @@ class TimeStepper:
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
+
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None):
@@ -77,8 +78,8 @@ class TimeStepper:
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
-        for gdat, gcur in self.bigBCdata:
-            gdat.interpolate(gcur)
+        for gdat, gcur, gmethod in self.bigBCdata:
+            gmethod(gcur)
 
         self.solver.solve()
 
@@ -158,8 +159,8 @@ class AdaptiveTimeStepper(TimeStepper):
         Note: overwrites the value `u0`."""
         print("\tTrying dt=", float(self.dt))
         while 1:
-            for gdat, gcur in self.bigBCdata:
-                gdat.interpolate(gcur)
+            for gdat, gcur, gmethod in self.bigBCdata:
+                gmethod(gcur)
 
             self.solver.solve()
             err = self._estimate_error()
