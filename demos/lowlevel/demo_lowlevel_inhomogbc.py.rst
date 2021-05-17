@@ -46,11 +46,13 @@ Recall that `getForm` produces:
 * ``bcnew`` is a list of new :class:`~firedrake.bcs.DirichletBC` that need to
   be enforced on the variational problem for the stages
 * ``bcdata`` contains information needed to update the boundary
-  conditions.  It is a list of pairs of the form (``f``, ``expr``), where
-  ``f`` is a :class:`~firedrake.function.Function` and ``expr`` is an
-  :class:`~ufl.core.expr.Expr` for each of the Dirichlet boundary conditions.
-  You're using the low-level interface and have to force Firedrake to reapply
-  the boundary conditions.
+  conditions.  It is a list of triples of the form
+  (``f``,``expr``,``method``), where ``f`` is a
+  :class:`~firedrake.function.Function`, ``expr`` is an
+  :class:`~ufl.core.expr.Expr`, and ``method`` is either a project or
+  interpolate operation for each of the Dirichlet boundary conditions.
+  You're using the low-level interface and have to force Firedrake to
+  reapply the boundary conditions.
 
 
 We just use basic solver parameters and set up the variational problem
@@ -73,8 +75,8 @@ boundary conditions at each time step::
       if float(t) + float(dt) > 1.0:
           dt.assign(1.0 - float(t))
 
-      for (gdat, gcur) in bcdata:
-          gdat.interpolate(gcur)
+      for (gdat, gcur, gmethod) in bcdata:
+          gmethod(gcur)
 
       solver.solve()
 

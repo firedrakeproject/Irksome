@@ -156,19 +156,23 @@ def getForm(F, butch, t, dt, u0, bcs=None):
                 gcur = replace(gfoo, {t: t + c[i] * dt})
                 try:
                     gdat = interpolate(gcur, V)
-                except NotImplementedError:
+                    gmethod = lambda g: gdat.interpolate(g)
+                except:  # noqa: E722
                     gdat = project(gcur, V)
-                gblah.append((gdat, gcur))
+                    gmethod = lambda g: gdat.project(g)
+                gblah.append((gdat, gcur, gmethod))
                 bcnew.append(DirichletBC(Vbig[i], gdat, bc.sub_domain))
         else:
             sub = bc.function_space_index()
             for i in range(num_stages):
-                gcur = replace(gfoo, {t: t + butch.c[i] * dt})
+                gcur = replace(gfoo, {t: t + c[i] * dt})
                 try:
                     gdat = interpolate(gcur, V.sub(sub))
-                except NotImplementedError:
-                    gdat = project(gcur, V)
-                gblah.append((gdat, gcur))
+                    gmethod = lambda g: gdat.interpolate(g)
+                except:  # noqa: E722
+                    gdat = project(gcur, V.sub(sub))
+                    gmethod = lambda g: gdat.project(g)
+                gblah.append((gdat, gcur, gmethod))
                 bcnew.append(DirichletBC(Vbig[sub + num_fields * i],
                                          gdat, bc.sub_domain))
 
