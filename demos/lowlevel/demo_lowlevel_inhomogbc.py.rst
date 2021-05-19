@@ -76,7 +76,7 @@ boundary conditions at each time step::
           dt.assign(1.0 - float(t))
 
       for (gdat, gcur, gmethod) in bcdata:
-          gmethod(gcur)
+          gmethod(gcur,u)
 
       solver.solve()
 
