@@ -80,3 +80,5 @@ def test_Stokes(N, time_stages):
     assert abs(error) < 1e-10
 
 
+if __name__ == "__main__":
+    test_Stokes(4, 2)

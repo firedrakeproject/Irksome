@@ -85,6 +85,7 @@ class TimeStepper:
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
         for gdat, gcur, gmethod in self.bigBCdata:
+            print(gdat.ufl_shape, gcur.ufl_shape)
             gmethod(gcur, self.u0)
 
         self.solver.solve()
