@@ -73,17 +73,18 @@ class DAEBCStageDataMixedSpace(BCStageData):
             gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
             try:
                 gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
+
                 def gmethod(g, u):
                     # print("in gmethod")
                     # print(id(gdat))
                     # print(gdat.ufl_shape, g.ufl_shape, u.sub(sub).ufl_shape)
                     # print("end gmethod")
                     return gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-            except:
+            except:  # noqa: E722
                 gdat = project(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
                 gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
         super().__init__(gdat, gcur, gmethod)
-    
+
 
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
     """Given a time-dependent variational form and a
