@@ -58,17 +58,8 @@ def replace(e, mapping):
     return map_integrand_dags(MyReplacer(mapping2), e)
 
 
-class DAEBCStageData(object):
-    def __init__(self, V, butch, gorig, u0, i, t, dt):
-        Ainv = numpy.array([[Constant(aa/dt) for aa in arow] for arow in butch.Ainv])
-        u0_mult_np = butch.Ainv@numpy.ones_like(butch.c)
-        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
-        c = numpy.array([Constant(ci) for ci in butch.c])
-
-        num_stages = butch.num_stages
-        gcur = 0
-        for j in range(num_stages):
-            gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
+class BCStageData(object):
+    def __init__(self, V, gcur, u0, u0_mult, i, t, dt):
         if V.index is None:  # Not part of a mixed space
             try:
                 gdat = interpolate(gcur-u0_mult[i]*u0, V)
@@ -225,6 +216,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
         if butch.Ainv is None:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau")
 
+        Ainv = numpy.array([[Constant(aa/dt) for aa in arow] for arow in butch.Ainv])
+        u0_mult_np = butch.Ainv@numpy.ones_like(butch.c)
+        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
+        c = numpy.array([Constant(ci) for ci in butch.c])
+
         for bc in bcs:
             gorig = as_ufl(bc._original_arg)
 
@@ -233,7 +229,10 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
             offset = lambda i: sub + num_fields * i
 
             for i in range(num_stages):
-                blah = DAEBCStageData(Vsp, butch, gorig, u0, i, t, dt)
+                gcur = 0
+                for j in range(num_stages):
+                    gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
+                blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
                 gdat, gcur, gmethod = blah.gstuff
                 gblah.append((gdat, gcur, gmethod))
                 bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))
