@@ -180,25 +180,18 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
     bcnew = []
     gblah = []
 
+    c = numpy.array([Constant(ci) for ci in butch.c])
+
     if bcs is None:
         bcs = []
     if bc_type == "ODE":
         u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
         u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
-        for bc in bcs:
+
+        def bc2gcur(bc, i):
             gorig = bc._original_arg
             gfoo = expand_derivatives(diff(gorig, t))
-
-            sub = 0 if len(V) == 1 else bc.function_space_index()
-            Vsp = V if len(V) == 1 else V.sub(sub)
-            offset = lambda i: sub + num_fields * i
-
-            for i in range(num_stages):
-                gcur = replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
-                blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
-                gdat, gcur, gmethod = blah.gstuff
-                gblah.append((gdat, gcur, gmethod))
-                bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))                
+            return replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
 
     elif bc_type == "DAE":
         if butch.Ainv is None:
@@ -207,25 +200,28 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
         Ainv = numpy.array([[Constant(aa/dt) for aa in arow] for arow in butch.Ainv])
         u0_mult_np = butch.Ainv@numpy.ones_like(butch.c)
         u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
-        c = numpy.array([Constant(ci) for ci in butch.c])
 
-        for bc in bcs:
+        def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
-
-            sub = 0 if len(V) == 1 else bc.function_space_index()
-            Vsp = V if len(V) == 1 else V.sub(sub)
-            offset = lambda i: sub + num_fields * i
-
-            for i in range(num_stages):
-                gcur = 0
-                for j in range(num_stages):
-                    gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
-                blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
-                gdat, gcur, gmethod = blah.gstuff
-                gblah.append((gdat, gcur, gmethod))
-                bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))
-
+            gcur = 0
+            for j in range(num_stages):
+                gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
+            return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
+
+    # This logic uses information set up in the previous section to
+    # set up the new BCs for either method
+    for bc in bcs:
+        sub = 0 if len(V) == 1 else bc.function_space_index()
+        Vsp = V if len(V) == 1 else V.sub(sub)
+        offset = lambda i: sub + num_fields * i
+
+        for i in range(num_stages):
+            gcur = bc2gcur(bc, i)
+            blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
+            gdat, gcr, gmethod = blah.gstuff
+            gblah.append((gdat, gcr, gmethod))
+            bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))
 
     return Fnew, k, bcnew, gblah
