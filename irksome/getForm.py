@@ -65,6 +65,21 @@ class BCStageData(object):
         self.gmethod = gmethod
 
 
+class DAEBCStageDataNonMixedSpace(BCStageData):
+    def __init__(self, V, gorig, u0, Ainv, i, u0_mult, c, t, dt):
+        num_stages = len(c)
+        gcur = 0
+        for j in range(num_stages):
+            gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
+        try:
+            gdat = interpolate(gcur-u0_mult[i]*u0, V)
+            gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
+        except:  # noqa: E722
+            gdat = project(gcur-u0_mult[i]*u0, V)
+            gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
+        super().__init__(gdat, gcur, gmethod)
+
+        
 class DAEBCStageDataMixedSpace(BCStageData):
     def __init__(self, V, sub, gorig, u0, Ainv, i, u0_mult, c, t, dt):
         num_stages = len(c)
@@ -226,17 +241,13 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
         u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
         for bc in bcs:
             gorig = as_ufl(bc._original_arg)
+
             if len(V) == 1:
                 for i in range(num_stages):
-                    gcur = 0
-                    for j in range(num_stages):
-                        gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
-                    try:
-                        gdat = interpolate(gcur-u0_mult[i]*u0, V)
-                        gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
-                    except:  # noqa: E722
-                        gdat = project(gcur-u0_mult[i]*u0, V)
-                        gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
+                    blah = DAEBCStageDataNonMixedSpace(V, gorig, u0, Ainv, i, u0_mult, c, t, dt)
+                    gdat = blah.gdat
+                    gcur = blah.gcur
+                    gmethod = blah.gmethod
                     gblah.append((gdat, gcur, gmethod))
                     bcnew.append(DirichletBC(Vbig[i], gdat, bc.sub_domain))
             else:
