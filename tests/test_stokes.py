@@ -4,8 +4,10 @@ from firedrake import *
 from irksome import Dt, TimeStepper, LobattoIIIC
 from ufl.algorithms import expand_derivatives
 
-# test the accuracy of the 1d heat equation using CG elements
-# and Gauss-Legendre time integration
+# test the accuracy of the 2d Stokes heat equation using CG elements
+# and LobattoIIIC time integration.  Particular issue being tested is
+# enforcement of the pressure BC, which is a field that doesn't have
+# a time derivative on it.
 
 
 def StokesTest(N, butcher_tableau):
