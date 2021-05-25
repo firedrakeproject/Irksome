@@ -58,44 +58,32 @@ def replace(e, mapping):
     return map_integrand_dags(MyReplacer(mapping2), e)
 
 
-class BCStageData(object):
-    def __init__(self, gdat, gcur, gmethod):
-        self.gdat = gdat
-        self.gcur = gcur
-        self.gmethod = gmethod
-
-
-class DAEBCStageDataNonMixedSpace(BCStageData):
+class DAEBCStageData(object):
     def __init__(self, V, gorig, u0, Ainv, i, u0_mult, c, t, dt):
         num_stages = len(c)
         gcur = 0
         for j in range(num_stages):
             gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
-        try:
-            gdat = interpolate(gcur-u0_mult[i]*u0, V)
-            gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
-        except:  # noqa: E722
-            gdat = project(gcur-u0_mult[i]*u0, V)
-            gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
-        super().__init__(gdat, gcur, gmethod)
+        if V.index is None:  # Not part of a mixed space
+            try:
+                gdat = interpolate(gcur-u0_mult[i]*u0, V)
+                gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
+            except:  # noqa: E722
+                gdat = project(gcur-u0_mult[i]*u0, V)
+                gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
+        else:
+            sub = V.index
+            try:
+                gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
+                gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
+            except:  # noqa: E722
+                gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
+                gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
+            
+        self.gdat = gdat
+        self.gcur = gcur
+        self.gmethod = gmethod
 
-
-class DAEBCStageDataMixedSpace(BCStageData):
-    def __init__(self, V, sub, gorig, u0, Ainv, i, u0_mult, c, t, dt):
-        num_stages = len(c)
-        gcur = 0
-        for j in range(num_stages):
-            gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
-        try:
-            gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
-
-            def gmethod(g, u):
-                return gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-
-        except:  # noqa: E722
-            gdat = project(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
-            gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
-        super().__init__(gdat, gcur, gmethod)
 
 
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
@@ -244,7 +232,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
 
             if len(V) == 1:
                 for i in range(num_stages):
-                    blah = DAEBCStageDataNonMixedSpace(V, gorig, u0, Ainv, i, u0_mult, c, t, dt)
+                    blah = DAEBCStageData(V, gorig, u0, Ainv, i, u0_mult, c, t, dt)
                     gdat = blah.gdat
                     gcur = blah.gcur
                     gmethod = blah.gmethod
@@ -254,7 +242,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
                 sub = bc.function_space_index()
 
                 for i in range(num_stages):
-                    blah = DAEBCStageDataMixedSpace(V, sub, gorig, u0, Ainv, i, u0_mult, c, t, dt)
+                    blah = DAEBCStageData(V.sub(sub), gorig, u0, Ainv, i, u0_mult, c, t, dt)
                     gdat = blah.gdat
                     gcur = blah.gcur
                     gmethod = blah.gmethod
