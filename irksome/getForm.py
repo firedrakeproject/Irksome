@@ -71,18 +71,15 @@ class DAEBCStageDataMixedSpace(BCStageData):
         gcur = 0
         for j in range(num_stages):
             gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
-            try:
-                gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
+        try:
+            gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
 
-                def gmethod(g, u):
-                    # print("in gmethod")
-                    # print(id(gdat))
-                    # print(gdat.ufl_shape, g.ufl_shape, u.sub(sub).ufl_shape)
-                    # print("end gmethod")
-                    return gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-            except:  # noqa: E722
-                gdat = project(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
-                gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
+            def gmethod(g, u):
+                return gdat.interpolate(g-u0_mult[i]*u.sub(sub))
+
+        except:  # noqa: E722
+            gdat = project(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
+            gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
         super().__init__(gdat, gcur, gmethod)
 
 
