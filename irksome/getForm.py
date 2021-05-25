@@ -59,8 +59,13 @@ def replace(e, mapping):
 
 
 class DAEBCStageData(object):
-    def __init__(self, V, gorig, u0, Ainv, i, u0_mult, c, t, dt):
-        num_stages = len(c)
+    def __init__(self, V, butch, gorig, u0, i, t, dt):
+        Ainv = numpy.array([[Constant(aa/dt) for aa in arow] for arow in butch.Ainv])
+        u0_mult_np = butch.Ainv@numpy.ones_like(butch.c)
+        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
+        c = numpy.array([Constant(ci) for ci in butch.c])
+
+        num_stages = butch.num_stages
         gcur = 0
         for j in range(num_stages):
             gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
@@ -79,11 +84,8 @@ class DAEBCStageData(object):
             except:  # noqa: E722
                 gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
                 gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
-            
-        self.gdat = gdat
-        self.gcur = gcur
-        self.gmethod = gmethod
 
+        self.gstuff = (gdat, gcur, gmethod)
 
 
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
@@ -222,33 +224,23 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
     elif bc_type == "DAE":
         if butch.Ainv is None:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau")
-        else:
-            Ainv = numpy.array([[Constant(aa/dt) for aa in arow] for arow in butch.Ainv])
 
-        u0_mult_np = butch.Ainv@numpy.ones_like(butch.c)
-        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
         for bc in bcs:
             gorig = as_ufl(bc._original_arg)
 
             if len(V) == 1:
-                for i in range(num_stages):
-                    blah = DAEBCStageData(V, gorig, u0, Ainv, i, u0_mult, c, t, dt)
-                    gdat = blah.gdat
-                    gcur = blah.gcur
-                    gmethod = blah.gmethod
-                    gblah.append((gdat, gcur, gmethod))
-                    bcnew.append(DirichletBC(Vbig[i], gdat, bc.sub_domain))
+                Vsp = V
+                offset = lambda i: i
             else:
                 sub = bc.function_space_index()
+                Vsp = V.sub(sub)
+                offset = lambda i: sub + num_fields * i
+            for i in range(num_stages):
+                blah = DAEBCStageData(Vsp, butch, gorig, u0, i, t, dt)
+                gdat, gcur, gmethod = blah.gstuff
+                gblah.append((gdat, gcur, gmethod))
+                bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))
 
-                for i in range(num_stages):
-                    blah = DAEBCStageData(V.sub(sub), gorig, u0, Ainv, i, u0_mult, c, t, dt)
-                    gdat = blah.gdat
-                    gcur = blah.gcur
-                    gmethod = blah.gmethod
-                    gblah.append((gdat, gcur, gmethod))
-                    bcnew.append(DirichletBC(Vbig[sub + num_fields * i],
-                                             gdat, bc.sub_domain))
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
 
