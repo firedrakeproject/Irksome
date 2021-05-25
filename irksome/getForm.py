@@ -188,30 +188,18 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
         for bc in bcs:
             gorig = bc._original_arg
             gfoo = expand_derivatives(diff(gorig, t))
-            if len(V) == 1:
-                for i in range(num_stages):
-                    gcur = replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
-                    try:
-                        gdat = interpolate(gcur-u0_mult[i]*u0, V)
-                        gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
-                    except:  # noqa: E722
-                        gdat = project(gcur-u0_mult[i]*u0, V)
-                        gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
-                    gblah.append((gdat, gcur, gmethod))
-                    bcnew.append(DirichletBC(Vbig[i], gdat, bc.sub_domain))
-            else:
-                sub = bc.function_space_index()
-                for i in range(num_stages):
-                    gcur = replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
-                    try:
-                        gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
-                        gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-                    except:  # noqa: E722
-                        gdat = project(gcur-u0_mult[i]*u0.sub(sub), V.sub(sub))
-                        gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
-                    gblah.append((gdat, gcur, gmethod))
-                    bcnew.append(DirichletBC(Vbig[sub + num_fields * i],
-                                             gdat, bc.sub_domain))
+
+            sub = 0 if len(V) == 1 else bc.function_space_index()
+            Vsp = V if len(V) == 1 else V.sub(sub)
+            offset = lambda i: sub + num_fields * i
+
+            for i in range(num_stages):
+                gcur = replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
+                blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
+                gdat, gcur, gmethod = blah.gstuff
+                gblah.append((gdat, gcur, gmethod))
+                bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))                
+
     elif bc_type == "DAE":
         if butch.Ainv is None:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau")
