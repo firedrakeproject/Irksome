@@ -228,13 +228,10 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
         for bc in bcs:
             gorig = as_ufl(bc._original_arg)
 
-            if len(V) == 1:
-                Vsp = V
-                offset = lambda i: i
-            else:
-                sub = bc.function_space_index()
-                Vsp = V.sub(sub)
-                offset = lambda i: sub + num_fields * i
+            sub = 0 if len(V) == 1 else bc.function_space_index()
+            Vsp = V if len(V) == 1 else V.sub(sub)
+            offset = lambda i: sub + num_fields * i
+
             for i in range(num_stages):
                 blah = DAEBCStageData(Vsp, butch, gorig, u0, i, t, dt)
                 gdat, gcur, gmethod = blah.gstuff
