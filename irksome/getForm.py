@@ -79,7 +79,7 @@ class DAEBCStageDataNonMixedSpace(BCStageData):
             gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
         super().__init__(gdat, gcur, gmethod)
 
-        
+
 class DAEBCStageDataMixedSpace(BCStageData):
     def __init__(self, V, sub, gorig, u0, Ainv, i, u0_mult, c, t, dt):
         num_stages = len(c)
