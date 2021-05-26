@@ -180,8 +180,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
     bcnew = []
     gblah = []
 
-    c = numpy.array([Constant(ci) for ci in butch.c])
-
     if bcs is None:
         bcs = []
     if bc_type == "ODE":
