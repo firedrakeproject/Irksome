@@ -46,8 +46,9 @@ def test_1d_heat_dirichletbc(butcher_tableau):
     ]
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    # For LobattoIIIA, need to use ODE-style BCs
     stepper = TimeStepper(
-        F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams
+        F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams, bc_type="ODE"
     )
 
     t_end = 2.0

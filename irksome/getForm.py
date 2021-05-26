@@ -58,7 +58,28 @@ def replace(e, mapping):
     return map_integrand_dags(MyReplacer(mapping2), e)
 
 
-def getForm(F, butch, t, dt, u0, bcs=None):
+class BCStageData(object):
+    def __init__(self, V, gcur, u0, u0_mult, i, t, dt):
+        if V.index is None:  # Not part of a mixed space
+            try:
+                gdat = interpolate(gcur-u0_mult[i]*u0, V)
+                gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
+            except:  # noqa: E722
+                gdat = project(gcur-u0_mult[i]*u0, V)
+                gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
+        else:
+            sub = V.index
+            try:
+                gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
+                gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
+            except:  # noqa: E722
+                gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
+                gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
+
+        self.gstuff = (gdat, gcur, gmethod)
+
+
+def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -74,6 +95,12 @@ def getForm(F, butch, t, dt, u0, bcs=None):
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possible time-dependent) boundary conditions imposed
          on the system.
+    :arg bc_type: How to manipulate the strongly-enforced boundary
+         conditions to derive the stage boundary conditions.  Should
+         be a string, either "DAE", which implements BCs as
+         constraints in the style of a differential-algebraic
+         equation, or "ODE", which takes the time derivative of the
+         boundary data and evaluates this for the stage values
 
     On output, we return a tuple consisting of four parts:
 
@@ -84,12 +111,18 @@ def getForm(F, butch, t, dt, u0, bcs=None):
          form lives.
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages,
-       - `gblah`, a list of pairs of the form (f, expr), where f is
-         a :class:`firedrake.Function` and expr is a :class:`ufl.Expr`.
-         at each time step, each expr needs to be re-interpolated/projected
-         onto the corresponding f in order for Firedrake to pick up that
-         time-dependent boundary conditions need to be re-applied.
-"""
+       - `gblah`, a list of tuples of the form (f, expr, method),
+         where f is a :class:`firedrake.Function` and expr is a
+         :class:`ufl.Expr`.  At each time step, each expr needs to be
+         re-interpolated/projected onto the corresponding f in order
+         for Firedrake to pick up that time-dependent boundary
+         conditions need to be re-applied.  The
+         interpolation/projection is encoded in method, which is
+         either `f.interpolate(expr-c*u0)` or `f.project(expr-c*u0)`, depending
+         on whether the function space for f supports interpolation or
+         not.
+
+    """
     v = F.arguments()[0]
     V = v.function_space()
     assert V == u0.function_space()
@@ -149,31 +182,44 @@ def getForm(F, butch, t, dt, u0, bcs=None):
 
     if bcs is None:
         bcs = []
+    if bc_type == "ODE":
+        u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
+        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
+
+        def bc2gcur(bc, i):
+            gorig = bc._original_arg
+            gfoo = expand_derivatives(diff(gorig, t))
+            return replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
+
+    elif bc_type == "DAE":
+        if butch.Ainv is None:
+            raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau")
+
+        Ainv = numpy.array([[Constant(aa/dt) for aa in arow] for arow in butch.Ainv])
+        u0_mult_np = butch.Ainv@numpy.ones_like(butch.c)
+        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
+
+        def bc2gcur(bc, i):
+            gorig = as_ufl(bc._original_arg)
+            gcur = 0
+            for j in range(num_stages):
+                gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
+            return gcur
+    else:
+        raise ValueError("Unrecognised bc_type: %s", bc_type)
+
+    # This logic uses information set up in the previous section to
+    # set up the new BCs for either method
     for bc in bcs:
-        gfoo = expand_derivatives(diff(bc._original_arg, t))
-        if len(V) == 1:
-            for i in range(num_stages):
-                gcur = replace(gfoo, {t: t + c[i] * dt})
-                try:
-                    gdat = interpolate(gcur, V)
-                    gmethod = lambda g: gdat.interpolate(g)
-                except:  # noqa: E722
-                    gdat = project(gcur, V)
-                    gmethod = lambda g: gdat.project(g)
-                gblah.append((gdat, gcur, gmethod))
-                bcnew.append(DirichletBC(Vbig[i], gdat, bc.sub_domain))
-        else:
-            sub = bc.function_space_index()
-            for i in range(num_stages):
-                gcur = replace(gfoo, {t: t + c[i] * dt})
-                try:
-                    gdat = interpolate(gcur, V.sub(sub))
-                    gmethod = lambda g: gdat.interpolate(g)
-                except:  # noqa: E722
-                    gdat = project(gcur, V.sub(sub))
-                    gmethod = lambda g: gdat.project(g)
-                gblah.append((gdat, gcur, gmethod))
-                bcnew.append(DirichletBC(Vbig[sub + num_fields * i],
-                                         gdat, bc.sub_domain))
+        sub = 0 if len(V) == 1 else bc.function_space_index()
+        Vsp = V if len(V) == 1 else V.sub(sub)
+        offset = lambda i: sub + num_fields * i
+
+        for i in range(num_stages):
+            gcur = bc2gcur(bc, i)
+            blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
+            gdat, gcr, gmethod = blah.gstuff
+            gblah.append((gdat, gcr, gmethod))
+            bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))
 
     return Fnew, k, bcnew, gblah

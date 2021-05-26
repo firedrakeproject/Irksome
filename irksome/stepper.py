@@ -26,13 +26,19 @@ class TimeStepper:
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the RK method.
+    :arg bc_type: How to manipulate the strongly-enforced boundary
+            conditions to derive the stage boundary conditions.
+            Should be a string, either "DAE", which implements BCs as
+            constraints in the style of a differential-algebraic
+            equation, or "ODE", which takes the time derivative of the
+            boundary data and evaluates this for the stage values
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
 
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
-                 solver_parameters=None):
+                 solver_parameters=None, bc_type="DAE"):
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -41,7 +47,7 @@ class TimeStepper:
         self.butcher_tableau = butcher_tableau
 
         bigF, stages, bigBCs, bigBCdata = \
-            getForm(F, butcher_tableau, t, dt, u0, bcs)
+            getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type)
 
         self.stages = stages
         self.bigBCs = bigBCs
@@ -79,7 +85,7 @@ class TimeStepper:
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
         for gdat, gcur, gmethod in self.bigBCdata:
-            gmethod(gcur)
+            gmethod(gcur, self.u0)
 
         self.solver.solve()
 
@@ -116,11 +122,12 @@ class AdaptiveTimeStepper(TimeStepper):
             with each time step.
     """
     def __init__(self, F, butcher_tableau, t, dt, u0,
-                 tol=1.e-6, dtmin=1.e-5, bcs=None, solver_parameters=None):
+                 tol=1.e-6, dtmin=1.e-5, bcs=None, solver_parameters=None,
+                 bc_type="DAE"):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs,
-                                                  solver_parameters)
+                                                  solver_parameters, bc_type)
         self.tol = tol
         self.dt_min = dtmin
         self.delb = butcher_tableau.b - butcher_tableau.btilde
@@ -160,7 +167,7 @@ class AdaptiveTimeStepper(TimeStepper):
         print("\tTrying dt=", float(self.dt))
         while 1:
             for gdat, gcur, gmethod in self.bigBCdata:
-                gmethod(gcur)
+                gmethod(gcur, self.u0)
 
             self.solver.solve()
             err = self._estimate_error()
