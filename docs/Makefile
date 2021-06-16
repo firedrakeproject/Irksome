@@ -46,7 +46,7 @@ TARGETS = html dirhtml singlehtml pickle json htmlhelp qthelp devhelp epub latex
 GENERATED_FILES = source/demos
 
 html: apidoc
-	PYTHONPATH=$(PWD)/..:$(PYTHONPATH) $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
@@ -65,7 +65,7 @@ source/demos: copy_demos
 
 copy_demos:
 	install -d source/demos
-	cp ../demos/*/*.rst ../demos/demo_references.bib ../demos/*/*.geo ../demos/*/*.msh ../demos/*/*.png source/demos || true
+	cp ../demos/*/*.rst ../demos/*/*.geo ../demos/*/*.msh source/demos || true
 
 apidoc: $(GENERATED_FILES) copy_demos
 	sphinx-apidoc ../irksome -o source/ -f -T
