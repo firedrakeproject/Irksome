@@ -2,9 +2,9 @@ Welcome to Irksome
 ==================
 
 Irksome is a Python library that adds a temporal discretization layer on top of
-finite element discretizations provided by `Firedrake <https://firedrakeproject.org>`_.  We provide a symbolic
-representation of time dericvatives in UFL, allowing users to write weak forms
-of semidiscrete PDE.  Irksome maps this and a Butcher tableau encoding a Runge-Kutta method Runge-Kutta method into a fully discrete variational problem for the stage values.  Irksome then leverages existing advanced solver technology in Firedrake and `PETSc <https://www.mcs.anl.gov/petsc/>`_ to allow for efficient computation of the Runge-Kutta stages.
+finite element discretizations provided by `Firedrake <https://firedrakeproject.org>`__.  We provide a symbolic
+representation of time derivatives in UFL, allowing users to write weak forms
+of semidiscrete PDE.  Irksome maps this and a Butcher tableau encoding a Runge-Kutta method into a fully discrete variational problem for the stage values.  Irksome then leverages existing advanced solver technology in Firedrake and `PETSc <https://www.mcs.anl.gov/petsc/>`__ to allow for efficient computation of the Runge-Kutta stages.
 Convenience classes package the underlying lower-level manipulations and present users with a friendly high-level interface time stepping.
 
 
@@ -16,12 +16,12 @@ and rewriting this if you want a different time-stepping method, Irksome lets yo
   
   F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
 
-and maps this and a Butcher tableau for some Runge-Kutta method to UFL for a fully-discrete method.  Hence, switching between RK methods is plug-and-lay. 
+and maps this and a Butcher tableau for some Runge-Kutta method to UFL for a fully-discrete method.  Hence, switching between RK methods is plug-and-play. 
 
 Irksome provides convenience classes to package the transformation of
 forms and boundary conditions and provide a method to advance by a
 time step.  The underlying variational problem for the (possibly
-implicit!) Runge Kutta stages composes fully with advanced
+implicit!) Runge-Kutta stages composes fully with advanced
 Firedrake/PETSc solver technology, so you can use block
 preconditioners, multigrid with patch smooters, and more -- and in
 parallel, too!
@@ -31,10 +31,12 @@ parallel, too!
 Getting started
 ===============
 
-Irksome assumes you have a working Firedrake installation.  Within your Firedrake virtual environment, you can just clone the repository and ``pip install -e .``
-within the top-level directory.  In the near future, we will have Irksome available as part of the Firedrake installation/updating mechanism so that
-``firedrake-install --install irksome`` or
-``firedrake-update --install irksome`` will download and install it for you.
+Irksome requires `Firedrake <https://www.firedrakeproject.org/>`__, if
+you have an existing Firedrake installation, you can add Irksome to it
+with ``firedrake-update --install irksome``. If you would like a fresh
+installation including Irksome, use ``firedrake-install --install
+irksome``. Alternately you can clone the repository and ``pip
+install -e .`` into the Firedrake virtual environment.
 
 Tutorials
 =========
@@ -67,9 +69,28 @@ Yes, Irksome can handle nonlinear problems as well:
    :maxdepth: 1
 
    demos/demo_cahnhilliard.py
-   
-If you feel you must bypass the :py:class:`.TimeStepper` abstraction, we have
-some examples how to interact with Irksome at a slightly lower level:
+
+Advanced demos
+--------------
+
+In a previous demo, we saw an example of the wave equation, we also
+have a demo that does adaptive timestepping
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_RTwave_adaptive_stepper.py
+
+There's also an example solving a Sobolev-type equation
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_bbm.py
+
+Finally, if you feel you must bypass the :py:class:`.TimeStepper`
+abstraction, we have some examples how to interact with Irksome at a
+slightly lower level:
 
 .. toctree::
    :maxdepth: 1
@@ -78,4 +99,13 @@ some examples how to interact with Irksome at a slightly lower level:
    demos/demo_lowlevel_inhomogbc.py   
    demos/demo_lowlevel_mixed_heat.py
 
-Module documentation is found :doc:`irksome` here.
+API documentation
+=================
+
+There is also an alphabetical :ref:`index <genindex>`, and a
+:ref:`search engine <search>`.
+
+.. toctree::
+   :maxdepth: 2
+
+   irksome

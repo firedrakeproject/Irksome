@@ -49,7 +49,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Irksome'
-copyright = u'2020, Robert C Kirby and others'
+copyright = u'2020-, Robert C Kirby and others'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -258,3 +258,6 @@ intersphinx_mapping = {
     'ufl': ('https://fenics.readthedocs.io/projects/ufl/en/latest/', None),
     'python':('https://docs.python.org/3/', None),
 }
+
+#  -- Options for sphinxcontrib.bibtex ------------------------------------
+bibtex_bibfiles = []
