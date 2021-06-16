@@ -10,7 +10,7 @@ BUILDDIR      = build
 # Internal variables.
 PAPEROPT_a4     = -D latex_paper_size=a4
 PAPEROPT_letter = -D latex_paper_size=letter
-ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) source
+ALLSPHINXOPTS   = -W -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) source
 # the i18n builder cannot share the environment and doctrees with the others
 I18NSPHINXOPTS  = $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) source
 
@@ -45,17 +45,8 @@ TARGETS = html dirhtml singlehtml pickle json htmlhelp qthelp devhelp epub latex
 
 GENERATED_FILES = source/demos
 
-#webgit:
-#	git clone git@github.com:finite-element/finite-element.github.io.git webgit
-
-html: apidoc #webgit
-	#rm webgit/* || true
-	#rm -rf $(BUILDDIR)/doctrees || true
-	#rm $(BUILDDIR)/html || rm -rf $(BUILDDIR)/html
-	#install -d $(BUILDDIR)
-	#ln -s $(PWD)/webgit $(BUILDDIR)/html
+html: apidoc
 	PYTHONPATH=$(PWD)/..:$(PYTHONPATH) $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
-	#cp source/demos/*.py source/demos/*.geo source/demos/*.msh $(BUILDDIR)/html/demos
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
@@ -75,7 +66,6 @@ source/demos: copy_demos
 copy_demos:
 	install -d source/demos
 	cp ../demos/*/*.rst ../demos/demo_references.bib ../demos/*/*.geo ../demos/*/*.msh ../demos/*/*.png source/demos || true
-	#for file in source/demos/*.py.rst; do ../pylit/pylit.py $$file; done
 
 apidoc: $(GENERATED_FILES) copy_demos
 	sphinx-apidoc ../irksome -o source/ -f -T
