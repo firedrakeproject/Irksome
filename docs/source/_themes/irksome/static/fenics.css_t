@@ -168,10 +168,6 @@ p.sidebar-title {
     font-weight: bold;
 }
 
-div.youtube{
-    text-align: center;
-}
-
 /* -- body styles ----------------------------------------------------------- */
 
 a, a .pre {

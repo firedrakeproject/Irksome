@@ -24,9 +24,9 @@
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.autodoc',
-              'sphinx.ext.mathjax', 'sphinx.ext.intersphinx',
+              'sphinx.ext.mathjax',
+              'sphinx.ext.intersphinx',
               'sphinx.ext.viewcode',
-              'sphinxcontrib.youtube',
               'sphinxcontrib.bibtex']
 
 mathjax_path = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML'
@@ -49,7 +49,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Irksome'
-copyright = u'2020, Robert C Kirby and others'
+copyright = u'2020-, Robert C Kirby and others'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -258,3 +258,6 @@ intersphinx_mapping = {
     'ufl': ('https://fenics.readthedocs.io/projects/ufl/en/latest/', None),
     'python':('https://docs.python.org/3/', None),
 }
+
+#  -- Options for sphinxcontrib.bibtex ------------------------------------
+bibtex_bibfiles = []

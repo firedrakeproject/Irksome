@@ -1,0 +1,40 @@
+name: Build/deploy docs
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build:
+    name: "Build docs"
+    runs-on: ubuntu-latest
+    container:
+      image: firedrakeproject/firedrake-vanilla:latest
+    steps:
+      - name: Fix permissions
+        run: |
+          sudo chmod -R 777 $GITHUB_WORKSPACE /github /__w/_temp
+      - uses: actions/checkout@v2
+      - name: Install
+        run: |
+          . /home/firedrake/firedrake/bin/activate
+          python -m pip install -e .
+          python -m pip install sphinx
+          python -m pip install sphinxcontrib-bibtex
+      - name: Build docs
+        run: |
+          . /home/firedrake/firedrake/bin/activate
+          make -C docs html
+      - name: Deploy docs
+        if: ${{ github.ref == 'refs/heads/master' }}
+        uses: crazy-max/ghaction-github-pages@v2.5.0
+        with:
+          target-branch: gh-pages
+          build_dir: ./docs/build/html
+          keep_history: false
+          allow_empty_commit: false
+          jekyll: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
