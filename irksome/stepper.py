@@ -70,16 +70,10 @@ class TimeStepper:
         ns = self.num_stages
         nf = self.num_fields
 
-        if nf == 1:
-            ks = self.ks
-            for i in range(ns):
-                u0.dat.data[:] += dtc * b[i] * ks[i].dat.data[:]
-        else:
-            k = self.stages
-
-            for s in range(ns):
-                for i in range(nf):
-                    u0.dat.data[i][:] += dtc * b[s] * k.dat.data[nf*s+i][:]
+        ks = self.ks
+        for s in range(ns):
+            for i, u0d in enumerate(u0.dat):
+                u0d.data[:] += dtc * b[s] * ks[nf*s+i].dat.data_ro
 
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
@@ -141,20 +135,13 @@ class AdaptiveTimeStepper(TimeStepper):
         dtc = float(self.dt)
         delb = self.delb
 
-        if self.num_fields == 1:
-            ks = self.ks
-            self.error_func.dat.data[:] = 0.0
-            for i in range(self.num_stages):
-                self.error_func += dtc * delb[i] * ks[i]
-        else:
-            k = self.stages
-            for i in range(self.num_fields):
-                self.error_func.dat.data[i][:] = 0.0
-            for s in range(self.num_stages):
-                for i in range(self.num_fields):
-                    self.error_func.dat.data[i][:] += \
-                        dtc * delb[s] * k.dat.data[self.num_fields*s+i][:]
-
+        ks = self.ks
+        nf = self.num_fields
+        for e in self.error_func.dat:
+            e.data[:] = 0.0
+        for s in range(self.num_stages):
+            for i, e in enumerate(self.error_func.dat):
+                e.data[:] += dtc * delb[i] * ks[nf*s+i].dat.data_ro
         return norm(self.error_func)
 
     def advance(self):
