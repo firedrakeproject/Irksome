@@ -1,17 +1,20 @@
+from functools import reduce
+from operator import mul
+
 import numpy
-from firedrake import (TestFunction, Function, Constant,
-                       split, DirichletBC, interpolate, project)
+from firedrake import (Constant, DirichletBC, Function, TestFunction,
+                       interpolate, project, split)
 from firedrake.dmhooks import push_parent
 from ufl import diff
 from ufl.algorithms import expand_derivatives
-from ufl.classes import Zero
-from .deriv import TimeDerivative  # , apply_time_derivatives
+from ufl.algorithms.analysis import has_exact_type
+from ufl.algorithms.map_integrands import map_integrand_dags
+from ufl.classes import CoefficientDerivative, Zero
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
-from ufl.algorithms.analysis import has_exact_type
-from ufl.classes import CoefficientDerivative
-from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.log import error
+
+from .deriv import TimeDerivative  # , apply_time_derivatives
 
 
 class MyReplacer(MultiFunction):
@@ -127,13 +130,15 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
     V = v.function_space()
     assert V == u0.function_space()
 
-    A = numpy.array([[Constant(aa) for aa in arow] for arow in butch.A])
-    c = numpy.array([Constant(ci) for ci in butch.c])
+    A = numpy.array([[Constant(aa) for aa in arow] for arow in butch.A],
+                    dtype=object)
+    c = numpy.array([Constant(ci) for ci in butch.c],
+                    dtype=object)
 
     num_stages = len(c)
     num_fields = len(V)
 
-    Vbig = numpy.prod([V for i in range(num_stages)])
+    Vbig = reduce(mul, (V for _ in range(num_stages)))
     # Silence a warning about transfer managers when we
     # coarsen coefficients in V
     push_parent(V.dm, Vbig.dm)
@@ -154,7 +159,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
         vbigbits = split(vnew)
         kbits = split(k)
 
-    kbits_np = numpy.zeros((num_stages, num_fields), dtype="object")
+    kbits_np = numpy.zeros((num_stages, num_fields), dtype=object)
 
     for i in range(num_stages):
         for j in range(num_fields):
@@ -184,7 +189,8 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
         bcs = []
     if bc_type == "ODE":
         u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
-        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
+        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np],
+                              dtype=object)
 
         def bc2gcur(bc, i):
             gorig = bc._original_arg
@@ -195,15 +201,16 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
         if butch.Ainv is None:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau")
 
-        Ainv = numpy.array([[Constant(aa/dt) for aa in arow] for arow in butch.Ainv])
+        Ainv = butch.Ainv/dt
         u0_mult_np = butch.Ainv@numpy.ones_like(butch.c)
-        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np])
+        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np],
+                              dtype=object)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gcur = 0
             for j in range(num_stages):
-                gcur += Ainv[i, j] * replace(gorig, {t: t + c[j]*dt})
+                gcur += Constant(Ainv[i, j]) * replace(gorig, {t: t + c[j]*dt})
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)

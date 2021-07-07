@@ -3,3 +3,4 @@
 /docs/source/irksome.rst
 __pycache__/
 IRKsome.egg-info/
+/demos/*/*.py

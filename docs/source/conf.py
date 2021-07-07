@@ -253,10 +253,10 @@ texinfo_documents = [
 # -- Options for intersphinx ---------------------------------------------
 
 intersphinx_mapping = {
-    'ufl': ('https://fenics.readthedocs.io/projects/fiat/en/latest/', None),
+    'fiat': ('https://fenics.readthedocs.io/projects/fiat/en/latest/', None),
     'firedrake': ('https://www.firedrakeproject.org', None),
     'ufl': ('https://fenics.readthedocs.io/projects/ufl/en/latest/', None),
-    'python':('https://docs.python.org/3/', None),
+    'python': ('https://docs.python.org/3/', None),
 }
 
 #  -- Options for sphinxcontrib.bibtex ------------------------------------
