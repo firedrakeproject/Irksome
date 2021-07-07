@@ -31,7 +31,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/master' }}
         uses: crazy-max/ghaction-github-pages@v2.5.0
         with:
-          target-branch: gh-pages
+          target_branch: gh-pages
           build_dir: ./docs/build/html
           keep_history: false
           allow_empty_commit: false
