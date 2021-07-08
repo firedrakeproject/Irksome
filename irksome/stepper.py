@@ -1,4 +1,4 @@
-from .getForm import getForm
+from .getForm import getForm, AI, IAinv
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import Function, norm
@@ -38,7 +38,7 @@ class TimeStepper:
 
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
-                 solver_parameters=None, bc_type="DAE"):
+                 solver_parameters=None, bc_type="DAE", splitting=AI):
         self.u0 = u0
         self.t = t
         self.dt = dt
