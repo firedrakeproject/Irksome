@@ -74,7 +74,7 @@ class TimeStepper:
 
         # FIXME: Lift this outside of the update
         A1, A2 = self.splitting(self.butcher_tableau.A)
-        b = numpy.linalg.solve(A2, b)
+        b = numpy.linalg.solve(A2.T, b)
         
         ks = self.ks
         for s in range(ns):
