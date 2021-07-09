@@ -50,11 +50,11 @@ def curltest(N, deg, butcher_tableau, splitting):
     return norm(u-uexact)
 
 
-@pytest.mark.parametrize(('deg', 'N', 'time_stages'),
-                         [(1, 2**j, i) for j in range(2, 4)
-                          for i in (1, 2)]
-                         + [(2, 2**j, i) for j in range(2, 4)
-                            for i in (2, 3)])
-def test_curl(deg, N, time_stages):
+@pytest.mark.parametrize(('deg', 'N', 'time_stages', 'splitting'),
+                         [(1, 2**j, i, splt) for j in range(2, 4)
+                          for i in (1, 2) for splt in (AI, IA)]
+                         + [(2, 2**j, i, splt) for j in range(2, 4)
+                            for i in (2, 3) for splt in (AI, IA)])
+def test_curl(deg, N, time_stages, splitting):
     error = curltest(N, deg, GaussLegendre(time_stages), AI)
     assert abs(error) < 1e-10
