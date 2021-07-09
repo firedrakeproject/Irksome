@@ -2,6 +2,7 @@ import pytest
 from firedrake import *
 
 from irksome import Dt, TimeStepper, LobattoIIIC
+from irksome.getForm import AI, IA
 from ufl.algorithms import expand_derivatives
 
 # test the accuracy of the 2d Stokes heat equation using CG elements
@@ -10,7 +11,7 @@ from ufl.algorithms import expand_derivatives
 # a time derivative on it.
 
 
-def StokesTest(N, butcher_tableau):
+def StokesTest(N, butcher_tableau, splitting=AI):
     mesh = UnitSquareMesh(N, N)
 
     Ve = VectorElement("CG", mesh.ufl_cell(), 2)
@@ -69,11 +70,12 @@ def StokesTest(N, butcher_tableau):
     return errornorm(uexact, u)
 
 
-@pytest.mark.parametrize(('N', 'time_stages'),
-                         [(2**j, i) for j in range(2, 4)
-                          for i in (2, 3)])
-def test_Stokes(N, time_stages):
-    error = StokesTest(N, LobattoIIIC(time_stages))
+@pytest.mark.parametrize(('N', 'time_stages', 'splitting'),
+                         [(2**j, i, splt) for j in range(2, 4)
+                          for i in (2, 3)
+                          for splt in (AI, IA)])
+def test_Stokes(N, time_stages, splitting):
+    error = StokesTest(N, LobattoIIIC(time_stages), splitting)
     assert abs(error) < 1e-10
 
 
