@@ -1,4 +1,4 @@
-from .getForm import getForm, AI, IAinv
+from .getForm import getForm, AI, IA
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import Function, norm
