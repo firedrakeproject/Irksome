@@ -91,6 +91,10 @@ def IA(A):
     return (numpy.eye(*A.shape, dtype=A.dtype), A)
 
 
+def ConstantOrZero(x):
+    return Zero() if abs(complex(x)) < 1.e-10 else Constant(x)
+
+
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
@@ -160,11 +164,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
     A1 = numpy.array([[Constant(aa) for aa in arow] for arow in bA1],
                      dtype=object)
     if bA1inv is not None:
-        A1inv = numpy.array([[Constant(aa) for aa in arow] for arow in bA1inv],
+        A1inv = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA1inv],
                             dtype=object)
     else:
-        bA1inv = None
-    A2inv = numpy.array([[Constant(aa) for aa in arow] for arow in bA2inv],
+        A1inv = None
+    A2inv = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA2inv],
                         dtype=object)
 
     num_stages = butch.num_stages
@@ -225,7 +229,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
     if bc_type == "ODE":
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
         u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
-        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np],
+        u0_mult = numpy.array([ConstantOrZero(mi)/dt for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
@@ -237,15 +241,15 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
         if bA1inv is None:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
-        u0_mult_np = bA1inv @ numpy.ones_like(butch.c)
-        u0_mult = numpy.array([Constant(mi)/dt for mi in u0_mult_np],
+        u0_mult_np = A1inv @ numpy.ones_like(butch.c)
+        u0_mult = numpy.array([ConstantOrZero(mi)/dt for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gcur = 0
             for j in range(num_stages):
-                gcur += Constant(bA1inv[i, j]) / dt * replace(gorig, {t: t + c[j]*dt})
+                gcur += ConstantOrZero(bA1inv[i, j]) / dt * replace(gorig, {t: t + c[j]*dt})
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
