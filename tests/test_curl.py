@@ -1,6 +1,7 @@
 import pytest
 from firedrake import *
 from irksome import GaussLegendre, Dt, TimeStepper
+from irksome.getForm import AI, IA
 from ufl.algorithms.ad import expand_derivatives
 
 
@@ -9,7 +10,7 @@ def curlcross(a, b):
     return as_vector([-curla*b[1], curla*b[0]])
 
 
-def curltest(N, deg, butcher_tableau):
+def curltest(N, deg, butcher_tableau, splitting):
 
     msh = UnitSquareMesh(N, N)
 
@@ -36,7 +37,8 @@ def curltest(N, deg, butcher_tableau):
                 "pc_type": "lu"}
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
-                          solver_parameters=luparams)
+                          solver_parameters=luparams,
+                          splitting=splitting)
 
     while (float(t) < 0.1):
         if (float(t) + float(dt) > 0.1):
@@ -54,5 +56,5 @@ def curltest(N, deg, butcher_tableau):
                          + [(2, 2**j, i) for j in range(2, 4)
                             for i in (2, 3)])
 def test_curl(deg, N, time_stages):
-    error = curltest(N, deg, GaussLegendre(time_stages))
+    error = curltest(N, deg, GaussLegendre(time_stages), AI)
     assert abs(error) < 1e-10
