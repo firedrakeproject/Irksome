@@ -1,4 +1,4 @@
-from .getForm import getForm, AI, IA
+from .getForm import getForm, AI
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import Function, norm
@@ -40,7 +40,7 @@ class TimeStepper:
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, bc_type="DAE", splitting=AI):
-        self.splitting=splitting
+        self.splitting = splitting
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -75,7 +75,7 @@ class TimeStepper:
         # FIXME: Lift this outside of the update
         A1, A2 = self.splitting(self.butcher_tableau.A)
         b = numpy.linalg.solve(A2.T, b)
-        
+
         ks = self.ks
         for s in range(ns):
             for i, u0d in enumerate(u0.dat):
