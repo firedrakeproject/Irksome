@@ -2,6 +2,7 @@ from .getForm import getForm, AI, IAinv
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import Function, norm
+import numpy
 
 
 class TimeStepper:
@@ -39,6 +40,7 @@ class TimeStepper:
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, bc_type="DAE", splitting=AI):
+        self.splitting=splitting
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -47,7 +49,7 @@ class TimeStepper:
         self.butcher_tableau = butcher_tableau
 
         bigF, stages, bigBCs, bigBCdata = \
-            getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type)
+            getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type, splitting)
 
         self.stages = stages
         self.bigBCs = bigBCs
@@ -70,6 +72,10 @@ class TimeStepper:
         ns = self.num_stages
         nf = self.num_fields
 
+        # FIXME: Lift this outside of the update
+        A1, A2 = self.splitting(self.butcher_tableau.A)
+        b = numpy.linalg.solve(A2, b)
+        
         ks = self.ks
         for s in range(ns):
             for i, u0d in enumerate(u0.dat):

@@ -147,7 +147,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
                     dtype=object)
 
     bA1, bA2 = splitting(butch.A)
-    bA2inv = numpy.linalg.inv(bA2)
+    bA1inv, bA2inv = map(numpy.linalg.inv, (bA1, bA2))
 
     def constor0(x):
         if numpy.abs(complex(x)) < 1.e-10:
@@ -157,6 +157,8 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
 
     A1 = numpy.array([[constor0(aa) for aa in arow] for arow in bA1],
                      dtype=object)
+    A1inv = numpy.array([[constor0(aa) for aa in arow] for arow in bA1inv],
+                        dtype=object)
     A2inv = numpy.array([[constor0(aa) for aa in arow] for arow in bA2inv],
                         dtype=object)
 
@@ -216,6 +218,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
     if bcs is None:
         bcs = []
     if bc_type == "ODE":
+        assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
         u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
         u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np],
                               dtype=object)
@@ -229,16 +232,15 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
         if butch.Ainv is None:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau")
 
-        Ainv = butch.Ainv/dt
-        u0_mult_np = butch.Ainv@numpy.ones_like(butch.c)
-        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np],
+        u0_mult_np = bA1inv @ numpy.ones_like(butch.c)
+        u0_mult = numpy.array([constor0(mi)/dt for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gcur = 0
             for j in range(num_stages):
-                gcur += Constant(Ainv[i, j]) * replace(gorig, {t: t + c[j]*dt})
+                gcur += constor0(bA1inv[i, j]) / dt * replace(gorig, {t: t + c[j]*dt})
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
