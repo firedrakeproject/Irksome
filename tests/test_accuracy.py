@@ -9,9 +9,9 @@ from irksome import Dt, TimeStepper, GaussLegendre
 from irksome.getForm import AI, IA
 from ufl.algorithms import expand_derivatives
 
+
 # test the accuracy of the 1d heat equation using CG elements
 # and Gauss-Legendre time integration
-
 def heat(n, deg, time_stages, splitting=IA):
     N = 2**n
     msh = UnitIntervalMesh(N)
