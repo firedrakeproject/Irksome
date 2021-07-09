@@ -87,8 +87,8 @@ def AI(A):
     return (A, numpy.eye(*A.shape, dtype=A.dtype))
 
 
-def IAinv(A):
-    return (numpy.eye(*A.shape, dtype=A.dtype), numpy.linalg.inv(A))
+def IA(A):
+    return (numpy.eye(*A.shape, dtype=A.dtype), A)
 
 
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
