@@ -147,19 +147,24 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
                     dtype=object)
 
     bA1, bA2 = splitting(butch.A)
-    bA1inv, bA2inv = map(numpy.linalg.inv, (bA1, bA2))
 
-    def constor0(x):
-        if numpy.abs(complex(x)) < 1.e-10:
-            return 0
-        else:
-            return x
+    try:
+        bA1inv = numpy.linalg.inv(bA1)
+    except numpy.linalg.LinAlgError:
+        bA1inv = None
+    try:
+        bA2inv = numpy.linalg.inv(bA2)
+    except numpy.linalg.LinAlgError:
+        bA2inv = None
 
-    A1 = numpy.array([[constor0(aa) for aa in arow] for arow in bA1],
+    A1 = numpy.array([[Constant(aa) for aa in arow] for arow in bA1],
                      dtype=object)
-    A1inv = numpy.array([[constor0(aa) for aa in arow] for arow in bA1inv],
-                        dtype=object)
-    A2inv = numpy.array([[constor0(aa) for aa in arow] for arow in bA2inv],
+    if bA1inv is not None:
+        A1inv = numpy.array([[Constant(aa) for aa in arow] for arow in bA1inv],
+                            dtype=object)
+    else:
+        bA1inv = None
+    A2inv = numpy.array([[Constant(aa) for aa in arow] for arow in bA2inv],
                         dtype=object)
 
     num_stages = butch.num_stages
@@ -201,7 +206,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
 
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
-        for j, (ubit, vbit, kbit) in enumerate(zip(u0bits, vbits, wbits)):
+        for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
             repl[ubit] = ubit + dt * A1w[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
             repl[TimeDerivative(ubit)] = A2invw[i, j]
@@ -229,18 +234,18 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
             return replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
 
     elif bc_type == "DAE":
-        if butch.Ainv is None:
-            raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau")
+        if bA1inv is None:
+            raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
         u0_mult_np = bA1inv @ numpy.ones_like(butch.c)
-        u0_mult = numpy.array([constor0(mi)/dt for mi in u0_mult_np],
+        u0_mult = numpy.array([Constant(mi)/dt for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gcur = 0
             for j in range(num_stages):
-                gcur += constor0(bA1inv[i, j]) / dt * replace(gorig, {t: t + c[j]*dt})
+                gcur += Constant(bA1inv[i, j]) / dt * replace(gorig, {t: t + c[j]*dt})
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
