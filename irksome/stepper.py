@@ -62,19 +62,22 @@ class TimeStepper:
         else:
             self.ks = stages.split()
 
+        A1, A2 = splitting(butcher_tableau.A)
+        self.updateb = numpy.linalg.solve(A2.T, butcher_tableau.b)
+
+    # FIXME: This can be set in the constructor to handle the
+    # special case where updateb is only nonzero in the last entry
+    # by putting two internal update functions and pointing self._update
+    # to the right one.
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
         solved, updates the solution.  This will not typically be
         called by an end user."""
-        b = self.butcher_tableau.b
+        b = self.updateb
         dtc = float(self.dt)
         u0 = self.u0
         ns = self.num_stages
         nf = self.num_fields
-
-        # FIXME: Lift this outside of the update
-        A1, A2 = self.splitting(self.butcher_tableau.A)
-        b = numpy.linalg.solve(A2.T, b)
 
         ks = self.ks
         for s in range(ns):
