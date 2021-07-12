@@ -159,13 +159,13 @@ class AdaptiveTimeStepper(TimeStepper):
         dtc = float(self.dt)
         delb = self.delb
 
-        ks = self.ks
+        ws = self.ws
         nf = self.num_fields
         for e in self.error_func.dat:
             e.data[:] = 0.0
         for s in range(self.num_stages):
             for i, e in enumerate(self.error_func.dat):
-                e.data[:] += dtc * delb[i] * ks[nf*s+i].dat.data_ro
+                e.data[:] += dtc * delb[i] * ws[nf*s+i].dat.data_ro
         return norm(self.error_func)
 
     def advance(self):
