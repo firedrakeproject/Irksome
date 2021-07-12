@@ -58,18 +58,20 @@ class TimeStepper:
         self.solver = NLVS(problem, solver_parameters=solver_parameters)
 
         if self.num_stages == 1 and self.num_fields == 1:
-            self.ks = (stages,)
+            self.ws = (stages,)
         else:
-            self.ks = stages.split()
+            self.ws = stages.split()
 
         A1, A2 = splitting(butcher_tableau.A)
         self.updateb = numpy.linalg.solve(A2.T, butcher_tableau.b)
+        boo = numpy.zeros(self.updateb.shape, dtype=self.updateb.dtype)
+        boo[-1] = 1
+        if numpy.allclose(self.updateb, boo):
+            self._update = self._update_A2Tmb
+        else:
+            self._update = self._update_general
 
-    # FIXME: This can be set in the constructor to handle the
-    # special case where updateb is only nonzero in the last entry
-    # by putting two internal update functions and pointing self._update
-    # to the right one.
-    def _update(self):
+    def _update_general(self):
         """Assuming the algebraic problem for the RK stages has been
         solved, updates the solution.  This will not typically be
         called by an end user."""
@@ -79,10 +81,23 @@ class TimeStepper:
         ns = self.num_stages
         nf = self.num_fields
 
-        ks = self.ks
+        ws = self.ws
         for s in range(ns):
             for i, u0d in enumerate(u0.dat):
-                u0d.data[:] += dtc * b[s] * ks[nf*s+i].dat.data_ro
+                u0d.data[:] += dtc * b[s] * ws[nf*s+i].dat.data_ro
+
+    def _update_A2Tmb(self):
+        """Assuming the algebraic problem for the RK stages has been
+        solved, updates the solution.  This will not typically be
+        called by an end user."""
+        dtc = float(self.dt)
+        u0 = self.u0
+        ns = self.num_stages
+        nf = self.num_fields
+
+        ws = self.ws
+        for i, u0d in enumerate(u0.dat):
+            u0d.data[:] += dtc * ws[nf*(ns-1)+i].dat.data_ro
 
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
