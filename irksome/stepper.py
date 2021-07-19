@@ -91,7 +91,9 @@ class TimeStepper:
     def _update_A2Tmb(self):
         """Assuming the algebraic problem for the RK stages has been
         solved, updates the solution.  This will not typically be
-        called by an end user."""
+        called by an end user.  This handles the common but highly
+        specialized case of `w = Ak` or `A = I A` splitting where
+        A2^{-T} b = e_{num_stages}"""
         dtc = float(self.dt)
         u0 = self.u0
         ns = self.num_stages
