@@ -158,8 +158,10 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
         bA1inv = None
     try:
         bA2inv = numpy.linalg.inv(bA2)
+        A2inv = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA2inv],
+                            dtype=object)
     except numpy.linalg.LinAlgError:
-        bA2inv = None
+        raise NotImplementedError("We require A = A1 A2 with A2 invertible")
 
     A1 = numpy.array([[Constant(aa) for aa in arow] for arow in bA1],
                      dtype=object)
@@ -168,8 +170,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
                             dtype=object)
     else:
         A1inv = None
-    A2inv = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA2inv],
-                        dtype=object)
 
     num_stages = butch.num_stages
     num_fields = len(V)
