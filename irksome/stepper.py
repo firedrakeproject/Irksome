@@ -62,7 +62,10 @@ class TimeStepper:
             self.ws = stages.split()
 
         A1, A2 = splitting(butcher_tableau.A)
-        self.updateb = numpy.linalg.solve(A2.T, butcher_tableau.b)
+        try:
+            self.updateb = numpy.linalg.solve(A2.T, butcher_tableau.b)
+        except LinearAlgebraError:
+            raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
         boo = numpy.zeros(self.updateb.shape, dtype=self.updateb.dtype)
         boo[-1] = 1
         if numpy.allclose(self.updateb, boo):
