@@ -24,10 +24,6 @@ class ButcherTableau(object):
         self.btilde = btilde
         self.c = c
         self.order = order
-        try:
-            self.Ainv = numpy.linalg.inv(A)
-        except numpy.linalg.LinAlgError:
-            self.Ainv = None
 
     @property
     def num_stages(self):
