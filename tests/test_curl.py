@@ -49,6 +49,7 @@ def curltest(N, deg, butcher_tableau, splitting):
 
     return norm(u-uexact)
 
+
 @pytest.mark.parametrize("splitting", (AI, IA))
 @pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
 @pytest.mark.parametrize(('deg', 'time_stages'),

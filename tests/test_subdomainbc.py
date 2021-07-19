@@ -41,6 +41,7 @@ def heat_subdomainbc(N, deg, butcher_tableau, splitting=AI):
 
     return norm(u-uexact)
 
+
 @pytest.mark.parametrize('splitting', (AI, IA))
 @pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
 @pytest.mark.parametrize(('deg', 'time_stages'),

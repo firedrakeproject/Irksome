@@ -53,6 +53,7 @@ def heat(n, deg, time_stages, splitting=IA):
 
     return errornorm(uexact, u) / norm(uexact)
 
+
 @pytest.mark.parametrize("splitting", (AI, IA))
 @pytest.mark.parametrize(('deg', 'convrate', 'time_stages'),
                          [(1, 1.78, i) for i in (1, 2)]
