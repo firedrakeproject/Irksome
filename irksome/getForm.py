@@ -163,7 +163,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
 
-    A1 = numpy.array([[Constant(aa) for aa in arow] for arow in bA1],
+    A1 = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA1],
                      dtype=object)
     if bA1inv is not None:
         A1inv = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA1inv],
