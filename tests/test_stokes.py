@@ -70,10 +70,9 @@ def StokesTest(N, butcher_tableau, splitting=AI):
     return errornorm(uexact, u)
 
 
-@pytest.mark.parametrize(('N', 'time_stages', 'splitting'),
-                         [(2**j, i, splt) for j in range(2, 4)
-                          for i in (2, 3)
-                          for splt in (AI, IA)])
+@pytest.mark.parametrize('splitting', (AI, IA))
+@pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
+@pytest.mark.parametrize('time_stages', (2, 3))
 def test_Stokes(N, time_stages, splitting):
     error = StokesTest(N, LobattoIIIC(time_stages), splitting)
     assert abs(error) < 1e-10

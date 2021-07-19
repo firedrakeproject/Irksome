@@ -53,10 +53,10 @@ def heat(n, deg, time_stages, splitting=IA):
 
     return errornorm(uexact, u) / norm(uexact)
 
-
-@pytest.mark.parametrize(('deg', 'convrate', 'time_stages', 'splitting'),
-                         [(1, 1.78, i, splt) for i in (1, 2) for splt in (AI, IA)]
-                         + [(2, 2.8, i, splt) for i in (2, 3) for splt in (AI, IA)])
+@pytest.mark.parametrize("splitting", (AI, IA))
+@pytest.mark.parametrize(('deg', 'convrate', 'time_stages'),
+                         [(1, 1.78, i) for i in (1, 2)]
+                         + [(2, 2.8, i) for i in (2, 3)])
 def test_heat_eq(deg, convrate, time_stages, splitting):
     diff = np.array([heat(i, deg, time_stages) for i in range(3, 6)])
     conv = np.log2(diff[:-1] / diff[1:])

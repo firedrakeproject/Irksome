@@ -48,12 +48,11 @@ def RTCFtest(N, deg, butcher_tableau, splitting=AI):
 
     return norm(u-uexact)
 
-
-@pytest.mark.parametrize(('deg', 'N', 'time_stages', 'splitting'),
-                         [(1, 2**j, i, splt) for j in range(2, 4)
-                          for i in (1, 2) for splt in (AI, IA)]
-                         + [(2, 2**j, i, splt) for j in range(2, 4)
-                            for i in (2, 3) for splt in (AI, IA)])
+@pytest.mark.parametrize('splitting', (AI, IA))
+@pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
+@pytest.mark.parametrize(('deg', 'time_stages'),
+                         [(1, i) for i in (1, 2)]
+                         + [(2, i) for i in (2, 3)])
 def test_RTCF(deg, N, time_stages, splitting):
     error = RTCFtest(N, deg, GaussLegendre(time_stages), splitting)
     assert abs(error) < 1e-10

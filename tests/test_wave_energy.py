@@ -55,11 +55,11 @@ def wave(n, deg, butcher_tableau, splitting=AI):
     return np.array(energies)
 
 
-@pytest.mark.parametrize(('deg', 'N', 'time_stages', 'splitting'),
-                         [(1, 2**j, i, splt) for j in range(2, 4)
-                          for i in (1, 2) for splt in (AI, IA)]
-                         + [(2, 2**j, i, splt) for j in range(2, 4)
-                            for i in (2, 3) for splt in (AI, IA)])
+@pytest.mark.parametrize('splitting', (AI, IA))
+@pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
+@pytest.mark.parametrize(('deg', 'time_stages'),
+                         [(1, i) for i in (1, 2)]
+                         + [(2, i) for i in (2, 3)])
 def test_wave_eq(deg, N, time_stages, splitting):
     energy = wave(N, deg, GaussLegendre(time_stages), splitting)
     print(energy)
