@@ -5,12 +5,13 @@ from firedrake import (inner, dx, UnitIntervalMesh, FunctionSpace,
                        Constant, project, as_vector, sin, pi, split)
 
 from irksome import Dt, TimeStepper, GaussLegendre
+from irksome.getForm import AI, IA
 
 # test the energy conservation of the 1d wave equation in mixed form
 # various time steppers.
 
 
-def wave(n, deg, butcher_tableau):
+def wave(n, deg, butcher_tableau, splitting=AI):
     N = 2**n
     msh = UnitIntervalMesh(N)
 
@@ -39,7 +40,8 @@ def wave(n, deg, butcher_tableau):
     E = 0.5 * (inner(u, u)*dx + inner(p, p)*dx)
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, up,
-                          solver_parameters=params)
+                          solver_parameters=params,
+                          splitting=splitting)
 
     energies = []
 
@@ -53,12 +55,12 @@ def wave(n, deg, butcher_tableau):
     return np.array(energies)
 
 
-@pytest.mark.parametrize(('deg', 'N', 'time_stages'),
-                         [(1, 2**j, i) for j in range(2, 4)
-                          for i in (1, 2)]
-                         + [(2, 2**j, i) for j in range(2, 4)
-                            for i in (2, 3)])
-def test_wave_eq(deg, N, time_stages):
-    energy = wave(N, deg, GaussLegendre(time_stages))
+@pytest.mark.parametrize('splitting', (AI, IA))
+@pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
+@pytest.mark.parametrize(('deg', 'time_stages'),
+                         [(1, i) for i in (1, 2)]
+                         + [(2, i) for i in (2, 3)])
+def test_wave_eq(deg, N, time_stages, splitting):
+    energy = wave(N, deg, GaussLegendre(time_stages), splitting)
     print(energy)
     assert np.allclose(energy[1:], energy[:-1])

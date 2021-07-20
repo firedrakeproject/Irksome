@@ -1,7 +1,8 @@
-from .getForm import getForm
+from .getForm import getForm, AI
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import Function, norm
+import numpy
 
 
 class TimeStepper:
@@ -38,7 +39,7 @@ class TimeStepper:
 
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
-                 solver_parameters=None, bc_type="DAE"):
+                 solver_parameters=None, bc_type="DAE", splitting=AI):
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -47,7 +48,7 @@ class TimeStepper:
         self.butcher_tableau = butcher_tableau
 
         bigF, stages, bigBCs, bigBCdata = \
-            getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type)
+            getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type, splitting)
 
         self.stages = stages
         self.bigBCs = bigBCs
@@ -56,24 +57,51 @@ class TimeStepper:
         self.solver = NLVS(problem, solver_parameters=solver_parameters)
 
         if self.num_stages == 1 and self.num_fields == 1:
-            self.ks = (stages,)
+            self.ws = (stages,)
         else:
-            self.ks = stages.split()
+            self.ws = stages.split()
 
-    def _update(self):
+        A1, A2 = splitting(butcher_tableau.A)
+        try:
+            self.updateb = numpy.linalg.solve(A2.T, butcher_tableau.b)
+        except numpy.linalg.LinAlgError:
+            raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
+        boo = numpy.zeros(self.updateb.shape, dtype=self.updateb.dtype)
+        boo[-1] = 1
+        if numpy.allclose(self.updateb, boo):
+            self._update = self._update_A2Tmb
+        else:
+            self._update = self._update_general
+
+    def _update_general(self):
         """Assuming the algebraic problem for the RK stages has been
         solved, updates the solution.  This will not typically be
         called by an end user."""
-        b = self.butcher_tableau.b
+        b = self.updateb
         dtc = float(self.dt)
         u0 = self.u0
         ns = self.num_stages
         nf = self.num_fields
 
-        ks = self.ks
+        ws = self.ws
         for s in range(ns):
             for i, u0d in enumerate(u0.dat):
-                u0d.data[:] += dtc * b[s] * ks[nf*s+i].dat.data_ro
+                u0d.data[:] += dtc * b[s] * ws[nf*s+i].dat.data_ro
+
+    def _update_A2Tmb(self):
+        """Assuming the algebraic problem for the RK stages has been
+        solved, updates the solution.  This will not typically be
+        called by an end user.  This handles the common but highly
+        specialized case of `w = Ak` or `A = I A` splitting where
+        A2^{-T} b = e_{num_stages}"""
+        dtc = float(self.dt)
+        u0 = self.u0
+        ns = self.num_stages
+        nf = self.num_fields
+
+        ws = self.ws
+        for i, u0d in enumerate(u0.dat):
+            u0d.data[:] += dtc * ws[nf*(ns-1)+i].dat.data_ro
 
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
@@ -135,13 +163,13 @@ class AdaptiveTimeStepper(TimeStepper):
         dtc = float(self.dt)
         delb = self.delb
 
-        ks = self.ks
+        ws = self.ws
         nf = self.num_fields
         for e in self.error_func.dat:
             e.data[:] = 0.0
         for s in range(self.num_stages):
             for i, e in enumerate(self.error_func.dat):
-                e.data[:] += dtc * delb[i] * ks[nf*s+i].dat.data_ro
+                e.data[:] += dtc * delb[i] * ws[nf*s+i].dat.data_ro
         return norm(self.error_func)
 
     def advance(self):

@@ -82,7 +82,20 @@ class BCStageData(object):
         self.gstuff = (gdat, gcur, gmethod)
 
 
-def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
+# Utility functions that help us refactor
+def AI(A):
+    return (A, numpy.eye(*A.shape, dtype=A.dtype))
+
+
+def IA(A):
+    return (numpy.eye(*A.shape, dtype=A.dtype), A)
+
+
+def ConstantOrZero(x):
+    return Zero() if abs(complex(x)) < 1.e-10 else Constant(x)
+
+
+def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -93,6 +106,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
          Any explicit time-dependence in F is included
     :arg dt: a :class:`Constant` referring to the size of the current
          time step.
+    :arg splitting: a callable that maps the (floating point) Butcher matrix
+         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
+         to vary between the classical RK formulation and Butcher's reformulation
+         that leads to a denser mass matrix with block-diagonal stiffness.
+         Some choices of function will assume that `butch.A` is invertible.
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
@@ -124,60 +142,81 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
          either `f.interpolate(expr-c*u0)` or `f.project(expr-c*u0)`, depending
          on whether the function space for f supports interpolation or
          not.
-
     """
     v = F.arguments()[0]
     V = v.function_space()
     assert V == u0.function_space()
 
-    A = numpy.array([[Constant(aa) for aa in arow] for arow in butch.A],
-                    dtype=object)
     c = numpy.array([Constant(ci) for ci in butch.c],
                     dtype=object)
 
-    num_stages = len(c)
+    bA1, bA2 = splitting(butch.A)
+
+    try:
+        bA1inv = numpy.linalg.inv(bA1)
+    except numpy.linalg.LinAlgError:
+        bA1inv = None
+    try:
+        bA2inv = numpy.linalg.inv(bA2)
+        A2inv = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA2inv],
+                            dtype=object)
+    except numpy.linalg.LinAlgError:
+        raise NotImplementedError("We require A = A1 A2 with A2 invertible")
+
+    A1 = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA1],
+                     dtype=object)
+    if bA1inv is not None:
+        A1inv = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA1inv],
+                            dtype=object)
+    else:
+        A1inv = None
+
+    num_stages = butch.num_stages
     num_fields = len(V)
 
     Vbig = reduce(mul, (V for _ in range(num_stages)))
     # Silence a warning about transfer managers when we
     # coarsen coefficients in V
     push_parent(V.dm, Vbig.dm)
+
     vnew = TestFunction(Vbig)
-    k = Function(Vbig)
+    w = Function(Vbig)
+
     if len(V) == 1:
         u0bits = [u0]
         vbits = [v]
         if num_stages == 1:
             vbigbits = [vnew]
-            kbits = [k]
+            wbits = [w]
         else:
             vbigbits = split(vnew)
-            kbits = split(k)
+            wbits = split(w)
     else:
         u0bits = split(u0)
         vbits = split(v)
         vbigbits = split(vnew)
-        kbits = split(k)
+        wbits = split(w)
 
-    kbits_np = numpy.zeros((num_stages, num_fields), dtype=object)
+    wbits_np = numpy.zeros((num_stages, num_fields), dtype=object)
 
     for i in range(num_stages):
         for j in range(num_fields):
-            kbits_np[i, j] = kbits[i*num_fields+j]
+            wbits_np[i, j] = wbits[i*num_fields+j]
 
-    Ak = A @ kbits_np
+    A1w = A1 @ wbits_np
+    A2invw = A2inv @ wbits_np
 
     Fnew = Zero()
 
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
-        for j, (ubit, vbit, kbit) in enumerate(zip(u0bits, vbits, kbits)):
-            repl[ubit] = ubit + dt * Ak[i, j]
+        for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
+            repl[ubit] = ubit + dt * A1w[i, j]
             repl[vbit] = vbigbits[num_fields * i + j]
-            repl[TimeDerivative(ubit)] = kbits_np[i, j]
+            repl[TimeDerivative(ubit)] = A2invw[i, j]
             if (len(ubit.ufl_shape) == 1):
-                for kk, kbitbit in enumerate(kbits_np[i, j]):
-                    repl[TimeDerivative(ubit[kk])] = kbitbit
+                for kk in range(len(A1w[i, j])):
+                    repl[TimeDerivative(ubit[kk])] = A2invw[i, j][kk]
                     repl[ubit[kk]] = repl[ubit][kk]
                     repl[vbit[kk]] = repl[vbit][kk]
         Fnew += replace(F, repl)
@@ -188,8 +227,9 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
     if bcs is None:
         bcs = []
     if bc_type == "ODE":
+        assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
         u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
-        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np],
+        u0_mult = numpy.array([ConstantOrZero(mi)/dt for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
@@ -198,19 +238,18 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
             return replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
 
     elif bc_type == "DAE":
-        if butch.Ainv is None:
-            raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau")
+        if bA1inv is None:
+            raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
-        Ainv = butch.Ainv/dt
-        u0_mult_np = butch.Ainv@numpy.ones_like(butch.c)
-        u0_mult = numpy.array([Constant(mi/dt) for mi in u0_mult_np],
+        u0_mult_np = A1inv @ numpy.ones_like(butch.c)
+        u0_mult = numpy.array([ConstantOrZero(mi)/dt for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gcur = 0
             for j in range(num_stages):
-                gcur += Constant(Ainv[i, j]) * replace(gorig, {t: t + c[j]*dt})
+                gcur += ConstantOrZero(bA1inv[i, j]) / dt * replace(gorig, {t: t + c[j]*dt})
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
@@ -229,4 +268,4 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE"):
             gblah.append((gdat, gcr, gmethod))
             bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))
 
-    return Fnew, k, bcnew, gblah
+    return Fnew, w, bcnew, gblah
