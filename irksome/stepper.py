@@ -66,7 +66,6 @@ class TimeStepper:
                            appctx=appctx,
                            solver_parameters=solver_parameters)
 
-        
         if self.num_stages == 1 and self.num_fields == 1:
             self.ws = (stages,)
         else:
