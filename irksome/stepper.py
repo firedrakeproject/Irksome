@@ -54,8 +54,19 @@ class TimeStepper:
         self.bigBCs = bigBCs
         self.bigBCdata = bigBCdata
         problem = NLVP(bigF, stages, bigBCs)
-        self.solver = NLVS(problem, solver_parameters=solver_parameters)
+        appctx = {"F": F,
+                  "butcher_tableau": butcher_tableau,
+                  "t": t,
+                  "dt": dt,
+                  "u0": u0,
+                  "bcs": bcs,
+                  "bc_type": bc_type,
+                  "splitting": splitting}
+        self.solver = NLVS(problem,
+                           appctx=appctx,
+                           solver_parameters=solver_parameters)
 
+        
         if self.num_stages == 1 and self.num_fields == 1:
             self.ws = (stages,)
         else:
