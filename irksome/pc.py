@@ -33,13 +33,20 @@ def ldu(A):
 
 
 class RanaBase(AuxiliaryOperatorPC):
+    """Base class for methods out of Rana, Howle, Long, Meek, & Milestone.
+    It inherits from Firedrake's AuxiliaryOperatorPC class and
+    provides the preconditioning bilinear form associated with an
+    approximation to the Butcher matrix (which is provided by
+    subclasses)."""
+
     @abc.abstractmethod
     def getAtilde(self, A):
+        """Derived classes produce a typically structured
+        approximation to A."""
         pass
 
     def form(self, pc, test, trial):
-        # Fish out information from the appctx (which TimeStepper
-        # puts in when it sets up the NLVP)
+        """Implements the interface for AuxiliaryOperatorPC."""
         appctx = self.get_appctx(pc)
         F = appctx["F"]
         butcher_tableau = appctx["butcher_tableau"]
@@ -70,12 +77,14 @@ class RanaBase(AuxiliaryOperatorPC):
 
 
 class RanaLD(RanaBase):
+    """Implements Rana-type preconditioner using Atilde = LD where A=LDU."""
     def getAtilde(self, A):
         L, D, U = ldu(A)
         return L @ D
 
 
 class RanaDU(RanaBase):
+    """Implements Rana-type preconditioner using Atilde = DU where A=LDU."""
     def getAtilde(self, A):
         L, D, U = ldu(A)
         return D @ U
