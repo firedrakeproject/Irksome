@@ -15,10 +15,9 @@ in the other demo, we have the weak form of the wave equation:
 
 Here is some typical Firedrake boilerplate and the construction of a simple
 mesh and the approximating spaces::
-   
+
   from firedrake import *
   from irksome import GaussLegendre, Dt, AdaptiveTimeStepper
-  import numpy
 
   N = 10
 
@@ -28,7 +27,7 @@ mesh and the approximating spaces::
   Z = V*W
 
 Now we can build the initial condition, which has zero velocity and a sinusoidal displacement::
-  
+
   x, y = SpatialCoordinate(msh)
   up0 = project(as_vector([0, 0, sin(pi*x)*sin(pi*y)]), Z)
   u0, p0 = split(up0)
@@ -42,7 +41,7 @@ We build the variational form in UFL::
 Energy conservation is an important principle of the wave equation, and we can
 test how well the spatial discretization conserves energy by creating a
 UFL expression and evaluating it at each time step::
-   
+
   E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)
 
 The time and time step variables::
@@ -68,7 +67,7 @@ Now, we are using the :class:`AdaptiveTimeStepper` mechanism.  The
 constructor is similar to the regular time stepper, but takes some
 optional extra parameters specifying the temporal truncation error
 tolerance and the minimal acceptable time step::
-	    
+
   stepper = AdaptiveTimeStepper(F, butcher_tableau, t, dt, up0,
                                 tol=1.e-3, dtmin=1.e-5,
                                 solver_parameters=params)

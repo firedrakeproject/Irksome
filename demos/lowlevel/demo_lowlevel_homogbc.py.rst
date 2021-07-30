@@ -3,24 +3,24 @@ Not using the TimeStepper interface for the heat equation
 
 Invariably, somebody will have a (possibly) compelling reason or
 at least urgent desire to avoid the top-level interface.  This demo
-shows how one can do just that. 
+shows how one can do just that.
 It will be sparsely documented except for the critical bits and should
 only be read after perusing the more basic demos.
 
 We're solving the same problem that is done in the heat equation demos.
 
 Imports::
-  
+
   from firedrake import *
   from ufl.algorithms.ad import expand_derivatives
- 
+
   from irksome import GaussLegendre, getForm, Dt
 
 Note that we imported :func:`.getForm` rather than :class:`.TimeStepper`.  That's the
 lower-level function inside Irksome that manipulates UFL and boundary conditions.
 
 Continuing::
-  
+
   butcher_tableau = GaussLegendre(1)
   N = 64
 
@@ -86,7 +86,7 @@ Solver parameters are just blunt-force LU.  Other options are surely possible::
 
 We can set up a new nonlinear variational problem and create a solver
 for it in standard Firedrake fashion::
-	      
+
   prob = NonlinearVariationalProblem(Fnew, k, bcs=bcnew)
   solver = NonlinearVariationalSolver(prob, solver_parameters=luparams)
 
@@ -97,7 +97,7 @@ solution after solving for the stages at each time step::
 
 And here is our time-stepping loop.  Note that unlike in the higher-level
 interface examples, we have to manually update the solution::
-  
+
   while (float(t) < 1.0):
       if float(t) + float(dt) > 1.0:
           dt.assign(1.0 - float(t))

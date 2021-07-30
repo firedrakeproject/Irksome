@@ -48,7 +48,7 @@ Build the mesh and approximating spaces::
   Z = V * W
 
 Create time and time-step variables::
-  
+
   dt = Constant(10.0 / N)
   t = Constant(0.0)
 
@@ -75,14 +75,14 @@ Set up the initial condition::
   sigma, u = split(sigu)
 
 And define the variational form::
-  
+
   v, w = TestFunctions(Z)
 
   F = (inner(Dt(u), w) * dx + inner(div(sigma), w) * dx - inner(rhs, w) * dx
        + inner(sigma, v) * dx - inner(u, div(v)) * dx)
 
 As before, we use a sparse direct method::
-  
+
   params = {"mat_type": "aij",
             "snes_type": "ksponly",
 	    "ksp_type": "preonly",

@@ -17,7 +17,7 @@ space :math:`V`.
 We transform this into weak form by multiplying by an arbitrary test function
 :math:`v\in V` and integrating over :math:`\Omega`.  We know have the
 variational problem of finding :math:`u:[0,T]\rightarrow V` such
-that 
+that
 
 .. math::
 
@@ -27,16 +27,16 @@ This demo implements an example used by Solin with a particular choice
 of :math:`f` given below
 
 As usual, we need to import firedrake::
-  
-  from firedrake import * 
+
+  from firedrake import *
 
 We will also need to import certain items from irksome::
-  
+
   from irksome import GaussLegendre, Dt, TimeStepper
 
 And we will need a little bit of UFL to support using the method of
 manufactured solutions::
-  
+
   from ufl.algorithms.ad import expand_derivatives
 
 We will create the Butcher tableau for the lowest-order Gauss-Legendre
@@ -48,7 +48,7 @@ midpoint rule::
 
 Now we define the mesh and piecewise linear approximating space in
 standard Firedrake fashion::
-  
+
   N = 100
   x0 = 0.0
   x1 = 10.0
@@ -59,10 +59,10 @@ standard Firedrake fashion::
   V = FunctionSpace(msh, "CG", 1)
 
 We define variables to store the time step and current time value::
-  
+
   dt = Constant(10.0 / N)
   t = Constant(0.0)
- 
+
 This defines the right-hand side using the method of manufactured solutions::
 
   x, y = SpatialCoordinate(msh)
@@ -80,7 +80,7 @@ will get overwritten at each time step::
 
 Now, we will define the semidiscrete variational problem using
 standard UFL notation, augmented by the ``Dt`` operator from Irksome::
-  
+
   v = TestFunction(V)
   F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
   bc = DirichletBC(V, 0, "on_boundary")
@@ -90,7 +90,7 @@ to PETSc for efficient block solvers, but for now, we will solve the
 system with a direct method (Note: the matrix type needs to be
 explicitly set to aij if sparse direct factorization were used with a
 multi-stage method, as we wind up with a mixed problem that Firedrake
-will assemble into a PETSc MatNest otherwise):: 
+will assemble into a PETSc MatNest otherwise)::
 
   luparams = {"mat_type": "aij",
               "ksp_type": "preonly",
@@ -107,7 +107,7 @@ stages at each time step.::
 This logic is pretty self-explanatory.  We use the
 :class:`.TimeStepper`'s :meth:`~.TimeStepper.advance` method, which solves the variational
 problem to compute the Runge-Kutta stage values and then updates the solution.::
-		
+
   while (float(t) < 1.0):
       if (float(t) + float(dt) > 1.0):
           dt.assign(1.0 - float(t))

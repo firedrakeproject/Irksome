@@ -7,10 +7,10 @@ different manufactured solution than before, which is obvious from
 reading through the code.
 
 Imports::
-  
-  from firedrake import *  
+
+  from firedrake import *
   from ufl.algorithms.ad import expand_derivatives
- 
+
   from irksome import GaussLegendre, getForm, Dt
   
   butcher_tableau = GaussLegendre(2)
@@ -20,7 +20,7 @@ Imports::
   t = Constant(0.0)
   
   msh = UnitSquareMesh(N, N)
- 
+
   V = FunctionSpace(msh, "CG", 1)
   x, y = SpatialCoordinate(msh)
 
@@ -76,7 +76,7 @@ boundary conditions at each time step::
           dt.assign(1.0 - float(t))
 
       for (gdat, gcur, gmethod) in bcdata:
-          gmethod(gcur,u)
+          gmethod(gcur, u)
 
       solver.solve()
 

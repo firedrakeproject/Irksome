@@ -69,20 +69,20 @@ Common set-up for the problem::
   u = interpolate(uexact, V)
 
   v = TestFunction(V)
-  F =  inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
+  F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 
   bc = DirichletBC(V, 0, "on_boundary")
 
 Now, we define the solver parameters.  PETSc-speak for taking the
 block diagonal is an "additive fieldsplit"::
-  
+
   params = {"mat_type": "aij",
             "snes_type": "ksponly",
             "ksp_type": "gmres",
             "ksp_monitor": None,
             "pc_type": "fieldsplit",   # block preconditioner
-            "pc_fieldsplit_type": "additive" # block diagaonal
-  }
+            "pc_fieldsplit_type": "additive"  # block diagaonal
+            }
 
 We also have to configure the (approximate) inverse of for each
 diagonal block.  We'll just apply a sweek of gamg (PETSC's algebraic

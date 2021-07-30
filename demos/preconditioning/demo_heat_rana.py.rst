@@ -68,7 +68,7 @@ Common set-up for the problem::
   u = interpolate(uexact, V)
 
   v = TestFunction(V)
-  F =  inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
+  F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v) * dx
 
   bc = DirichletBC(V, 0, "on_boundary")
 
@@ -85,13 +85,12 @@ if its diagonal blocks are exactly inverted::
             "snes_type": "ksponly",
             "ksp_type": "gmres",
             "ksp_monitor": None,
-            "pc_type": "python",                
-            "pc_python_type": "irksome.RanaLD", 
+            "pc_type": "python",
+            "pc_python_type": "irksome.RanaLD",
 	    "aux": {
 	        "pc_type": "fieldsplit",
 		"pc_fieldsplit_type": "multiplicative"
-	    }
-  }
+	    }}
 
 But they don't have to be.  We'll approximate the inverse of each
 diagonal block with a sweep of gamg (PETSc's multigrid)::
@@ -120,4 +119,3 @@ But, since we're just testing the efficacy of the preconditioner,
 we'll solve the inside variational problem one time::
 
   stepper.solver.solve()
-
