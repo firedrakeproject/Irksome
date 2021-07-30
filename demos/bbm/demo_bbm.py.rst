@@ -35,6 +35,7 @@ Firedrake imports::
   from irksome import Dt, GaussLegendre, TimeStepper
 
 This function seems to be left out of UFL, but solitary wave solutions for BBM need it::
+
   def sech(x):
       return 2 / (exp(x) + exp(-x))
 
