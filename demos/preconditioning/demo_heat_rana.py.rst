@@ -30,7 +30,7 @@ with a triangular approximation.  For example, if A = LDU, then one could approx
 
 .. math::
 
-  P = \left[ \begin{array}{cc} \tilde{A}_{11} & 0 \\ \tilde_{A}_{21} & A_{22} \end{array} \right]
+  P = \left[ \begin{array}{cc} \tilde{A}_{11} & 0 \\ \tilde_{A}_{21} & \tilde{A}_{22} \end{array} \right]
 
 
 This allows one to leverage an existing methodology for a low order
@@ -78,7 +78,7 @@ inherits from :class:`firedrake.AuxiliaryOperatorPC` (it provides the
 Jacobian of the variational form with the approximate Butcher tableu
 substituted) and so provides the user with an 'aux' preconditioner
 to configure.  Since the Rana technique gives us a block triangular
-matrix, a multiplicative field split exactly apply the preconditioner
+matrix, a multiplicative field split exactly applies the preconditioner
 if its diagonal blocks are exactly inverted::
 
   params = {"mat_type": "aij",
