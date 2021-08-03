@@ -54,7 +54,7 @@ demos for more information):
 
 As in that case, we will use the next-to-lowest order Raviart-Thomas
 space for :math:`u` and discontinuous piecewise linear elements for
-:math:`p`.  
+:math:`p`.
 
 As an example, we will use the two-stage A-stable and symplectic DIRK of Qin and
 Zhang, given by Butcher tableau:
@@ -68,13 +68,12 @@ Zhang, given by Butcher tableau:
    \end{array}
 
 Imports from Firedrake and Irksome::
-     
+
   from firedrake import *
   from irksome import QinZhang, Dt, TimeStepper
-  import numpy
 
 We configure the discretization::
-  
+
   N = 10
   msh = UnitSquareMesh(N, N)
 
@@ -100,7 +99,7 @@ And set up the initial condition and variational problem::
 
 We will keep track of the energy to determine whether we're
 sufficiently accurate in solving the linear system::
-  
+
   E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)
 
 
@@ -108,7 +107,7 @@ We will need to set up parameters to pass into the solver.
 PETSc-speak for performing a block lower-triangular preconditioner is
 a "multiplicative field split".  And since we are claiming this is
 exact, we set the Krylov method to "preonly"::
-  
+
   params = {"mat_type": "aij",
             "snes_type": "ksponly",
             "ksp_type": "preonly",
@@ -135,7 +134,7 @@ use a direct method on each stage::
 
 This finishes our solver specification, and we are ready to set up the
 time stepper and advance in time::
-      
+
   stepper = TimeStepper(F, butcher_tableau, t, dt, up0,
                         solver_parameters=params)
 

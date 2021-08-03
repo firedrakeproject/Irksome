@@ -30,12 +30,12 @@ We are mainly interested in accuracy and in conserving these quantities reasonab
 
 
 Firedrake imports::
-   
+
   from firedrake import *
   from irksome import Dt, GaussLegendre, TimeStepper
 
 This function seems to be left out of UFL, but solitary wave solutions for BBM need it::
-    
+
   def sech(x):
       return 2 / (exp(x) + exp(-x))
 
@@ -58,7 +58,7 @@ Here is the true solution, which is right-moving solitary wave (but not a solito
   center = 30.0
   delta = -c * center
 
-  uexact = 3 * c**2 / (1-c**2) * sech(0.5 * (c * x  - c * t / (1 - c ** 2) + delta))**2
+  uexact = 3 * c**2 / (1-c**2) * sech(0.5 * (c * x - c * t / (1 - c ** 2) + delta))**2
 
 Create the approximating space and project true solution::
 
@@ -66,10 +66,8 @@ Create the approximating space and project true solution::
   u = project(uexact, V)
   v = TestFunction(V)
 
-
-  
 The symplectic Gauss-Legendre methods are of interest here::
-  
+
   butcher_tableau = GaussLegendre(2)
 
   F = (inner(Dt(u), v) * dx
@@ -78,14 +76,13 @@ The symplectic Gauss-Legendre methods are of interest here::
        + inner((Dt(u)).dx(0), v.dx(0)) * dx)
 
 For a 1d problem, we don't worry much about efficient solvers.::
-	 
+
   params = {"mat_type": "aij",
             "ksp_type": "preonly",
             "pc_type": "lu"}
-     
-  stepper = TimeStepper(F, butcher_tableau, t, dt, u,
-                        solver_parameters = params)
 
+  stepper = TimeStepper(F, butcher_tableau, t, dt, u,
+                        solver_parameters=params)
 
 UFL for the mathematical invariants and containers to track them over time::
 
@@ -114,5 +111,3 @@ Time-stepping loop, keeping track of :math:`I` values::
       t.assign(float(t) + float(dt))
 
   print(errornorm(uexact, u) / norm(uexact))
-
-  

@@ -61,6 +61,7 @@ to deploy more efficient methods:
 
    demos/demo_heat_pc.py
    demos/demo_heat_mg.py
+   demos/demo_heat_rana.py
    demos/demo_dirk_parameters.py
 
 Yes, Irksome can handle nonlinear problems as well:

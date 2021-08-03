@@ -31,18 +31,17 @@ We close the system with boundary conditions
 
 Since we have a nonlinear problem that must be solved at each time
 step, there is no performance penalty to using a direct method with an
-adaptive time stepper. 
+adaptive time stepper.
 
 Boilerplate imports::
 
   from firedrake import *
-  from firedrake.petsc import PETSc
   import numpy as np
   import os
   from irksome import Dt, GaussLegendre, AdaptiveTimeStepper
 
 We create a directory to store some output pictures::
-  
+
   if not os.path.exists("pictures"):
       os.makedirs("pictures")
   elif not os.path.isdir("pictures"):
@@ -50,7 +49,7 @@ We create a directory to store some output pictures::
 
 Set up the mesh and approximating space, including some refined ones
 to allow visualizing our higher-order element on a :math:`P^1` space::
-      
+
   N = 16
   msh = UnitSquareMesh(N, N)
 
@@ -63,12 +62,13 @@ Cahn-Hilliard parameters::
   lmbda = Constant(1.e-2)
   M = Constant(1)
 
+
   def dfdc(cc):
-      return 200*(cc*(1-cc)**2-cc**2*(1-cc))  
+      return 200*(cc*(1-cc)**2-cc**2*(1-cc))
 
 With Bell elements, the path of least resistance for strong boundary
 conditions is a Nitsche-type method.  Here is the parameter::
-  
+
   beta = Constant(250.0)
 
 Set up the time variables and a seeded initial condition::
@@ -98,7 +98,6 @@ Now we define the semidiscrete variational problem::
        inner(M*lmbda*dot(grad(c), n), lap(v))*ds +
        inner(beta/h*M*lmbda*dot(grad(c), n), dot(grad(v), n))*ds)
 
-
 Bell elements are fourth-order accurate in :math:`L^2`, so we'll use a
 time-stepping scheme of comparable accuracy::
 
@@ -126,7 +125,7 @@ Set up the output::
       return prolong(P5, output)
 
 Save the initial condition to a file::
-  
+
   import matplotlib.pyplot as plt
   interpolate_output()
   cs = tripcolor(output, vmin=0, vmax=1)
@@ -139,7 +138,7 @@ Now let's do an adaptive time stepper::
                                 tol=1.e-2, dtmin=1.e-8, solver_parameters=params)
 
 And advance the solution in time::
-  
+
   while float(t) < float(T):
       if (float(t) + float(dt)) >= 1.0:
           dt.assign(1.0 - float(t))
@@ -155,5 +154,5 @@ We'll save a snapshout of the final state::
   plt.savefig('pictures/final.pdf', format='pdf', bbox_inches='tight', pad_inches=0)
 
 And report the amount of overshoot we get in the method::
-  
+
   print(np.max(c.dat.data[::6]))

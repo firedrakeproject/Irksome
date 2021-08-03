@@ -1,4 +1,4 @@
-Solving the Mixed Wave Equation: Energy conservation 
+Solving the Mixed Wave Equation: Energy conservation
 ====================================================
 
 Let :math:`\Omega` be the unit square with boundary :math:`\Gamma`.  We write
@@ -34,10 +34,9 @@ polynomials for the scalar variable :math:`p`.
 
 Here is some typical Firedrake boilerplate and the construction of a simple
 mesh and the approximating spaces::
-   
+
   from firedrake import *
   from irksome import GaussLegendre, Dt, TimeStepper
-  import numpy
 
   N = 10
 
@@ -47,7 +46,7 @@ mesh and the approximating spaces::
   Z = V*W
 
 Now we can build the initial condition, which has zero velocity and a sinusoidal displacement::
-  
+
   x, y = SpatialCoordinate(msh)
   up0 = project(as_vector([0, 0, sin(pi*x)*sin(pi*y)]), Z)
   u0, p0 = split(up0)
@@ -61,7 +60,7 @@ We build the variational form in UFL::
 Energy conservation is an important principle of the wave equation, and we can
 test how well the spatial discretization conserves energy by creating a
 UFL expression and evaluating it at each time step::
-   
+
   E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)
 
 The time and time step variables::

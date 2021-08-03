@@ -1,10 +1,10 @@
-Block diagonal preconditioners for the heat equation
+
+Rana/Howle/et al preconditioning
 ====================================================
 
-This demo applies the method suggested in:
+This demo applies a method suggested in:
 
-Mardal, Nilssen, Staff, "Order-optimal preconditioners for implicit
-Runge-Kutta schemes applied to parabolic PDEs", SISC 29(1): 361--375 (2007),
+Rana, Howle, Long, Meek, Milestone "A new block preconditioner for implicit Runge-Kutta methods for parabolic PDE problems," SISC 2021
 
 to our ongoing heat equation demonstration problem on :math:`\Omega = [0,10]
 \times [0,10]`, with boundary :math:`\Gamma`, giving rise to the weak form
@@ -25,18 +25,17 @@ With a 2-stage method, we have
    \left[ \begin{array}{c} k_1 \\ k_2 \end{array} \right]
    &= \left[ \begin{array}{c} f_1 \\ f_2 \end{array} \right]
 
-And the suggestion (analyzed rigorously) of Mardal, Nilssen, and Staff
-is to use a block diagonal preconditioner:
+The suggestion in the paper is to approximate the Butcher matrix A with
+with a triangular approximation.  For example, if A = LDU, then one could approximate A with LD or DU.  This gives rise to a block triangular preconditioner
 
 .. math::
 
-  P = \left[ \begin{array}{cc} A_{11} & 0 \\ 0 & A_{22} \end{array} \right]
+  P = \left[ \begin{array}{cc} \tilde{A}_{11} & 0 \\ \tilde_{A}_{21} & \tilde{A}_{22} \end{array} \right]
 
 
 This allows one to leverage an existing methodology for a low order
-method like backward Euler for the diagonal blocks.  In our case, we
-will simply use an algebraic multigrid scheme, although one could
-certainly use geometric multigrid or some other technique.
+method like backward Euler for the diagonal blocks.  Empirical results
+suggest that this method is strongly stage-independent.
 
 Common set-up for the problem::
 
@@ -46,7 +45,7 @@ Common set-up for the problem::
 
   butcher_tableau = LobattoIIIC(3)
 
-  N = 64
+  N = 16
   dt = Constant(10. / N)
   t = Constant(0.0)
 
@@ -69,24 +68,32 @@ Common set-up for the problem::
   u = interpolate(uexact, V)
 
   v = TestFunction(V)
-  F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
+  F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v) * dx
 
   bc = DirichletBC(V, 0, "on_boundary")
 
-Now, we define the solver parameters.  PETSc-speak for taking the
-block diagonal is an "additive fieldsplit"::
+Now, we define the solver parameters.  We get at the Rana method
+through an Irksome-provided Python preconditioner.  This method
+inherits from :class:`firedrake.AuxiliaryOperatorPC` (it provides the
+Jacobian of the variational form with the approximate Butcher tableu
+substituted) and so provides the user with an 'aux' preconditioner
+to configure.  Since the Rana technique gives us a block triangular
+matrix, a multiplicative field split exactly applies the preconditioner
+if its diagonal blocks are exactly inverted::
 
   params = {"mat_type": "aij",
             "snes_type": "ksponly",
             "ksp_type": "gmres",
             "ksp_monitor": None,
-            "pc_type": "fieldsplit",   # block preconditioner
-            "pc_fieldsplit_type": "additive"  # block diagaonal
-            }
+            "pc_type": "python",
+            "pc_python_type": "irksome.RanaLD",
+	    "aux": {
+	        "pc_type": "fieldsplit",
+		"pc_fieldsplit_type": "multiplicative"
+	    }}
 
-We also have to configure the (approximate) inverse of for each
-diagonal block.  We'll just apply a sweek of gamg (PETSC's algebraic
-multigrid)::
+But they don't have to be.  We'll approximate the inverse of each
+diagonal block with a sweep of gamg (PETSc's multigrid)::
 
   per_field = {"ksp_type": "preonly",
                "pc_type": "gamg"}
@@ -96,9 +103,14 @@ multigrid)::
 
 Note that we have used the same technique for each RK stage, which is
 probably typical.  However, it is not necessary at all.
-      
+
 To test this preconditioning strategy, we'll create a time stepping
-object which will set up the variational problem for us::
+object which will set up the variational problem for us.  (Important
+note:  The stepper puts some special information into a PETSc context
+for the variational problem it configures.  This is vital for the
+Rana-type preconditioners to function.  If you want to use the
+preconditioner outside of the :class:`.TimeStepper` then you will have
+some extra setup to do)::
 
   stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                         solver_parameters=params)

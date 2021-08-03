@@ -32,7 +32,7 @@ within Firedrake::
   y1 = 10.0
 
   from math import log
-  coarseN = 8 # size of coarse grid
+  coarseN = 8  # size of coarse grid
   nrefs = log(N/coarseN, 2)
   assert nrefs == int(nrefs)
   nrefs = int(nrefs)
@@ -67,25 +67,32 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
 
   mgparams = {"mat_type": "aij",
               "snes_type": "ksponly",
-              "ksp_type": "fgmres",
+              "ksp_type": "gmres",
               "ksp_monitor_true_residual": None,
               "pc_type": "mg",
-              "mg_levels_ksp_type": "chebyshev",
-              "mg_levels_ksp_norm_type": "unpreconditioned",
-              "mg_levels_pc_type": "python",
-              "mg_levels_pc_python_type": "firedrake.PatchPC",
-              "mg_levels_patch_pc_patch_save_operators": True,
-              "mg_levels_patch_pc_patch_partition_of_unity": False,
-              "mg_levels_patch_pc_patch_construct_type": "star",
-              "mg_levels_patch_pc_patch_construct_dim": 0,
-              "mg_levels_patch_pc_patch_sub_mat_type": "seqdense",
-              "mg_levels_patch_pc_patch_dense_inverse": True,
-              "mg_levels_patch_pc_patch_precompute_element_tensors": None,
-              "mg_levels_patch_sub_ksp_type": "preonly",
-              "mg_levels_patch_sub_pc_type": "lu",
-              "mg_coarse_pc_type": "lu",
-              "mg_coarse_pc_factor_mat_solver_type": "mumps"}
-
+              "mg_levels": {
+                  "ksp_type": "chebyshev",
+                  "ksp_max_it": 1,
+                  "ksp_convergence_test": "skip",
+                  "pc_type": "python",
+                  "pc_python_type": "firedrake.PatchPC",
+                  "patch": {
+                      "pc_patch": {
+                          "save_operators": True,
+                          "partition_of_unity": False,
+                          "construct_type": "star",
+                          "construct_dim": 0,
+                          "sub_mat_type": "seqdense",
+                          "dense_inverse": True,
+                          "precompute_element_tensors": None},
+                      "sub": {
+                          "ksp_type": "preonly",
+                          "pc_type": "lu"}}},
+              "mg_coarse": {
+                  "pc_type": "lu",
+                  "pc_factor_mat_solver_type": "mumps"}
+              }
+  
 These solver parameters work just fine in the :class:`.TimeStepper`::
 
   stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,

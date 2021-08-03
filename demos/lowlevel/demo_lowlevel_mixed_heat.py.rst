@@ -67,7 +67,7 @@ Advancing the solution in time is a bit more complicated now::
 
   num_fields = len(Z)
   b = butcher_tableau.b
-   
+
   while (float(t) < 1.0):
       if (float(t) + float(dt) > 1.0):
           dt.assign(1.0 - float(t))
