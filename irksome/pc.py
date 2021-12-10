@@ -56,6 +56,7 @@ class RanaBase(AuxiliaryOperatorPC):
         bcs = appctx["bcs"]
         bc_type = appctx["bc_type"]
         splitting = appctx["splitting"]
+        nullspace = appctx["nullspace"]
 
         # Make a modified Butcher tableau, probably with some kind
         # of sparser structure (e.g. LD part of LDU factorization)
@@ -64,8 +65,8 @@ class RanaBase(AuxiliaryOperatorPC):
         butcher_new.A = Atilde
 
         # Get the UFL for the system with the modified Butcher tableau
-        Fnew, w, bcnew, _ = getForm(F, butcher_new, t, dt, u0, bcs,
-                                    bc_type, splitting)
+        Fnew, w, bcnew, bignsp, _ = getForm(F, butcher_new, t, dt, u0, bcs,
+                                    bc_type, splitting, nullspace)
 
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
