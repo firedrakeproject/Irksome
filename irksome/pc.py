@@ -66,7 +66,7 @@ class RanaBase(AuxiliaryOperatorPC):
 
         # Get the UFL for the system with the modified Butcher tableau
         Fnew, w, bcnew, bignsp, _ = getForm(F, butcher_new, t, dt, u0, bcs,
-                                    bc_type, splitting, nullspace)
+                                            bc_type, splitting, nullspace)
 
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
