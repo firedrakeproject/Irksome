@@ -76,7 +76,7 @@ def StokesTest(N, butcher_tableau, splitting=AI):
 @pytest.mark.parametrize('time_stages', (2, 3))
 def test_Stokes(N, time_stages, splitting):
     error = StokesTest(N, LobattoIIIC(time_stages), splitting)
-    assert abs(error) < 1e-10
+    assert abs(error) < 2e-10
 
 
 if __name__ == "__main__":
