@@ -36,10 +36,16 @@ class TimeStepper:
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
-
+    :arg nullspace: A list of tuples of the form (index, VSB) where
+            index is an index into the function space associated with
+            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
+            instance to be passed to a
+            `firedrake.MixedVectorSpaceBasis` over the larger space
+            associated with the Runge-Kutta method
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
-                 solver_parameters=None, bc_type="DAE", splitting=AI):
+                 solver_parameters=None, bc_type="DAE", splitting=AI,
+                 nullspace=None):
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -47,8 +53,8 @@ class TimeStepper:
         self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
 
-        bigF, stages, bigBCs, bigBCdata = \
-            getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type, splitting)
+        bigF, stages, bigBCs, bigNSP, bigBCdata = \
+            getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type, splitting, nullspace)
 
         self.stages = stages
         self.bigBCs = bigBCs
@@ -61,10 +67,12 @@ class TimeStepper:
                   "u0": u0,
                   "bcs": bcs,
                   "bc_type": bc_type,
-                  "splitting": splitting}
+                  "splitting": splitting,
+                  "nullspace": nullspace}
         self.solver = NLVS(problem,
                            appctx=appctx,
-                           solver_parameters=solver_parameters)
+                           solver_parameters=solver_parameters,
+                           nullspace=bigNSP)
 
         if self.num_stages == 1 and self.num_fields == 1:
             self.ws = (stages,)
@@ -152,14 +160,20 @@ class AdaptiveTimeStepper(TimeStepper):
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
+    :arg nullspace: A list of tuples of the form (index, VSB) where
+            index is an index into the function space associated with
+            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
+            instance to be passed to a
+            `firedrake.MixedVectorSpaceBasis` over the larger space
+            associated with the Runge-Kutta method
     """
     def __init__(self, F, butcher_tableau, t, dt, u0,
                  tol=1.e-6, dtmin=1.e-5, bcs=None, solver_parameters=None,
-                 bc_type="DAE"):
+                 bc_type="DAE", nullspace=None):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs,
-                                                  solver_parameters, bc_type)
+                                                  solver_parameters, bc_type, nullspace)
         self.tol = tol
         self.dt_min = dtmin
         self.delb = butcher_tableau.b - butcher_tableau.btilde

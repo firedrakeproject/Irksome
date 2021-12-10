@@ -3,7 +3,7 @@ from operator import mul
 
 import numpy
 from firedrake import (Constant, DirichletBC, Function, TestFunction,
-                       interpolate, project, split)
+                       interpolate, project, split, MixedVectorSpaceBasis)
 from firedrake.dmhooks import push_parent
 from ufl import diff
 from ufl.algorithms import expand_derivatives
@@ -95,7 +95,8 @@ def ConstantOrZero(x):
     return Zero() if abs(complex(x)) < 1.e-10 else Constant(x)
 
 
-def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
+def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI,
+            nullspace=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -122,6 +123,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
          constraints in the style of a differential-algebraic
          equation, or "ODE", which takes the time derivative of the
          boundary data and evaluates this for the stage values
+    :arg nullspace: A list of tuples of the form (index, VSB) where
+         index is an index into the function space associated with `u`
+         and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
+         be passed to a `firedrake.MixedVectorSpaceBasis` over the
+         larger space associated with the Runge-Kutta method
 
     On output, we return a tuple consisting of four parts:
 
@@ -132,6 +138,8 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
          form lives.
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages,
+       - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
+         that represents the nullspace of the coupled system
        - `gblah`, a list of tuples of the form (f, expr, method),
          where f is a :class:`firedrake.Function` and expr is a
          :class:`ufl.Expr`.  At each time step, each expr needs to be
@@ -268,4 +276,24 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI):
             gblah.append((gdat, gcr, gmethod))
             bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))
 
-    return Fnew, w, bcnew, gblah
+    if nullspace is None:
+        nspnew = None
+    else:
+        try:
+            nullspace.sort()
+        except TypeError:
+            raise TypeError("Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer")
+        if (nullspace[-1][0] > num_fields) or (nullspace[0][0] < 0):
+            raise ValueError("At least one index for nullspaces is out of range")
+        nspnew = []
+        for i in range(num_stages):
+            count = 0
+            for j in range(num_fields):
+                if j == nullspace[count][0]:
+                    nspnew.append(nullspace[count][1])
+                    count += 1
+                else:
+                    nspnew.append(Vbig.sub(j + num_fields * i))
+        nspnew = MixedVectorSpaceBasis(Vbig, nspnew)
+
+    return Fnew, w, bcnew, nspnew, gblah
