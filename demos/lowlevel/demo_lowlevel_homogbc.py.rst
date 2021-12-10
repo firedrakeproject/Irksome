@@ -54,7 +54,7 @@ Continuing::
 
 Now, we use the :func:`.getForm` function, which processes the semidiscrete problem::
 
-  Fnew, k, bcnew, bcdata = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
+  Fnew, k, bcnew, nspnew, bcdata = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
 
 This returns several things:
 
@@ -64,6 +64,8 @@ This returns several things:
   problem was originally posed
 * ``bcnew`` is a list of new :class:`~firedrake.bcs.DirichletBC` that need to
   be enforced on the variational problem for the stages
+* ``nspnew`` is a new :class:`~firedrake.MixedVectorSpaceBasis` that
+  can be used to express the nullspace of `Fnew`
 * ``bcdata`` contains information needed to update the boundary
   conditions.  It is a list of pairs of the form (``f``, ``expr``), where
   ``f`` is a :class:`~firedrake.function.Function` and ``expr`` is an
@@ -88,7 +90,7 @@ We can set up a new nonlinear variational problem and create a solver
 for it in standard Firedrake fashion::
 
   prob = NonlinearVariationalProblem(Fnew, k, bcs=bcnew)
-  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams)
+  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams, nullspace=nspnew)
 
 We'll need to split the stage variable so that we can update the
 solution after solving for the stages at each time step::

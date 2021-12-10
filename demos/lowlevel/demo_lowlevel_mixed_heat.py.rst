@@ -51,7 +51,7 @@ Build the mesh and approximating spaces::
 
 Because we aren't concerned with any strongly-enforced boundary conditions, we drop that information in calling `get_form`::
 
-  Fnew, k, _, _ = getForm(F, butcher_tableau, t, dt, sigu)
+  Fnew, k, _, _, _ = getForm(F, butcher_tableau, t, dt, sigu)
 
 We set up the variational problem and solver using a sparse direct method::
 

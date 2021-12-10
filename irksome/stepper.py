@@ -169,11 +169,11 @@ class AdaptiveTimeStepper(TimeStepper):
     """
     def __init__(self, F, butcher_tableau, t, dt, u0,
                  tol=1.e-6, dtmin=1.e-5, bcs=None, solver_parameters=None,
-                 bc_type="DAE", nullspace=None):
+                 bc_type="DAE", splitting=AI, nullspace=None):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
-                                                  t, dt, u0, bcs,
-                                                  solver_parameters, bc_type, nullspace)
+                                                  t, dt, u0, bcs, solver_parameters,
+                                                  bc_type, splitting, nullspace)
         self.tol = tol
         self.dt_min = dtmin
         self.delb = butcher_tableau.b - butcher_tableau.btilde
