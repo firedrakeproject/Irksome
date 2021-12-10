@@ -41,7 +41,7 @@ def StokesTest(N, butcher_tableau, splitting=AI):
          - inner(p_rhs, q)*dx)
 
     bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
-    nsp = [(1,VectorSpaceBasis(constant=True))]
+    nsp = [(1, VectorSpaceBasis(constant=True))]
 
     u, p = z.split()
     u.interpolate(uexact)
