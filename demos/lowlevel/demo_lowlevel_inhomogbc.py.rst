@@ -37,7 +37,7 @@ Imports::
 As with the homogeneous BC case, we use the `getForm` method to
 process the semidiscrete problem::
 
-  Fnew, k, bcnew, bcdata = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
+  Fnew, k, bcnew, nspnew, bcdata = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
 
 Recall that `getForm` produces:
 
@@ -64,7 +64,7 @@ and solver::
               "pc_type": "lu"}
 
   prob = NonlinearVariationalProblem(Fnew, k, bcs=bcnew)
-  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams)
+  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams, nullspace=nspnew)
 
   ks = k.split()
 

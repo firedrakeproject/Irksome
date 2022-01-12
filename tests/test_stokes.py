@@ -40,8 +40,8 @@ def StokesTest(N, butcher_tableau, splitting=AI):
          - inner(u_rhs, v)*dx
          - inner(p_rhs, q)*dx)
 
-    bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary"),
-           DirichletBC(Z.sub(1), pexact, "on_boundary")]
+    bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
+    nsp = [(1, VectorSpaceBasis(constant=True))]
 
     u, p = z.split()
     u.interpolate(uexact)
@@ -53,12 +53,13 @@ def StokesTest(N, butcher_tableau, splitting=AI):
           "snes_monitor": None,
           "snes_rtol": 1e-8,
           "snes_atol": 1e-8,
+          "snes_force_iteration": 1,
           "ksp_type": "preonly",
           "pc_type": "lu",
           "pc_factor_mat_solver_type": "mumps"}
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
-                          bcs=bcs, solver_parameters=lu)
+                          bcs=bcs, solver_parameters=lu, nullspace=nsp)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
@@ -67,7 +68,7 @@ def StokesTest(N, butcher_tableau, splitting=AI):
         t.assign(float(t) + float(dt))
 
     (u, p) = z.split()
-    return errornorm(uexact, u)
+    return errornorm(uexact, u) + errornorm(pexact, p)
 
 
 @pytest.mark.parametrize('splitting', (AI, IA))
@@ -75,8 +76,8 @@ def StokesTest(N, butcher_tableau, splitting=AI):
 @pytest.mark.parametrize('time_stages', (2, 3))
 def test_Stokes(N, time_stages, splitting):
     error = StokesTest(N, LobattoIIIC(time_stages), splitting)
-    assert abs(error) < 1e-10
+    assert abs(error) < 2e-10
 
 
 if __name__ == "__main__":
-    test_Stokes(4, 2)
+    test_Stokes(4, 2, AI)
