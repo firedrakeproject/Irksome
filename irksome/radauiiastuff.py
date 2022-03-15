@@ -9,7 +9,7 @@ from functools import reduce
 from operator import mul
 
 import numpy
-from firedrake import (Constant, Function, TestFunction, dx, inner,
+from firedrake import (Constant, DirichletBC, Function, TestFunction, dx, inner,
                        interpolate, project, split, MixedVectorSpaceBasis)
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
@@ -93,6 +93,10 @@ class BCStageData(object):
         self.gstuff = (gdat, gcur, gmethod)
 
 
+class BCStageData(object):
+    pass
+        
+
 def getForm(F, butch, t, dt, u0, bcs=None, nullspace=None):
     """Given a time-dependent variational form and a
     :class:`RadauIIA`, produce UFL for the s-stage RK method.
@@ -135,11 +139,12 @@ def getForm(F, butch, t, dt, u0, bcs=None, nullspace=None):
          conditions need to be re-applied.
          not.
     """
-    assert bcs is None and nullspace is None
-
     v = F.arguments()[0]
     V = v.function_space()
     assert V == u0.function_space()
+
+    if bcs is None:
+        bcs = []
 
     c = numpy.array([Constant(ci) for ci in butch.c],
                     dtype=object)
@@ -198,6 +203,28 @@ def getForm(F, butch, t, dt, u0, bcs=None, nullspace=None):
 
             Fnew += dt * A1[i0, i1] * replace(F, repl)
 
+    # Now for bcs.
+    bcnew = []
+    gblah = []
+    
+    for bc in bcs:
+        sub = 0 if len(V) == 1 else bc.function_space_index()
+        Vsp = V if len(V) == 1 else V.sub(sub)
+        offset = lambda i: sub + num_fields * i
+        for i in range(num_stages):
+            g = bc._original_arg
+            gnew = replace(g, {t: t + c[i] * dt})
+            try:
+                gdat = interpolate(gnew, Vsp)
+                gmeth = lambda g: gdat.interpolate(g)
+            except:  # noqa: E722
+                gdat = project(gnew, Vsp)
+                gmeth = lambda g: gdat.project(g)
+            gblah.append((gdat, gnew, gmeth))
+            bcnew.append(DirichletBC(Vbig[offset(i)],
+                                     gdat,
+                                     bc.sub_domain))
+
     if nullspace is None:
         nspnew = None
     else:
@@ -218,7 +245,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, nullspace=None):
                     nspnew.append(Vbig.sub(j + num_fields * i))
         nspnew = MixedVectorSpaceBasis(Vbig, nspnew)
 
-    return Fnew, UU, None, nspnew, None
+    return Fnew, UU, bcnew, gblah, nspnew
 
 
 class TimeStepper:
@@ -268,7 +295,7 @@ class TimeStepper:
         self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
 
-        bigF, U, bigBCs, bigNSP, bigBCdata = \
+        bigF, U, bigBCs, bigBCdata, bigNSP = \
             getForm(F, butcher_tableau, t, dt, u0, bcs, nullspace)
 
         self.U = U
@@ -293,7 +320,8 @@ class TimeStepper:
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
 
-        # Diddle with BC...
+        for gdat, gcur, gmethod in self.bigBCdata:
+            gmethod(gcur)
 
         self.solver.solve()
 
