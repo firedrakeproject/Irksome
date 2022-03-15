@@ -158,35 +158,30 @@ def getForm(F, butch, t, dt, u0, bcs=None, nullspace=None):
     vnew = TestFunction(Vbig)
     UU = Function(Vbig)
 
-    u0bits = split(u0)
-    vbits = split(v)
+    if len(V) == 1:
+        u0bits = [u0]
+        vbits = [v]
+        if num_stages == 1:
+            vbigbits = [vnew]
+            UUbits = [UU]
+        else:
+            vbigbits = split(vnew)
+            UUbits = split(UU)
+    else:
+        u0bits = split(u0)
+        vbits = split(v)
+        vbigbits = split(vnew)
+        UUbits = split(UU)
 
-    # if len(V) == 1:
-    #     u0bits = [u0]
-    #     vbits = [v]
-    #     if num_stages == 1:
-    #         vbigbits = [vnew]
-    #         UUbits = [UU]
-    #     else:
-    #         vbigbits = split(vnew)
-    #         UUbits = split(UU)
-    # else:
-    #     u0bits = split(u0)
-    #     vbits = split(v)
-    #     vbigbits = split(vnew)
-    #     UUbits = split(UU)
-
-    UUbits = split(UU)
-    UUbits_np = numpy.reshape(
-        numpy.asarray(split(UU)), (num_stages, num_fields))
-    vbigbits = split(vnew)
-    vbigbits_np = numpy.reshape(
-        numpy.asarray(split(vnew)), (num_stages, num_fields))
+    UUbits = numpy.reshape(
+        numpy.asarray(UUbits), (num_stages, num_fields))
+    vbigbits = numpy.reshape(
+        numpy.asarray(vbigbits), (num_stages, num_fields))
 
     Fnew = Zero()
     for i in range(num_stages):
         for j in range(num_fields):
-            Fnew += inner(UUbits_np[i, j] - u0bits[j], vbigbits_np[i, j]) * dx
+            Fnew += inner(UUbits[i, j] - u0bits[j], vbigbits[i, j]) * dx
 
     # Now substitute into F for each stage, we need a double-loop over
     # the stages for this.
@@ -195,11 +190,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, nullspace=None):
 
         # test functions within the split
         for f in range(num_fields):
-            repl[vbits[f]] = vbigbits_np[i0, f]
+            repl[vbits[f]] = vbigbits[i0, f]
 
         for i1 in range(num_stages):
             for f in range(num_fields):
-                repl[u0bits[f]] = UUbits_np[i1, f]
+                repl[u0bits[f]] = UUbits[i1, f]
 
             Fnew += dt * A1[i0, i1] * replace(F, repl)
 
