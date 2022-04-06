@@ -6,9 +6,10 @@ from irksome.radauiiastuff import TimeStepper
 from ufl.algorithms.ad import expand_derivatives
 
 
+@pytest.mark.skip
 def test_1d_heat():
     butcher_tableau = RadauIIA(2)
-    N = 64
+    N = 32
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
     dt = Constant(1.0 / N)
@@ -54,16 +55,21 @@ def heat_inhomog(N, deg, butcher_tableau):
     u = interpolate(uexact, V)
 
     v = TestFunction(V)
-    F = inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
-
-    bc = DirichletBC(V, uexact, "on_boundary")
+    n = FacetNormal(msh)
+    h = CellSize(msh)
+    F = (
+        inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
+        - inner(dot(grad(u), n), v)*ds - inner(u-uexact, dot(grad(v), n))*ds
+        + Constant(4.0) / h * inner(u-uexact, v)*ds)
+    
+    # bc = DirichletBC(V, uexact, "on_boundary")
 
     luparams = {"mat_type": "aij",
                 "snes_type": "ksponly",
                 "ksp_type": "preonly",
                 "pc_type": "lu"}
 
-    stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
+    stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=None,
                           solver_parameters=luparams)
 
     while (float(t) < 1.0):
@@ -71,6 +77,7 @@ def heat_inhomog(N, deg, butcher_tableau):
             dt.assign(1.0 - float(t))
         stepper.advance()
         t.assign(float(t) + float(dt))
+        print(errornorm(uexact, u))
 
     return norm(u-uexact)
 

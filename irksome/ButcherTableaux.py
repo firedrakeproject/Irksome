@@ -72,14 +72,13 @@ class CollocationButcherTableau(ButcherTableau):
             A[i, :] = Lvals_i @ qwts_i
 
         # coefficients used in IMEX methods
-        Aexplicit = np.zeros((k, k))
+        Aexplicit = numpy.zeros((num_stages, num_stages))
         for i in range(num_stages):
             qpts_i = 1 + qpts * c[i]
             qwts_i = qwts * c[i]
             Lvals_i = L.tabulate(0, qpts_i)[0, ]
             Aexplicit[i, :] = Lvals_i @ qwts_i
         self.Aexplicit = Aexplicit
-​            
         V = vander(c, increasing=True)
         rhs = numpy.array([1.0/(s+1) for s in range(num_stages-1)] + [0])
         btilde = numpy.linalg.solve(V.T, rhs)
