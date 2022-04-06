@@ -63,21 +63,40 @@ def replace(e, mapping):
 
 class BCStageData(object):
     def __init__(self, V, gcur, u0, u0_mult, i, t, dt):
-        if V.index is None:  # Not part of a mixed space
-            try:
-                gdat = interpolate(gcur-u0_mult[i]*u0, V)
-                gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
-            except:  # noqa: E722
-                gdat = project(gcur-u0_mult[i]*u0, V)
-                gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
-        else:
-            sub = V.index
-            try:
-                gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
-                gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-            except:  # noqa: E722
-                gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
-                gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
+        if V.component is not None:     # bottommost space is bit of VFS
+            if V.parent.index is None:  # but not part of a MFS
+                sub = V.component
+                try:
+                    gdat = interpolate(gcur-u0_mult[i]*u0, V)
+                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
+                except:  # noqa: E722
+                    gdat = project(gcur-u0_mult[i]*u0, V)
+                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
+            else:   # V is a bit of a VFS inside an MFS
+                sub0 = V.parent.index
+                sub1 = V.component
+                try:
+                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
+                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub0).sub(sub1))
+                except:  # noqa: E722
+                    gdat = project(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
+                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub0).sub(sub1))
+        else:  # V is not a bit of a VFS
+            if V.index is None:  # not part of MFS, either
+                try:
+                    gdat = interpolate(gcur-u0_mult[i]*u0, V)
+                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
+                except:  # noqa: E722
+                    gdat = project(gcur-u0_mult[i]*u0, V)
+                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
+            else:  # part of MFS
+                sub = V.index
+                try:
+                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
+                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
+                except:  # noqa: E722
+                    gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
+                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
 
         self.gstuff = (gdat, gcur, gmethod)
 
