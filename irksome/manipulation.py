@@ -15,6 +15,7 @@ from gem.node import Memoizer
 from tsfc.ufl_utils import ufl_reuse_if_untouched
 from ufl.algebra import Conj, Division, Product, Sum
 from ufl.averaging import CellAvg, FacetAvg
+from ufl.classes import MultiIndex
 from ufl.coefficient import Coefficient
 from ufl.constantvalue import Zero
 from ufl.core.expr import Expr
@@ -75,7 +76,7 @@ Result = Union[Tuple[()], Tuple[Coefficient, ...]]
 
 @singledispatch
 def _check_time_terms(o, self: Memoizer) -> Result:
-    raise AssertionError(f"Unhandled type {type(o)}")
+    raise AssertionError
 
 
 @_check_time_terms.register(TimeDerivative)
@@ -84,7 +85,7 @@ def _check_timederiv(o: TimeDerivative, self: Memoizer) -> Result:
     if self(op):
         # op already has a TimeDerivative applied to it
         raise ValueError("Can only handle first-order systems")
-    terminals = tuple(set(traverse_unique_terminals(op)))
+    terminals = tuple(set([x for x in traverse_unique_terminals(op) if not isinstance(x, MultiIndex)]))
     if len(terminals) != 1 or not isinstance(terminals[0], Coefficient):
         raise ValueError("Time derivative must apply to a single coefficient")
     return terminals
@@ -136,7 +137,7 @@ def _check_indexed(o: Operator, self: Memoizer) -> Result:
     return self(o.ufl_operands[0])
 
 
-def check_integrals(integrals: List[Integral], expect_time_derivative: bool = True) -> List[Integral]:
+def check_integrals(integrals: List[Integral], expect_time_derivative: bool = True):
     """Check a list of integrals for linearity in the time derivative.
 
     :arg integrals: list of integrals.
@@ -152,8 +153,7 @@ def check_integrals(integrals: List[Integral], expect_time_derivative: bool = Tr
     howmany = int(expect_time_derivative)
     if len(time_derivatives - {()}) != howmany:
         raise ValueError(f"Expecting time derivative applied to {howmany}"
-                         f"coefficients, not {len(time_derivatives - {()})}")
-    return integrals
+                         f"coeffficients, not {len(time_derivatives - {()})}")
 
 
 def summands(o: Expr) -> FrozenSet[Expr]:
@@ -190,6 +190,6 @@ def extract_terms(form: Form) -> SplitTimeForm:
         if not isinstance(rest, Zero):
             rest_terms.append(integral.reconstruct(integrand=rest))
 
-    time_terms = check_integrals(time_terms, expect_time_derivative=True)
-    rest_terms = check_integrals(rest_terms, expect_time_derivative=False)
+    check_integrals(time_terms, expect_time_derivative=True)
+    check_integrals(rest_terms, expect_time_derivative=False)
     return SplitTimeForm(time=Form(time_terms), remainder=Form(rest_terms))
