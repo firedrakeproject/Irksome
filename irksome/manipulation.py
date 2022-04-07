@@ -137,7 +137,7 @@ def _check_indexed(o: Operator, self: Memoizer) -> Result:
     return self(o.ufl_operands[0])
 
 
-def check_integrals(integrals: List[Integral], expect_time_derivative: bool = True):
+def check_integrals(integrals: List[Integral], expect_time_derivative: bool = True) -> List[Integral]:
     """Check a list of integrals for linearity in the time derivative.
 
     :arg integrals: list of integrals.
