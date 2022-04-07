@@ -70,7 +70,7 @@ def test_can_split_mixed(W):
     assert sig(expect_t) == sig(split.time)
     assert sig(expect_no_t) == sig(split.remainder)
 
-    
+
 def test_can_split_mixed_split(W):
     u = Coefficient(W)
     from ufl import split as splt
