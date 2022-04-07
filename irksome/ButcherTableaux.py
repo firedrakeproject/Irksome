@@ -79,7 +79,7 @@ class CollocationButcherTableau(ButcherTableau):
             Aexplicit[i, :] = Lvals_i @ qwts_i
 
         self.Aexplicit = Aexplicit
-            
+
         V = vander(c, increasing=True)
         rhs = numpy.array([1.0/(s+1) for s in range(num_stages-1)] + [0])
         btilde = numpy.linalg.solve(V.T, rhs)
