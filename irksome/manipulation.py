@@ -76,7 +76,7 @@ Result = Union[Tuple[()], Tuple[Coefficient, ...]]
 
 @singledispatch
 def _check_time_terms(o, self: Memoizer) -> Result:
-    raise AssertionError
+    raise AssertionError(f"Unhandled type {type(o)}")
 
 
 @_check_time_terms.register(TimeDerivative)
@@ -153,7 +153,8 @@ def check_integrals(integrals: List[Integral], expect_time_derivative: bool = Tr
     howmany = int(expect_time_derivative)
     if len(time_derivatives - {()}) != howmany:
         raise ValueError(f"Expecting time derivative applied to {howmany}"
-                         f"coeffficients, not {len(time_derivatives - {()})}")
+                         f"coefficients, not {len(time_derivatives - {()})}")
+    return integrals
 
 
 def summands(o: Expr) -> FrozenSet[Expr]:
@@ -190,6 +191,6 @@ def extract_terms(form: Form) -> SplitTimeForm:
         if not isinstance(rest, Zero):
             rest_terms.append(integral.reconstruct(integrand=rest))
 
-    check_integrals(time_terms, expect_time_derivative=True)
-    check_integrals(rest_terms, expect_time_derivative=False)
+    time_terms = check_integrals(time_terms, expect_time_derivative=True)
+    rest_terms = check_integrals(rest_terms, expect_time_derivative=False)
     return SplitTimeForm(time=Form(time_terms), remainder=Form(rest_terms))
