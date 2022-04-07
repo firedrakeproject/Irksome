@@ -40,8 +40,9 @@ def test_LobattoIIIC():
 def test_RadauIIA():
     bt = RadauIIA(2)
     A = array([[5/12, -1/12], [3/4, 1/4]])
+    Aexplicit = array([[-1/12, 5/12], [-3/4, 7/4]])
     b = array([3/4, 1/4])
     c = array([1/3, 1])
 
-    for (X, Y) in zip([A, b, c], [bt.A, bt.b, bt.c]):
+    for (X, Y) in zip([A, Aexplicit, b, c], [bt.A, bt.Aexplicit, bt.b, bt.c]):
         assert allclose(X, Y)
