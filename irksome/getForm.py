@@ -63,21 +63,40 @@ def replace(e, mapping):
 
 class BCStageData(object):
     def __init__(self, V, gcur, u0, u0_mult, i, t, dt):
-        if V.index is None:  # Not part of a mixed space
-            try:
-                gdat = interpolate(gcur-u0_mult[i]*u0, V)
-                gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
-            except:  # noqa: E722
-                gdat = project(gcur-u0_mult[i]*u0, V)
-                gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
-        else:
-            sub = V.index
-            try:
-                gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
-                gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-            except:  # noqa: E722
-                gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
-                gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
+        if V.component is not None:     # bottommost space is bit of VFS
+            if V.parent.index is None:  # but not part of a MFS
+                sub = V.component
+                try:
+                    gdat = interpolate(gcur-u0_mult[i]*u0, V)
+                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
+                except:  # noqa: E722
+                    gdat = project(gcur-u0_mult[i]*u0, V)
+                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
+            else:   # V is a bit of a VFS inside an MFS
+                sub0 = V.parent.index
+                sub1 = V.component
+                try:
+                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
+                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub0).sub(sub1))
+                except:  # noqa: E722
+                    gdat = project(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
+                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub0).sub(sub1))
+        else:  # V is not a bit of a VFS
+            if V.index is None:  # not part of MFS, either
+                try:
+                    gdat = interpolate(gcur-u0_mult[i]*u0, V)
+                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
+                except:  # noqa: E722
+                    gdat = project(gcur-u0_mult[i]*u0, V)
+                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
+            else:  # part of MFS
+                sub = V.index
+                try:
+                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
+                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
+                except:  # noqa: E722
+                    gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
+                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
 
         self.gstuff = (gdat, gcur, gmethod)
 
@@ -265,16 +284,30 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI,
     # This logic uses information set up in the previous section to
     # set up the new BCs for either method
     for bc in bcs:
-        sub = 0 if len(V) == 1 else bc.function_space_index()
-        Vsp = V if len(V) == 1 else V.sub(sub)
-        offset = lambda i: sub + num_fields * i
+        if num_fields == 1:  # not mixed space
+            comp = bc.function_space().component
+            if comp is not None:  # check for sub-piece of vector-valued
+                Vsp = V.sub(comp)
+                Vbigi = lambda i: Vbig[i].sub(comp)
+            else:
+                Vsp = V
+                Vbigi = lambda i: Vbig[i]
+        else:  # mixed space
+            sub = bc.function_space_index()
+            comp = bc.function_space().component
+            if comp is not None:  # check for sub-piece of vector-valued
+                Vsp = V.sub(sub).sub(comp)
+                Vbigi = lambda i: Vbig[sub+num_fields*i].sub(comp)
+            else:
+                Vsp = V.sub(sub)
+                Vbigi = lambda i: Vbig[sub+num_fields*i]
 
         for i in range(num_stages):
             gcur = bc2gcur(bc, i)
             blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
             gdat, gcr, gmethod = blah.gstuff
             gblah.append((gdat, gcr, gmethod))
-            bcnew.append(DirichletBC(Vbig[offset(i)], gdat, bc.sub_domain))
+            bcnew.append(DirichletBC(Vbigi(i), gdat, bc.sub_domain))
 
     if nullspace is None:
         nspnew = None
