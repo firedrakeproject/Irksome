@@ -134,7 +134,7 @@ class TimeStepper:
         push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
         self.solver.solve()
         pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
-      
+
         self._update()
 
 
