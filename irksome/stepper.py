@@ -2,6 +2,7 @@ from .getForm import getForm, AI
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import Function, norm
+from firedrake.dmhooks import pop_parent, push_parent
 import numpy
 
 
@@ -69,10 +70,13 @@ class TimeStepper:
                   "bc_type": bc_type,
                   "splitting": splitting,
                   "nullspace": nullspace}
+
+        push_parent(u0.function_space().dm, stages.function_space().dm)
         self.solver = NLVS(problem,
                            appctx=appctx,
                            solver_parameters=solver_parameters,
                            nullspace=bigNSP)
+        pop_parent(u0.function_space().dm, stages.function_space().dm)
 
         if self.num_stages == 1 and self.num_fields == 1:
             self.ws = (stages,)
@@ -127,8 +131,10 @@ class TimeStepper:
         for gdat, gcur, gmethod in self.bigBCdata:
             gmethod(gcur, self.u0)
 
+        push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
         self.solver.solve()
-
+        pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
+      
         self._update()
 
 
