@@ -1,7 +1,7 @@
 import pytest
 from firedrake import *
 from ufl.algorithms.ad import expand_derivatives
-from irksome import GaussLegendre, Dt, TimeStepper, RadauIIA
+from irksome import Dt, TimeStepper, RadauIIA
 from irksome.getForm import AI, IA
 
 

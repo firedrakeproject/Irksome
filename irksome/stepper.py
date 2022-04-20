@@ -3,11 +3,69 @@ from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import Function, norm
 import numpy
+from .stage import StageValueTimeStepper
 
 
-class TimeStepper:
+def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
+                solver_parameters=None, nullspace=None,
+                stage_type="deriv",
+                bc_type=None, splitting=None):
+    """Helper function to dispatch between various back-end classes
+       for doing time stepping.  Returns an instance of the
+       appropriate class.
+
+    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
+            F(t, u; v) == 0, where `u` is the unknown
+            :class:`firedrake.Function and `v` is the
+            :class:firedrake.TestFunction`.
+    :arg butcher_tableau: A :class:`ButcherTableau` instance giving
+            the Runge-Kutta method to be used for time marching.
+    :arg t: A :class:`firedrake.Constant` instance that always
+            contains the time value at the beginning of a time step
+    :arg dt: A :class:`firedrake.Constant` containing the size of the
+            current time step.  The user may adjust this value between
+            time steps, but see :class:`AdaptiveTimeStepper` for a
+            method that attempts to do this automatically.
+    :arg u0: A :class:`firedrake.Function` containing the current
+            state of the problem to be solved.
+    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+            the strongly-enforced boundary conditions.  Irksome will
+            manipulate these to obtain boundary conditions for each
+            stage of the RK method.
+    :arg nullspace: A list of tuples of the form (index, VSB) where
+            index is an index into the function space associated with
+            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
+            instance to be passed to a
+            `firedrake.MixedVectorSpaceBasis` over the larger space
+            associated with the Runge-Kutta method
+    :arg stage_type: Whether to formulate in terms of a stage
+            derivatives or stage values.
+    :arg splitting: An callable used to factor the Butcher matrix
+    :arg bc_type: For stage derivative formulation, how to manipulate
+            the strongly-enforced boundary conditions.
+    :arg solver_parameters: A :class:`dict` of solver parameters that
+            will be used in solving the algebraic problem associated
+            with each time step.
+    """
+    if stage_type == "deriv":
+        if bc_type is None:
+            bc_type = "DAE"
+        if splitting is None:
+            splitting = AI
+        return StageDerivativeTimeStepper(
+            F, butcher_tableau, t, dt, u0, bcs,
+            solver_parameters=solver_parameters, nullspace=nullspace,
+            bc_type=bc_type, splitting=splitting)
+    elif stage_type == "value":
+        assert bc_type is None and splitting is None
+        return StageValueTimeStepper(
+            F, butcher_tableau, t, dt, u0, bcs=bcs,
+            solver_parameters=solver_parameters, nullspace=nullspace)
+
+
+class StageDerivativeTimeStepper:
     """Front-end class for advancing a time-dependent PDE via a Runge-Kutta
-    method.
+    method formulated in terms of stage derivatives.
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
             F(t, u; v) == 0, where `u` is the unknown
@@ -36,6 +94,7 @@ class TimeStepper:
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
+    :arg splitting: An callable used to factor the Butcher matrix
     :arg nullspace: A list of tuples of the form (index, VSB) where
             index is an index into the function space associated with
             `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
@@ -132,7 +191,7 @@ class TimeStepper:
         self._update()
 
 
-class AdaptiveTimeStepper(TimeStepper):
+class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     """Front-end class for advancing a time-dependent PDE via a Runge-Kutta
     method.
 
