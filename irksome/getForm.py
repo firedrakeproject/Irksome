@@ -3,7 +3,7 @@ from operator import mul
 
 import numpy
 from firedrake import (Constant, DirichletBC, Function, TestFunction,
-                       interpolate, project, split, MixedVectorSpaceBasis)
+                       interpolate, project, split)
 from firedrake.dmhooks import push_parent
 from ufl import diff
 from ufl.algorithms import expand_derivatives

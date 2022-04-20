@@ -1,7 +1,7 @@
 import pytest
 from firedrake import *
 from ufl.algorithms.ad import expand_derivatives
-from irksome import GaussLegendre, Dt, TimeStepper
+from irksome import GaussLegendre, Dt, TimeStepper, RadauIIA
 from irksome.getForm import AI, IA
 
 
@@ -48,5 +48,5 @@ def heat_inhomog(N, deg, butcher_tableau, splitting=AI):
                          [(1, i) for i in (1, 2)]
                          + [(2, i) for i in (2, 3)])
 def test_inhomog_bc(deg, N, time_stages, splitting):
-    error = heat_inhomog(N, deg, GaussLegendre(time_stages), splitting)
+    error = heat_inhomog(N, deg, RadauIIA(time_stages), splitting)
     assert abs(error) < 1e-10

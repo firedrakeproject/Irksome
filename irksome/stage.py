@@ -75,7 +75,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, nullspace=None):
         # Also get replacements right for indexing.
         for j in range(num_fields):
             for ii in np.ndindex(u0bits[j].ufl_shape):
-                repl[u0bits[j][ii]] = (UUbits[i][j][ii] - u0bits[j][ii]) / dt
+                repl[u0bits[j][ii]] = UUbits[i][j][ii] - u0bits[j][ii]
                 repl[vbits[j][ii]] = VVbits[i][j][ii]
 
         Fnew += replace(dtless, repl)
@@ -84,22 +84,28 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, nullspace=None):
     for i in range(num_stages):
         # replace test function
         repl = {}
+
         for k in range(num_fields):
             repl[vbits[k]] = VVbits[i][k]
             for ii in np.ndindex(vbits[k].ufl_shape):
                 repl[vbits[k][ii]] = VVbits[i][k][ii]
 
+        Ftmp = replace(split_form.remainder, repl)
+
         # replace the solution with stage values
         for j in range(num_stages):
-            repl[t] = t+C[j] * dt
+            repl = {t: t + C[j] * dt}
+
             for k in range(num_fields):
                 repl[u0bits[k]] = UUbits[j][k]
                 for ii in np.ndindex(u0bits[k].ufl_shape):
                     repl[u0bits[k][ii]] = UUbits[j][k][ii]
 
             # and sum the contribution
-            Fnew += A[i, j] * replace(split_form.remainder, repl)
+            Fnew += A[i, j] * dt * replace(Ftmp, repl)
 
+    if bcs is None:
+        bcs = []
     bcsnew = []
     gblah = []
 
@@ -128,20 +134,21 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, nullspace=None):
                 Vbigi = lambda i: Vbig[sub+num_fields*i]
 
         bcarg = bc._original_arg
-        try:
-            gdat = interpolate(bcarg, Vsp)
-            gmethod = lambda g, u: gdat.interpolate(g)
-        except:  # noqa: E722
-            gdat = project(bcarg, Vsp)
-            gmethod = lambda g, u: gdat.project(g)
         for i in range(num_stages):
+            try:
+                gdat = interpolate(bcarg, Vsp)
+                gmethod = lambda gd, gc: gd.interpolate(gc)
+            except:  # noqa: E722
+                gdat = project(bcarg, Vsp)
+                gmethod = lambda gd, gc: gd.project(gc)
+
             gcur = replace(bcarg, {t: t+C[i]*dt})
             bcsnew.append(DirichletBC(Vbigi(i), gdat, bc.sub_domain))
             gblah.append((gdat, gcur, gmethod))
 
     nspacenew = getNullspace(V, Vbig, butch, nullspace)
-            
-    return Fnew, UU, bcsnew, gblah
+
+    return Fnew, UU, bcsnew, gblah, nspacenew
 
 
 class StageValueTimeStepper:
@@ -154,7 +161,8 @@ class StageValueTimeStepper:
         self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
 
-        Fbig, UU, bigBCs, gblah = getFormStage(F, butcher_tableau, u0, t, dt, bcs)
+        Fbig, UU, bigBCs, gblah, nsp = getFormStage(
+            F, butcher_tableau, u0, t, dt, bcs)
 
         self.UU = UU
         self.bigBCs = bigBCs
@@ -171,7 +179,8 @@ class StageValueTimeStepper:
                   "nullspace": nullspace}
 
         self.solver = NonlinearVariationalSolver(
-            self.prob, appctx=appctx, solver_parameters=solver_parameters)
+            self.prob, appctx=appctx, nullspace=nsp,
+            solver_parameters=solver_parameters)
 
     def advance(self):
         # so I can use a special case update!
@@ -180,7 +189,7 @@ class StageValueTimeStepper:
         u0 = self.u0
 
         for gdat, gcur, gmethod in self.bcdat:
-            gmethod(gcur, u0)
+            gmethod(gdat, gcur)
 
         self.solver.solve()
 
