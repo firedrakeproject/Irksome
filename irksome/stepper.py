@@ -37,6 +37,10 @@ class TimeStepper:
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
+    :arg appctx: An optional :class:`dict` containing application context.
+            This gets included with particular things that Irksome will
+            pass into the nonlinear solver so that, say, user-defined preconditioners
+            have access to it.
     :arg nullspace: A list of tuples of the form (index, VSB) where
             index is an index into the function space associated with
             `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
@@ -46,7 +50,7 @@ class TimeStepper:
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, bc_type="DAE", splitting=AI,
-                 nullspace=None):
+                 appctx=None, nullspace=None):
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -61,15 +65,19 @@ class TimeStepper:
         self.bigBCs = bigBCs
         self.bigBCdata = bigBCdata
         problem = NLVP(bigF, stages, bigBCs)
-        appctx = {"F": F,
-                  "butcher_tableau": butcher_tableau,
-                  "t": t,
-                  "dt": dt,
-                  "u0": u0,
-                  "bcs": bcs,
-                  "bc_type": bc_type,
-                  "splitting": splitting,
-                  "nullspace": nullspace}
+        appctx_irksome = {"F": F,
+                          "butcher_tableau": butcher_tableau,
+                          "t": t,
+                          "dt": dt,
+                          "u0": u0,
+                          "bcs": bcs,
+                          "bc_type": bc_type,
+                          "splitting": splitting,
+                          "nullspace": nullspace}
+        if appctx is None:
+            appctx = appctx_irksome
+        else:
+            appctx = {**appctx, **appctx_irksome}
 
         push_parent(u0.function_space().dm, stages.function_space().dm)
         self.solver = NLVS(problem,
