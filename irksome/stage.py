@@ -159,9 +159,10 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, nullspace=None):
 
     Fupdate = inner(unew - u0, v) * dx
     B = vectorize(Constant)(butch.b)
+    C = vectorize(Constant)(butch.c)
 
-    for i in butch.num_stages:
-        repl = {t: t + B[i] * dt}
+    for i in range(num_stages):
+        repl = {t: t + C[i] * dt}
 
         for k in range(num_fields):
             repl[u0bits[k]] = UUbits[i][k]
@@ -170,8 +171,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, nullspace=None):
 
         eFFi = replace(split_form.remainder, repl)
 
-        # Maybe this is +...we'll check
-        Fupdate -= dt * eFFi
+        Fupdate += dt * B[i] * eFFi
 
     # And the BC's for the update -- just the original BC at t+dt
     update_bcs = []
@@ -203,7 +203,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, nullspace=None):
         update_bcs.append(DirichletBC(Vsp, gdat, bc.sub_domain))
         update_bcs_gblah.append((gdat, gcur, gmethod))
 
-        return (Fnew, (Fupdate, update_bcs, update_bcs_gblah),
+        return (Fnew, (unew, Fupdate, update_bcs, update_bcs_gblah),
                 UU, bcsnew, gblah, nspacenew)
 
 
@@ -224,6 +224,7 @@ class StageValueTimeStepper:
         self.UU = UU
         self.bigBCs = bigBCs
         self.bcdat = gblah
+        self.update_stuff = update_stuff
 
         self.prob = NonlinearVariationalProblem(Fbig, UU, bigBCs)
 
@@ -242,9 +243,13 @@ class StageValueTimeStepper:
         if isinstance(butcher_tableau, RadauIIA):
             self._update = self._update_riia
         else:
-            self.Fupdate, self.update_bcs, self.update_gblah = update_stuff            
+            unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
             self.update_problem = NonlinearVariationalProblem(
-                self.Fupdate, self.unew
+                Fupdate, unew, update_bcs)
+
+            self.update_solver = NonlinearVariationalSolver(
+                self.update_problem,
+                solver_parameters=update_solver_parameters)
 
             self._update = self._update_general
 
@@ -259,20 +264,17 @@ class StageValueTimeStepper:
             u0d.data[:] = UUs[nf*(ns-1)+i].dat.data_ro[:]
 
     def _update_general(self):
-        for gdat, gcur, gmethod in self.update_gblah:
+        (unew, Fupdate, update_bcs, update_bcs_gblah) = self.update_stuff
+        for gdat, gcur, gmethod in update_bcs_gblah:
             gmethod(gdat, gcur)
-            
-        
-
-        
+        self.update_solver.solve()
+        for u0d, und in zip(self.u0.dat, unew.dat):
+            u0d.data[:] = und.data_ro[:]
 
     def advance(self):
-        # so I can use a special case update!
-        assert isinstance(self.butcher_tableau, RadauIIA)
-
         for gdat, gcur, gmethod in self.bcdat:
             gmethod(gdat, gcur)
 
         self.solver.solve()
 
-        self._update_riia()
+        self._update()
