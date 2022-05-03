@@ -3,7 +3,7 @@ from operator import mul
 
 import numpy
 from firedrake import (Constant, DirichletBC, Function, TestFunction,
-                       interpolate, project, split)
+                       interpolate, project, split, MixedVectorSpaceBasis)
 from firedrake.dmhooks import push_parent
 from ufl import diff
 from ufl.algorithms import expand_derivatives
@@ -154,9 +154,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI,
     num_fields = len(V)
 
     Vbig = reduce(mul, (V for _ in range(num_stages)))
-    # Silence a warning about transfer managers when we
-    # coarsen coefficients in V
-    push_parent(V.dm, Vbig.dm)
 
     vnew = TestFunction(Vbig)
     w = Function(Vbig)

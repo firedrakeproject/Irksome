@@ -71,6 +71,28 @@ def test_can_split_mixed(W):
     assert sig(expect_no_t) == sig(split.remainder)
 
 
+def test_can_split_mixed_split(W):
+    u = Coefficient(W)
+    from ufl import split as splt
+    u0, u1 = splt(u)
+
+    v = TestFunction(W)
+    v0, v1 = splt(v)
+
+    c = Coefficient(W)
+
+    F = (inner(c, c)*inner(Dt(u0), v0) + inner(grad(u), grad(v))
+         + inner(c, v) + inner(Dt(u), v))*dx
+
+    split = extract_terms(F)
+
+    expect_t = (inner(c, c)*inner(Dt(u0), v0) + inner(Dt(u), v))*dx
+    expect_no_t = inner(grad(u), grad(v))*dx + inner(c, v)*dx
+
+    assert sig(expect_t) == sig(split.time)
+    assert sig(expect_no_t) == sig(split.remainder)
+
+
 def test_only_first_order(V):
     u = Coefficient(V)
 

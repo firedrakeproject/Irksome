@@ -2,13 +2,14 @@ from .getForm import getForm, AI
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import Function, norm
+from firedrake.dmhooks import pop_parent, push_parent
 import numpy
 from .stage import StageValueTimeStepper
 
 
 def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
                 solver_parameters=None, nullspace=None,
-                stage_type="deriv",
+                stage_type="deriv", appctx=None,
                 bc_type=None, splitting=None):
     """Helper function to dispatch between various back-end classes
        for doing time stepping.  Returns an instance of the
@@ -53,13 +54,13 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
         if splitting is None:
             splitting = AI
         return StageDerivativeTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs,
+            F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
             solver_parameters=solver_parameters, nullspace=nullspace,
             bc_type=bc_type, splitting=splitting)
     elif stage_type == "value":
         assert bc_type is None and splitting is None
         return StageValueTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs=bcs,
+            F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
             solver_parameters=solver_parameters, nullspace=nullspace)
 
 
@@ -95,6 +96,10 @@ class StageDerivativeTimeStepper:
             will be used in solving the algebraic problem associated
             with each time step.
     :arg splitting: An callable used to factor the Butcher matrix
+    :arg appctx: An optional :class:`dict` containing application context.
+            This gets included with particular things that Irksome will
+            pass into the nonlinear solver so that, say, user-defined preconditioners
+            have access to it.
     :arg nullspace: A list of tuples of the form (index, VSB) where
             index is an index into the function space associated with
             `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
@@ -104,7 +109,7 @@ class StageDerivativeTimeStepper:
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, bc_type="DAE", splitting=AI,
-                 nullspace=None):
+                 appctx=None, nullspace=None):
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -119,19 +124,26 @@ class StageDerivativeTimeStepper:
         self.bigBCs = bigBCs
         self.bigBCdata = bigBCdata
         problem = NLVP(bigF, stages, bigBCs)
-        appctx = {"F": F,
-                  "butcher_tableau": butcher_tableau,
-                  "t": t,
-                  "dt": dt,
-                  "u0": u0,
-                  "bcs": bcs,
-                  "bc_type": bc_type,
-                  "splitting": splitting,
-                  "nullspace": nullspace}
+        appctx_irksome = {"F": F,
+                          "butcher_tableau": butcher_tableau,
+                          "t": t,
+                          "dt": dt,
+                          "u0": u0,
+                          "bcs": bcs,
+                          "bc_type": bc_type,
+                          "splitting": splitting,
+                          "nullspace": nullspace}
+        if appctx is None:
+            appctx = appctx_irksome
+        else:
+            appctx = {**appctx, **appctx_irksome}
+
+        push_parent(u0.function_space().dm, stages.function_space().dm)
         self.solver = NLVS(problem,
                            appctx=appctx,
                            solver_parameters=solver_parameters,
                            nullspace=bigNSP)
+        pop_parent(u0.function_space().dm, stages.function_space().dm)
 
         if self.num_stages == 1 and self.num_fields == 1:
             self.ws = (stages,)
@@ -186,7 +198,9 @@ class StageDerivativeTimeStepper:
         for gdat, gcur, gmethod in self.bigBCdata:
             gmethod(gcur, self.u0)
 
+        push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
         self.solver.solve()
+        pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
 
         self._update()
 
