@@ -5,6 +5,7 @@ from ufl.classes import CoefficientDerivative
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
 from ufl.log import error
+import numpy
 
 
 def getNullspace(V, Vbig, butch, nullspace):
@@ -86,3 +87,12 @@ def replace(e, mapping):
         e = expand_derivatives(e)
 
     return map_integrand_dags(MyReplacer(mapping2), e)
+
+
+# Utility functions that help us refactor
+def AI(A):
+    return (A, numpy.eye(*A.shape, dtype=A.dtype))
+
+
+def IA(A):
+    return (numpy.eye(*A.shape, dtype=A.dtype), A)

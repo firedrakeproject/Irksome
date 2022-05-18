@@ -2,7 +2,7 @@ import pytest
 from firedrake import *
 
 from irksome import Dt, TimeStepper, LobattoIIIC
-from irksome.getForm import AI, IA
+from irksome.tools import AI, IA
 from ufl.algorithms import expand_derivatives
 
 # test the accuracy of the 2d Stokes heat equation using CG elements

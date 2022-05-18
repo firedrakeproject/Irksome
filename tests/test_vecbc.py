@@ -1,7 +1,7 @@
 import pytest
 from firedrake import *
 from irksome import GaussLegendre, Dt, TimeStepper
-from irksome.getForm import AI, IA
+from irksome.tools import AI, IA
 
 
 def elastodynamics(N, deg, butcher_tableau, splitting=AI):

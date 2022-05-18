@@ -2,7 +2,7 @@ import pytest
 from firedrake import *
 from ufl.algorithms.ad import expand_derivatives
 from irksome import Dt, TimeStepper, RadauIIA, GaussLegendre
-from irksome.getForm import AI, IA
+from irksome.tools import AI, IA
 
 
 def heat_inhomog(N, deg, butcher_tableau, splitting=AI):

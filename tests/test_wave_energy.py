@@ -5,7 +5,7 @@ from firedrake import (inner, dx, UnitIntervalMesh, FunctionSpace,
                        Constant, project, as_vector, sin, pi, split)
 
 from irksome import Dt, TimeStepper, GaussLegendre
-from irksome.getForm import AI, IA
+from irksome.tools import AI, IA
 
 # test the energy conservation of the 1d wave equation in mixed form
 # various time steppers.

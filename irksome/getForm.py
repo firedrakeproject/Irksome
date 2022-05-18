@@ -3,13 +3,13 @@ from operator import mul
 
 import numpy
 from firedrake import (Constant, DirichletBC, Function, TestFunction,
-                       interpolate, project, split, MixedVectorSpaceBasis)
-from firedrake.dmhooks import push_parent
+                       interpolate, project, split)
+# from firedrake.dmhooks import push_parent
 from ufl import diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import replace, getNullspace
+from .tools import replace, getNullspace, AI
 from .deriv import TimeDerivative  # , apply_time_derivatives
 
 
@@ -51,15 +51,6 @@ class BCStageData(object):
                     gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
 
         self.gstuff = (gdat, gcur, gmethod)
-
-
-# Utility functions that help us refactor
-def AI(A):
-    return (A, numpy.eye(*A.shape, dtype=A.dtype))
-
-
-def IA(A):
-    return (numpy.eye(*A.shape, dtype=A.dtype), A)
 
 
 def ConstantOrZero(x):

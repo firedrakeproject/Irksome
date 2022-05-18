@@ -14,7 +14,8 @@ from .ButcherTableaux import RadauIIA
 from numpy import vectorize
 
 
-def getFormStage(F, butch, u0, t, dt, bcs=None, nullspace=None):
+def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
+                 nullspace=None):
     v = F.arguments()[0]
     V = v.function_space()
 
@@ -210,7 +211,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, nullspace=None):
 class StageValueTimeStepper:
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
-                 nullspace=None):
+                 nullspace=None, appctx=None):
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -228,13 +229,17 @@ class StageValueTimeStepper:
 
         self.prob = NonlinearVariationalProblem(Fbig, UU, bigBCs)
 
-        appctx = {"F": F,
-                  "butcher_tableau": butcher_tableau,
-                  "t": t,
-                  "dt": dt,
-                  "u0": u0,
-                  "bcs": bcs,
-                  "nullspace": nullspace}
+        appctx_irksome = {"F": F,
+                          "butcher_tableau": butcher_tableau,
+                          "t": t,
+                          "dt": dt,
+                          "u0": u0,
+                          "bcs": bcs,
+                          "nullspace": nullspace}
+        if appctx is None:
+            appctx = appctx_irksome
+        else:
+            appctx = {**appctx, **appctx_irksome}
 
         self.solver = NonlinearVariationalSolver(
             self.prob, appctx=appctx, nullspace=nsp,

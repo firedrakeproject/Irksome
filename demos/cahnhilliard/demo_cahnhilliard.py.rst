@@ -38,7 +38,7 @@ Boilerplate imports::
   from firedrake import *
   import numpy as np
   import os
-  from irksome import Dt, GaussLegendre, AdaptiveTimeStepper
+  from irksome import Dt, GaussLegendre, TimeStepper
 
 We create a directory to store some output pictures::
 
@@ -134,17 +134,17 @@ Save the initial condition to a file::
 
 Now let's do an adaptive time stepper::
 
-  stepper = AdaptiveTimeStepper(F, butcher_tableau, t, dt, c,
-                                tol=1.e-2, dtmin=1.e-8, solver_parameters=params)
+  stepper = TimeStepper(F, butcher_tableau, t, dt, c,
+                        solver_parameters=params)
 
 And advance the solution in time::
 
   while float(t) < float(T):
       if (float(t) + float(dt)) >= 1.0:
           dt.assign(1.0 - float(t))
-      err = stepper.advance()
+      stepper.advance()
       t.assign(float(t) + float(dt))
-      print(float(t), float(dt), err[0])
+      print(float(t), float(dt))
 
 We'll save a snapshout of the final state::
 
