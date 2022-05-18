@@ -74,14 +74,6 @@ Yes, Irksome can handle nonlinear problems as well:
 Advanced demos
 --------------
 
-In a previous demo, we saw an example of the wave equation, we also
-have a demo that does adaptive timestepping
-
-.. toctree::
-   :maxdepth: 1
-
-   demos/demo_RTwave_adaptive_stepper.py
-
 There's also an example solving a Sobolev-type equation
 
 .. toctree::
