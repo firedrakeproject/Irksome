@@ -39,17 +39,17 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     nsxnf = (num_stages, num_fields)
 
     if num_fields == 1:
-        u0bits = np.array([u0])
-        vbits = np.array([v])
+        u0bits = np.array([u0], dtype="O")
+        vbits = np.array([v], dtype="O")
         if num_stages == 1:   # single-stage method
-            VVbits = np.array([[VV]])
-            UUbits = np.array([[UU]])
+            VVbits = np.array([[VV]], dtype="O")
+            UUbits = np.array([[UU]], dtype="O")
         else:  # multi-stage methods
             VVbits = np.reshape(split(VV), nsxnf)
             UUbits = np.reshape(split(UU), nsxnf)
     else:
-        u0bits = np.array(list(split(u0)))
-        vbits = np.array(list(split(v)))
+        u0bits = np.array(list(split(u0)), dtype="O")
+        vbits = np.array(list(split(v)), dtype="O")
         VVbits = np.reshape(split(VV), nsxnf)
         UUbits = np.reshape(split(UU), nsxnf)
 
