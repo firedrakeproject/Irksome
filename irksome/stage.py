@@ -7,7 +7,7 @@ import numpy as np
 
 from firedrake import TestFunction, Function, split, Constant, DirichletBC, interpolate, project, NonlinearVariationalProblem, NonlinearVariationalSolver, inner, dx
 
-from .tools import replace, getNullspace
+from .tools import replace, getNullspace, AI, IA
 from .manipulation import extract_terms, strip_dt_form
 from ufl.classes import Zero
 from .ButcherTableaux import RadauIIA
@@ -68,43 +68,82 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     # pieces of u
     dtless = strip_dt_form(split_form.time)
 
-    for i in range(num_stages):
-        repl = {t: t+C[i]*dt}
-        for j in range(num_fields):
-            repl[u0bits[j]] = (UUbits[i][j] - u0bits[j]) / dt
-            repl[vbits[j]] = VVbits[i][j]
+    if splitting is None or splitting == AI:
+        for i in range(num_stages):
+            repl = {t: t+C[i]*dt}
+            for j in range(num_fields):
+                repl[u0bits[j]] = UUbits[i][j] - u0bits[j]
+                repl[vbits[j]] = VVbits[i][j]
 
-        # Also get replacements right for indexing.
-        for j in range(num_fields):
-            for ii in np.ndindex(u0bits[j].ufl_shape):
-                repl[u0bits[j][ii]] = UUbits[i][j][ii] - u0bits[j][ii]
-                repl[vbits[j][ii]] = VVbits[i][j][ii]
+            # Also get replacements right for indexing.
+            for j in range(num_fields):
+                for ii in np.ndindex(u0bits[j].ufl_shape):
+                    repl[u0bits[j][ii]] = UUbits[i][j][ii] - u0bits[j][ii]
+                    repl[vbits[j][ii]] = VVbits[i][j][ii]
 
-        Fnew += replace(dtless, repl)
+            Fnew += replace(dtless, repl)
 
-    # Now for the non-time derivative parts
-    for i in range(num_stages):
-        # replace test function
-        repl = {}
-
-        for k in range(num_fields):
-            repl[vbits[k]] = VVbits[i][k]
-            for ii in np.ndindex(vbits[k].ufl_shape):
-                repl[vbits[k][ii]] = VVbits[i][k][ii]
-
-        Ftmp = replace(split_form.remainder, repl)
-
-        # replace the solution with stage values
-        for j in range(num_stages):
-            repl = {t: t + C[j] * dt}
+        # Now for the non-time derivative parts
+        for i in range(num_stages):
+            # replace test function
+            repl = {}
 
             for k in range(num_fields):
-                repl[u0bits[k]] = UUbits[j][k]
-                for ii in np.ndindex(u0bits[k].ufl_shape):
-                    repl[u0bits[k][ii]] = UUbits[j][k][ii]
+                repl[vbits[k]] = VVbits[i][k]
+                for ii in np.ndindex(vbits[k].ufl_shape):
+                    repl[vbits[k][ii]] = VVbits[i][k][ii]
 
-            # and sum the contribution
-            Fnew += A[i, j] * dt * replace(Ftmp, repl)
+            Ftmp = replace(split_form.remainder, repl)
+
+            # replace the solution with stage values
+            for j in range(num_stages):
+                repl = {t: t + C[j] * dt}
+
+                for k in range(num_fields):
+                    repl[u0bits[k]] = UUbits[j][k]
+                    for ii in np.ndindex(u0bits[k].ufl_shape):
+                        repl[u0bits[k][ii]] = UUbits[j][k][ii]
+
+                # and sum the contribution
+                Fnew += A[i, j] * dt * replace(Ftmp, repl)
+    elif splitting == IA:
+        Ainv = np.vectorize(Constant)(np.linalg.inv(butch.A))
+
+        # time derivative part gets inverse of Butcher matrix.
+        for i in range(num_stages):
+            repl = {}
+
+            for k in range(num_fields):
+                repl[vbits[k]] = VVbits[i][k]
+                for ii in np.ndindex(vbits[k].ufl_shape):
+                    repl[vbits[k][ii]] = VVbits[i][k][ii]
+
+            Ftmp = replace(dtless, repl)
+
+            for j in range(num_stages):
+                repl = {t: t + C[j] * dt}
+
+                for k in range(num_fields):
+                    repl[u0bits[k]] = (UUbits[j][k]-u0bits[k])
+                    for ii in np.ndindex(u0bits[k].ufl_shape):
+                        repl[u0bits[k][ii]] = UUbits[j][k][ii] - u0bits[k][ii]
+                Fnew += Ainv[i, j] * replace(Ftmp, repl)
+        # rest of the operator: just diagonal!
+        for i in range(num_stages):
+            repl = {t: t+C[i]*dt}
+            for j in range(num_fields):
+                repl[u0bits[j]] = UUbits[i][j]
+                repl[vbits[j]] = VVbits[i][j]
+
+            # Also get replacements right for indexing.
+            for j in range(num_fields):
+                for ii in np.ndindex(u0bits[j].ufl_shape):
+                    repl[u0bits[j][ii]] = UUbits[i][j][ii]
+                    repl[vbits[j][ii]] = VVbits[i][j][ii]
+
+            Fnew += dt * replace(split_form.remainder, repl)
+    else:
+        raise NotImplementedError("Can't handle that splitting type")
 
     if bcs is None:
         bcs = []
@@ -211,6 +250,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 class StageValueTimeStepper:
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
+                 splitting=AI,
                  nullspace=None, appctx=None):
         self.u0 = u0
         self.t = t
@@ -220,7 +260,8 @@ class StageValueTimeStepper:
         self.butcher_tableau = butcher_tableau
 
         Fbig, update_stuff, UU, bigBCs, gblah, nsp = getFormStage(
-            F, butcher_tableau, u0, t, dt, bcs)
+            F, butcher_tableau, u0, t, dt, bcs,
+            splitting=splitting)
 
         self.UU = UU
         self.bigBCs = bigBCs

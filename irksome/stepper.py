@@ -63,10 +63,13 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
             solver_parameters=solver_parameters, nullspace=nullspace,
             bc_type=bc_type, splitting=splitting)
     elif stage_type == "value":
-        assert bc_type is None and splitting is None
+        assert bc_type is None
+        if splitting is None:
+            splitting = AI
         return StageValueTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
             solver_parameters=solver_parameters,
+            splitting=splitting,
             update_solver_parameters=update_solver_parameters,
             nullspace=nullspace)
 
