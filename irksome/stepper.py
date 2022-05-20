@@ -26,8 +26,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
             contains the time value at the beginning of a time step
     :arg dt: A :class:`firedrake.Constant` containing the size of the
             current time step.  The user may adjust this value between
-            time steps, but see :class:`AdaptiveTimeStepper` for a
-            method that attempts to do this automatically.
+            time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
@@ -88,8 +87,7 @@ class StageDerivativeTimeStepper:
             contains the time value at the beginning of a time step
     :arg dt: A :class:`firedrake.Constant` containing the size of the
             current time step.  The user may adjust this value between
-            time steps, but see :class:`AdaptiveTimeStepper` for a
-            method that attempts to do this automatically.
+            time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
