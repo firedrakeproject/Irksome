@@ -16,6 +16,58 @@ from numpy import vectorize
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                  nullspace=None):
+    """Given a time-dependent variational form and a
+    :class:`ButcherTableau`, produce UFL for the s-stage RK method.
+
+    :arg F: UFL form for the semidiscrete ODE/DAE
+    :arg butch: the :class:`ButcherTableau` for the RK method being used to
+         advance in time.
+    :arg u0: a :class:`Function` referring to the state of
+         the PDE system at time `t`
+    :arg t: a :class:`Constant` referring to the current time level.
+         Any explicit time-dependence in F is included
+    :arg dt: a :class:`Constant` referring to the size of the current
+         time step.
+    :arg splitting: a callable that maps the (floating point) Butcher matrix
+         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
+         to vary between the classical RK formulation and Butcher's reformulation
+         that leads to a denser mass matrix with block-diagonal stiffness.
+         Only `AI` and `IA` are currently supported.
+    :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
+         containing (possible time-dependent) boundary conditions imposed
+         on the system.
+    :arg nullspace: A list of tuples of the form (index, VSB) where
+         index is an index into the function space associated with `u`
+         and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
+         be passed to a `firedrake.MixedVectorSpaceBasis` over the
+         larger space associated with the Runge-Kutta method
+
+    On output, we return a tuple consisting of several parts:
+
+       - Fnew, the :class:`Form`
+       - possibly a 4-tuple containing information needed to solve a mass matrix to update
+         the solution (this is empty for RadauIIA methods for which there is a trivial
+         update function.
+       - UU, the :class:`firedrake.Function` holding all the stage time values.
+         It lives in a :class:`firedrake.FunctionSpace` corresponding to the
+         s-way tensor product of the space on which the semidiscrete
+         form lives.
+       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
+         on the stages,
+       - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
+         that represents the nullspace of the coupled system
+       - `gblah`, a list of tuples of the form (f, expr, method),
+         where f is a :class:`firedrake.Function` and expr is a
+         :class:`ufl.Expr`.  At each time step, each expr needs to be
+         re-interpolated/projected onto the corresponding f in order
+         for Firedrake to pick up that time-dependent boundary
+         conditions need to be re-applied.  The
+         interpolation/projection is encoded in method, which is
+         either `f.interpolate(expr-c*u0)` or `f.project(expr-c*u0)`, depending
+         on whether the function space for f supports interpolation or
+         not.
+    """
+
     v = F.arguments()[0]
     V = v.function_space()
 
@@ -56,9 +108,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     split_form = extract_terms(F)
 
     Fnew = Zero()
-
-    # print(split_form.time)
-    # print(split_form.remainder)
 
     # first, process terms with a time derivative.  I'm
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
