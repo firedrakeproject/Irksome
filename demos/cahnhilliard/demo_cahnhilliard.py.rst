@@ -29,9 +29,7 @@ We close the system with boundary conditions
 
   M \lambda \nabla c \cdot n &= 0 \quad {\rm on} \ \Gamma
 
-Since we have a nonlinear problem that must be solved at each time
-step, there is no performance penalty to using a direct method with an
-adaptive time stepper.
+For simplicity, we'll use a direct solver at each time step.
 
 Boilerplate imports::
 
@@ -132,7 +130,7 @@ Save the initial condition to a file::
   plt.colorbar(cs)
   plt.savefig('pictures/init.pdf', format='pdf', bbox_inches='tight', pad_inches=0)
 
-Now let's do an adaptive time stepper::
+Now let's set up the time stepper::
 
   stepper = TimeStepper(F, butcher_tableau, t, dt, c,
                         solver_parameters=params)
