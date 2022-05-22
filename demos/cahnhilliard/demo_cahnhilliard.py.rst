@@ -29,16 +29,14 @@ We close the system with boundary conditions
 
   M \lambda \nabla c \cdot n &= 0 \quad {\rm on} \ \Gamma
 
-Since we have a nonlinear problem that must be solved at each time
-step, there is no performance penalty to using a direct method with an
-adaptive time stepper.
+For simplicity, we'll use a direct solver at each time step.
 
 Boilerplate imports::
 
   from firedrake import *
   import numpy as np
   import os
-  from irksome import Dt, GaussLegendre, AdaptiveTimeStepper
+  from irksome import Dt, GaussLegendre, TimeStepper
 
 We create a directory to store some output pictures::
 
@@ -132,19 +130,19 @@ Save the initial condition to a file::
   plt.colorbar(cs)
   plt.savefig('pictures/init.pdf', format='pdf', bbox_inches='tight', pad_inches=0)
 
-Now let's do an adaptive time stepper::
+Now let's set up the time stepper::
 
-  stepper = AdaptiveTimeStepper(F, butcher_tableau, t, dt, c,
-                                tol=1.e-2, dtmin=1.e-8, solver_parameters=params)
+  stepper = TimeStepper(F, butcher_tableau, t, dt, c,
+                        solver_parameters=params)
 
 And advance the solution in time::
 
   while float(t) < float(T):
       if (float(t) + float(dt)) >= 1.0:
           dt.assign(1.0 - float(t))
-      err = stepper.advance()
+      stepper.advance()
       t.assign(float(t) + float(dt))
-      print(float(t), float(dt), err[0])
+      print(float(t), float(dt))
 
 We'll save a snapshout of the final state::
 

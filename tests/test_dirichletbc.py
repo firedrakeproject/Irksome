@@ -5,8 +5,9 @@ from irksome import LobattoIIIA, GaussLegendre, Dt, TimeStepper
 from ufl.algorithms.ad import expand_derivatives
 
 
+@pytest.mark.parametrize("stage_type", ["deriv", "value"])
 @pytest.mark.parametrize("butcher_tableau", [GaussLegendre(3), LobattoIIIA(2)])
-def test_1d_heat_dirichletbc(butcher_tableau):
+def test_1d_heat_dirichletbc(butcher_tableau, stage_type):
 
     # Boundary values
     u_0 = Constant(2.0)

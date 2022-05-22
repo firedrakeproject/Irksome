@@ -1,14 +1,81 @@
 from .getForm import getForm, AI
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import Function, norm
 from firedrake.dmhooks import pop_parent, push_parent
 import numpy
+from .stage import StageValueTimeStepper
 
 
-class TimeStepper:
+def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
+                solver_parameters=None,
+                update_solver_parameters=None,
+                nullspace=None,
+                stage_type="deriv", appctx=None,
+                bc_type=None, splitting=None):
+    """Helper function to dispatch between various back-end classes
+       for doing time stepping.  Returns an instance of the
+       appropriate class.
+
+    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
+            F(t, u; v) == 0, where `u` is the unknown
+            :class:`firedrake.Function and `v` iss the
+            :class:firedrake.TestFunction`.
+    :arg butcher_tableau: A :class:`ButcherTableau` instance giving
+            the Runge-Kutta method to be used for time marching.
+    :arg t: A :class:`firedrake.Constant` instance that always
+            contains the time value at the beginning of a time step
+    :arg dt: A :class:`firedrake.Constant` containing the size of the
+            current time step.  The user may adjust this value between
+            time steps.
+    :arg u0: A :class:`firedrake.Function` containing the current
+            state of the problem to be solved.
+    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+            the strongly-enforced boundary conditions.  Irksome will
+            manipulate these to obtain boundary conditions for each
+            stage of the RK method.
+    :arg nullspace: A list of tuples of the form (index, VSB) where
+            index is an index into the function space associated with
+            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
+            instance to be passed to a
+            `firedrake.MixedVectorSpaceBasis` over the larger space
+            associated with the Runge-Kutta method
+    :arg stage_type: Whether to formulate in terms of a stage
+            derivatives or stage values.
+    :arg splitting: An callable used to factor the Butcher matrix
+    :arg bc_type: For stage derivative formulation, how to manipulate
+            the strongly-enforced boundary conditions.
+    :arg solver_parameters: A :class:`dict` of solver parameters that
+            will be used in solving the algebraic problem associated
+            with each time step.
+    :arg update_solver_parameters: A :class:`dict` of parameters for
+            inverting the mass matrix at each step (only used if
+            stage_type is "value")
+    """
+    if stage_type == "deriv":
+        if bc_type is None:
+            bc_type = "DAE"
+        if splitting is None:
+            splitting = AI
+        assert update_solver_parameters is None
+        return StageDerivativeTimeStepper(
+            F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
+            solver_parameters=solver_parameters, nullspace=nullspace,
+            bc_type=bc_type, splitting=splitting)
+    elif stage_type == "value":
+        assert bc_type is None
+        if splitting is None:
+            splitting = AI
+        return StageValueTimeStepper(
+            F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
+            solver_parameters=solver_parameters,
+            splitting=splitting,
+            update_solver_parameters=update_solver_parameters,
+            nullspace=nullspace)
+
+
+class StageDerivativeTimeStepper:
     """Front-end class for advancing a time-dependent PDE via a Runge-Kutta
-    method.
+    method formulated in terms of stage derivatives.
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
             F(t, u; v) == 0, where `u` is the unknown
@@ -20,8 +87,7 @@ class TimeStepper:
             contains the time value at the beginning of a time step
     :arg dt: A :class:`firedrake.Constant` containing the size of the
             current time step.  The user may adjust this value between
-            time steps, but see :class:`AdaptiveTimeStepper` for a
-            method that attempts to do this automatically.
+            time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
@@ -37,6 +103,7 @@ class TimeStepper:
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
+    :arg splitting: An callable used to factor the Butcher matrix
     :arg appctx: An optional :class:`dict` containing application context.
             This gets included with particular things that Irksome will
             pass into the nonlinear solver so that, say, user-defined preconditioners
@@ -49,8 +116,8 @@ class TimeStepper:
             associated with the Runge-Kutta method
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
-                 solver_parameters=None, bc_type="DAE", splitting=AI,
-                 appctx=None, nullspace=None):
+                 solver_parameters=None, splitting=AI,
+                 appctx=None, nullspace=None, bc_type="DAE"):
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -144,104 +211,3 @@ class TimeStepper:
         pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
 
         self._update()
-
-
-class AdaptiveTimeStepper(TimeStepper):
-    """Front-end class for advancing a time-dependent PDE via a Runge-Kutta
-    method.
-
-    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
-            F(t, u; v) == 0, where `u` is the unknown
-            :class:`firedrake.Function and `v` is the
-            :class:firedrake.TestFunction`.
-    :arg butcher_tableau: A :class:`ButcherTableau` instance giving
-            the Runge-Kutta method to be used for time marching.
-    :arg t: A :class:`firedrake.Constant` instance that always
-            contains the time value at the beginning of a time step
-    :arg dt: A :class:`firedrake.Constant` containing the size of the
-            current time step.  The user may adjust this value between
-            time steps, but see :class:`AdaptiveTimeStepper` for a
-            method that attempts to do this automatically.
-    :arg u0: A :class:`firedrake.Function` containing the current
-            state of the problem to be solved.
-    :arg tol: The temporal ttruncation error tolerance
-    :arg dtmin: Minimal acceptable time step.  An exception is raised
-            if the step size drops below this threshhold.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
-            the strongly-enforced boundary conditions.  Irksome will
-            manipulate these to obtain boundary conditions for each
-            stage of the RK method.
-    :arg solver_parameters: A :class:`dict` of solver parameters that
-            will be used in solving the algebraic problem associated
-            with each time step.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-            index is an index into the function space associated with
-            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
-            instance to be passed to a
-            `firedrake.MixedVectorSpaceBasis` over the larger space
-            associated with the Runge-Kutta method
-    """
-    def __init__(self, F, butcher_tableau, t, dt, u0,
-                 tol=1.e-6, dtmin=1.e-5, bcs=None, solver_parameters=None,
-                 bc_type="DAE", splitting=AI, nullspace=None):
-        assert butcher_tableau.btilde is not None
-        super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
-                                                  t, dt, u0, bcs, solver_parameters,
-                                                  bc_type, splitting, nullspace)
-        self.tol = tol
-        self.dt_min = dtmin
-        self.delb = butcher_tableau.b - butcher_tableau.btilde
-        self.error_func = Function(u0.function_space())
-
-    def _estimate_error(self):
-        """Assuming that the RK stages have been evaluated, estimates
-        the temporal truncation error by taking the norm of the
-        difference between the new solutions computed by the two
-        methods.  Typically will not be called by the end user."""
-        dtc = float(self.dt)
-        delb = self.delb
-
-        ws = self.ws
-        nf = self.num_fields
-        for e in self.error_func.dat:
-            e.data[:] = 0.0
-        for s in range(self.num_stages):
-            for i, e in enumerate(self.error_func.dat):
-                e.data[:] += dtc * delb[i] * ws[nf*s+i].dat.data_ro
-        return norm(self.error_func)
-
-    def advance(self):
-        """Attempts to advances the system from time `t` to time `t +
-        dt`.  If the error threshhold is exceeded, will adaptively
-        decrease the time step until the step is accepted.  Also
-        predicts new time step once the step is accepted.
-
-        Note: overwrites the value `u0`."""
-        print("\tTrying dt=", float(self.dt))
-        while 1:
-            for gdat, gcur, gmethod in self.bigBCdata:
-                gmethod(gcur, self.u0)
-
-            self.solver.solve()
-            err = self._estimate_error()
-
-            print("\tTruncation error", err)
-            q = 0.84 * (self.tol / err)**(1./(self.butcher_tableau.order-1))
-            print("\tq factor:", q)
-            if q <= 0.1:
-                q = 0.1
-            elif q >= 4.0:
-                q = 4.0
-
-            dtnew = q * float(self.dt)
-
-            if err >= self.tol:
-                print("\tShrinking time step to ", dtnew)
-                self.dt.assign(dtnew)
-            elif dtnew <= self.dt_min:
-                raise RuntimeError("Minimum time step threshold violated")
-            else:
-                print("\tStep accepted, new time step is ", dtnew)
-                self._update()
-                self.dt.assign(dtnew)
-                return (err, dtnew)

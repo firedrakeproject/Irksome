@@ -194,3 +194,35 @@ def extract_terms(form: Form) -> SplitTimeForm:
     time_terms = check_integrals(time_terms, expect_time_derivative=True)
     rest_terms = check_integrals(rest_terms, expect_time_derivative=False)
     return SplitTimeForm(time=Form(time_terms), remainder=Form(rest_terms))
+
+
+# Helper function to strip the time derivative from expressions, base case
+@singledispatch
+def strip_dt(e, self):
+    os = e.ufl_operands
+    if os:
+        stripped_os = map(self, os)
+        return ufl_reuse_if_untouched(e, *stripped_os)
+    return e
+
+
+# Case for time derivatives, returning the operand
+@strip_dt.register(TimeDerivative)
+def strip_dt_td(e, self):
+    o, = e.ufl_operands
+    return self(o)
+
+
+# Helper function to strip all time derivatives from a form
+def strip_dt_form(F):
+    if isinstance(F, Zero):
+        # Avoid applying the time derivative stripper to zero forms
+        return F
+
+    stripper = Memoizer(strip_dt)
+
+    # Strip dt from all the integrals in the form
+    Fnew = Form([i.reconstruct(integrand=stripper(i.integrand())) for i in F.integrals()])
+
+    # Return the form stripped of its time derivatives
+    return Fnew

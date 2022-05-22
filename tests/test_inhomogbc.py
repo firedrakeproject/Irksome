@@ -1,11 +1,11 @@
 import pytest
 from firedrake import *
 from ufl.algorithms.ad import expand_derivatives
-from irksome import GaussLegendre, Dt, TimeStepper
-from irksome.getForm import AI, IA
+from irksome import Dt, TimeStepper, RadauIIA, GaussLegendre
+from irksome.tools import AI, IA
 
 
-def heat_inhomog(N, deg, butcher_tableau, splitting=AI):
+def heat_inhomog(N, deg, butcher_tableau, stage_type, splitting):
     dt = Constant(1.0 / N)
     t = Constant(0.0)
 
@@ -31,6 +31,7 @@ def heat_inhomog(N, deg, butcher_tableau, splitting=AI):
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                           solver_parameters=luparams,
+                          stage_type=stage_type,
                           splitting=splitting)
 
     while (float(t) < 1.0):
@@ -43,10 +44,11 @@ def heat_inhomog(N, deg, butcher_tableau, splitting=AI):
 
 
 @pytest.mark.parametrize('splitting', (AI, IA))
+@pytest.mark.parametrize('stage_type', ("deriv", "value"))
 @pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
-@pytest.mark.parametrize(('deg', 'time_stages'),
-                         [(1, i) for i in (1, 2)]
-                         + [(2, i) for i in (2, 3)])
-def test_inhomog_bc(deg, N, time_stages, splitting):
-    error = heat_inhomog(N, deg, GaussLegendre(time_stages), splitting)
+@pytest.mark.parametrize('butcher_tableau', [RadauIIA, GaussLegendre])
+@pytest.mark.parametrize('time_stages', (1, 2, 3))
+def test_inhomog_bc(N, time_stages, butcher_tableau, stage_type, splitting):
+    error = heat_inhomog(N, 2, butcher_tableau(time_stages),
+                         stage_type, splitting)
     assert abs(error) < 1e-10

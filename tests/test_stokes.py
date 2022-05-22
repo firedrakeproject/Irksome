@@ -2,7 +2,7 @@ import pytest
 from firedrake import *
 
 from irksome import Dt, TimeStepper, LobattoIIIC
-from irksome.getForm import AI, IA
+from irksome.tools import AI, IA
 from ufl.algorithms import expand_derivatives
 
 # test the accuracy of the 2d Stokes heat equation using CG elements
@@ -11,7 +11,7 @@ from ufl.algorithms import expand_derivatives
 # a time derivative on it.
 
 
-def StokesTest(N, butcher_tableau, splitting=AI):
+def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     mesh = UnitSquareMesh(N, N)
 
     Ve = VectorElement("CG", mesh.ufl_cell(), 2)
@@ -59,6 +59,7 @@ def StokesTest(N, butcher_tableau, splitting=AI):
           "pc_factor_mat_solver_type": "mumps"}
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
+                          stage_type=stage_type,
                           bcs=bcs, solver_parameters=lu, nullspace=nsp)
 
     while (float(t) < 1.0):
@@ -71,11 +72,12 @@ def StokesTest(N, butcher_tableau, splitting=AI):
     return errornorm(uexact, u) + errornorm(pexact, p)
 
 
+@pytest.mark.parametrize('stage_type', ("deriv", "value"))
 @pytest.mark.parametrize('splitting', (AI, IA))
 @pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
 @pytest.mark.parametrize('time_stages', (2, 3))
-def test_Stokes(N, time_stages, splitting):
-    error = StokesTest(N, LobattoIIIC(time_stages), splitting)
+def test_Stokes(N, time_stages, stage_type, splitting):
+    error = StokesTest(N, LobattoIIIC(time_stages), stage_type, splitting)
     assert abs(error) < 2e-10
 
 
