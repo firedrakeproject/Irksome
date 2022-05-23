@@ -10,6 +10,8 @@ from .stage import getBits
 
 
 def explicit_coeffs(k):
+    """Computes the coefficients needed for the explicit part
+    of a RadauIIA-IMEX method."""
     U = FIAT.ufc_simplex(1)
     L = FIAT.GaussRadau(U, k - 1)
     Q = FIAT.make_quadrature(L.ref_el, 2*k)
@@ -32,7 +34,8 @@ def explicit_coeffs(k):
 
 def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     """Processes the explicitly split-off part for a RadauIIA-IMEX
-    method."""
+    method.  Returns the forms for both the iterator and propagator,
+    which really just differ by which constants are in them."""
     v = Fexp.arguments()[0]
     V = v.function_space()
     Vbig = UU.function_space()
@@ -90,6 +93,49 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
 
 
 class RadauIIAIMEXMethod():
+    """Class for advancing a time-dependent PDE via a polynomial
+    IMEX/RadauIIA method.  This requires one to split the PDE into
+    an implicit and explicit part.
+
+    The class sets up two methods -- `advance` and `iterate`.
+    The former is used to move the solution forward in time,
+    while the latter is used both to start the method (filling up
+    the initial stage values) and can be used at each time step
+    to increase the accuracy/stability.  In the limit as
+    the iterator is applied many times per time step,
+    one expects convergence to the solution that would have been
+    obtained from fully-implicit RadauIIA method.
+
+    :arg F: A :class:`ufl.Form` instance describing the implicit part
+            of the semi-discrete problem
+            F(t, u; v) == 0, where `u` is the unknown
+            :class:`firedrake.Function and `v` is the
+            :class:firedrake.TestFunction`.
+    :arg Fexp A :class:`ufl.Form` instance describing the part of the
+            PDE that is explicitly split off.
+    :arg butcher_tableau: A :class:`ButcherTableau` instance giving
+            the Runge-Kutta method to be used for time marching.
+    :arg t: A :class:`firedrake.Constant` instance that always
+            contains the time value at the beginning of a time step
+    :arg dt: A :class:`firedrake.Constant` containing the size of the
+            current time step.  The user may adjust this value between
+            time steps.
+    :arg u0: A :class:`firedrake.Function` containing the current
+            state of the problem to be solved.
+    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+            the strongly-enforced boundary conditions.  Irksome will
+            manipulate these to obtain boundary conditions for each
+            stage of the RK method.
+    :arg it_solver_parameters: A :class:`dict` of solver parameters that
+            will be used in solving the algebraic problem associated
+            with the iterator.
+    :arg prop_solver_parameters: A :class:`dict` of solver parameters that
+            will be used in solving the algebraic problem associated
+            with the propagator.
+    :arg splitting: An callable used to factor the Butcher matrix,
+            currently, only AI is supported.
+    :arg appctx: An optional :class:`dict` containing application context.
+    """
     def __init__(self, F, Fexp, butcher_tableau,
                  t, dt, u0, bcs=None,
                  it_solver_parameters=None,
@@ -134,11 +180,16 @@ class RadauIIAIMEXMethod():
             uolddat.data[:] = u0.dat.data_ro[:]
 
     def iterate(self):
+        """Called 1 or more times to set up the initial state of the
+        system before time-stepping.  Can also be called after each
+        call to `advance`"""
         self.it_solver.solve()
         for uod, uud in zip(self.UU_old.dat, self.UU.dat):
             uod.data[:] = uud.data_ro[:]
 
     def advance(self):
+        """Moves the solution forward in time, to be followed by 0 or
+        more calls to `iterate`."""
         self.u0.assign(self.UU_old_split[-1])
         for gdat, gcur, gmethod in self.bcdat:
             gmethod(gdat, gcur)
