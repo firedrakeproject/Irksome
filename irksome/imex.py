@@ -3,6 +3,7 @@ from .tools import replace, AI, IA
 from .ButcherTableaux import RadauIIA
 from firedrake import (Constant, Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction)
+from firedrake.dmhooks import pop_parent, push_parent
 import FIAT
 import numpy as np
 from ufl.classes import Zero
@@ -186,13 +187,14 @@ class RadauIIAIMEXMethod():
         else:
             appctx = {**appctx, **appctx_irksome}
 
+        push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.it_solver = NonlinearVariationalSolver(
             self.itprob, appctx=appctx,
             solver_parameters=it_solver_parameters)
         self.prop_solver = NonlinearVariationalSolver(
             self.propprob, appctx=appctx,
             solver_parameters=prop_solver_parameters)
-
+        pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         for uolddat in self.UU_old.dat:
             uolddat.data[:] = u0.dat.data_ro[:]
 
@@ -200,7 +202,9 @@ class RadauIIAIMEXMethod():
         """Called 1 or more times to set up the initial state of the
         system before time-stepping.  Can also be called after each
         call to `advance`"""
+        push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.it_solver.solve()
+        pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         for uod, uud in zip(self.UU_old.dat, self.UU.dat):
             uod.data[:] = uud.data_ro[:]
 
@@ -210,6 +214,8 @@ class RadauIIAIMEXMethod():
         self.u0.assign(self.UU_old_split[-1])
         for gdat, gcur, gmethod in self.bcdat:
             gmethod(gdat, gcur)
+        push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.prop_solver.solve()
+        pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         for uod, uud in zip(self.UU_old.dat, self.UU.dat):
             uod.data[:] = uud.data_ro[:]
