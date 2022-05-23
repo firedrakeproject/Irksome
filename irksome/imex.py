@@ -171,10 +171,26 @@ class RadauIIAIMEXMethod():
             Fbig + Fit, UU, bcs=bigBCs)
         self.propprob = NonlinearVariationalProblem(
             Fbig + Fprop, UU, bcs=bigBCs)
+
+        appctx_irksome = {"F": F,
+                          "Fexp": Fexp,
+                          "butcher_tableau": butcher_tableau,
+                          "t": t,
+                          "dt": dt,
+                          "u0": u0,
+                          "bcs": bcs,
+                          "nullspace": nullspace}
+        if appctx is None:
+            appctx = appctx_irksome
+        else:
+            appctx = {**appctx, **appctx_irksome}
+
         self.it_solver = NonlinearVariationalSolver(
-            self.itprob, solver_parameters=it_solver_parameters)
+            self.itprob, appctx=appctx,
+            solver_parameters=it_solver_parameters)
         self.prop_solver = NonlinearVariationalSolver(
-            self.propprob, solver_parameters=prop_solver_parameters)
+            self.propprob, appctx=appctx,
+            solver_parameters=prop_solver_parameters)
 
         for uolddat in self.UU_old.dat:
             uolddat.data[:] = u0.dat.data_ro[:]
