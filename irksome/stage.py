@@ -14,6 +14,26 @@ from .ButcherTableaux import RadauIIA
 from numpy import vectorize
 
 
+def getBits(num_stages, num_fields, u0, UU, v, VV):
+    nsxnf = (num_stages, num_fields)
+    if num_fields == 1:
+        u0bits = np.array([u0], dtype="O")
+        vbits = np.array([v], dtype="O")
+        if num_stages == 1:   # single-stage method
+            VVbits = np.array([[VV]], dtype="O")
+            UUbits = np.array([[UU]], dtype="O")
+        else:  # multi-stage methods
+            VVbits = np.reshape(split(VV), nsxnf)
+            UUbits = np.reshape(split(UU), nsxnf)
+    else:
+        u0bits = np.array(list(split(u0)), dtype="O")
+        vbits = np.array(list(split(v)), dtype="O")
+        VVbits = np.reshape(split(VV), nsxnf)
+        UUbits = np.reshape(split(UU), nsxnf)
+
+    return u0bits, vbits, VVbits, UUbits
+
+
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                  nullspace=None):
     """Given a time-dependent variational form and a
@@ -78,32 +98,16 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
     # s-way product space for the stage variables
     Vbig = reduce(mul, (V for _ in range(num_stages)))
-
     VV = TestFunction(Vbig)
     UU = Function(Vbig)
+
+    # set up the pieces we need to work with to do our substitutions
+    u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
+                                            u0, UU, v, VV)
 
     vecconst = np.vectorize(Constant)
     C = vecconst(butch.c)
     A = vecconst(butch.A)
-
-    # set up the pieces we need to work with to do our substitutions
-
-    nsxnf = (num_stages, num_fields)
-
-    if num_fields == 1:
-        u0bits = np.array([u0], dtype="O")
-        vbits = np.array([v], dtype="O")
-        if num_stages == 1:   # single-stage method
-            VVbits = np.array([[VV]], dtype="O")
-            UUbits = np.array([[UU]], dtype="O")
-        else:  # multi-stage methods
-            VVbits = np.reshape(split(VV), nsxnf)
-            UUbits = np.reshape(split(UU), nsxnf)
-    else:
-        u0bits = np.array(list(split(u0)), dtype="O")
-        vbits = np.array(list(split(v)), dtype="O")
-        VVbits = np.reshape(split(VV), nsxnf)
-        UUbits = np.reshape(split(UU), nsxnf)
 
     split_form = extract_terms(F)
 
