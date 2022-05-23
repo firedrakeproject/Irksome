@@ -329,6 +329,7 @@ class StageValueTimeStepper:
                           "dt": dt,
                           "u0": u0,
                           "bcs": bcs,
+                          "splitting": splitting,
                           "nullspace": nullspace}
         if appctx is None:
             appctx = appctx_irksome
