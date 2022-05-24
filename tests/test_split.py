@@ -3,11 +3,11 @@ petsc4py.PETSc.Sys.popErrorHandler() # noqa
 
 from firedrake import (
     UnitIntervalMesh, UnitSquareMesh, FunctionSpace, Constant,
-    TestFunction, Function, DirichletBC, VectorFunctionSpace,
-    inner, grad, dx, SpatialCoordinate, sin, pi, interpolate, split,
-    errornorm, as_vector, dot, div, VectorSpaceBasis,
-    VectorElement, FiniteElement, MixedElement, diff)
-from irksome import Dt, RadauIIA, TimeStepper, RadauIIAIMEXMethod, LobattoIIIC
+    TestFunction, Function, DirichletBC, VectorElement,
+    FiniteElement, MixedElement, VectorSpaceBasis, SpatialCoordinate,
+    inner, grad, dx, sin, pi, interpolate, split,
+    errornorm, as_vector, dot, div, diff)
+from irksome import Dt, RadauIIA, TimeStepper, RadauIIAIMEXMethod
 from irksome.tools import AI, IA
 import pytest
 from ufl.algorithms import expand_derivatives
