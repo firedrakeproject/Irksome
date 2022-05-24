@@ -10,7 +10,6 @@ from firedrake import TestFunction, Function, split, Constant, DirichletBC, inte
 from .tools import replace, getNullspace, AI, IA
 from .manipulation import extract_terms, strip_dt_form
 from ufl.classes import Zero
-from .ButcherTableaux import RadauIIA
 from numpy import vectorize
 
 
@@ -240,10 +239,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
     # For RIIA, we have an optimized update rule and don't need to
     # build the variational form for doing updates.
-    if isinstance(butch, RadauIIA):
-        return Fnew, None, UU, bcsnew, gblah, nspacenew
+    # But something's broken with null spaces, so that's a TO-DO.
 
-    # Otherwise...
     unew = Function(V)
 
     Fupdate = inner(unew - u0, v) * dx
@@ -335,19 +332,17 @@ class StageValueTimeStepper:
             self.prob, appctx=appctx, nullspace=nsp,
             solver_parameters=solver_parameters)
 
-        if isinstance(butcher_tableau, RadauIIA):
-            self._update = self._update_riia
-        else:
-            unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
-            self.update_problem = NonlinearVariationalProblem(
-                Fupdate, unew, update_bcs)
+        unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
+        self.update_problem = NonlinearVariationalProblem(
+            Fupdate, unew, update_bcs)
 
-            self.update_solver = NonlinearVariationalSolver(
-                self.update_problem,
-                solver_parameters=update_solver_parameters)
+        self.update_solver = NonlinearVariationalSolver(
+            self.update_problem,
+            solver_parameters=update_solver_parameters)
 
-            self._update = self._update_general
+        self._update = self._update_general
 
+    # Unused for now since null spaces don't seem to work with it.
     def _update_riia(self):
         u0 = self.u0
 
