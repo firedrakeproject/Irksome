@@ -1,7 +1,7 @@
 import pytest
 from firedrake import *
 
-from irksome import Dt, TimeStepper, LobattoIIIC
+from irksome import Dt, TimeStepper, LobattoIIIC, RadauIIA
 from irksome.tools import AI, IA
 from ufl.algorithms import expand_derivatives
 
@@ -76,10 +76,11 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 @pytest.mark.parametrize('splitting', (AI, IA))
 @pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
 @pytest.mark.parametrize('time_stages', (2, 3))
-def test_Stokes(N, time_stages, stage_type, splitting):
-    error = StokesTest(N, LobattoIIIC(time_stages), stage_type, splitting)
+@pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
+def test_Stokes(N, butch, time_stages, stage_type, splitting):
+    error = StokesTest(N, butch(time_stages), stage_type, splitting)
     assert abs(error) < 2e-10
 
 
 if __name__ == "__main__":
-    test_Stokes(4, 2, AI)
+    test_Stokes(4, LobattoIIIC, 2, "value", AI)
