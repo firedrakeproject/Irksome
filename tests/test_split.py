@@ -2,9 +2,12 @@ from firedrake import (
     UnitIntervalMesh, FunctionSpace, Constant, TestFunction, DirichletBC,
     inner, grad, dx, SpatialCoordinate, sin, pi, interpolate, errornorm)
 from irksome import Dt, RadauIIA, TimeStepper, RadauIIAIMEXMethod
+from irksome.tools import AI, IA
+import pytest
 
 
-def test_split():
+@pytest.mark.parametrize('splitting', (AI, IA))
+def test_split(splitting):
     N = 32
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 2)
@@ -41,6 +44,7 @@ def test_split():
 
     imex_stepper = RadauIIAIMEXMethod(
         Fimp, Fexp, bt, t, dt, u_split, bcs=bcs,
+        splitting=splitting,
         it_solver_parameters=luparams,
         prop_solver_parameters=luparams)
 
