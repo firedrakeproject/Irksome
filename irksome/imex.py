@@ -225,13 +225,19 @@ class RadauIIAIMEXMethod():
         push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.it_solver = NonlinearVariationalSolver(
             self.itprob, appctx=appctx,
-            solver_parameters=it_solver_parameters)
+            solver_parameters=it_solver_parameters,
+            nullspace=nsp)
         self.prop_solver = NonlinearVariationalSolver(
             self.propprob, appctx=appctx,
-            solver_parameters=prop_solver_parameters)
+            solver_parameters=prop_solver_parameters,
+            nullspace=nsp)
         pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
-        for uolddat in self.UU_old.dat:
-            uolddat.data[:] = u0.dat.data_ro[:]
+
+        num_fields = len(self.u0.function_space())
+        for i, u0dat in enumerate(u0.dat):
+            for s in range(self.num_stages):
+                ii = s * num_fields + i
+                self.UU_old_split[ii].dat.data[:] = u0dat.data_ro[:]
 
     def iterate(self):
         """Called 1 or more times to set up the initial state of the
@@ -246,11 +252,15 @@ class RadauIIAIMEXMethod():
     def advance(self):
         """Moves the solution forward in time, to be followed by 0 or
         more calls to `iterate`."""
-        self.u0.assign(self.UU_old_split[-1])
+
+        ns = self.num_stages
+        nf = self.num_fields
+        for i, u0dat in enumerate(self.u0.dat):
+            u0dat.data[:] = self.UU_old_split[(ns-1)*nf + i].dat.data_ro[:]
+
         for gdat, gcur, gmethod in self.bcdat:
             gmethod(gdat, gcur)
         push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.prop_solver.solve()
         pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
-        for uod, uud in zip(self.UU_old.dat, self.UU.dat):
-            uod.data[:] = uud.data_ro[:]
+        self.UU_old.assign(self.UU)
