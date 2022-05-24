@@ -82,11 +82,46 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
                 Fit += Ait[i, j] * dt * replF
                 Fprop += Aprop[i, j] * dt * replF
     elif splitting == IA:
-        # TODO: IA is longer to do since
-        # you have a diagonal contribution to the propagator
-        # and a dense one to the iterator with coefficients
-        # equal to inverse of A onto the explicit coefficients.
-        raise NotImplementedError("Unsupported splitting type")
+        # diagonal contribution to iterator
+        for i in range(num_stages):
+            repl = {t: t+C[i]*dt}
+            for j in range(num_fields):
+                repl[u0bits[j]] = UUbits[i][j]
+                repl[vbits[j]] = VVbits[i][j]
+
+            # Also get replacements right for indexing.
+            for j in range(num_fields):
+                for ii in np.ndindex(u0bits[j].ufl_shape):
+                    repl[u0bits[j][ii]] = UUbits[i][j][ii]
+                    repl[vbits[j][ii]] = VVbits[i][j][ii]
+
+            Fit += dt * replace(Fexp, repl)
+
+        # dense contribution to propagator
+        Ablah = vc(np.linalg.solve(butch.A, Aexp))
+
+        for i in range(num_stages):
+            # replace test function
+            repl = {}
+
+            for k in range(num_fields):
+                repl[vbits[k]] = VVbits[i][k]
+                for ii in np.ndindex(vbits[k].ufl_shape):
+                    repl[vbits[k][ii]] = VVbits[i][k][ii]
+
+            Ftmp = replace(Fexp, repl)
+
+            # replace the solution with stage values
+            for j in range(num_stages):
+                repl = {t: t + C[j] * dt}
+
+                for k in range(num_fields):
+                    repl[u0bits[k]] = UUbits[j][k]
+                    for ii in np.ndindex(u0bits[k].ufl_shape):
+                        repl[u0bits[k][ii]] = UUbits[j][k][ii]
+
+                # and sum the contribution
+                Fprop += Ablah[i, j] * dt * replace(Ftmp, repl)
     else:
         raise NotImplementedError("Unsupported splitting type")
 
