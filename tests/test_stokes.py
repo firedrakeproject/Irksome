@@ -72,6 +72,66 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     return errornorm(uexact, u) + errornorm(pexact, p)
 
 
+# make sure things run on a driven cavity.  We time step a while
+# and check that the velocity is the right size (as observed from
+# a "by-hand" backward Euler code in Firedrake
+def NSETest(butch, stage_type, splitting):
+    N = 16
+    M = UnitSquareMesh(N, N)
+
+    V = VectorFunctionSpace(M, "CG", 2)
+    W = FunctionSpace(M, "CG", 1)
+    Z = V * W
+
+    up = Function(Z)
+    u, p = split(up)
+    v, q = TestFunctions(Z)
+
+    Re = Constant(100.0)
+
+    F = (inner(Dt(u), v) * dx
+         + 1.0 / Re * inner(grad(u), grad(v)) * dx
+         + inner(dot(grad(u), u), v) * dx
+         - p * div(v) * dx
+         + div(u) * q * dx
+         )
+
+    bcs = [DirichletBC(Z.sub(0), Constant((1, 0)), (4,)),
+           DirichletBC(Z.sub(0), Constant((0, 0)), (1, 2, 3))]
+
+    nullspace = [(1, VectorSpaceBasis(constant=True))]
+
+    solver_parameters = {"mat_type": "aij",
+                         "snes_type": "newtonls",
+                         "snes_linesearch_type": "bt",
+                         "snes_linesearch_monitor": None,
+                         "snes_monitor": None,
+                         "snes_rtol": 1e-10,
+                         "snes_atol": 1e-10,
+                         "snes_force_iteration": 1,
+                         "ksp_type": "preonly",
+                         "pc_type": "lu",
+                         "pc_factor_mat_solver_type": "mumps"}
+
+    t = Constant(0.0)
+    dt = Constant(0.3/N)
+    stepper = TimeStepper(F, butch,
+                          t, dt, up,
+                          bcs=bcs,
+                          stage_type="value",
+                          solver_parameters=solver_parameters,
+                          nullspace=nullspace)
+
+    tfinal = 1.0
+    while (float(t) < tfinal):
+        if (float(t) + float(dt) > tfinal):
+            dt.assign(1.0 - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+    u, p = up.split()
+    return norm(u)
+
+
 @pytest.mark.parametrize('stage_type', ("deriv", "value"))
 @pytest.mark.parametrize('splitting', (AI, IA))
 @pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
@@ -80,6 +140,14 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 def test_Stokes(N, butch, time_stages, stage_type, splitting):
     error = StokesTest(N, butch(time_stages), stage_type, splitting)
     assert abs(error) < 2e-10
+
+
+@pytest.mark.parametrize('stage_type', ("deriv", "value"))
+@pytest.mark.parametrize('time_stages', (2,))
+@pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
+def test_NSE(butch, time_stages, stage_type, splitting):
+    unrm = NSETest(butch(time_stages), stage_type, IA)
+    assert abs(unrm - 0.216) < 5e-3
 
 
 if __name__ == "__main__":
