@@ -97,6 +97,10 @@ def NavierStokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     p_rhs = -div(uexact)
 
     z = Function(Z)
+    u, p = z.split()
+    u.interpolate(uexact)
+    p.interpolat(pexact)
+
     test_z = TestFunction(Z)
     (u, p) = split(z)
     (v, q) = split(test_z)
@@ -119,8 +123,8 @@ def NavierStokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
           "snes_linesearch_type": "l2",
           "snes_linesearch_monitor": None,
           "snes_monitor": None,
-          "snes_rtol": 1e-8,
-          "snes_atol": 1e-8,
+          "snes_rtol": 1e-10,
+          "snes_atol": 1e-10,
           "snes_force_iteration": 1,
           "ksp_type": "preonly",
           "pc_type": "lu",
@@ -137,9 +141,94 @@ def NavierStokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
         t.assign(float(t) + float(dt))
 
     (u, p) = z.split()
-    print(errornorm(uexact, u))
-    print(errornorm(pexact, p))
     return errornorm(uexact, u) + errornorm(pexact, p)
+
+
+def NavierStokesSplitTest(N, num_stages):
+    mesh = UnitSquareMesh(N, N)
+    butcher_tableau = RadauIIA(num_stages)
+
+    Ve = VectorElement("CG", mesh.ufl_cell(), 2)
+    Pe = FiniteElement("CG", mesh.ufl_cell(), 1)
+    Ze = MixedElement([Ve, Pe])
+    Z = FunctionSpace(mesh, Ze)
+
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
+
+    z_imp = Function(Z)
+    z_split = Function(Z)
+    test_z = TestFunction(Z)
+
+    x, y = SpatialCoordinate(mesh)
+    
+    def Fimp(z, test):
+        u, p = split(z)
+        v, q = split(test)
+        return (inner(Dt(u), v)*dx
+                + inner(grad(u), grad(v))*dx
+                - inner(p, div(v))*dx
+                - inner(q, div(u))*dx)
+
+    def Fexp(z, test):
+        u, _ = split(z)
+        v, _ = split(test)
+        return inner(dot(u, grad(u)), v) * dx
+
+    def Ffull(z, test):
+        return Fimp(z, test) + Fexp(z, test)
+
+    bcs = [DirichletBC(Z.sub(0), as_vector([x*(1-x), 0]), (4,)),
+           DirichletBC(Z.sub(0), as_vector([0, 0]), (1, 2, 3))]
+       
+    nsp = [(1, VectorSpaceBasis(constant=True))]
+
+    lunl = {
+        "mat_type": "aij",
+        "snes_type": "newtonls",
+        "snes_linesearch_type": "l2",
+        # "snes_linesearch_monitor": None,
+        # "snes_monitor": None,
+        "snes_rtol": 1e-10,
+        "snes_atol": 1e-10,
+        "snes_force_iteration": 1,
+        "ksp_type": "preonly",
+        "pc_type": "lu",
+        "pc_factor_mat_solver_type": "mumps"}
+
+    F_full = Ffull(z_imp, test_z)
+    F_imp = Fimp(z_split, test_z)
+    F_exp = Fexp(z_split, test_z)
+
+    imp_stepper = TimeStepper(
+        F_full, butcher_tableau, t, dt, z_imp,
+        stage_type="value",
+        bcs=bcs, solver_parameters=lunl, nullspace=nsp)
+
+    imex_stepper = RadauIIAIMEXMethod(
+        F_imp, F_exp, butcher_tableau, t, dt, z_split,
+        bcs=bcs, nullspace=nsp,
+        it_solver_parameters=lunl, prop_solver_parameters=lunl)
+
+    num_iter_init = 10
+    for i in range(num_iter_init):
+        imex_stepper.iterate()
+
+    num_iter_perstep = 5
+
+    while (float(t) < 1.0):
+        if (float(t) + float(dt) > 1.0):
+            dt.assign(1.0 - float(t))
+        imp_stepper.advance()
+        imex_stepper.advance()
+        for i in range(num_iter_perstep):
+            imex_stepper.iterate()
+        t.assign(float(t) + float(dt))
+        uimp, _ = z_imp.split()
+        usplit, _ = z_split.split()
+        print(errornorm(uimp, usplit))
+
+    return errornorm(z_imp, z_split)
 
 
 @pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
@@ -151,4 +240,4 @@ def test_NavierStokes(N):
 
 
 if __name__ == "__main__":
-    test_NavierStokes(4)
+    NavierStokesSplitTest(4, 2)
