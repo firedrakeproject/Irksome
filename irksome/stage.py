@@ -235,7 +235,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
             bcsnew.append(DirichletBC(Vbigi(i), gdat, bc.sub_domain))
             gblah.append((gdat, gcur, gmethod))
 
-
     nspacenew = getNullspace(V, Vbig, butch, nullspace)
 
     # For RIIA, we have an optimized update rule and don't need to
