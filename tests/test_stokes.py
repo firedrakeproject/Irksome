@@ -145,10 +145,10 @@ def test_Stokes(N, butch, time_stages, stage_type, splitting):
 @pytest.mark.parametrize('stage_type', ("deriv", "value"))
 @pytest.mark.parametrize('time_stages', (2,))
 @pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
-def test_NSE(butch, time_stages, stage_type, splitting):
+def test_NSE(butch, time_stages, stage_type):
     unrm = NSETest(butch(time_stages), stage_type, IA)
     assert abs(unrm - 0.216) < 5e-3
 
 
 if __name__ == "__main__":
-    test_Stokes(4, LobattoIIIC, 2, "value", AI)
+    test_NSE(LobattoIIIC, 2, "value", IA)
