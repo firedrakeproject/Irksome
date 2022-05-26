@@ -66,7 +66,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
          on whether the function space for f supports interpolation or
          not.
     """
-
     v = F.arguments()[0]
     V = v.function_space()
 
@@ -154,6 +153,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
                 # and sum the contribution
                 Fnew += A[i, j] * dt * replace(Ftmp, repl)
+
     elif splitting == IA:
         Ainv = np.vectorize(Constant)(np.linalg.inv(butch.A))
 
@@ -289,8 +289,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
         update_bcs.append(DirichletBC(Vsp, gdat, bc.sub_domain))
         update_bcs_gblah.append((gdat, gcur, gmethod))
 
-        return (Fnew, (unew, Fupdate, update_bcs, update_bcs_gblah),
-                UU, bcsnew, gblah, nspacenew)
+    return (Fnew, (unew, Fupdate, update_bcs, update_bcs_gblah),
+            UU, bcsnew, gblah, nspacenew)
 
 
 class StageValueTimeStepper:
