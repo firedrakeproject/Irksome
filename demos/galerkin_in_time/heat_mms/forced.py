@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome import Dt
-from fetsome import TimeFunctionSpace, VariationalTimeStepper
+from irksome.fetsome import TimeFunctionSpace, VariationalTimeStepper
 
 def solve_heat_forced(Ns, dt, tmax, kt, generator_type, info=False):
     # This solves the heat equation using the method of manufactured

@@ -1,8 +1,7 @@
 from firedrake import *
-from fetsome.fet.fetutils import translate_generator
-from fetsome.fet.timenorm import time_errornorm
-from fetsome.fet.timequadrature import time_gauss_quadrature_overkill
-from fetsome.galerkin_in_time.heat_3d.heat3d import solve_heat_3d_forced
+from irksome.fetsome.timenorm import time_errornorm
+from irksome.fetsome.timequadrature import time_gauss_quadrature_overkill
+from .heat3d import solve_heat_3d_forced
 from argparse import ArgumentParser
 
 # Parser setup to run the script

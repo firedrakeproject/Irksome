@@ -1,8 +1,8 @@
 from firedrake import *
-from fetsome.galerkin_in_time.heat_analytic.heat1d import solve_heat_analytic
+from .heat1d import solve_heat_analytic
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
-from fetsome.fet.fetutils import translate_generator
+from irksome.fetsome.fetutils import translate_generator
 
 # Quick helper function to integrate a function in the spatial dimension
 def energy(u):

@@ -1,8 +1,8 @@
 from firedrake import *
-from fetsome.galerkin_in_time.burgers_exact.burgers_exact import solve_burgers_exact
-from fetsome.fet.timenorm import time_errornorm
-from fetsome.fet.timequadrature import make_gauss_time_quadrature
-from fetsome.fet.fetutils import translate_generator
+from .burgers_exact import solve_burgers_exact
+from irksome.fetsome.timenorm import time_errornorm
+from irksome.fetsome.timequadrature import make_gauss_time_quadrature
+from irksome.fetsome.fetutils import translate_generator
 from argparse import ArgumentParser
 
 # Parser setup to run the script

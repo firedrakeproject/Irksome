@@ -1,7 +1,7 @@
 from firedrake import *
-from fetsome.galerkin_in_time.transport_2d.transport2d import solve_transport_2d
-from fetsome.fet.timenorm import time_errornorm
-from fetsome.fet.timequadrature import make_gauss_time_quadrature
+from .transport2d import solve_transport_2d
+from irksome.fetsome.timenorm import time_errornorm
+from irksome.fetsome.timequadrature import make_gauss_time_quadrature
 from argparse import ArgumentParser
 
 # Parser setup to run the script

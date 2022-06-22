@@ -1,6 +1,6 @@
 from firedrake import FunctionPlotter, tripcolor
-from fetsome.galerkin_in_time.transport_2d.transport2d import solve_transport_2d
-from fetsome.fet.fetutils import translate_generator
+from .transport2d import solve_transport_2d
+from irksome.fetsome.fetutils import translate_generator
 from argparse import ArgumentParser
 
 # Parser setup to run the script

@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome import Dt
-from fetsome import *
+from irksome.fetsome import *
 
 def solve_exponential(Ns, dt, tmax, kt, generator_type, info=False):
     # Very simple exponential to solve with time dependent Dirichlet BCs

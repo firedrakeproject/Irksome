@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome import Dt
-from fetsome import *
+from irksome.fetsome import *
 
 def solve_transport_2d(Ns, dt, tmax, kt, generator_type, info=False):
     # Testing a linear transport equation on a periodic-in-x domain.

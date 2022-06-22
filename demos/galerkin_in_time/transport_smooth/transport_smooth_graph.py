@@ -1,6 +1,6 @@
 from firedrake import *
-from fetsome.fet.fetutils import translate_generator
-from fetsome.galerkin_in_time.transport_smooth.transport_smooth import solve_transport_smooth
+from irksome.fetsome.fetutils import translate_generator
+from .transport_smooth import solve_transport_smooth
 from argparse import ArgumentParser
 
 import numpy as np

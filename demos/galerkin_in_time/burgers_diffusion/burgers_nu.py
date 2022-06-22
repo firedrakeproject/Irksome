@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome import Dt
-from fetsome import *
+from irksome.fetsome import *
 
 def solve_burgers_nu(Ns, dt, tmax, kt, generator_type, info=False):
     mesh = PeriodicIntervalMesh(Ns, 2)

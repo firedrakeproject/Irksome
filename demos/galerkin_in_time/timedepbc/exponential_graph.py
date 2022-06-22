@@ -1,8 +1,8 @@
 from firedrake import *
-from fetsome.galerkin_in_time.timedepbc.exponential import solve_exponential
+from .exponential import solve_exponential
 import numpy as np
 from argparse import ArgumentParser
-from fetsome.fet.fetutils import translate_generator
+from irksome.fetsome.fetutils import translate_generator
 
 # Parser setup to run the script
 parser = ArgumentParser("python3 exponential_graph.py", description="Solve a BC exponential.")

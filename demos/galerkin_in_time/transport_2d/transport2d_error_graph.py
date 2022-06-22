@@ -1,8 +1,8 @@
 from firedrake import *
-from fetsome.galerkin_in_time.transport_2d.transport2d import solve_transport_2d
-from fetsome.fet.timequadrature import time_gauss_quadrature_overkill
-from fetsome.fet.timenorm import time_errornorm
-from fetsome.fet.fetutils import translate_generator
+from .transport2d import solve_transport_2d
+from irksome.fetsome.timequadrature import time_gauss_quadrature_overkill
+from irksome.fetsome.timenorm import time_errornorm
+from irksome.fetsome.fetutils import translate_generator
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 

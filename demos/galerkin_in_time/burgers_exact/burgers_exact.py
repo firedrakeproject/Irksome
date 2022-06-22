@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome import Dt
-from fetsome import *
+from irksome.fetsome import *
 
 def solve_burgers_exact(Ns, dt, tmax, kt, generator_type, info=False):
     L = 8.

@@ -1,8 +1,8 @@
 from firedrake import *
-from fetsome.galerkin_in_time.heat_analytic.heat1d import solve_heat_analytic
+from .heat1d import solve_heat_analytic
 import numpy as np
 from argparse import ArgumentParser
-from fetsome.fet.fetutils import translate_generator
+from irksome.fetsome.fetutils import translate_generator
 
 # Parser setup to run the script
 parser = ArgumentParser("python3 heat1d_graph.py", description="Solve and plot the analytic "

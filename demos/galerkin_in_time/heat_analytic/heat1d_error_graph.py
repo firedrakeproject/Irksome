@@ -1,8 +1,8 @@
 from firedrake import *
-from fetsome.galerkin_in_time.heat_analytic.heat1d import solve_heat_analytic
-from fetsome.fet.timequadrature import time_gauss_quadrature_overkill
-from fetsome.fet.timenorm import time_errornorm
-from fetsome.fet.fetutils import translate_generator
+from .heat1d import solve_heat_analytic
+from irksome.fetsome.timequadrature import time_gauss_quadrature_overkill
+from irksome.fetsome.timenorm import time_errornorm
+from irksome.fetsome.fetutils import translate_generator
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 

@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome import Dt
-from fetsome import TimeFunctionSpace, VariationalTimeStepper
+from irksome.fetsome import TimeFunctionSpace, VariationalTimeStepper
 
 def solve_heat_analytic(Ns, dt, tmax, kt, generator_type, info=False):
     # Test solution for the heat equation with Neumann boundary conditions in 1-dimension

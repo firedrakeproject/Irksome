@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome import Dt
-from fetsome import *
+from irksome.fetsome import *
 
 def solve_heat_tdg(Ns, dt, tmax, kt, generator_type, info=False):
     L = 7.

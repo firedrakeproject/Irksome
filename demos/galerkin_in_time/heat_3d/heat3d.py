@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome import Dt
-from fetsome import TimeFunctionSpace, VariationalTimeStepper
+from irksome.fetsome import TimeFunctionSpace, VariationalTimeStepper
 
 def solve_heat_3d_forced(Ns, dt, tmax, kt, generator_type, info=False):
     # Discretisation parameters
