@@ -1,9 +1,9 @@
 from firedrake import *
-from fetsome.fet.fetutils import extract_time_points, generator_codes
-from fetsome.fet.formgenerator import PetrovTimeFormGenerator, DiscontinuousTimeFormGenerator
-from fetsome.fet.timequadrature import estimate_gauss_time_quadrature, make_gauss_time_quadrature
-from fetsome.fet.timequadrature import estimate_radau_time_quadrature, make_radau_time_quadrature
-from fetsome.fet.fetapi import TimeDirichletBC
+from irksome.fetsome.fetutils import extract_time_points, generator_codes
+from irksome.fetsome.formgenerator import PetrovTimeFormGenerator, DiscontinuousTimeFormGenerator
+from irksome.fetsome.timequadrature import estimate_gauss_time_quadrature, make_gauss_time_quadrature
+from irksome.fetsome.timequadrature import estimate_radau_time_quadrature, make_radau_time_quadrature
+from irksome.fetsome.fetapi import TimeDirichletBC
 
 import sys
 from numpy import abs

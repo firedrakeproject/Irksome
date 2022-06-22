@@ -1,6 +1,6 @@
 from firedrake import *
-from fetsome.fet.fetutils import spacetime_dot
-from fetsome.fet.lagrangebases import lagrange_bases
+from irksome.fetsome.fetutils import spacetime_dot
+from irksome.fetsome.lagrangebases import lagrange_bases
 from numpy import dot, squeeze
 from math import sqrt
 

@@ -1,4 +1,4 @@
-from fetsome.fet.estimatetimedegree import estimate_time_degree
+from irksome.fetsome.estimatetimedegree import estimate_time_degree
 import numpy as np
 from math import sqrt
 from FIAT import ufc_simplex

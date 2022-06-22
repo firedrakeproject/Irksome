@@ -1,7 +1,7 @@
 from firedrake import *
-from fetsome.fet.timesplitting import split_time_form, split_time_form_on
-from fetsome.fet.fetutils import strip_dt_form
-from fetsome.fet.fetutils import max_time_order, dt_n, spacetime_dot
+from irksome.fetsome.timesplitting import split_time_form, split_time_form_on
+from irksome.fetsome.fetutils import strip_dt_form
+from irksome.fetsome.fetutils import max_time_order, dt_n, spacetime_dot
 
 # Class that generates the initial condition, intermediate and final forms
 # for a finite element in time problem
