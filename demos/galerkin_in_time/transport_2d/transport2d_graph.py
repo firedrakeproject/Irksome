@@ -1,5 +1,5 @@
 from firedrake import FunctionPlotter, tripcolor
-from .transport2d import solve_transport_2d
+from transport2d import solve_transport_2d
 from irksome.fetsome.fetutils import translate_generator
 from argparse import ArgumentParser
 

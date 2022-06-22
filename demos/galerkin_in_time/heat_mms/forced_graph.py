@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome.fetsome.fetutils import translate_generator
-from .forced import solve_heat_forced
+from forced import solve_heat_forced
 from argparse import ArgumentParser
 
 import numpy as np

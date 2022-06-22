@@ -1,5 +1,5 @@
 from firedrake import *
-from .heat1d import solve_heat_analytic
+from heat1d import solve_heat_analytic
 from irksome.fetsome.timenorm import time_errornorm
 from irksome.fetsome.timequadrature import time_gauss_quadrature_overkill
 from irksome.fetsome.fetutils import translate_generator

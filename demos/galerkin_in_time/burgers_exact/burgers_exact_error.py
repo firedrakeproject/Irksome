@@ -1,5 +1,5 @@
 from firedrake import *
-from .burgers_exact import solve_burgers_exact
+from burgers_exact import solve_burgers_exact
 from irksome.fetsome.timenorm import time_errornorm
 from irksome.fetsome.timequadrature import make_gauss_time_quadrature
 from irksome.fetsome.fetutils import translate_generator

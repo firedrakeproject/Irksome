@@ -1,5 +1,5 @@
 from firedrake import *
-from .exponential import solve_exponential
+from exponential import solve_exponential
 import numpy as np
 from argparse import ArgumentParser
 from irksome.fetsome.fetutils import translate_generator

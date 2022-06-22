@@ -1,7 +1,7 @@
 from firedrake import *
 from irksome.fetsome.timenorm import time_errornorm
 from irksome.fetsome.timequadrature import time_gauss_quadrature_overkill
-from .heat3d import solve_heat_3d_forced
+from heat3d import solve_heat_3d_forced
 from argparse import ArgumentParser
 
 # Parser setup to run the script

@@ -1,5 +1,5 @@
 from firedrake import *
-from .transport2d import solve_transport_2d
+from transport2d import solve_transport_2d
 from irksome.fetsome.timequadrature import time_gauss_quadrature_overkill
 from irksome.fetsome.timenorm import time_errornorm
 from irksome.fetsome.fetutils import translate_generator

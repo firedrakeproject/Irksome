@@ -1,5 +1,5 @@
 from firedrake import *
-from .heat1d import solve_heat_analytic
+from heat1d import solve_heat_analytic
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from irksome.fetsome.fetutils import translate_generator

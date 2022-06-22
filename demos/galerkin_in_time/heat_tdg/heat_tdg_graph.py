@@ -1,5 +1,5 @@
 from firedrake import *
-from .heat_tdg import solve_heat_tdg
+from heat_tdg import solve_heat_tdg
 import numpy as np
 from argparse import ArgumentParser
 

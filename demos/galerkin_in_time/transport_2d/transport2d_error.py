@@ -1,5 +1,5 @@
 from firedrake import *
-from .transport2d import solve_transport_2d
+from transport2d import solve_transport_2d
 from irksome.fetsome.timenorm import time_errornorm
 from irksome.fetsome.timequadrature import make_gauss_time_quadrature
 from argparse import ArgumentParser

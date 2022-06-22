@@ -1,6 +1,6 @@
 from firedrake import *
 from irksome.fetsome.fetutils import translate_generator
-from .burgers_dg import solve_burgers_dg_space
+from burgers_dg import solve_burgers_dg_space
 from argparse import ArgumentParser
 
 import numpy as np

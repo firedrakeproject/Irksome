@@ -1,5 +1,5 @@
 from firedrake import FunctionPlotter, tripcolor
-from .heat2d import solve_heat_2d_forced
+from heat2d import solve_heat_2d_forced
 from irksome.fetsome.fetutils import translate_generator
 from argparse import ArgumentParser
 
