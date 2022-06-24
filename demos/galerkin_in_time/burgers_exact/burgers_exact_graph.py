@@ -17,7 +17,7 @@ parser.add_argument("t_max", type=float, nargs=1,
                     help="Total time of solution (sugg 0.8)")
 parser.add_argument("kt", type=int, nargs=1,
                     help="Polynomial degree of time finite element (sugg. 1)")
-parser.add_argument("generator", type=str, nargs=1, choices=("standard","nostep","petrov"),
+parser.add_argument("generator", type=str, nargs=1, choices=("petrov", "tdg"),
                     help="Type of time form generator to pass to the solver")
 
 if __name__ == "__main__":
