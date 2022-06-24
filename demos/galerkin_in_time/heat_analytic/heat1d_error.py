@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 
 # Parser setup to run the script
 parser = ArgumentParser("python3 heat1d_error.py", description="Compute the error for the analytic "
-                        "example for the 1D heat equation.")
+                        "example for the 1D heat equation with continuous time elements (cPG).")
 parser.add_argument("spatial_elements", type=int, nargs=1,
                     help="Number of spatial elements per spatial direction to solve the problem (sugg. 200)")
 parser.add_argument("dt", type=float, nargs=1,
@@ -27,12 +27,8 @@ if __name__ == "__main__":
     dt = args.dt[0]
     tmax = args.t_max[0]
     kt = args.kt[0]
-    generator = args.generator[0]
 
-    # Parse type of form generator
-    generator_code = translate_generator[generator]
-
-    us = solve_heat_analytic(Ns, dt, tmax, kt, generator_code, info=True)
+    us = solve_heat_analytic(Ns, dt, tmax, kt, "CPG", info=True)
 
     # Prepare the time snapshots for the analytic solution:
     #       u(x, t) = 1/2 * cos(2pi/L * x) * exp(-4pi^2/L^2 * t)

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
 parser = ArgumentParser("python3 heat2d_error_graph.py", description="Draw a graph of the error for the MMS "
-                        "example of the 2d heat equation.")
+                        "example of the 2d heat equation with continuous time elements (cPG).")
 parser.add_argument("plot_file", type=str, nargs=1,
                     help="Name of the file that will contain the error plot.")
 parser.add_argument("spatial_elements", type=int, nargs=1,
@@ -16,8 +16,6 @@ parser.add_argument("t_max", type=float, nargs=1,
                     help="Total time of solution (sugg 5.0)")
 parser.add_argument("kt", type=int, nargs=1,
                     help="Polynomial degree of time finite element (sugg. 1)")
-parser.add_argument("generator", type=str, nargs=1, choices=("petrov", "tdg"),
-                    help="Type of time form generator to pass to the solver")
 
 if __name__ == "__main__":
     # Parse the script arguments (including number of spatial elements, total time, time basis degree)
@@ -26,10 +24,6 @@ if __name__ == "__main__":
     Ns = args.spatial_elements[0]
     tmax = args.t_max[0]
     kt = args.kt[0]
-    generator = args.generator[0]
-
-    # Parse type of form generator
-    generator_code = translate_generator[generator]
 
     dts = [0.0625, 0.125, 0.25, 0.5, 1., 2.5]
     # Safety check on minimum timestep
@@ -41,7 +35,7 @@ if __name__ == "__main__":
     es = []
     for dt in dts:
         print("Running error estimate for dt =", dt)
-        us = solve_heat_2d_forced(Ns, dt, tmax, kt, generator_code, info=True)
+        us = solve_heat_2d_forced(Ns, dt, tmax, kt, "CPG", info=True)
 
         V = us[0].function_space()
         x, y = SpatialCoordinate(V.mesh())

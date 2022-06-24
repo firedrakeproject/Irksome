@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 
 # Parser setup to run the script
 parser = ArgumentParser("python3 heat_tdg_graph.py", description="Solve and plot the analytic "
-                        "example for the 1D heat equation.")
+                        "example for the 1D heat equation with discontinuous time elements (dG).")
 parser.add_argument("plot_file", type=str, nargs=1,
                     help="The name of the file that will hold the plot (including extension)")
 parser.add_argument("spatial_elements", type=int, nargs=1,

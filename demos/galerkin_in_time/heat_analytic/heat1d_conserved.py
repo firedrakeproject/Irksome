@@ -9,7 +9,7 @@ def energy(u):
     return assemble(u * dx)
 
 parser = ArgumentParser("python3 heat1d_conserved.jpg", description="Draw a graph of the total energy over time "
-                        "for the numerical example of the 1d analytic heat equation.")
+                        "for the numerical example of the 1d analytic heat equation with continuous time elements (cPG).")
 parser.add_argument("plot_file", type=str, nargs=1,
                     help="Name of the where the energy plot will be saved.")
 parser.add_argument("spatial_elements", type=int, nargs=1,
@@ -20,8 +20,6 @@ parser.add_argument("t_max", type=float, nargs=1,
                     help="Total time of solution (sugg 20.0)")
 parser.add_argument("kt", type=int, nargs=1,
                     help="Polynomial degree of time finite element (sugg. 1)")
-parser.add_argument("generator", type=str, nargs=1, choices=("standard","nostep","petrov"),
-                    help="Type of time form generator to pass to the solver")
 
 
 if __name__ == "__main__":
@@ -33,12 +31,8 @@ if __name__ == "__main__":
     dt = args.dt[0]
     tmax = args.t_max[0]
     kt = args.kt[0]
-    generator = args.generator[0]
 
-    # Extract the generator code
-    generator_code = translate_generator[generator]
-
-    us = solve_heat_analytic(Ns, dt, tmax, kt, generator_code, info=True)
+    us = solve_heat_analytic(Ns, dt, tmax, kt, "CPG", info=True)
 
     # Calculate the energies (total integral over domain) for each of the interesting timesteps
     ts = [dt * i for i in range(len(us))]

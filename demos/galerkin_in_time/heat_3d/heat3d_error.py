@@ -27,8 +27,7 @@ if __name__ == "__main__":
 
     us = solve_heat_3d_forced(Ns, dt, tmax, kt, "CPG", info=True)
 
-    # Prepare the snapshots for the analytic solution:
-    #       u(x,y,t) = pi * sin^2(pi*x) * sin^2(pi*y) * e^(-1/2 t)
+    # Prepare the snapshots for the analytic solution
     time_quadrature = time_gauss_quadrature_overkill()
     V = us[0].function_space()
     x, y, z = SpatialCoordinate(V.mesh())

@@ -5,7 +5,8 @@ from argparse import ArgumentParser
 from irksome.fetsome.fetutils import translate_generator
 
 # Parser setup to run the script
-parser = ArgumentParser("python3 exponential_graph.py", description="Solve a BC exponential.")
+parser = ArgumentParser("python3 exponential_graph.py", description="Solve a BC exponential with "
+                        "continuous time elements (cPG).")
 parser.add_argument("plot_file", type=str, nargs=1,
                     help="The name of the file that will hold the plot (including extension)")
 parser.add_argument("spatial_elements", type=int, nargs=1,
@@ -16,8 +17,6 @@ parser.add_argument("t_max", type=float, nargs=1,
                     help="Total time of solution (sugg 3.75)")
 parser.add_argument("kt", type=int, nargs=1,
                     help="Polynomial degree of time finite element (sugg. 1)")
-parser.add_argument("generator", type=str, nargs=1, choices=("petrov", "tdg"),
-                    help="Type of time form generator to pass to the solver")
 
 if __name__ == "__main__":
     # Parse the arguments for the script (including number of spatial elements, timestep,
@@ -28,14 +27,10 @@ if __name__ == "__main__":
     dt = args.dt[0]
     tmax = args.t_max[0]
     kt = args.kt[0]
-    generator = args.generator[0]
-
-    # Parse type of form generator
-    generator_code = translate_generator[generator]
 
     # Get the approximated solution
     print("Solving the equation...")
-    us = solve_exponential(Ns, dt, tmax, kt, generator_code, info=True)
+    us = solve_exponential(Ns, dt, tmax, kt, "CPG", info=True)
 
     # Prepare the analytical solution to graph alongside it
     V = us[0].function_space()

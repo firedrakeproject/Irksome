@@ -4,7 +4,8 @@ from irksome.fetsome.fetutils import translate_generator
 from argparse import ArgumentParser
 
 # Parser setup to run the script
-parser = ArgumentParser("python3 heat2d_graph.py", description="Solve and plot a movie of the 2d forced heat equation")
+parser = ArgumentParser("python3 heat2d_graph.py", description="Solve and plot a movie of the 2d forced heat equation "
+                        "with continuous time elements (cPG)")
 parser.add_argument("plot_file", type=str, nargs=1,
                     help="The name of the file that will hold the plot (including extension)")
 parser.add_argument("spatial_elements", type=int, nargs=1,
@@ -15,8 +16,6 @@ parser.add_argument("t_max", type=float, nargs=1,
                     help="Total time of solution (sugg 5.0)")
 parser.add_argument("kt", type=int, nargs=1,
                     help="Polynomial degree of time finite element (sugg. 1)")
-parser.add_argument("generator", type=str, nargs=1, choices=("standard","nostep","petrov"),
-                    help="Type of time form generator to pass to the solver")
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -25,10 +24,8 @@ if __name__ == "__main__":
     dt = args.dt[0]
     tmax = args.t_max[0]
     kt = args.kt[0]
-    generator = args.generator[0]
 
-    generator_code = translate_generator[generator]
-    us = solve_heat_2d_forced(Ns, dt, tmax, kt, generator_code, info=True)
+    us = solve_heat_2d_forced(Ns, dt, tmax, kt, "CPG", info=True)
 
     print("Making the movie")
     import matplotlib.pyplot as plt
