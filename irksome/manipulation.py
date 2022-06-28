@@ -6,11 +6,12 @@ These can be used to do some basic checking of the suitability of a
 splitting out terms in the :class:`~ufl.Form` that contain a time
 derivative from those that don't (via :func:`~.extract_terms`).
 """
+from ufl import split
 from functools import partial, singledispatch
 from itertools import chain
 from operator import contains, or_
 from typing import Callable, FrozenSet, List, NamedTuple, Tuple, Union
-
+import numpy as np
 from gem.node import Memoizer
 from tsfc.ufl_utils import ufl_reuse_if_untouched
 from ufl.algebra import Conj, Division, Product, Sum
@@ -226,3 +227,11 @@ def strip_dt_form(F):
 
     # Return the form stripped of its time derivatives
     return Fnew
+
+
+def is_dae(F, u):
+    """Checks whether every bit of u has a time derivative on it."""
+    V = u.function_space()
+    nf = len(V)
+    bitlist = [u0] if nf == 1 else list(split(u0))
+    u0bits = np.array(bitlist, dtype="O")
