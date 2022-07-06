@@ -28,8 +28,8 @@ def getNullspace(V, Vbig, butch, nullspace):
     else:
         try:
             nullspace.sort()
-        except TypeError:
-            raise TypeError("Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer")
+        except AttributeError:
+            raise AttributeError("Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer")
         if (nullspace[-1][0] > num_fields) or (nullspace[0][0] < 0):
             raise ValueError("At least one index for nullspaces is out of range")
         nspnew = []
