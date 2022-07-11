@@ -3,14 +3,16 @@
 # toward polynomial/imex-type methods
 from functools import reduce
 from operator import mul
+
 import numpy as np
-
-from firedrake import TestFunction, Function, split, Constant, DirichletBC, interpolate, project, NonlinearVariationalProblem, NonlinearVariationalSolver, inner, dx
-
-from .tools import replace, getNullspace, AI, IA
-from .manipulation import extract_terms, strip_dt_form
-from ufl.classes import Zero
+from firedrake import (Constant, DirichletBC, Function,
+                       NonlinearVariationalProblem, NonlinearVariationalSolver,
+                       TestFunction, dx, inner, interpolate, project, split)
 from numpy import vectorize
+from ufl.classes import Zero
+
+from .manipulation import extract_terms, strip_dt_form
+from .tools import AI, IA, getNullspace, replace
 
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
@@ -340,7 +342,7 @@ class StageValueTimeStepper:
             self.update_problem,
             solver_parameters=update_solver_parameters)
 
-        self._update = self._update_general
+        self._update = self._update_riia
 
     # Unused for now since null spaces don't seem to work with it.
     def _update_riia(self):
