@@ -161,7 +161,7 @@ def NavierStokesSplitTest(N, num_stages):
     test_z = TestFunction(Z)
 
     x, y = SpatialCoordinate(mesh)
-    
+
     def Fimp(z, test):
         u, p = split(z)
         v, q = split(test)
@@ -180,7 +180,7 @@ def NavierStokesSplitTest(N, num_stages):
 
     bcs = [DirichletBC(Z.sub(0), as_vector([x*(1-x), 0]), (4,)),
            DirichletBC(Z.sub(0), as_vector([0, 0]), (1, 2, 3))]
-       
+
     nsp = [(1, VectorSpaceBasis(constant=True))]
 
     lunl = {
