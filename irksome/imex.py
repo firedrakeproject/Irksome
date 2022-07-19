@@ -215,6 +215,7 @@ class RadauIIAIMEXMethod():
                           "dt": dt,
                           "u0": u0,
                           "bcs": bcs,
+                          "stage_type": "value",
                           "splitting": splitting,
                           "nullspace": nullspace}
         if appctx is None:
