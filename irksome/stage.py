@@ -66,9 +66,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
          on whether the function space for f supports interpolation or
          not.
     """
-    # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
-    assert is_ode(F, u0) or butch.stiffly_accurate()
-
     v = F.arguments()[0]
     V = v.function_space()
 
@@ -240,10 +237,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
     nspacenew = getNullspace(V, Vbig, butch, nullspace)
 
-    # For RIIA, we have an optimized update rule and don't need to
-    # build the variational form for doing updates.
-    # But something's broken with null spaces, so that's a TO-DO.
-
     unew = Function(V)
 
     Fupdate = inner(unew - u0, v) * dx
@@ -301,6 +294,11 @@ class StageValueTimeStepper:
                  solver_parameters=None, update_solver_parameters=None,
                  splitting=AI,
                  nullspace=None, appctx=None):
+        # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
+        ode_huh = is_ode(F, u0)
+        stiff_acc_huh = butcher_tableau.is_stiffly_accurate
+        assert ode_huh or stiff_acc_huh
+
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -343,9 +341,11 @@ class StageValueTimeStepper:
             self.update_problem,
             solver_parameters=update_solver_parameters)
 
-        self._update = self._update_riia
+        if stiff_acc_huh:
+            self._update = self._update_riia
+        else:
+            self._update = self._update_general
 
-    # Unused for now since null spaces don't seem to work with it.
     def _update_riia(self):
         u0 = self.u0
 
