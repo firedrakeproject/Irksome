@@ -36,8 +36,11 @@ class ButcherTableau(object):
         """Determines whether the method is stiffly accurate."""
         res = zeros(self.num_stages)
         res[-1] = 1.0
-        return numpy.allclose(res, solve(self.A.T, self.b))
-
+        try:
+            return numpy.allclose(res, solve(self.A.T, self.b))
+        except numpy.linalg.LinAlgError:
+            return False
+        
     def __str__(self):
         return str(self.__class__).split(".")[-1][:-2]+"()"
 

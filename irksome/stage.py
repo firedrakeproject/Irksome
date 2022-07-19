@@ -1,6 +1,4 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
-# This gives a different flow for the substitutions and is a first step
-# toward polynomial/imex-type methods
 from functools import reduce
 from operator import mul
 
@@ -12,7 +10,7 @@ from numpy import vectorize
 from ufl.classes import Zero
 
 from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, IA, getNullspace, replace
+from .tools import AI, IA, getNullspace, is_ode, replace
 
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
@@ -68,6 +66,9 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
          on whether the function space for f supports interpolation or
          not.
     """
+    # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
+    assert is_ode(F, u0) or butch.stiffly_accurate()
+
     v = F.arguments()[0]
     V = v.function_space()
 

@@ -56,6 +56,7 @@ def test_is_stiffly_accurate(bt):
 
 
 @pytest.mark.parametrize('bt', tuple([GaussLegendre(k) for k in (1, 2, 3)]
-                                     + [QinZhang()]))
+                                     + [QinZhang()]
+                                     + [LobattoIIIA(k) for k in (2, 3)]))
 def test_is_not_stiffly_accurate(bt):
     assert not bt.is_stiffly_accurate
