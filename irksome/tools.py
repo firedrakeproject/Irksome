@@ -1,11 +1,13 @@
-from firedrake import MixedVectorSpaceBasis
-from ufl.algorithms.analysis import has_exact_type
+import numpy
+from firedrake import MixedVectorSpaceBasis, split
+from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.classes import CoefficientDerivative
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
 from ufl.log import error
-import numpy
+
+from irksome.deriv import TimeDerivative
 
 
 def getNullspace(V, Vbig, butch, nullspace):
@@ -28,8 +30,8 @@ def getNullspace(V, Vbig, butch, nullspace):
     else:
         try:
             nullspace.sort()
-        except TypeError:
-            raise TypeError("Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer")
+        except AttributeError:
+            raise AttributeError("Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer")
         if (nullspace[-1][0] > num_fields) or (nullspace[0][0] < 0):
             raise ValueError("At least one index for nullspaces is out of range")
         nspnew = []
@@ -96,3 +98,13 @@ def AI(A):
 
 def IA(A):
     return (numpy.eye(*A.shape, dtype=A.dtype), A)
+
+
+def is_ode(f, u):
+    """Given a form defined over a function `u`, checks if
+    (each bit of) u appears under a time derivative."""
+    blah = extract_type(f, TimeDerivative)
+
+    Dtbits = set(b.ufl_operands[0] for b in blah)
+    ubits = set(split(u))
+    return Dtbits == ubits

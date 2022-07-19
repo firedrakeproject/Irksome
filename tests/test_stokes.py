@@ -1,7 +1,6 @@
 import pytest
 from firedrake import *
-
-from irksome import Dt, TimeStepper, LobattoIIIC, RadauIIA
+from irksome import Dt, LobattoIIIC, RadauIIA, TimeStepper
 from irksome.tools import AI, IA
 from ufl.algorithms import expand_derivatives
 
@@ -24,7 +23,8 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     (x, y) = SpatialCoordinate(mesh)
 
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
-    pexact = Constant(0, domain=mesh)
+    # pexact = Constant(0, domain=mesh)
+    pexact = x + y * t
 
     u_rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + grad(pexact)
     p_rhs = -div(uexact)
@@ -69,7 +69,12 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
         t.assign(float(t) + float(dt))
 
     (u, p) = z.split()
-    return errornorm(uexact, u) + errornorm(pexact, p)
+
+    # check error mod the constants
+    perr = norm(pexact - p - assemble((pexact-p) * dx))
+
+    print(perr, errornorm(uexact, u))
+    return errornorm(uexact, u) + perr
 
 
 # make sure things run on a driven cavity.  We time step a while
@@ -104,8 +109,8 @@ def NSETest(butch, stage_type, splitting):
     solver_parameters = {"mat_type": "aij",
                          "snes_type": "newtonls",
                          "snes_linesearch_type": "bt",
-                         "snes_linesearch_monitor": None,
-                         "snes_monitor": None,
+                         # "snes_linesearch_monitor": None,
+                         # "snes_monitor": None,
                          "snes_rtol": 1e-10,
                          "snes_atol": 1e-10,
                          "snes_force_iteration": 1,
@@ -114,7 +119,7 @@ def NSETest(butch, stage_type, splitting):
                          "pc_factor_mat_solver_type": "mumps"}
 
     t = Constant(0.0)
-    dt = Constant(0.3/N)
+    dt = Constant(1.0/N)
     stepper = TimeStepper(F, butch,
                           t, dt, up,
                           bcs=bcs,
@@ -123,12 +128,15 @@ def NSETest(butch, stage_type, splitting):
                           nullspace=nullspace)
 
     tfinal = 1.0
+    u, p = up.split()
     while (float(t) < tfinal):
         if (float(t) + float(dt) > tfinal):
             dt.assign(1.0 - float(t))
         stepper.advance()
+        p -= assemble(p*dx)
+        print(float(t), norm(u), norm(p), assemble(p*dx))
         t.assign(float(t) + float(dt))
-    u, p = up.split()
+
     return norm(u)
 
 
@@ -151,4 +159,5 @@ def test_NSE(butch, time_stages, stage_type):
 
 
 if __name__ == "__main__":
-    test_NSE(LobattoIIIC, 2, "value", IA)
+    # test_NSE(LobattoIIIC, 2, "value")
+    test_Stokes(8, RadauIIA, 2, "value", IA)
