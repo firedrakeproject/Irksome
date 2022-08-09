@@ -9,7 +9,7 @@ import numpy as np
 from ufl.classes import Zero
 
 
-def explicit_coeffs(k):
+def riia_explicit_coeffs(k):
     """Computes the coefficients needed for the explicit part
     of a RadauIIA-IMEX method."""
     U = FIAT.ufc_simplex(1)
@@ -44,7 +44,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     num_stages = butch.num_stages
     num_fields = len(V)
     vc = np.vectorize(Constant)
-    Aexp = explicit_coeffs(num_stages)
+    Aexp = riia_explicit_coeffs(num_stages)
     Aprop = vc(Aexp)
     Ait = vc(butch.A)
     C = vc(butch.c)

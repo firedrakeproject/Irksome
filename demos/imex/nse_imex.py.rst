@@ -112,7 +112,7 @@ whereas the other steppers just take a single form as input::
                                nullspace=nullspace)
 
 The IMEX methods have a concept of "propagators" and "iterators".
-One needs to use the later to get the values of the solution in the
+One needs to use the latter to get the values of the solution in the
 first time slab, which are initially rubbish except for the initial condition.::
 
   num_iter_init = 10
