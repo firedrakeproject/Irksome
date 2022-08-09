@@ -109,8 +109,6 @@ def NSETest(butch, stage_type, splitting):
     solver_parameters = {"mat_type": "aij",
                          "snes_type": "newtonls",
                          "snes_linesearch_type": "bt",
-                         # "snes_linesearch_monitor": None,
-                         # "snes_monitor": None,
                          "snes_rtol": 1e-10,
                          "snes_atol": 1e-10,
                          "snes_force_iteration": 1,
@@ -159,5 +157,4 @@ def test_NSE(butch, time_stages, stage_type):
 
 
 if __name__ == "__main__":
-    # test_NSE(LobattoIIIC, 2, "value")
     test_Stokes(8, RadauIIA, 2, "value", IA)
