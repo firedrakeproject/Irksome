@@ -1,16 +1,16 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
-# This gives a different flow for the substitutions and is a first step
-# toward polynomial/imex-type methods
 from functools import reduce
 from operator import mul
+
 import numpy as np
-
-from firedrake import TestFunction, Function, split, Constant, DirichletBC, interpolate, project, NonlinearVariationalProblem, NonlinearVariationalSolver, inner, dx
-
-from .tools import replace, getNullspace, AI, IA
-from .manipulation import extract_terms, strip_dt_form
-from ufl.classes import Zero
+from firedrake import (Constant, DirichletBC, Function,
+                       NonlinearVariationalProblem, NonlinearVariationalSolver,
+                       TestFunction, dx, inner, interpolate, project, split)
 from numpy import vectorize
+from ufl.classes import Zero
+
+from .manipulation import extract_terms, strip_dt_form
+from .tools import AI, IA, getNullspace, is_ode, replace
 
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
@@ -237,10 +237,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
     nspacenew = getNullspace(V, Vbig, butch, nullspace)
 
-    # For RIIA, we have an optimized update rule and don't need to
-    # build the variational form for doing updates.
-    # But something's broken with null spaces, so that's a TO-DO.
-
     unew = Function(V)
 
     Fupdate = inner(unew - u0, v) * dx
@@ -298,6 +294,11 @@ class StageValueTimeStepper:
                  solver_parameters=None, update_solver_parameters=None,
                  splitting=AI,
                  nullspace=None, appctx=None):
+        # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
+        ode_huh = is_ode(F, u0)
+        stiff_acc_huh = butcher_tableau.is_stiffly_accurate
+        assert ode_huh or stiff_acc_huh
+
         self.u0 = u0
         self.t = t
         self.dt = dt
@@ -340,9 +341,11 @@ class StageValueTimeStepper:
             self.update_problem,
             solver_parameters=update_solver_parameters)
 
-        self._update = self._update_general
+        if stiff_acc_huh:
+            self._update = self._update_riia
+        else:
+            self._update = self._update_general
 
-    # Unused for now since null spaces don't seem to work with it.
     def _update_riia(self):
         u0 = self.u0
 

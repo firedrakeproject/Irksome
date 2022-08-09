@@ -1,5 +1,6 @@
-from numpy import sqrt, array, allclose
-from irksome import GaussLegendre, LobattoIIIA, LobattoIIIC, RadauIIA
+import pytest
+from irksome import GaussLegendre, LobattoIIIA, LobattoIIIC, QinZhang, RadauIIA
+from numpy import allclose, array, sqrt
 
 # Test some generated collocation methods against known
 # tables to make sure the Butcher tableaux are right.
@@ -46,3 +47,16 @@ def test_RadauIIA():
 
     for (X, Y) in zip([A, Aexplicit, b, c], [bt.A, bt.Aexplicit, bt.b, bt.c]):
         assert allclose(X, Y)
+
+
+@pytest.mark.parametrize('bt', tuple([RadauIIA(k) for k in (1, 2, 3)]
+                                     + [LobattoIIIC(k) for k in (2, 3)]))
+def test_is_stiffly_accurate(bt):
+    assert bt.is_stiffly_accurate
+
+
+@pytest.mark.parametrize('bt', tuple([GaussLegendre(k) for k in (1, 2, 3)]
+                                     + [QinZhang()]
+                                     + [LobattoIIIA(k) for k in (2, 3)]))
+def test_is_not_stiffly_accurate(bt):
+    assert not bt.is_stiffly_accurate

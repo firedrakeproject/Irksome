@@ -1,6 +1,7 @@
 import FIAT
 import numpy
-from numpy import vander
+from numpy import vander, zeros
+from numpy.linalg import solve
 
 
 class ButcherTableau(object):
@@ -29,6 +30,16 @@ class ButcherTableau(object):
     def num_stages(self):
         """Return the number of stages the method has."""
         return len(self.b)
+
+    @property
+    def is_stiffly_accurate(self):
+        """Determines whether the method is stiffly accurate."""
+        res = zeros(self.num_stages)
+        res[-1] = 1.0
+        try:
+            return numpy.allclose(res, solve(self.A.T, self.b))
+        except numpy.linalg.LinAlgError:
+            return False
 
     def __str__(self):
         return str(self.__class__).split(".")[-1][:-2]+"()"
@@ -82,7 +93,7 @@ class CollocationButcherTableau(ButcherTableau):
 
         V = vander(c, increasing=True)
         rhs = numpy.array([1.0/(s+1) for s in range(num_stages-1)] + [0])
-        btilde = numpy.linalg.solve(V.T, rhs)
+        btilde = solve(V.T, rhs)
 
         super(CollocationButcherTableau, self).__init__(A, b, btilde, c, order)
 
