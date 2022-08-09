@@ -99,7 +99,7 @@ def NavierStokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     z = Function(Z)
     u, p = z.split()
     u.interpolate(uexact)
-    p.interpolat(pexact)
+    p.interpolate(pexact)
 
     test_z = TestFunction(Z)
     (u, p) = split(z)

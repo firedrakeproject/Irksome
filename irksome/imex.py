@@ -141,7 +141,6 @@ class RadauIIAIMEXMethod():
     the iterator is applied many times per time step,
     one expects convergence to the solution that would have been
     obtained from fully-implicit RadauIIA method.
-
     :arg F: A :class:`ufl.Form` instance describing the implicit part
             of the semi-discrete problem
             F(t, u; v) == 0, where `u` is the unknown
@@ -173,7 +172,6 @@ class RadauIIAIMEXMethod():
     :arg appctx: An optional :class:`dict` containing application context.
     :arg nullspace: An optional null space object.
     """
-
     def __init__(self, F, Fexp, butcher_tableau,
                  t, dt, u0, bcs=None,
                  it_solver_parameters=None,
