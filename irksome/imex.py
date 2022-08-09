@@ -128,11 +128,10 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     return Fit, Fprop
 
 
-class RadauIIAIMEXMethod():
+class RadauIIAIMEXMethod:
     """Class for advancing a time-dependent PDE via a polynomial
     IMEX/RadauIIA method.  This requires one to split the PDE into
     an implicit and explicit part.
-
     The class sets up two methods -- `advance` and `iterate`.
     The former is used to move the solution forward in time,
     while the latter is used both to start the method (filling up
@@ -141,6 +140,7 @@ class RadauIIAIMEXMethod():
     the iterator is applied many times per time step,
     one expects convergence to the solution that would have been
     obtained from fully-implicit RadauIIA method.
+
     :arg F: A :class:`ufl.Form` instance describing the implicit part
             of the semi-discrete problem
             F(t, u; v) == 0, where `u` is the unknown
