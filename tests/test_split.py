@@ -5,17 +5,16 @@ from firedrake import (
     UnitIntervalMesh, UnitSquareMesh, FunctionSpace, Constant,
     TestFunction, Function, DirichletBC, VectorElement,
     FiniteElement, MixedElement, VectorSpaceBasis, SpatialCoordinate,
-    inner, grad, dx, sin, pi, interpolate, split,
-    errornorm, as_vector, dot, div, diff)
+    assemble, inner, grad, dx, sin, pi, interpolate, split,
+    errornorm, as_vector, dot, div)
 from irksome import Dt, RadauIIA, TimeStepper, RadauIIAIMEXMethod
 from irksome.tools import AI, IA
 import pytest
-from ufl.algorithms import expand_derivatives
 
 
 @pytest.mark.parametrize('splitting', (AI, IA))
 def test_diffreact(splitting):
-    N = 32
+    N = 16
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 2)
     v = TestFunction(V)
@@ -72,76 +71,6 @@ def test_diffreact(splitting):
         t.assign(float(t) + float(dt))
 
     assert errornorm(u_split, u_imp) < 1.e-10
-
-
-def NavierStokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
-    mesh = UnitSquareMesh(N, N)
-
-    Ve = VectorElement("CG", mesh.ufl_cell(), 2)
-    Pe = FiniteElement("CG", mesh.ufl_cell(), 1)
-    Ze = MixedElement([Ve, Pe])
-    Z = FunctionSpace(mesh, Ze)
-
-    t = Constant(0.0)
-    dt = Constant(1.0/N)
-    (x, y) = SpatialCoordinate(mesh)
-
-    uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
-    pexact = Constant(0, domain=mesh)
-
-    u_rhs = (
-        expand_derivatives(diff(uexact, t))
-        - div(grad(uexact))
-        + grad(pexact)
-        + dot(uexact, grad(uexact)))
-    p_rhs = -div(uexact)
-
-    z = Function(Z)
-    u, p = z.split()
-    u.interpolate(uexact)
-    p.interpolate(pexact)
-
-    test_z = TestFunction(Z)
-    (u, p) = split(z)
-    (v, q) = split(test_z)
-    F = (inner(Dt(u), v)*dx
-         + inner(grad(u), grad(v))*dx
-         + inner(dot(u, grad(u)), v)*dx
-         - inner(p, div(v))*dx
-         - inner(q, div(u))*dx
-         - inner(u_rhs, v)*dx
-         - inner(p_rhs, q)*dx)
-
-    bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
-    nsp = [(1, VectorSpaceBasis(constant=True))]
-
-    u, p = z.split()
-    u.interpolate(uexact)
-
-    lu = {"mat_type": "aij",
-          "snes_type": "newtonls",
-          "snes_linesearch_type": "l2",
-          "snes_linesearch_monitor": None,
-          "snes_monitor": None,
-          "snes_rtol": 1e-10,
-          "snes_atol": 1e-10,
-          "snes_force_iteration": 1,
-          "ksp_type": "preonly",
-          "pc_type": "lu",
-          "pc_factor_mat_solver_type": "mumps"}
-
-    stepper = TimeStepper(F, butcher_tableau, t, dt, z,
-                          stage_type=stage_type,
-                          bcs=bcs, solver_parameters=lu, nullspace=nsp)
-
-    while (float(t) < 1.0):
-        if (float(t) + float(dt) > 1.0):
-            dt.assign(1.0 - float(t))
-        stepper.advance()
-        t.assign(float(t) + float(dt))
-
-    (u, p) = z.split()
-    return errornorm(uexact, u) + errornorm(pexact, p)
 
 
 def NavierStokesSplitTest(N, num_stages):
@@ -222,17 +151,19 @@ def NavierStokesSplitTest(N, num_stages):
         for i in range(num_iter_perstep):
             imex_stepper.iterate()
         t.assign(float(t) + float(dt))
-        uimp, _ = z_imp.split()
-        usplit, _ = z_split.split()
-        print(errornorm(uimp, usplit))
+        uimp, pimp = z_imp.split()
+        pimp -= assemble(pimp*dx)
+        usplit, psplit = z_split.split()
+        psplit -= assemble(psplit*dx)
+        print(errornorm(uimp, usplit), errornorm(pimp, psplit))
 
-    return errornorm(z_imp, z_split)
+    return errornorm(uimp, usplit) + errornorm(pimp, psplit)
 
 
-@pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
-def test_NavierStokes(N):
-    error = NavierStokesTest(N, RadauIIA(2), stage_type="value",
-                             splitting=AI)
+@pytest.mark.parametrize('N', [2**j for j in range(3, 5)])
+@pytest.mark.parametrize('num_stages', [1, 2])
+def test_SplitNavierStokes(N, num_stages):
+    error = NavierStokesSplitTest(N, num_stages)
     print(abs(error))
     assert abs(error) < 4e-8
 
