@@ -171,7 +171,9 @@ class RadauIIAIMEXMethod():
     :arg splitting: An callable used to factor the Butcher matrix,
             currently, only AI is supported.
     :arg appctx: An optional :class:`dict` containing application context.
+    :arg nullspace: An optional null space object.
     """
+
     def __init__(self, F, Fexp, butcher_tableau,
                  t, dt, u0, bcs=None,
                  it_solver_parameters=None,
