@@ -146,7 +146,7 @@ class RadauIIAIMEXMethod:
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` is the
             :class:firedrake.TestFunction`.
-    :arg Fexp A :class:`ufl.Form` instance describing the part of the
+    :arg Fexp: A :class:`ufl.Form` instance describing the part of the
             PDE that is explicitly split off.
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
             the Runge-Kutta method to be used for time marching.
