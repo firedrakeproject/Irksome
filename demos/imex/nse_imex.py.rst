@@ -51,8 +51,7 @@ Here are the standard boundary conditions and null space::
   bcs = [DirichletBC(Z.sub(0), Constant((1, 0)), (4,)),
          DirichletBC(Z.sub(0), Constant((0, 0)), (1, 2, 3))]
 
-  nullspace = MixedVectorSpaceBasis(
-      Z, [Z.sub(0), VectorSpaceBasis(constant=True)])
+  nullspace = [(1, VectorSpaceBasis(constant=True))]
 
 Here is the Butcher tableau.  It has to be a RadauIIA, but you can
 experiment with the number of stages as desired::
@@ -110,7 +109,7 @@ whereas the other steppers just take a single form as input::
                                bcs=bcs,
                                prop_solver_parameters=solver_parameters,
                                it_solver_parameters=solver_parameters,
-                               nullspace=None)
+                               nullspace=nullspace)
 
 The IMEX methods have a concept of "propagators" and "iterators".
 One needs to use the later to get the values of the solution in the

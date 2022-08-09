@@ -1,4 +1,4 @@
-from .stage import getFormStage
+from .stage import getBits, getFormStage
 from .tools import replace, AI, IA
 from .ButcherTableaux import RadauIIA
 from firedrake import (Constant, Function, NonlinearVariationalProblem,
@@ -7,7 +7,6 @@ from firedrake.dmhooks import pop_parent, push_parent
 import FIAT
 import numpy as np
 from ufl.classes import Zero
-from .stage import getBits
 
 
 def explicit_coeffs(k):
@@ -123,7 +122,8 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
                 # and sum the contribution
                 Fprop += Ablah[i, j] * dt * replace(Ftmp, repl)
     else:
-        raise NotImplementedError("Unsupported splitting type")
+        raise NotImplementedError(
+            "Must specify splitting to either IA or AI")
 
     return Fit, Fprop
 

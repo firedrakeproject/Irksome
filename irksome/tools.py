@@ -6,7 +6,6 @@ from ufl.classes import CoefficientDerivative
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
 from ufl.log import error
-
 from irksome.deriv import TimeDerivative
 
 
