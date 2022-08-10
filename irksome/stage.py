@@ -347,11 +347,11 @@ class StageValueTimeStepper:
             solver_parameters=update_solver_parameters)
 
         if stiff_acc_huh:
-            self._update = self._update_riia
+            self._update = self._update_stiff_acc
         else:
             self._update = self._update_general
 
-    def _update_riia(self):
+    def _update_stiff_acc(self):
         u0 = self.u0
 
         UUs = self.UU.split()
