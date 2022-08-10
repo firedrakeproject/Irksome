@@ -1,15 +1,16 @@
 import petsc4py.PETSc
+
 petsc4py.PETSc.Sys.popErrorHandler() # noqa
 
-from firedrake import (
-    UnitIntervalMesh, UnitSquareMesh, FunctionSpace, Constant,
-    TestFunction, Function, DirichletBC, VectorElement,
-    FiniteElement, MixedElement, VectorSpaceBasis, SpatialCoordinate,
-    assemble, inner, grad, dx, sin, pi, interpolate, split,
-    errornorm, as_vector, dot, div)
-from irksome import Dt, RadauIIA, TimeStepper, RadauIIAIMEXMethod
-from irksome.tools import AI, IA
 import pytest
+from firedrake import (Constant, DirichletBC, FiniteElement, Function,
+                       FunctionSpace, MixedElement, SpatialCoordinate,
+                       TestFunction, TrialFunctions, UnitIntervalMesh,
+                       UnitSquareMesh, VectorElement, VectorSpaceBasis, action,
+                       as_vector, assemble, derivative, div, dot, dx,
+                       errornorm, grad, inner, interpolate, pi, sin, split)
+from irksome import Dt, RadauIIA, RadauIIAIMEXMethod, TimeStepper
+from irksome.tools import AI, IA
 
 
 @pytest.mark.parametrize('splitting', (AI, IA))
@@ -73,7 +74,49 @@ def test_diffreact(splitting):
     assert errornorm(u_split, u_imp) < 1.e-10
 
 
-def NavierStokesSplitTest(N, num_stages):
+# next two functions used for splitting the full nonlinear term off.
+def FimpSt(z, test):
+    u, p = split(z)
+    v, q = split(test)
+    return (inner(Dt(u), v)*dx
+            + inner(grad(u), grad(v))*dx
+            - inner(p, div(v))*dx
+            - inner(q, div(u))*dx)
+
+
+def FexpSt(z, test):
+    u, _ = split(z)
+    v, _ = split(test)
+    return inner(dot(u, grad(u)), v) * dx
+
+
+# these functions are used for a linearly implicit method, keeping the
+# Jacobian of the nonlinear term implicit.
+def linterm(z, test):
+    u, p = split(z)
+    v, q = split(test)
+    return action(derivative(inner(dot(u, grad(u)), v) * dx, z), z)
+
+
+def FimpLI(z, test):
+    u, p = split(z)
+    v, q = split(test)
+    u0, p0 = TrialFunctions(z.function_space())
+
+    return (inner(Dt(u), v)*dx
+            + inner(grad(u), grad(v))*dx
+            - inner(p, div(v))*dx
+            - inner(q, div(u))*dx
+            + linterm(z, test))
+
+
+def FexpLI(z, test):
+    u, _ = split(z)
+    v, _ = split(test)
+    return inner(dot(u, grad(u)), v) * dx - linterm(z, test)
+
+
+def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     mesh = UnitSquareMesh(N, N)
     butcher_tableau = RadauIIA(num_stages)
 
@@ -91,19 +134,6 @@ def NavierStokesSplitTest(N, num_stages):
 
     x, y = SpatialCoordinate(mesh)
 
-    def Fimp(z, test):
-        u, p = split(z)
-        v, q = split(test)
-        return (inner(Dt(u), v)*dx
-                + inner(grad(u), grad(v))*dx
-                - inner(p, div(v))*dx
-                - inner(q, div(u))*dx)
-
-    def Fexp(z, test):
-        u, _ = split(z)
-        v, _ = split(test)
-        return inner(dot(u, grad(u)), v) * dx
-
     def Ffull(z, test):
         return Fimp(z, test) + Fexp(z, test)
 
@@ -114,11 +144,15 @@ def NavierStokesSplitTest(N, num_stages):
 
     lunl = {
         "mat_type": "aij",
-        "snes_type": "newtonls",
-        "snes_linesearch_type": "l2",
         "snes_rtol": 1e-10,
         "snes_atol": 1e-10,
-        "snes_force_iteration": 1,
+        "ksp_type": "preonly",
+        "pc_type": "lu",
+        "pc_factor_mat_solver_type": "mumps"}
+
+    lulin = {
+        "mat_type": "aij",
+        "snes_type": "ksponly",
         "ksp_type": "preonly",
         "pc_type": "lu",
         "pc_factor_mat_solver_type": "mumps"}
@@ -135,7 +169,7 @@ def NavierStokesSplitTest(N, num_stages):
     imex_stepper = RadauIIAIMEXMethod(
         F_imp, F_exp, butcher_tableau, t, dt, z_split,
         bcs=bcs, nullspace=nsp,
-        it_solver_parameters=lunl, prop_solver_parameters=lunl)
+        it_solver_parameters=lulin, prop_solver_parameters=lulin)
 
     num_iter_init = 10
     for i in range(num_iter_init):
@@ -162,8 +196,10 @@ def NavierStokesSplitTest(N, num_stages):
 
 @pytest.mark.parametrize('N', [2**j for j in range(3, 5)])
 @pytest.mark.parametrize('num_stages', [1, 2])
-def test_SplitNavierStokes(N, num_stages):
-    error = NavierStokesSplitTest(N, num_stages)
+@pytest.mark.parametrize('Fimp,Fexp', [(FimpSt, FexpSt),
+                                       (FimpLI, FexpLI)])
+def test_SplitNavierStokes(N, num_stages, Fimp, Fexp):
+    error = NavierStokesSplitTest(N, num_stages, Fimp, Fexp)
     print(abs(error))
     assert abs(error) < 4e-8
 
