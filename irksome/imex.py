@@ -1,12 +1,13 @@
-from .stage import getBits, getFormStage
-from .tools import replace, AI, IA
-from .ButcherTableaux import RadauIIA
+import FIAT
+import numpy as np
 from firedrake import (Constant, Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction)
 from firedrake.dmhooks import pop_parent, push_parent
-import FIAT
-import numpy as np
 from ufl.classes import Zero
+
+from .ButcherTableaux import RadauIIA
+from .stage import getBits, getFormStage
+from .tools import AI, IA, replace
 
 
 def riia_explicit_coeffs(k):
@@ -188,11 +189,11 @@ class RadauIIAIMEXMethod:
         self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
 
-        # Since this assumes RadauIIA, we drop
+        # Since this assumes stiff accuracy, we drop
         # the update information on the floor.
         Fbig, _, UU, bigBCs, gblah, nsp = getFormStage(
             F, butcher_tableau, u0, t, dt, bcs,
-            splitting=splitting)
+            splitting=splitting, nullspace=nullspace)
 
         self.UU = UU
         self.UU_old = UU_old = Function(UU.function_space())
