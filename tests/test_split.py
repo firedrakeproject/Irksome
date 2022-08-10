@@ -78,8 +78,9 @@ def test_diffreact(splitting):
 def FimpSt(z, test):
     u, p = split(z)
     v, q = split(test)
+    Re = Constant(10.0)
     return (inner(Dt(u), v)*dx
-            + inner(grad(u), grad(v))*dx
+            + 1/Re * inner(grad(u), grad(v))*dx
             - inner(p, div(v))*dx
             - inner(q, div(u))*dx)
 
@@ -102,9 +103,10 @@ def FimpLI(z, test):
     u, p = split(z)
     v, q = split(test)
     u0, p0 = TrialFunctions(z.function_space())
+    Re = Constant(10.0)
 
     return (inner(Dt(u), v)*dx
-            + inner(grad(u), grad(v))*dx
+            + 1/Re * inner(grad(u), grad(v))*dx
             - inner(p, div(v))*dx
             - inner(q, div(u))*dx
             + linterm(z, test))
@@ -126,7 +128,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     Z = FunctionSpace(mesh, Ze)
 
     t = Constant(0.0)
-    dt = Constant(1.0/N)
+    dt = Constant(0.5/N)
 
     z_imp = Function(Z)
     z_split = Function(Z)
