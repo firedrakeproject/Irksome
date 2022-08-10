@@ -151,6 +151,7 @@ class RadauIIAIMEXMethod:
             PDE that is explicitly split off.
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
             the Runge-Kutta method to be used for time marching.
+            Only RadauIIA is allowed here (but it can be any number of stages).
     :arg t: A :class:`firedrake.Constant` instance that always
             contains the time value at the beginning of a time step
     :arg dt: A :class:`firedrake.Constant` containing the size of the
