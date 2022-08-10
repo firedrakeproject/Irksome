@@ -78,7 +78,7 @@ def test_diffreact(splitting):
 def FimpSt(z, test):
     u, p = split(z)
     v, q = split(test)
-    Re = Constant(10.0)
+    Re = Constant(1.0)
     return (inner(Dt(u), v)*dx
             + 1/Re * inner(grad(u), grad(v))*dx
             - inner(p, div(v))*dx
@@ -103,7 +103,7 @@ def FimpLI(z, test):
     u, p = split(z)
     v, q = split(test)
     u0, p0 = TrialFunctions(z.function_space())
-    Re = Constant(10.0)
+    Re = Constant(1.0)
 
     return (inner(Dt(u), v)*dx
             + 1/Re * inner(grad(u), grad(v))*dx
