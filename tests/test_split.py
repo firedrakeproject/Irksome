@@ -128,7 +128,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     Z = FunctionSpace(mesh, Ze)
 
     t = Constant(0.0)
-    dt = Constant(0.5/N)
+    dt = Constant(1.0 / N)
 
     z_imp = Function(Z)
     z_split = Function(Z)
@@ -177,7 +177,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     for i in range(num_iter_init):
         imex_stepper.iterate()
 
-    num_iter_perstep = 5
+    num_iter_perstep = 8
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
@@ -196,8 +196,8 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     return errornorm(uimp, usplit) + errornorm(pimp, psplit)
 
 
-@pytest.mark.parametrize('N', [2**j for j in range(3, 5)])
-@pytest.mark.parametrize('num_stages', [1, 2])
+@pytest.mark.parametrize('N', [16])
+@pytest.mark.parametrize('num_stages', [2])
 @pytest.mark.parametrize('Fimp,Fexp', [(FimpSt, FexpSt),
                                        (FimpLI, FexpLI)])
 def test_SplitNavierStokes(N, num_stages, Fimp, Fexp):
