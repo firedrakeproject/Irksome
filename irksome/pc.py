@@ -2,6 +2,7 @@ import abc
 import copy
 from firedrake import AuxiliaryOperatorPC, derivative
 from irksome import getForm
+from irksome.stage import getFormStage
 import numpy
 from ufl import replace
 
@@ -54,9 +55,10 @@ class RanaBase(AuxiliaryOperatorPC):
         dt = appctx["dt"]
         u0 = appctx["u0"]
         bcs = appctx["bcs"]
-        bc_type = appctx["bc_type"]
-        splitting = appctx["splitting"]
-        nullspace = appctx["nullspace"]
+        stage_type = appctx.get("stage_type", None)
+        bc_type = appctx.get("bc_type", None)
+        splitting = appctx.get("splitting", None)
+        nullspace = appctx.get("nullspace", None)
 
         # Make a modified Butcher tableau, probably with some kind
         # of sparser structure (e.g. LD part of LDU factorization)
@@ -64,10 +66,16 @@ class RanaBase(AuxiliaryOperatorPC):
         butcher_new = copy.deepcopy(butcher_tableau)
         butcher_new.A = Atilde
 
-        # Get the UFL for the system with the modified Butcher tableau
-        Fnew, w, bcnew, bignsp, _ = getForm(F, butcher_new, t, dt, u0, bcs,
-                                            bc_type, splitting, nullspace)
+        # which getForm do I need to get?
 
+        if stage_type in ("deriv", None):
+            Fnew, w, bcnew, bignsp, _ = \
+                getForm(F, butcher_new, t, dt, u0, bcs,
+                        bc_type, splitting, nullspace)
+        elif stage_type == "value":
+            Fnew, _, w, bcnew, _, bignsp = \
+                getFormStage(F, butcher_new, u0, t, dt, bcs,
+                             splitting, nullspace)
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
         test_old = Fnew.arguments()[0]

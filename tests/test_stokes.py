@@ -23,7 +23,6 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     (x, y) = SpatialCoordinate(mesh)
 
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
-    # pexact = Constant(0, domain=mesh)
     pexact = x + y * t
 
     u_rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + grad(pexact)
