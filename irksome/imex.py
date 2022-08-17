@@ -169,7 +169,7 @@ class RadauIIAIMEXMethod:
     :arg prop_solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with the propagator.
-    :arg splitting: An callable used to factor the Butcher matrix,
+    :arg splitting: A callable used to factor the Butcher matrix,
             currently, only AI is supported.
     :arg appctx: An optional :class:`dict` containing application context.
     :arg nullspace: An optional null space object.

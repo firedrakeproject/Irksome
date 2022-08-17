@@ -1,7 +1,3 @@
-import petsc4py.PETSc
-
-petsc4py.PETSc.Sys.popErrorHandler() # noqa
-
 import pytest
 from firedrake import (Constant, DirichletBC, FiniteElement, Function,
                        FunctionSpace, MixedElement, SpatialCoordinate,
