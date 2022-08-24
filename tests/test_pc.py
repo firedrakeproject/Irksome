@@ -1,10 +1,9 @@
-from firedrake import (diff, div, dx, errornorm, grad, inner, interpolate,
-                       Constant, DirichletBC, FunctionSpace,
-                       SpatialCoordinate,
-                       TestFunction, UnitSquareMesh)
-from irksome import Dt, LobattoIIIC, RadauIIA, TimeStepper
 import numpy
 import pytest
+from firedrake import (Constant, DirichletBC, FunctionSpace, SpatialCoordinate,
+                       TestFunction, UnitSquareMesh, diff, div, dx, errornorm,
+                       grad, inner, interpolate)
+from irksome import Dt, LobattoIIIC, RadauIIA, TimeStepper
 from ufl.algorithms.ad import expand_derivatives
 
 # Tests that various PCs are actually getting the right answer.
@@ -69,7 +68,7 @@ def heat(butcher_tableau):
               }}
 
     for s in range(butcher_tableau.num_stages):
-        ranaLD["fieldsplit_%s" % (s,)] = per_field
+        ranaDU["fieldsplit_%s" % (s,)] = per_field
 
     params = [luparams, ranaLD, ranaDU]
 
