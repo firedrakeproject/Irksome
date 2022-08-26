@@ -41,6 +41,34 @@ class ButcherTableau(object):
         except numpy.linalg.LinAlgError:
             return False
 
+    @property
+    def is_explicit(self):
+        A = self.A
+        ns = self.num_stages
+        for i in range(ns):
+            for j in range(i, ns):
+                if abs(A[i, j]) > 1.e-15:
+                    return False
+        return True
+
+    @property
+    def is_diagonally_implicit(self):
+        A = self.A
+        ns = self.num_stages
+        for i in range(ns):
+            for j in range(i+1, ns):
+                if abs(A[i, j]) > 1.e-15:
+                    return False
+        return True
+
+    @property
+    def is_implicit(self):
+        return not self.is_explicit
+
+    @property
+    def is_fully_implicit(self):
+        return self.is_implicit and not self.is_diagonally_implicit
+        
     def __str__(self):
         return str(self.__class__).split(".")[-1][:-2]+"()"
 
