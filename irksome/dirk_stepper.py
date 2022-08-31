@@ -1,10 +1,11 @@
-from .getForm import getForm, AI
+from .getForm import getForm, BCStageData
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
 import numpy
 from ufl.classes import Zero
 from .tools import replace, vecconst
+
 
 
 def getFormDIRK(F, butch, t, dt, u0, bcs=None):
@@ -34,10 +35,52 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
         repl[u0bit] = gbit + dt * a * k_bit
         repl[TimeDerivative(u0bit)] = kbit
     stage_F = replace(F, repl)
-        
-    # TODO: BCs!
 
-    return stage_Fs, (k, g, a, c), None, None
+    A1inv = numpy.linalg.inv(butch.A)
+    u0_mult_np = A1inv @ numpy.ones_like(butch.c)
+    u0_mult = numpy.array([ConstantOrZero(mi)/dt for mi in u0_mult_np],
+                          dtype=object)
+
+    def bc2gcur(bc, i):
+        gorig = as_ufl(bc._original_arg)
+        gcur = Zero()
+        for j in range(num_stages):
+            gcur += ConstantOrZero(A1inv[i, j]) * replace(gorig, {t: t + c[j]*dt})
+        return gcur / dt
+
+    bcnew = []
+    gblah = []
+
+    # for dirk case, we need one new BC for each old one (rather than one per stage
+    # but we need a `Function` inside of each BC and a rule for computing that function at each time for each stage.
+    # 
+    
+    for bc in bcs:
+        # Figure out the (sub)space on which we impose the BC
+        if num_fields == 1:
+            comp = bc.function_space().component
+            if comp is not None:
+                Vsp = V.sub(comp)
+            else:
+                Vsp = V
+        else: # mixed space
+            sub = bc.function_space_index()
+            comp = bc.function_space().component
+            if comp is not None:  # check for sub-piece of vector-valued
+                Vsp = V.sub(sub).sub(comp)
+            else:
+                Vsp = V.sub(sub)
+
+        # This is not right for DIRK case...
+        # Do we just update the BC's we're given?
+        # for i in range(num_stages):
+        #     gcur = bc2gcur(bc, i)
+        #     blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
+        #     gdat, gcr, gmethod = blah.gstuff
+        #     gblah.append((gdat, gcur, gstuff))
+        #     bcnew.append(DirichletBC(Vsp, gdat, bc.sub_domain))
+
+    return stage_Fs, (k, g, a, c), bcnew, gblah
 
 
 class DIRKTimeStepper:
@@ -102,8 +145,12 @@ class DIRKTimeStepper:
             for j in range(i):
                 for (gd, kd) in zip(g.dat, ks[j].dat):
                     g.data[:] += dtc * AA[i, j] * kd.data_ro[:]
+
+            # update BC's for the variational problem
+                    
             # solve new variational problem, stash the computed
             # stage value.
+            
             # Note: implicitly uses solution value for
             # stage i as initial guess for stage i+1
             # and uses the last stage from previous time step
