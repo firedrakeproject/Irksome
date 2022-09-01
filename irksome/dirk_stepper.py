@@ -7,7 +7,6 @@ from ufl.classes import Zero
 from .tools import replace, vecconst
 
 
-
 def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     num_stages = butch.num_stages
 
@@ -53,34 +52,28 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
 
     # for dirk case, we need one new BC for each old one (rather than one per stage
     # but we need a `Function` inside of each BC and a rule for computing that function at each time for each stage.
-    # 
+
     
     for bc in bcs:
-        # Figure out the (sub)space on which we impose the BC
-        if num_fields == 1:
-            comp = bc.function_space().component
-            if comp is not None:
-                Vsp = V.sub(comp)
-            else:
-                Vsp = V
-        else: # mixed space
-            sub = bc.function_space_index()
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(sub).sub(comp)
-            else:
-                Vsp = V.sub(sub)
+        Vbc = bc.function_space()
+        bcarg = bc._original_arg
+        try: 
+            gdat = interpolate(bcarg, Vbc)
+            gmethod = lambda gd, gc: gd.interpolate(gc)
+        except:
+            gdat = interpolate(bcarg, Vbc)
+            gmethod = lambda gd, gc: gd.project(gc)
+        
+        new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)
+        bcnew.append(bc)
 
-        # This is not right for DIRK case...
-        # Do we just update the BC's we're given?
-        # for i in range(num_stages):
-        #     gcur = bc2gcur(bc, i)
-        #     blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
-        #     gdat, gcr, gmethod = blah.gstuff
-        #     gblah.append((gdat, gcur, gstuff))
-        #     bcnew.append(DirichletBC(Vsp, gdat, bc.sub_domain))
+    # to do: figure out the right logic for updating the bc at
+    # each stage and put it into the advance method below
+    # put a substitute t-> t+c * dt, and update the constant
+    # with c[i] at each stage...
+    
 
-    return stage_Fs, (k, g, a, c), bcnew, gblah
+    return stage_F, (k, g, a, c), bcnew, gblah
 
 
 class DIRKTimeStepper:
