@@ -1,9 +1,10 @@
-from .getForm import getForm, BCStageData
+import numpy
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
-import numpy
 from ufl.classes import Zero
+
+from .getForm import BCStageData, getForm
 from .tools import replace, vecconst
 
 
@@ -53,25 +54,25 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     # for dirk case, we need one new BC for each old one (rather than one per stage
     # but we need a `Function` inside of each BC and a rule for computing that function at each time for each stage.
 
-    
+
+    gblah = []
+    # note: the Constant c is used for for substitution in both
+    # the variational form and BC's, and we update it for each stage
+    # in the loop over stages in the advance method.
     for bc in bcs:
         Vbc = bc.function_space()
         bcarg = bc._original_arg
+        bcarg_stage = replace(bcarg, {t: t+c*dt})
         try: 
             gdat = interpolate(bcarg, Vbc)
             gmethod = lambda gd, gc: gd.interpolate(gc)
         except:
             gdat = interpolate(bcarg, Vbc)
             gmethod = lambda gd, gc: gd.project(gc)
-        
+
         new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)
         bcnew.append(bc)
-
-    # to do: figure out the right logic for updating the bc at
-    # each stage and put it into the advance method below
-    # put a substitute t-> t+c * dt, and update the constant
-    # with c[i] at each stage...
-    
+        gblah.append((gdat, bcarg_stage, gmethod))
 
     return stage_F, (k, g, a, c), bcnew, gblah
 
@@ -99,9 +100,12 @@ class DIRKTimeStepper:
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
         
-        stage_F, (k, g, a, c), _, _ = getFormDIRK(
+        stage_F, (k, g, a, c), bcnew, gblah = getFormDIRK(
             F, butch, t, dt, u0, bcs=bcs)
 
+        self.bcnew = bcnew
+        self.glah = gblah
+        
         appctx_irksome = {"F": F,
                           "butcher_tableau": butcher_tableau,
                           "t": t,
@@ -140,7 +144,10 @@ class DIRKTimeStepper:
                     g.data[:] += dtc * AA[i, j] * kd.data_ro[:]
 
             # update BC's for the variational problem
-                    
+            for bc in self.bcnew:
+                for (gdat, gcur, gmethod) in self.gblah
+                gmethod(gdat, gcur)
+            
             # solve new variational problem, stash the computed
             # stage value.
             
@@ -148,6 +155,8 @@ class DIRKTimeStepper:
             # stage i as initial guess for stage i+1
             # and uses the last stage from previous time step
             # for stage 0 of the next one.
+            # The former is probably optimal, we hope for the
+            # best with the latter.
             self.solver.solve()
             ks[i].assign(k)
 
