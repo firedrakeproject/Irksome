@@ -10,6 +10,8 @@ from .tools import replace, vecconst
 
 
 def getFormDIRK(F, butch, t, dt, u0, bcs=None):
+    if bcs is None:
+        bcs = []
     num_stages = butch.num_stages
 
     v = F.arguments()[0]
