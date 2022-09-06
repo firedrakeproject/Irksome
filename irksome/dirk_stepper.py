@@ -1,10 +1,11 @@
 import numpy
+from firedrake import (Constant, DirichletBC, Function,
+                       interpolate, project, split)
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake.dmhooks import pop_parent, push_parent
 from ufl.classes import Zero
-
-from .getForm import BCStageData, getForm
+from .deriv import TimeDerivative
+from .getForm import BCStageData, ConstantOrZero, getForm
 from .tools import replace, vecconst
 
 
@@ -31,8 +32,8 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     a = Constant(1.0)
 
     repl = {t: t+c*dt}
-    for ubit, kbit, gbit in zip(u0bits, kbit, gbits))):
-        repl[u0bit] = gbit + dt * a * k_bit
+    for u0bit, kbit, gbit in zip(u0bits, k_bits, gbits):
+        repl[u0bit] = gbit + dt * a * kbit
         repl[TimeDerivative(u0bit)] = kbit
     stage_F = replace(F, repl)
 
@@ -101,10 +102,10 @@ class DIRKTimeStepper:
         # stage values we've computed earlier in the time step...
         
         stage_F, (k, g, a, c), bcnew, gblah = getFormDIRK(
-            F, butch, t, dt, u0, bcs=bcs)
+            F, butcher_tableau, t, dt, u0, bcs=bcs)
 
         self.bcnew = bcnew
-        self.glah = gblah
+        self.gblah = gblah
         
         appctx_irksome = {"F": F,
                           "butcher_tableau": butcher_tableau,
@@ -117,7 +118,7 @@ class DIRKTimeStepper:
 
         self.problem = NLVP(stage_F, k)
         self.solver = NLVS(
-            problem, appctx=appctx, solver_paramters=solver_parameters,
+            self.problem, appctx=appctx, solver_parameters=solver_parameters,
             nullspace=nullspace)
 
         self.kgac = k, g, a, c
@@ -129,8 +130,8 @@ class DIRKTimeStepper:
         dtc = float(self.dt)
         bt = self.butcher_tableau
         AA = bt.A
-        CC = bt.C
-        BB = bt.B
+        CC = bt.c
+        BB = bt.b
         for i in range(self.num_stages):
             # update a, c constants tucked into the variational problem
             # for the current stage
@@ -141,12 +142,12 @@ class DIRKTimeStepper:
             g.assign(u0)
             for j in range(i):
                 for (gd, kd) in zip(g.dat, ks[j].dat):
-                    g.data[:] += dtc * AA[i, j] * kd.data_ro[:]
+                    gd.data[:] += dtc * AA[i, j] * kd.data_ro[:]
 
             # update BC's for the variational problem
             for bc in self.bcnew:
-                for (gdat, gcur, gmethod) in self.gblah
-                gmethod(gdat, gcur)
+                for (gdat, gcur, gmethod) in self.gblah:
+                    gmethod(gdat, gcur)
             
             # solve new variational problem, stash the computed
             # stage value.
@@ -164,5 +165,3 @@ class DIRKTimeStepper:
         for i in range(self.num_stages):
             for (u0d, kd) in zip(u0.dat, ks[i].dat):
                 u0d.data[:] += dtc * BB[i] * kd.data_ro[:]
-    
-        
