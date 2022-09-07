@@ -119,7 +119,7 @@ class DIRKTimeStepper:
                           "bc_type": "DAE",
                           "nullspace": nullspace}
 
-        self.problem = NLVP(stage_F, k)
+        self.problem = NLVP(stage_F, k, bcnew)
         self.solver = NLVS(
             self.problem, appctx=appctx, solver_parameters=solver_parameters,
             nullspace=nullspace)
