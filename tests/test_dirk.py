@@ -1,8 +1,9 @@
 import pytest
 from firedrake import *
 from math import isclose
-from irksome import Alexander, Dt, DIRKTimeStepper
+from irksome import Alexander, Dt, DIRKTimeStepper, TimeStepper
 from ufl.algorithms.ad import expand_derivatives
+from ufl import replace
 
 
 @pytest.mark.parametrize("butcher_tableau", [Alexander()])
@@ -46,7 +47,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    stepper = DIRKTimeStepper(
+    stepper = TimeStepper(
         F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams
     )
 
@@ -62,11 +63,11 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         # assert isclose(u.at(x0), u_0)
         # assert isclose(u.at(x1), u_1)
 
+
 @pytest.mark.parametrize("butcher_tableau", [Alexander()])
 def test_1d_heat_neumannbc(butcher_tableau):
-
-    N = 10
-    msh = IntervalMesh(N, x1)
+    N = 20
+    msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
     dt = Constant(1.0 / N)
     t = Constant(0.0)
@@ -74,6 +75,7 @@ def test_1d_heat_neumannbc(butcher_tableau):
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    u_dirk = interpolate(uexact, V)
     u = interpolate(uexact, V)
     v = TestFunction(V)
     F = (
@@ -81,25 +83,24 @@ def test_1d_heat_neumannbc(butcher_tableau):
         + inner(grad(u), grad(v)) * dx
         - inner(rhs, v) * dx
     )
-    bc = [
-    ]
+    Fdirk = replace(F, {u: u_dirk})
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    stepper = DIRKTimeStepper(
-        F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams
+    stepper = TimeStepper(
+        F, butcher_tableau, t, dt, u, solver_parameters=luparams
     )
-
-    t_end = 2.0
+    stepperdirk = DIRKTimeStepper(
+        Fdirk, butcher_tableau, t, dt, u_dirk, solver_parameters=luparams
+    )
+        
+    t_end = 1.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
         stepper.advance()
+        stepperdirk.advance()
         t.assign(float(t) + float(dt))
-        # Check solution and boundary values
-        print(errornorm(uexact, u) / norm(uexact))
-        # assert norm(u - uexact) / norm(uexact) < 10.0 ** -5
+        assert(errornorm(u_dirk, u) / norm(u)) < 1.e-10
 
 
-test_1d_heat_dirichletbc(Alexander())
-test_1d_heat_neumannbc(Alexander())
