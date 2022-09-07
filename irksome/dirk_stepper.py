@@ -64,7 +64,25 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
 
         new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)
         bcnew.append(new_bc)
-        gblah.append((gdat, bcarg_stage, gmethod))
+
+        # Figure out how to get the right dat.data of a Function
+        # in the original space so we can do the correct updating
+        # of BC data during time-stepping
+        if num_fields == 1:  # not a mixed space
+            comp = Vbc.component
+            if comp is None:  # not setting a vector component
+                dat4bc = lambda u: u.dat.data_ro
+            else:   # setting a vector component of non-mixed space
+                dat4bc = lambda u: u.dat.data_ro[:, comp]
+        else:  # mixed space
+            sub = bc.function_space_index()  # which piece of mixed space?
+            comp = Vbc.component
+            if comp is None:  # Not a vector component of a bit of a mixed space
+                dat4bc = lambda u: u.dat[sub].data_ro
+            else:
+                dat4bc = lambda u: u.dat[sub].data_ro[:, comp]
+            
+        gblah.append((gdat, bcarg_stage, gmethod, dat4bc))
 
     return stage_F, (k, g, a, c), bcnew, gblah
 
@@ -137,7 +155,7 @@ class DIRKTimeStepper:
 
             # update BC's for the variational problem
             # Evaluate the Dirichlet BC at the current stage time
-            for (bc,(gdat,gcur,gmethod)) in zip(self.bcnew, self.gblah):
+            for (bc, (gdat, gcur, gmethod, dat4bc)) in zip(self.bcnew, self.gblah):
                 gmethod(gdat, gcur)
 
                 # Now modify gdat based on the evolving solution
@@ -148,11 +166,11 @@ class DIRKTimeStepper:
                 # is debugged
 
                 # subtract u0 from gdat
-                gdat.dat.data[:] -= u0.dat.data_ro[:]
+                gdat.dat.data[:] -= dat4bc(u0)[:]
 
                 # Subtract previous stage values
                 for j in range(i):
-                    gdat.dat.data[:] -= dtc * AA[i, j] * ks[j].dat.data_ro[:]
+                    gdat.dat.data[:] -= dtc * AA[i, j] * dat4bc(ks[j])[:]
 
                 # Rescale gdat
                 gdat.dat.data[:] /= dtc * AA[i, i]
