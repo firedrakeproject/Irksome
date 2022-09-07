@@ -40,18 +40,6 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
         repl[TimeDerivative(u0bit)] = kbit
     stage_F = replace(F, repl)
 
-    A1inv = numpy.linalg.inv(butch.A)
-    u0_mult_np = A1inv @ numpy.ones_like(butch.c)
-    u0_mult = numpy.array([ConstantOrZero(mi)/dt for mi in u0_mult_np],
-                          dtype=object)
-
-    def bc2gcur(bc, i):
-        gorig = as_ufl(bc._original_arg)
-        gcur = Zero()
-        for j in range(num_stages):
-            gcur += ConstantOrZero(A1inv[i, j]) * replace(gorig, {t: t + c[j]*dt})
-        return gcur / dt
-
     bcnew = []
     gblah = []
 
@@ -75,7 +63,7 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
             gmethod = lambda gd, gc: gd.project(gc)
 
         new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)
-        bcnew.append(bc)
+        bcnew.append(new_bc)
         gblah.append((gdat, bcarg_stage, gmethod))
 
     return stage_F, (k, g, a, c), bcnew, gblah
@@ -148,9 +136,26 @@ class DIRKTimeStepper:
                     gd.data[:] += dtc * AA[i, j] * kd.data_ro[:]
 
             # update BC's for the variational problem
-            for bc in self.bcnew:
-                for (gdat, gcur, gmethod) in self.gblah:
-                    gmethod(gdat, gcur)
+            # Evaluate the Dirichlet BC at the current stage time
+            for (bc,(gdat,gcur,gmethod)) in zip(self.bcnew, self.gblah):
+                gmethod(gdat, gcur)
+
+                # Now modify gdat based on the evolving solution
+
+                # Note: this is written only for the case that len(V)
+                # = 1 and the BC is applied only on the entire
+                # function space.  Need to write other cases once this
+                # is debugged
+
+                # subtract u0 from gdat
+                gdat.dat.data[:] -= u0.dat.data_ro[:]
+
+                # Subtract previous stage values
+                for j in range(i):
+                    gdat.dat.data[:] -= dtc * AA[i, j] * ks[j].dat.data_ro[:]
+
+                # Rescale gdat
+                gdat.dat.data[:] /= dtc * AA[i, i]
             
             # solve new variational problem, stash the computed
             # stage value.

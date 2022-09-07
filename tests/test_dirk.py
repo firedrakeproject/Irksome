@@ -47,7 +47,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    stepper = TimeStepper(
+    stepper = DIRKTimeStepper(
         F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams
     )
 
@@ -124,7 +124,7 @@ def test_1d_heat_homogdbc(butcher_tableau):
         - inner(rhs, v) * dx
     )
     bc = [
-        DirichletBC(V, Constant(0.0), 'on_boundary')
+        DirichletBC(V, 0.0, 'on_boundary')
     ]
 
     Fdirk = replace(F, {u: u_dirk})
@@ -142,7 +142,6 @@ def test_1d_heat_homogdbc(butcher_tableau):
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
-        print(float(t))
         stepper.advance()
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
