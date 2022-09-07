@@ -3,6 +3,7 @@ from firedrake import (Constant, DirichletBC, Function,
                        interpolate, project, split)
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
+from ufl.constantvalue import as_ufl
 from ufl.classes import Zero
 from .deriv import TimeDerivative
 from .getForm import BCStageData, ConstantOrZero, getForm
@@ -64,7 +65,7 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     # in the loop over stages in the advance method.
     for bc in bcs:
         Vbc = bc.function_space()
-        bcarg = bc._original_arg
+        bcarg = as_ufl(bc._original_arg)
         bcarg_stage = replace(bcarg, {t: t+c*dt})
         try: 
             gdat = interpolate(bcarg, Vbc)
