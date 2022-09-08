@@ -103,7 +103,6 @@ def test_1d_heat_neumannbc(butcher_tableau):
         t.assign(float(t) + float(dt))
         assert(errornorm(u_dirk, u) / norm(u)) < 1.e-10
 
-
 @pytest.mark.parametrize("butcher_tableau", [Alexander()])
 def test_1d_heat_homogdbc(butcher_tableau):
     N = 20
@@ -142,6 +141,74 @@ def test_1d_heat_homogdbc(butcher_tableau):
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
+        stepper.advance()
+        stepperdirk.advance()
+        t.assign(float(t) + float(dt))
+        assert(errornorm(u_dirk, u) / norm(u)) < 1.e-10
+
+
+@pytest.mark.parametrize("butcher_tableau", [Alexander()])
+def test_stokes_bcs(butcher_tableau):
+    N = 10
+    mesh = UnitSquareMesh(N, N)
+
+    Ve = VectorElement("CG", mesh.ufl_cell(), 2)
+    Pe = FiniteElement("CG", mesh.ufl_cell(), 1)
+    Ze = MixedElement([Ve, Pe])
+    Z = FunctionSpace(mesh, Ze)
+
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
+    (x, y) = SpatialCoordinate(mesh)
+
+    uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
+    pexact = x + y * t
+
+    u_rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + grad(pexact)
+    p_rhs = -div(uexact)
+
+    z = Function(Z)
+    z_dirk = Function(Z)
+    test_z = TestFunction(Z)
+    (u, p) = split(z)
+    (u_dirk, p_dirk) = split(z_dirk)
+    (v, q) = split(test_z)
+    F = (inner(Dt(u), v)*dx
+         + inner(grad(u), grad(v))*dx
+         - inner(p, div(v))*dx
+         - inner(q, div(u))*dx
+         - inner(u_rhs, v)*dx
+         - inner(p_rhs, q)*dx)
+    Fdirk = replace(F, {u: u_dirk, p: p_dirk})
+
+    nsp = [(1, VectorSpaceBasis(constant=True))]
+    nsp_dirk = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True)])
+
+    u, p = z.split()
+    u.interpolate(uexact)
+    u_dirk, p_dirk = z_dirk.split()
+    u_dirk.interpolate(uexact)
+
+    #bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
+    bcs = [DirichletBC(Z.sub(0).sub(0), uexact[0], [1,2]),
+           DirichletBC(Z.sub(0).sub(1), uexact[1], [3,4])]
+
+    lu = {"mat_type": "aij",
+          "snes_type": "ksponly",
+          "snes_rtol": 1e-8,
+          "snes_atol": 1e-8,
+          "snes_force_iteration": 1,
+          "ksp_type": "preonly",
+          "pc_type": "lu",
+          "pc_factor_mat_solver_type": "mumps"}
+
+    stepper = TimeStepper(F, butcher_tableau, t, dt, z,
+                          bcs=bcs, solver_parameters=lu, nullspace=nsp)
+
+    stepperdirk = DIRKTimeStepper(Fdirk, butcher_tableau, t, dt, z_dirk,
+                                  bcs=bcs, solver_parameters=lu, nullspace=nsp_dirk)
+
+    for i in range(10):
         stepper.advance()
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
