@@ -10,6 +10,57 @@ from .getForm import BCStageData, ConstantOrZero, getForm
 from .tools import replace, vecconst
 
 
+class BCThingy:
+    def __init__(self):
+        pass
+
+    def __call__(self, u):
+        return u.dat.data_ro
+
+
+class BCCompOfNotMixedThingy:
+    def __init__(self, comp):
+        self.comp = comp
+
+    def __call__(self, u):
+        return u.dat.data_ro[:, self.comp]
+
+
+class BCMixedBitThingy:
+    def __init__(self, sub):
+        self.sub = sub
+
+    def __call__(self, u):
+        return u.dat[self.sub].data_ro
+
+
+class BCCompOfMixedBitThingy:
+    def __init__(self, sub, comp):
+        self.sub = sub
+        self.comp = comp
+
+    def __call__(self, u):
+        return u.dat[self.sub].data_ro[:, comp]
+
+
+def getThingy(V, bc):
+    num_fields = len(V)
+    Vbc = bc.function_space()
+    if num_fields == 1:
+        comp = Vbc.component
+        if comp is None:
+            return BCThingy()
+        else:
+            return BCCompOfNotMixedThingy(comp)
+    else:
+        sub = bc.function_space_index()
+        comp = Vbc.component
+        if comp is None:
+            return BCMixedBitThingy(sub)
+        else:
+            return BCCompOfMixedBitThingy(sub, comp)
+
+
 def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
@@ -74,25 +125,8 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
         new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)
         bcnew.append(new_bc)
 
-        # Figure out how to get the right dat.data of a Function
-        # in the original space so we can do the correct updating
-        # of BC data during time-stepping
-        if num_fields == 1:  # not a mixed space
-            comp = Vbc.component
-            if comp is None:  # not setting a vector component
-                dat4bc = lambda u: u.dat.data_ro
-            else:   # setting a vector component of non-mixed space
-                dat4bc = lambda u: u.dat.data_ro[:, comp]
-        else:  # mixed space
-            sub = bc.function_space_index()  # which piece of mixed space?
-            comp = Vbc.component
-            if comp is None:  # Not a vector component of a bit of a mixed space
-                dat4bc = lambda u: u.dat[sub].data_ro
-            else:
-                dat4bc = lambda u: u.dat[sub].data_ro[:, comp]
-            
-        gblah.append((gdat, bcarg_stage, gmethod, dat4bc))
-
+        dat4bc = getThingy(V, bc)
+        
     return stage_F, (k, g, a, c), bcnew, gblah
 
 
