@@ -146,6 +146,52 @@ def test_1d_heat_homogdbc(butcher_tableau):
         t.assign(float(t) + float(dt))
         assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
 
+@pytest.mark.parametrize("butcher_tableau", [Alexander()])
+def test_1d_vectorheat_componentBC(butcher_tableau):
+    N = 20
+    msh = UnitIntervalMesh(N)
+    V = VectorFunctionSpace(msh, "CG", 1,dim=2)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
+    (x,) = SpatialCoordinate(msh)
+
+    uexact = as_vector([sin(pi*x/2)*exp(-(pi**2)*t/4),cos(pi*x/2)*exp(-(pi**2)*t/4)])
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    u_dirk = interpolate(uexact, V)
+    u = interpolate(uexact, V)
+    v = TestFunction(V)
+    F = (
+        inner(Dt(u), v) * dx
+        + inner(grad(u), grad(v)) * dx
+        - inner(rhs, v) * dx
+    )
+
+    bc = [
+        DirichletBC(V.sub(0), 0.0, [1]),
+        DirichletBC(V.sub(1), 0.0, [2])
+    ]
+    # bc = DirichletBC(V, uexact, 'on_boundary')
+
+    Fdirk = replace(F, {u: u_dirk})
+
+    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+
+    stepper = TimeStepper(
+        F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams
+    )
+    stepperdirk = DIRKTimeStepper(
+        Fdirk, butcher_tableau, t, dt, u_dirk, bcs=bc, solver_parameters=luparams
+    )
+
+    t_end = 1.0
+    while float(t) < t_end:
+        if float(t) + float(dt) > t_end:
+            dt.assign(t_end - float(t))
+        stepper.advance()
+        stepperdirk.advance()
+        t.assign(float(t) + float(dt))
+        assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
+
 
 def subspace_bc(Z, uexact):
     return [DirichletBC(Z.sub(0), uexact, "on_boundary")]
