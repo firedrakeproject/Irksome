@@ -4,6 +4,7 @@ from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
 import numpy
 from .stage import StageValueTimeStepper
+from .dirk_stepper import DIRKTimeStepper
 
 
 def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
@@ -71,6 +72,12 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
             splitting=splitting,
             update_solver_parameters=update_solver_parameters,
             nullspace=nullspace)
+    elif stage_type == "dirk":
+        assert bc_type is None and splitting is None \
+            and update_solver_parameters is None
+        return DIRKTimeStepper(
+            F, butcher_tableau, t, dt, u0, bcs,
+            solver_parameters, appctx, nullspace)
 
 
 class StageDerivativeTimeStepper:

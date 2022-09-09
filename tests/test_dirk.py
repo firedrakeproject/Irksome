@@ -1,6 +1,6 @@
 import pytest
 from firedrake import *
-from irksome import Alexander, Dt, DIRKTimeStepper, TimeStepper
+from irksome import Alexander, Dt, TimeStepper
 from math import isclose
 from ufl.algorithms.ad import expand_derivatives
 from ufl import replace
@@ -47,8 +47,10 @@ def test_1d_heat_dirichletbc(butcher_tableau):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    stepper = DIRKTimeStepper(
-        F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams
+    stepper = TimeStepper(
+        F, butcher_tableau, t, dt, u, bcs=bc,
+        solver_parameters=luparams,
+        stage_type="dirk"
     )
 
     t_end = 2.0
@@ -89,8 +91,9 @@ def test_1d_heat_neumannbc(butcher_tableau):
     stepper = TimeStepper(
         F, butcher_tableau, t, dt, u, solver_parameters=luparams
     )
-    stepperdirk = DIRKTimeStepper(
-        Fdirk, butcher_tableau, t, dt, u_dirk, solver_parameters=luparams
+    stepperdirk = TimeStepper(
+        Fdirk, butcher_tableau, t, dt, u_dirk, solver_parameters=luparams,
+        stage_type="dirk"
     )
 
     t_end = 1.0
@@ -133,8 +136,9 @@ def test_1d_heat_homogdbc(butcher_tableau):
     stepper = TimeStepper(
         F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams
     )
-    stepperdirk = DIRKTimeStepper(
-        Fdirk, butcher_tableau, t, dt, u_dirk, bcs=bc, solver_parameters=luparams
+    stepperdirk = TimeStepper(
+        Fdirk, butcher_tableau, t, dt, u_dirk, bcs=bc,
+        solver_parameters=luparams, stage_type="dirk"
     )
 
     t_end = 1.0
@@ -181,8 +185,9 @@ def test_1d_vectorheat_componentBC(butcher_tableau):
     stepper = TimeStepper(
         F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams
     )
-    stepperdirk = DIRKTimeStepper(
-        Fdirk, butcher_tableau, t, dt, u_dirk, bcs=bc, solver_parameters=luparams
+    stepperdirk = TimeStepper(
+        Fdirk, butcher_tableau, t, dt, u_dirk, bcs=bc,
+        solver_parameters=luparams, stage_type="dirk"
     )
 
     t_end = 1.0
@@ -261,8 +266,10 @@ def test_stokes_bcs(butcher_tableau, bctype):
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
                           bcs=bcs, solver_parameters=lu, nullspace=nsp)
 
-    stepperdirk = DIRKTimeStepper(Fdirk, butcher_tableau, t, dt, z_dirk,
-                                  bcs=bcs, solver_parameters=lu, nullspace=nsp_dirk)
+    stepperdirk = TimeStepper(
+        Fdirk, butcher_tableau, t, dt, z_dirk,
+        bcs=bcs, solver_parameters=lu, nullspace=nsp_dirk,
+        stage_type="dirk")
 
     for i in range(10):
         stepper.advance()
