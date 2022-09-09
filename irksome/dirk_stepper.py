@@ -40,7 +40,7 @@ class BCCompOfMixedBitThingy:
         self.comp = comp
 
     def __call__(self, u):
-        return u.dat[self.sub].data_ro[:, comp]
+        return u.dat[self.sub].data_ro[:, self.comp]
 
 
 def getThingy(V, bc):
@@ -126,6 +126,7 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
         bcnew.append(new_bc)
 
         dat4bc = getThingy(V, bc)
+        gblah.append((gdat, bcarg_stage, gmethod, dat4bc))
         
     return stage_F, (k, g, a, c), bcnew, gblah
 
