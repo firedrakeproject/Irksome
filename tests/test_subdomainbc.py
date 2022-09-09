@@ -41,17 +41,17 @@ def heat_subdomainbc(N, deg, butcher_tableau, splitting=AI):
 
     return norm(u-uexact)
 
+
 def heat_componentbc(N, deg, butcher_tableau, splitting=AI):
     dt = Constant(1.0 / N)
     t = Constant(0.0)
 
     msh = UnitIntervalMesh(N)
 
-    V = VectorFunctionSpace(msh, "CG", deg,dim=2)
+    V = VectorFunctionSpace(msh, "CG", deg, dim=2)
     (x,) = SpatialCoordinate(msh)
 
-    uexact = as_vector([sin(pi*x/2)*exp(-(pi**2)*t/4),cos(pi*x/2)*exp(-(pi**2)*t/4)])
-    uexact = as_vector([(x**2-2*x)*t,(1-x**2)*t])
+    uexact = as_vector([(x**2-2*x)*t, (1-x**2)*t])
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     u = interpolate(uexact, V)
@@ -91,10 +91,11 @@ def test_subdomainbc(deg, N, time_stages, splitting):
     error = heat_subdomainbc(N, deg, GaussLegendre(time_stages), splitting)
     assert abs(error) < 1e-10
 
+
 @pytest.mark.parametrize('splitting', (AI, IA))
 @pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
 @pytest.mark.parametrize(('deg', 'time_stages'),
                          [(2, i) for i in (1, 2, 3)])
-def test_subdomainbc(deg, N, time_stages, splitting):
+def test_compbc(deg, N, time_stages, splitting):
     error = heat_componentbc(N, deg, GaussLegendre(time_stages), splitting)
     assert abs(error) < 1e-10

@@ -1,6 +1,7 @@
 import pytest
 from firedrake import *
 from irksome import Alexander, Dt, DIRKTimeStepper, TimeStepper
+from math import isclose
 from ufl.algorithms.ad import expand_derivatives
 from ufl import replace
 
@@ -57,10 +58,9 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         stepper.advance()
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
-        print(errornorm(uexact, u) / norm(uexact))
-        # assert norm(u - uexact) / norm(uexact) < 10.0 ** -5
-        # assert isclose(u.at(x0), u_0)
-        # assert isclose(u.at(x1), u_1)
+        assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
+        assert isclose(u.at(x0), u_0)
+        assert isclose(u.at(x1), u_1)
 
 
 @pytest.mark.parametrize("butcher_tableau", [Alexander()])
@@ -146,16 +146,18 @@ def test_1d_heat_homogdbc(butcher_tableau):
         t.assign(float(t) + float(dt))
         assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
 
+
 @pytest.mark.parametrize("butcher_tableau", [Alexander()])
 def test_1d_vectorheat_componentBC(butcher_tableau):
     N = 20
     msh = UnitIntervalMesh(N)
-    V = VectorFunctionSpace(msh, "CG", 1,dim=2)
+    V = VectorFunctionSpace(msh, "CG", 1, dim=2)
     dt = Constant(1.0 / N)
     t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
-    uexact = as_vector([sin(pi*x/2)*exp(-(pi**2)*t/4),cos(pi*x/2)*exp(-(pi**2)*t/4)])
+    uexact = as_vector([sin(pi*x/2)*exp(-(pi**2)*t/4),
+                        cos(pi*x/2)*exp(-(pi**2)*t/4)])
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
     u_dirk = interpolate(uexact, V)
     u = interpolate(uexact, V)

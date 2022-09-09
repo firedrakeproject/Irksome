@@ -1,13 +1,11 @@
 import numpy
 from firedrake import (Constant, DirichletBC, Function,
-                       interpolate, project, split)
+                       interpolate, split)
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from ufl.constantvalue import as_ufl
-from ufl.classes import Zero
 from .deriv import TimeDerivative
-from .getForm import BCStageData, ConstantOrZero, getForm
-from .tools import replace, vecconst
+from .tools import replace
 
 
 class BCThingy:
@@ -64,7 +62,6 @@ def getThingy(V, bc):
 def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
-    num_stages = butch.num_stages
 
     v = F.arguments()[0]
     V = v.function_space()
@@ -74,23 +71,19 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
 
     k = Function(V)
     g = Function(V)
-    
+
     # If we're on a mixed problem, we need to replace pieces of the
     # solution.  Stores an array of the splittings of the k for each stage.
     if num_fields == 1:
         k_bits = [k]
-
         u0bits = [u0]
-        vbits = [v]
         gbits = [g]
 
     else:
         k_bits = numpy.array(split(k), dtype=object)
-
         u0bits = split(u0)
-        vbits = split(v)
         gbits = split(g)
-    
+
     c = Constant(1.0)
     a = Constant(1.0)
 
@@ -105,8 +98,6 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
 
     # for dirk case, we need one new BC for each old one (rather than one per stage
     # but we need a `Function` inside of each BC and a rule for computing that function at each time for each stage.
-
-
     gblah = []
     # note: the Constant c is used for for substitution in both
     # the variational form and BC's, and we update it for each stage
@@ -115,10 +106,10 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
         Vbc = bc.function_space()
         bcarg = as_ufl(bc._original_arg)
         bcarg_stage = replace(bcarg, {t: t+c*dt})
-        try: 
+        try:
             gdat = interpolate(bcarg, Vbc)
             gmethod = lambda gd, gc: gd.interpolate(gc)
-        except:
+        except:  # noqa: E722
             gdat = interpolate(bcarg, Vbc)
             gmethod = lambda gd, gc: gd.project(gc)
 
@@ -127,12 +118,12 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
 
         dat4bc = getThingy(V, bc)
         gblah.append((gdat, bcarg_stage, gmethod, dat4bc))
-        
+
     return stage_F, (k, g, a, c), bcnew, gblah
 
 
 class DIRKTimeStepper:
-    """Front-end class for advancing a time-dependent PDE via a diagonally-implicit 
+    """Front-end class for advancing a time-dependent PDE via a diagonally-implicit
     Runge-Kutta method formulated in terms of stage derivatives."""
 
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
@@ -153,13 +144,13 @@ class DIRKTimeStepper:
         # "ks" is a list of functions for the stage values
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
-        
+
         stage_F, (k, g, a, c), bcnew, gblah = getFormDIRK(
             F, butcher_tableau, t, dt, u0, bcs=bcs)
 
         self.bcnew = bcnew
         self.gblah = gblah
-        
+
         appctx_irksome = {"F": F,
                           "butcher_tableau": butcher_tableau,
                           "t": t,
@@ -168,6 +159,10 @@ class DIRKTimeStepper:
                           "bcs": bcs,
                           "bc_type": "DAE",
                           "nullspace": nullspace}
+        if appctx is None:
+            appctx = appctx_irksome
+        else:
+            appctx = {**appctx, **appctx_irksome}
 
         self.problem = NLVP(stage_F, k, bcnew)
         self.solver = NLVS(
@@ -175,7 +170,7 @@ class DIRKTimeStepper:
             nullspace=nullspace)
 
         self.kgac = k, g, a, c
-        
+
     def advance(self):
         k, g, a, c = self.kgac
         ks = self.ks
@@ -218,10 +213,10 @@ class DIRKTimeStepper:
 
                 # Rescale gdat
                 gdat.dat.data[:] /= dtc * AA[i, i]
-            
+
             # solve new variational problem, stash the computed
             # stage value.
-            
+
             # Note: implicitly uses solution value for
             # stage i as initial guess for stage i+1
             # and uses the last stage from previous time step
