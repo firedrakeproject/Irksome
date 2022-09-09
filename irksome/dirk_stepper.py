@@ -17,6 +17,7 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
 
     v = F.arguments()[0]
     V = v.function_space()
+    assert V == u0.function_space()
 
     num_fields = len(V)
 
@@ -25,11 +26,19 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     
     # If we're on a mixed problem, we need to replace pieces of the
     # solution.  Stores an array of the splittings of the k for each stage.
-    k_bits = numpy.array(split(k))
+    if num_fields == 1:
+        k_bits = [k]
 
-    u0bits = split(u0)
-    vbits = split(v)
-    gbits = split(g)
+        u0bits = [u0]
+        vbits = [v]
+        gbits = [g]
+
+    else:
+        k_bits = numpy.array(split(k), dtype=object)
+
+        u0bits = split(u0)
+        vbits = split(v)
+        gbits = split(g)
     
     c = Constant(1.0)
     a = Constant(1.0)
