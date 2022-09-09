@@ -1,6 +1,5 @@
 import pytest
 from firedrake import *
-from math import isclose
 from irksome import Alexander, Dt, DIRKTimeStepper, TimeStepper
 from ufl.algorithms.ad import expand_derivatives
 from ufl import replace
@@ -93,7 +92,7 @@ def test_1d_heat_neumannbc(butcher_tableau):
     stepperdirk = DIRKTimeStepper(
         Fdirk, butcher_tableau, t, dt, u_dirk, solver_parameters=luparams
     )
-        
+
     t_end = 1.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -101,7 +100,8 @@ def test_1d_heat_neumannbc(butcher_tableau):
         stepper.advance()
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
-        assert(errornorm(u_dirk, u) / norm(u)) < 1.e-10
+        assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
+
 
 @pytest.mark.parametrize("butcher_tableau", [Alexander()])
 def test_1d_heat_homogdbc(butcher_tableau):
@@ -131,12 +131,12 @@ def test_1d_heat_homogdbc(butcher_tableau):
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
     stepper = TimeStepper(
-        F, butcher_tableau, t, dt, u, bcs = bc, solver_parameters=luparams
+        F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams
     )
     stepperdirk = DIRKTimeStepper(
-        Fdirk, butcher_tableau, t, dt, u_dirk, bcs = bc, solver_parameters=luparams
+        Fdirk, butcher_tableau, t, dt, u_dirk, bcs=bc, solver_parameters=luparams
     )
-        
+
     t_end = 1.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -144,11 +144,20 @@ def test_1d_heat_homogdbc(butcher_tableau):
         stepper.advance()
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
-        assert(errornorm(u_dirk, u) / norm(u)) < 1.e-10
+        assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
+
+
+def subspace_bc(Z, uexact):
+    return [DirichletBC(Z.sub(0), uexact, "on_boundary")]
+
+
+def component_bc(Z, uexact):
+    return [DirichletBC(Z.sub(0).sub(0), uexact[0], [1, 2]),
+            DirichletBC(Z.sub(0).sub(1), uexact[1], [3, 4])]
 
 
 @pytest.mark.parametrize("butcher_tableau", [Alexander()])
-@pytest.mark.parametrize("bctype",["component","subspace"])
+@pytest.mark.parametrize("bctype", [subspace_bc, component_bc])
 def test_stokes_bcs(butcher_tableau, bctype):
     N = 10
     mesh = UnitSquareMesh(N, N)
@@ -190,13 +199,7 @@ def test_stokes_bcs(butcher_tableau, bctype):
     u_dirk, p_dirk = z_dirk.split()
     u_dirk.interpolate(uexact)
 
-    if bctype == "subspace":
-        bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
-    elif bctype == "component":
-        bcs = [DirichletBC(Z.sub(0).sub(0), uexact[0], [1,2]),
-               DirichletBC(Z.sub(0).sub(1), uexact[1], [3,4])]
-    else:
-        raise ValueError("Unrecognized bc test: %s", bctype)
+    bcs = bctype(Z, uexact)
 
     lu = {"mat_type": "aij",
           "snes_type": "ksponly",
@@ -217,6 +220,4 @@ def test_stokes_bcs(butcher_tableau, bctype):
         stepper.advance()
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
-        assert(errornorm(u_dirk, u) / norm(u)) < 1.e-10
-
-
+        assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
