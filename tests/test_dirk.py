@@ -148,7 +148,8 @@ def test_1d_heat_homogdbc(butcher_tableau):
 
 
 @pytest.mark.parametrize("butcher_tableau", [Alexander()])
-def test_stokes_bcs(butcher_tableau):
+@pytest.mark.parametrize("bctype",["component","subspace"])
+def test_stokes_bcs(butcher_tableau, bctype):
     N = 10
     mesh = UnitSquareMesh(N, N)
 
@@ -189,9 +190,13 @@ def test_stokes_bcs(butcher_tableau):
     u_dirk, p_dirk = z_dirk.split()
     u_dirk.interpolate(uexact)
 
-    #bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
-    bcs = [DirichletBC(Z.sub(0).sub(0), uexact[0], [1,2]),
-           DirichletBC(Z.sub(0).sub(1), uexact[1], [3,4])]
+    if bctype == "subspace":
+        bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
+    elif bctype == "component":
+        bcs = [DirichletBC(Z.sub(0).sub(0), uexact[0], [1,2]),
+               DirichletBC(Z.sub(0).sub(1), uexact[1], [3,4])]
+    else:
+        raise ValueError("Unrecognized bc test: %s", bctype)
 
     lu = {"mat_type": "aij",
           "snes_type": "ksponly",
