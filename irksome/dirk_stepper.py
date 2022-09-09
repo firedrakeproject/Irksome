@@ -1,9 +1,10 @@
 import numpy
-from firedrake import (Constant, DirichletBC, Function,
-                       interpolate, split)
+from firedrake import Constant, DirichletBC, Function
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
+from firedrake import interpolate, split
 from ufl.constantvalue import as_ufl
+
 from .deriv import TimeDerivative
 from .tools import replace
 
