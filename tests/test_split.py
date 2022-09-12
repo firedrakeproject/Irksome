@@ -146,14 +146,14 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
         "snes_atol": 1e-10,
         "ksp_type": "preonly",
         "pc_type": "lu",
-        "pc_factor_mat_solver_type": "mumps"}
+        "pc_factor_shift_type": "nonzero"}
 
     lulin = {
         "mat_type": "aij",
         "snes_type": "ksponly",
         "ksp_type": "preonly",
         "pc_type": "lu",
-        "pc_factor_mat_solver_type": "mumps"}
+        "pc_factor_shift_type": "nonzero"}
 
     F_full = Ffull(z_imp, test_z)
     F_imp = Fimp(z_split, test_z)
@@ -173,7 +173,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     for i in range(num_iter_init):
         imex_stepper.iterate()
 
-    num_iter_perstep = 8
+    num_iter_perstep = 4
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
