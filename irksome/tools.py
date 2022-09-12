@@ -1,5 +1,5 @@
 import numpy
-from firedrake import Constant, MixedVectorSpaceBasis, split
+from firedrake import MixedVectorSpaceBasis, split
 from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.classes import CoefficientDerivative
@@ -7,9 +7,6 @@ from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
 from ufl.log import error
 from irksome.deriv import TimeDerivative
-
-
-vecconst = numpy.vectorize(Constant)
 
 
 def getNullspace(V, Vbig, butch, nullspace):
