@@ -79,12 +79,15 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
         k_bits = [k]
         u0bits = [u0]
         gbits = [g]
-
     else:
         k_bits = numpy.array(split(k), dtype=object)
         u0bits = split(u0)
         gbits = split(g)
 
+    # Note: the Constant c is used for substitution in both the
+    # variational form and BC's, and we update it for each stage in
+    # the loop over stages in the advance method.  The Constant a is
+    # used similarly in the variational form
     c = Constant(1.0)
     a = Constant(1.0)
 
@@ -97,12 +100,10 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     bcnew = []
     gblah = []
 
-    # for dirk case, we need one new BC for each old one (rather than one per stage
-    # but we need a `Function` inside of each BC and a rule for computing that function at each time for each stage.
-    gblah = []
-    # note: the Constant c is used for for substitution in both
-    # the variational form and BC's, and we update it for each stage
-    # in the loop over stages in the advance method.
+    # For the DIRK case, we need one new BC for each old one (rather
+    # than one per stage), but we need a `Function` inside of each BC
+    # and a rule for computing that function at each time for each
+    # stage.
     for bc in bcs:
         Vbc = bc.function_space()
         bcarg = as_ufl(bc._original_arg)
@@ -140,7 +141,7 @@ class DIRKTimeStepper:
         self.num_stages = num_stages = butcher_tableau.num_stages
         self.ks = [Function(V) for _ in range(num_stages)]
 
-        # "k" is a generic function that we will solve the
+        # "k" is a generic function for which we will solve the
         # NVLP for the next stage value
         # "ks" is a list of functions for the stage values
         # that we update as we go.  We need to remember the
@@ -194,17 +195,11 @@ class DIRKTimeStepper:
                     gd.data[:] += dtc * AA[i, j] * kd.data_ro[:]
 
             # update BC's for the variational problem
-            # Evaluate the Dirichlet BC at the current stage time
             for (bc, (gdat, gcur, gmethod, dat4bc)) in zip(self.bcnew, self.gblah):
+                # Evaluate the Dirichlet BC at the current stage time
                 gmethod(gdat, gcur)
 
                 # Now modify gdat based on the evolving solution
-
-                # Note: this is written only for the case that len(V)
-                # = 1 and the BC is applied only on the entire
-                # function space.  Need to write other cases once this
-                # is debugged
-
                 # subtract u0 from gdat
                 gdat.dat.data[:] -= dat4bc(u0)[:]
 
@@ -218,12 +213,11 @@ class DIRKTimeStepper:
             # solve new variational problem, stash the computed
             # stage value.
 
-            # Note: implicitly uses solution value for
-            # stage i as initial guess for stage i+1
-            # and uses the last stage from previous time step
-            # for stage 0 of the next one.
-            # The former is probably optimal, we hope for the
-            # best with the latter.
+            # Note: implicitly uses solution value for stage i as
+            # initial guess for stage i+1 and uses the last stage from
+            # previous time step for stage 0 of the next one.  The
+            # former is probably optimal, we hope for the best with
+            # the latter.
             self.solver.solve()
             ks[i].assign(k)
 

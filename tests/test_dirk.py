@@ -176,7 +176,6 @@ def test_1d_vectorheat_componentBC(butcher_tableau):
         DirichletBC(V.sub(0), 0.0, [1]),
         DirichletBC(V.sub(1), 0.0, [2])
     ]
-    # bc = DirichletBC(V, uexact, 'on_boundary')
 
     Fdirk = replace(F, {u: u_dirk})
 
