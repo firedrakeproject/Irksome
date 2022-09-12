@@ -124,7 +124,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     Z = FunctionSpace(mesh, Ze)
 
     t = Constant(0.0)
-    dt = Constant(1.0 / N)
+    dt = Constant(0.5 / N)
 
     z_imp = Function(Z)
     z_split = Function(Z)
