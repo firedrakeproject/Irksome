@@ -18,10 +18,10 @@ class BCStageData(object):
             if V.parent.index is None:  # but not part of a MFS
                 sub = V.component
                 try:
-                    gdat = interpolate(gcur-u0_mult[i]*u0, V)
+                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
                 except:  # noqa: E722
-                    gdat = project(gcur-u0_mult[i]*u0, V)
+                    gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
                     gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
             else:   # V is a bit of a VFS inside an MFS
                 sub0 = V.parent.index

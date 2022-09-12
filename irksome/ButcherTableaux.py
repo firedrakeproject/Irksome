@@ -41,6 +41,34 @@ class ButcherTableau(object):
         except numpy.linalg.LinAlgError:
             return False
 
+    @property
+    def is_explicit(self):
+        A = self.A
+        ns = self.num_stages
+        for i in range(ns):
+            for j in range(i, ns):
+                if abs(A[i, j]) > 1.e-15:
+                    return False
+        return True
+
+    @property
+    def is_diagonally_implicit(self):
+        A = self.A
+        ns = self.num_stages
+        for i in range(ns):
+            for j in range(i+1, ns):
+                if abs(A[i, j]) > 1.e-15:
+                    return False
+        return True
+
+    @property
+    def is_implicit(self):
+        return not self.is_explicit
+
+    @property
+    def is_fully_implicit(self):
+        return self.is_implicit and not self.is_diagonally_implicit
+
     def __str__(self):
         return str(self.__class__).split(".")[-1][:-2]+"()"
 
@@ -211,3 +239,21 @@ class QinZhang(PareschiRusso):
 
     def __str__(self):
         return "QinZhang()"
+
+
+class Alexander(ButcherTableau):
+    """ Third-order, diagonally implicit, 3-stage, L-stable scheme from
+    Diagonally Implicit Runge-Kutta Methods for Stiff O.D.E.'s,
+    R. Alexander, SINUM 14(6): 1006-1021, 1977."""
+    def __init__(self):
+        # Root of x^3 - 3x^2 +3x/2-1/6 between 1/6 and 1/2
+        x = 0.43586652150845899942
+        y = -1.5*x*x + 4*x - 0.25
+        z = 1.5*x*x-5*x+1.25
+        A = numpy.array([[x, 0.0, 0.0], [(1-x)/2.0, x, 0.0], [y, z, x]])
+        b = numpy.array([y, z, x])
+        c = numpy.array([x, (1+x)/2.0, 1])
+        super(Alexander, self).__init__(A, b, None, c, 3)
+
+    def __str__(self):
+        return "Alexander()"
