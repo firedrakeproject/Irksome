@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: "Build docs"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: firedrakeproject/firedrake-vanilla:latest
     steps:
