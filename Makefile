@@ -9,7 +9,7 @@ THREADS=1
 ifeq ($(THREADS), 1)
 	PYTEST_ARGS=--durations=200
 else
-	PYTEST_ARGS=-n $(THREADS) --durations=200
+	PYTEST_ARGS=-n $(THREADS) --durations=200 -v
 endif
 
 test: lint
