@@ -40,4 +40,4 @@ jobs:
         shell: bash -l {0}
         run: |
           source /home/firedrake/firedrake/bin/activate
-          make test
+          make test THREADS=12
