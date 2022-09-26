@@ -5,7 +5,7 @@ from firedrake import (Constant, DirichletBC, FiniteElement, Function,
                        UnitSquareMesh, VectorElement, VectorSpaceBasis, action,
                        as_vector, assemble, derivative, div, dot, dx,
                        errornorm, grad, inner, interpolate, pi, sin, split)
-from irksome import Dt, RadauIIA, RadauIIAIMEXMethod, TimeStepper
+from irksome import Dt, RadauIIA, TimeStepper
 from irksome.tools import AI, IA
 
 
@@ -51,22 +51,16 @@ def test_diffreact(splitting):
         bcs=bcs, splitting=splitting,
         it_solver_parameters=luparams,
         prop_solver_parameters=luparams,
-        Fexp=Fexp)
+        Fexp=Fexp,
+        num_its_initial=10,
+        num_its_per_step=5)
 
-    num_iter_init = 10
-    for i in range(num_iter_init):
-        imex_stepper.iterate()
-
-    num_iter_perstep = 5
     t_end = 10 * float(dt)
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
         rk_stepper.advance()
         imex_stepper.advance()
-
-        for i in range(num_iter_perstep):
-            imex_stepper.iterate()
         t.assign(float(t) + float(dt))
 
     assert errornorm(u_split, u_imp) < 1.e-10
@@ -172,26 +166,15 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
         bcs=bcs,
         it_solver_parameters=lulin,
         prop_solver_parameters=lulin,
-        Fexp=F_exp)
-
-    # imex_stepper = RadauIIAIMEXMethod(
-    #     F_imp, Fexp, butcher_tableau, t, dt, z_split,
-    #     bcs=bcs, nullspace=nsp,
-    #     it_solver_parameters=lulin, prop_solver_parameters=lulin)
-
-    num_iter_init = 10
-    for i in range(num_iter_init):
-        imex_stepper.iterate()
-
-    num_iter_perstep = 4
+        Fexp=F_exp,
+        num_its_initial=10,
+        num_its_per_step=4)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
             dt.assign(1.0 - float(t))
         imp_stepper.advance()
         imex_stepper.advance()
-        for i in range(num_iter_perstep):
-            imex_stepper.iterate()
         t.assign(float(t) + float(dt))
         uimp, pimp = z_imp.split()
         pimp -= assemble(pimp*dx)

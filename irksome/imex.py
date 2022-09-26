@@ -180,7 +180,9 @@ class RadauIIAIMEXMethod:
                  prop_solver_parameters=None,
                  splitting=AI,
                  appctx=None,
-                 nullspace=None):
+                 nullspace=None,
+                 num_its_initial=0,
+                 num_its_per_step=0):
         assert isinstance(butcher_tableau, RadauIIA)
 
         self.u0 = u0
@@ -189,6 +191,8 @@ class RadauIIAIMEXMethod:
         self.num_fields = len(u0.function_space())
         self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
+        self.num_its_initial = num_its_initial
+        self.num_its_per_step = num_its_per_step
 
         # Since this assumes stiff accuracy, we drop
         # the update information on the floor.
@@ -242,6 +246,9 @@ class RadauIIAIMEXMethod:
                 ii = s * num_fields + i
                 self.UU_old_split[ii].dat.data[:] = u0dat.data_ro[:]
 
+        for _ in range(num_its_initial):
+            self.iterate()
+
     def iterate(self):
         """Called 1 or more times to set up the initial state of the
         system before time-stepping.  Can also be called after each
@@ -252,7 +259,7 @@ class RadauIIAIMEXMethod:
         for uod, uud in zip(self.UU_old.dat, self.UU.dat):
             uod.data[:] = uud.data_ro[:]
 
-    def advance(self):
+    def propagate(self):
         """Moves the solution forward in time, to be followed by 0 or
         more calls to `iterate`."""
 
@@ -267,3 +274,8 @@ class RadauIIAIMEXMethod:
         self.prop_solver.solve()
         pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.UU_old.assign(self.UU)
+
+    def advance(self):
+        self.propagate()
+        for _ in range(self.num_its_per_step):
+            self.iterate()

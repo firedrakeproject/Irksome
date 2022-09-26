@@ -2,7 +2,6 @@ import numpy
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
-from ufl.classes import Zero
 from .dirk_stepper import DIRKTimeStepper
 from .getForm import AI, getForm
 from .stage import StageValueTimeStepper
@@ -58,7 +57,8 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
         "imex": ["Fexp", "stage_type", "bcs", "nullspace",
                  "it_solver_parameters", "prop_solver_parameters",
-                 "splitting", "appctx"]}
+                 "splitting", "appctx",
+                 "num_its_initial", "num_its_per_step"]}
 
     stage_type = kwargs.get("stage_type", "deriv")
     for cur_kwarg in kwargs.keys():
@@ -106,10 +106,14 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         it_solver_parameters = kwargs.get("it_solver_parameters")
         prop_solver_parameters = kwargs.get("prop_solver_parameters")
         nullspace = kwargs.get("nullspace")
+        num_its_initial = kwargs.get("num_its_initial", 0)
+        num_its_per_step = kwargs.get("num_its_per_step", 0)
+
         return RadauIIAIMEXMethod(
             F, Fexp, butcher_tableau, t, dt, u0, bcs,
             it_solver_parameters, prop_solver_parameters,
-            splitting, appctx, nullspace)
+            splitting, appctx, nullspace,
+            num_its_initial, num_its_per_step)
 
 
 class StageDerivativeTimeStepper:
