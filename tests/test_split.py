@@ -45,11 +45,13 @@ def test_diffreact(splitting):
         solver_parameters=luparams,
         stage_type="value")
 
-    imex_stepper = RadauIIAIMEXMethod(
-        Fimp, Fexp, bt, t, dt, u_split, bcs=bcs,
-        splitting=splitting,
+    imex_stepper = TimeStepper(
+        Fimp, bt, t, dt, u_split,
+        stage_type="imex",
+        bcs=bcs, splitting=splitting,
         it_solver_parameters=luparams,
-        prop_solver_parameters=luparams)
+        prop_solver_parameters=luparams,
+        Fexp=Fexp)
 
     num_iter_init = 10
     for i in range(num_iter_init):
@@ -164,10 +166,18 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
         stage_type="value",
         bcs=bcs, solver_parameters=lunl, nullspace=nsp)
 
-    imex_stepper = RadauIIAIMEXMethod(
-        F_imp, F_exp, butcher_tableau, t, dt, z_split,
-        bcs=bcs, nullspace=nsp,
-        it_solver_parameters=lulin, prop_solver_parameters=lulin)
+    imex_stepper = TimeStepper(
+        F_imp, butcher_tableau, t, dt, z_split,
+        stage_type="imex", nullspace=nsp,
+        bcs=bcs,
+        it_solver_parameters=lulin,
+        prop_solver_parameters=lulin,
+        Fexp=F_exp)
+
+    # imex_stepper = RadauIIAIMEXMethod(
+    #     F_imp, Fexp, butcher_tableau, t, dt, z_split,
+    #     bcs=bcs, nullspace=nsp,
+    #     it_solver_parameters=lulin, prop_solver_parameters=lulin)
 
     num_iter_init = 10
     for i in range(num_iter_init):

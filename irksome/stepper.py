@@ -2,18 +2,14 @@ import numpy
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
-
+from ufl.classes import Zero
 from .dirk_stepper import DIRKTimeStepper
 from .getForm import AI, getForm
 from .stage import StageValueTimeStepper
+from .imex import RadauIIAIMEXMethod
 
 
-def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
-                solver_parameters=None,
-                update_solver_parameters=None,
-                nullspace=None,
-                stage_type="deriv", appctx=None,
-                bc_type=None, splitting=None):
+def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     """Helper function to dispatch between various back-end classes
        for doing time stepping.  Returns an instance of the
        appropriate class.
@@ -53,20 +49,40 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
             inverting the mass matrix at each step (only used if
             stage_type is "value")
     """
+
+    valid_kwargs_per_stage_type = {
+        "deriv": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
+                  "bc_type", "splitting"],
+        "value": ["stage_type", "bcs", "nullspace", "solver_parameters",
+                  "update_solver_parameters", "appctx", "splitting"],
+        "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
+        "imex": ["Fexp", "stage_type", "bcs", "nullspace",
+                 "it_solver_parameters", "prop_solver_parameters",
+                 "splitting", "appctx"]}
+
+    stage_type = kwargs.get("stage_type", "deriv")
+    for cur_kwarg in kwargs.keys():
+        if cur_kwarg not in valid_kwargs_per_stage_type:
+            assert cur_kwarg in valid_kwargs_per_stage_type[stage_type]
+
     if stage_type == "deriv":
-        if bc_type is None:
-            bc_type = "DAE"
-        if splitting is None:
-            splitting = AI
-        assert update_solver_parameters is None
+        bcs = kwargs.get("bcs")
+        bc_type = kwargs.get("bc_type", "DAE")
+        splitting = kwargs.get("splitting", AI)
+        appctx = kwargs.get("appctx")
+        solver_parameters = kwargs.get("solver_parameters")
+        nullspace = kwargs.get("nullspace")
         return StageDerivativeTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
             solver_parameters=solver_parameters, nullspace=nullspace,
             bc_type=bc_type, splitting=splitting)
     elif stage_type == "value":
-        assert bc_type is None
-        if splitting is None:
-            splitting = AI
+        bcs = kwargs.get("bcs")
+        splitting = kwargs.get("splitting", AI)
+        appctx = kwargs.get("appctx")
+        solver_parameters = kwargs.get("solver_parameters")
+        update_solver_parameters = kwargs.get("update_solver_parameters")
+        nullspace = kwargs.get("nullspace")
         return StageValueTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
             solver_parameters=solver_parameters,
@@ -74,11 +90,26 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, bcs=None,
             update_solver_parameters=update_solver_parameters,
             nullspace=nullspace)
     elif stage_type == "dirk":
-        assert bc_type is None and splitting is None \
-            and update_solver_parameters is None
+        bcs = kwargs.get("bcs")
+        appctx = kwargs.get("appctx")
+        solver_parameters = kwargs.get("solver_parameters")
+        nullspace = kwargs.get("nullspace")
         return DIRKTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs,
             solver_parameters, appctx, nullspace)
+    elif stage_type == "imex":
+        Fexp = kwargs.get("Fexp")
+        assert Fexp is not None
+        bcs = kwargs.get("bcs")
+        appctx = kwargs.get("appctx")
+        splitting = kwargs.get("splitting", AI)
+        it_solver_parameters = kwargs.get("it_solver_parameters")
+        prop_solver_parameters = kwargs.get("prop_solver_parameters")
+        nullspace = kwargs.get("nullspace")
+        return RadauIIAIMEXMethod(
+            F, Fexp, butcher_tableau, t, dt, u0, bcs,
+            it_solver_parameters, prop_solver_parameters,
+            splitting, appctx, nullspace)
 
 
 class StageDerivativeTimeStepper:
