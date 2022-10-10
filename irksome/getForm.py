@@ -56,7 +56,7 @@ def ConstantOrZero(x):
     return Zero() if abs(complex(x)) < 1.e-10 else Constant(x)
 
 
-def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI,
+def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
             nullspace=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
@@ -112,6 +112,8 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type="DAE", splitting=AI,
          on whether the function space for f supports interpolation or
          not.
     """
+    if bc_type is None:
+        bc_type = "DAE"
     v = F.arguments()[0]
     V = v.function_space()
     assert V == u0.function_space()
