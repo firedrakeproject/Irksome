@@ -358,16 +358,19 @@ class StageValueTimeStepper:
         nf = self.num_fields
         ns = self.num_stages
 
-        for i, u0d in enumerate(u0.dat):
-            u0d.data[:] = UUs[nf*(ns-1)+i].dat.data_ro[:]
+        u0bits = u0.split()
+        for i, u0bit in enumerate(u0bits):
+            u0bit.assign(UUs[nf*(ns-1)+i])
 
     def _update_general(self):
         (unew, Fupdate, update_bcs, update_bcs_gblah) = self.update_stuff
         for gdat, gcur, gmethod in update_bcs_gblah:
             gmethod(gdat, gcur)
         self.update_solver.solve()
-        for u0d, und in zip(self.u0.dat, unew.dat):
-            u0d.data[:] = und.data_ro[:]
+        u0bits = self.u0.split()
+        unewbits = unew.split()
+        for u0bit, unewbit in zip(u0bits, unewbits):
+            u0bit.assign(unewbit)
 
     def advance(self):
         for gdat, gcur, gmethod in self.bcdat:
