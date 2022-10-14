@@ -225,13 +225,6 @@ class StageDerivativeTimeStepper:
 
         ws = self.ws
         u0bits = u0.split()
-        # print(type(float(b[0])))
-        # print(type(dtc))
-        
-        # for i, u0bit in enumerate(u0bits):
-        #     u0bit += dtc * ws[0]
-
-        # 1/0
         for s in range(ns):
             for i, u0bit in enumerate(u0bits):
                 u0bit += dtc * float(b[s]) * ws[nf*s+i]
