@@ -14,7 +14,7 @@ class BCThingy:
         pass
 
     def __call__(self, u):
-        return u.dat.data_ro
+        return u
 
 
 class BCCompOfNotMixedThingy:
@@ -22,7 +22,7 @@ class BCCompOfNotMixedThingy:
         self.comp = comp
 
     def __call__(self, u):
-        return u.dat.data_ro[:, self.comp]
+        return u[self.comp]
 
 
 class BCMixedBitThingy:
@@ -30,7 +30,7 @@ class BCMixedBitThingy:
         self.sub = sub
 
     def __call__(self, u):
-        return u.dat[self.sub].data_ro
+        return u.sub(self.sub)
 
 
 class BCCompOfMixedBitThingy:
@@ -39,7 +39,7 @@ class BCCompOfMixedBitThingy:
         self.comp = comp
 
     def __call__(self, u):
-        return u.dat[self.sub].data_ro[:, self.comp]
+        return u.sub(self.sub)[self.comp]
 
 
 def getThingy(V, bc):
@@ -182,6 +182,7 @@ class DIRKTimeStepper:
         AA = bt.A
         CC = bt.c
         BB = bt.b
+        gsplit = g.split()
         for i in range(self.num_stages):
             # update a, c constants tucked into the variational problem
             # for the current stage
@@ -191,8 +192,9 @@ class DIRKTimeStepper:
             # variational form
             g.assign(u0)
             for j in range(i):
-                for (gd, kd) in zip(g.dat, ks[j].dat):
-                    gd.data[:] += dtc * AA[i, j] * kd.data_ro[:]
+                ksplit = ks[j].split()
+                for (gbit, kbit) in zip(gsplit, ksplit):
+                    gbit += dtc * float(AA[i, j]) * kbit
 
             # update BC's for the variational problem
             for (bc, (gdat, gcur, gmethod, dat4bc)) in zip(self.bcnew, self.gblah):
@@ -201,14 +203,14 @@ class DIRKTimeStepper:
 
                 # Now modify gdat based on the evolving solution
                 # subtract u0 from gdat
-                gdat.dat.data[:] -= dat4bc(u0)[:]
+                gdat -= dat4bc(u0)
 
                 # Subtract previous stage values
                 for j in range(i):
-                    gdat.dat.data[:] -= dtc * AA[i, j] * dat4bc(ks[j])[:]
+                    gdat -= dtc * float(AA[i, j]) * dat4bc(ks[j])
 
                 # Rescale gdat
-                gdat.dat.data[:] /= dtc * AA[i, i]
+                gdat /= dtc * float(AA[i, i])
 
             # solve new variational problem, stash the computed
             # stage value.
@@ -223,5 +225,5 @@ class DIRKTimeStepper:
 
         # update the solution with now-computed stage values.
         for i in range(self.num_stages):
-            for (u0d, kd) in zip(u0.dat, ks[i].dat):
-                u0d.data[:] += dtc * BB[i] * kd.data_ro[:]
+            for (u0bit, kbit) in zip(u0.split(), ks[i].split()):
+                u0bit += dtc * float(BB[i]) * kbit
