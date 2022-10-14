@@ -241,10 +241,11 @@ class RadauIIAIMEXMethod:
         pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
 
         num_fields = len(self.u0.function_space())
-        for i, u0dat in enumerate(u0.dat):
+        u0split = u0.split()
+        for i, u0bit in enumerate(u0split):
             for s in range(self.num_stages):
                 ii = s * num_fields + i
-                self.UU_old_split[ii].dat.data[:] = u0dat.data_ro[:]
+                self.UU_old_split[ii].assign(u0bit)
 
         for _ in range(num_its_initial):
             self.iterate()
@@ -256,8 +257,7 @@ class RadauIIAIMEXMethod:
         push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.it_solver.solve()
         pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
-        for uod, uud in zip(self.UU_old.dat, self.UU.dat):
-            uod.data[:] = uud.data_ro[:]
+        self.UU_old.assign(self.UU)
 
     def propagate(self):
         """Moves the solution forward in time, to be followed by 0 or
@@ -265,8 +265,9 @@ class RadauIIAIMEXMethod:
 
         ns = self.num_stages
         nf = self.num_fields
-        for i, u0dat in enumerate(self.u0.dat):
-            u0dat.data[:] = self.UU_old_split[(ns-1)*nf + i].dat.data_ro[:]
+        u0split = self.u0.split()
+        for i, u0bit in enumerate(u0split):
+            u0bit.assign(self.UU_old_split[(ns-1)*nf + i])
 
         for gdat, gcur, gmethod in self.bcdat:
             gmethod(gdat, gcur)
