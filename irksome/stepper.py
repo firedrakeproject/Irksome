@@ -224,9 +224,10 @@ class StageDerivativeTimeStepper:
         nf = self.num_fields
 
         ws = self.ws
+        u0bits = u0.split()
         for s in range(ns):
-            for i, u0d in enumerate(u0.dat):
-                u0d.data[:] += dtc * b[s] * ws[nf*s+i].dat.data_ro
+            for i, u0bit in enumerate(u0bits):
+                u0bit += dtc * float(b[s]) * ws[nf*s+i]
 
     def _update_A2Tmb(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -240,8 +241,9 @@ class StageDerivativeTimeStepper:
         nf = self.num_fields
 
         ws = self.ws
-        for i, u0d in enumerate(u0.dat):
-            u0d.data[:] += dtc * ws[nf*(ns-1)+i].dat.data_ro
+        u0bits = u0.split()
+        for i, u0bit in enumerate(u0bits):
+            u0bit += dtc * ws[nf*(ns-1)+i]
 
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
