@@ -202,12 +202,12 @@ class DIRKTimeStepper:
                 # Evaluate the Dirichlet BC at the current stage time
                 gmethod(gdat, gcur)
 
-                gmethod(gdat2,dat4bc(u0))
+                gmethod(gdat2, dat4bc(u0))
                 gdat -= gdat2
 
                 # Subtract previous stage values
                 for j in range(i):
-                    gmethod(gdat2,dat4bc(ks[j]))
+                    gmethod(gdat2, dat4bc(ks[j]))
                     gdat -= dtc * float(AA[i, j]) * gdat2
 
                 # Rescale gdat
