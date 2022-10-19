@@ -119,7 +119,8 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
         bcnew.append(new_bc)
 
         dat4bc = getThingy(V, bc)
-        gblah.append((gdat, bcarg_stage, gmethod, dat4bc))
+        gdat2 = Function(gdat.function_space())
+        gblah.append((gdat, gdat2, bcarg_stage, gmethod, dat4bc))
 
     return stage_F, (k, g, a, c), bcnew, gblah
 
@@ -197,17 +198,17 @@ class DIRKTimeStepper:
                     gbit += dtc * float(AA[i, j]) * kbit
 
             # update BC's for the variational problem
-            for (bc, (gdat, gcur, gmethod, dat4bc)) in zip(self.bcnew, self.gblah):
+            for (bc, (gdat, gdat2, gcur, gmethod, dat4bc)) in zip(self.bcnew, self.gblah):
                 # Evaluate the Dirichlet BC at the current stage time
                 gmethod(gdat, gcur)
 
-                # Now modify gdat based on the evolving solution
-                # subtract u0 from gdat
-                gdat -= dat4bc(u0)
+                gmethod(gdat2,dat4bc(u0))
+                gdat -= gdat2
 
                 # Subtract previous stage values
                 for j in range(i):
-                    gdat -= dtc * float(AA[i, j]) * dat4bc(ks[j])
+                    gmethod(gdat2,dat4bc(ks[j]))
+                    gdat -= dtc * float(AA[i, j]) * gdat2
 
                 # Rescale gdat
                 gdat /= dtc * float(AA[i, i])
