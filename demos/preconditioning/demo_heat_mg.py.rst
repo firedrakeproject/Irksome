@@ -107,6 +107,14 @@ And we can advance the solution in time in typical fashion::
       print(float(t), flush=True)
       t.assign(float(t) + float(dt))
 
+After the solve, we can retrieve some statistics about the solver::
+
+  steps, nonlinear_its, linear_its = stepper.solver_stats()
+
+  print("Total number of timesteps was %d" % (steps))
+  print("Average number of nonlinear iterations per timestep was %.2f" % (nonlinear_its/steps))
+  print("Average number of linear iterations per timestep was %.2f" % (linear_its/steps))
+
 Finally, we print out the relative :math:`L^2` error::
 
   print()
