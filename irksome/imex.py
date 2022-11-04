@@ -305,5 +305,3 @@ class RadauIIAIMEXMethod:
                 self.num_linear_iterations_prop,
                 self.num_nonlinear_iterations_it,
                 self.num_linear_iterations_it)
-                
-
