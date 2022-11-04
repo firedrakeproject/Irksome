@@ -133,6 +133,11 @@ class DIRKTimeStepper:
                  solver_parameters=None,
                  appctx=None, nullspace=None):
         assert butcher_tableau.is_diagonally_implicit
+
+        self.num_steps = 0
+        self.num_nonlinear_iterations = 0
+        self.num_linear_iterations = 0
+
         self.butcher_tableau = butcher_tableau
         self.V = V = u0.function_space()
         self.u0 = u0
@@ -222,9 +227,17 @@ class DIRKTimeStepper:
             # former is probably optimal, we hope for the best with
             # the latter.
             self.solver.solve()
+            mysnes = self.solver.snes
+            self.num_nonlinear_iterations += mysnes.getIterationNumber()
+            self.num_linear_iterations += mysnes.getLinearSolveIterations()
             ks[i].assign(k)
 
         # update the solution with now-computed stage values.
         for i in range(self.num_stages):
             for (u0bit, kbit) in zip(u0.split(), ks[i].split()):
                 u0bit += dtc * float(BB[i]) * kbit
+
+        self.num_steps += 1
+
+    def solver_stats(self):
+        return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
