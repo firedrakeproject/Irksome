@@ -20,7 +20,7 @@ for certain positive parameters :math:`\beta` and :math:`\gamma`, and the curren
 
    I_{ion}(u, c) = \tfrac{1}{\epsilon} \left( u - \tfrac{u^3}{3} - c \right)
 
-so that we have an overall system of two equations.  One of them is linear but stiff/diffusive, and theo ther is nonstiff but nonlinear.  This combination makes the system a good candidate for additive partitioning/IMEX-type methods.
+so that we have an overall system of two equations.  One of them is linear but stiff/diffusive, and the other is nonstiff but nonlinear.  This combination makes the system a good candidate for additive partitioning/IMEX-type methods.
 
 
 We start with standard Firedrake/Irksome imports::
