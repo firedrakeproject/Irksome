@@ -167,6 +167,9 @@ class StageDerivativeTimeStepper:
         self.num_fields = len(u0.function_space())
         self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
+        self.num_steps = 0
+        self.num_nonlinear_iterations = 0
+        self.num_linear_iterations = 0
 
         bigF, stages, bigBCs, bigNSP, bigBCdata = \
             getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type, splitting, nullspace)
@@ -255,4 +258,10 @@ class StageDerivativeTimeStepper:
         self.solver.solve()
         pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
 
+        self.num_steps += 1
+        self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
+        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
         self._update()
+
+    def solver_stats(self):
+        return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
