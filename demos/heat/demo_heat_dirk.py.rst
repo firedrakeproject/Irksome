@@ -1,5 +1,5 @@
-Solving the Heat Equation with Irksome
-======================================
+Solving the Heat Equation with a DIRK in Irksome
+================================================
 
 Let's start with the simple heat equation on :math:`\Omega = [0,10]
 \times [0,10]`, with boundary :math:`\Gamma`:
@@ -39,9 +39,8 @@ manufactured solutions::
 
   from ufl.algorithms.ad import expand_derivatives
 
-We will create the Butcher tableau for the lowest-order Gauss-Legendre
-Runge-Kutta method, which is more commonly known as the implicit
-midpoint rule::
+We will create the Butcher tableau for a three-stage L-stable DIRK
+due to Alexander (SINUM 14(6): 1006-1021, 1977).::
 
   butcher_tableau = Alexander()
   ns = butcher_tableau.num_stages
