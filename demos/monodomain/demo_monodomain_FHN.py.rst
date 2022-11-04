@@ -102,7 +102,7 @@ F = F1 + F2.  Now, set up solver parameters.  For this problem, the Rana precond
                 "pc_type": "fieldsplit",
                 "pc_fieldsplit_type": "multiplicative"}}
 
-Each diagonal block to be solved is itself a block-coupled system, with a diffisuve block and a mass matrix on the diagonal.  Hence, we further fieldsplit each diagonal block, using algebraic multigrid for the diffusive block and incomplete Cholesky for the mass matrix.::
+Each diagonal block to be solved is itself a block-coupled system, with a diffusive block and a mass matrix on the diagonal.  Hence, we further fieldsplit each diagonal block, using algebraic multigrid for the diffusive block and incomplete Cholesky for the mass matrix.::
 
   per_stage = {
       "ksp_type": "preonly",
