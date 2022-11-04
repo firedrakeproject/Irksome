@@ -76,14 +76,14 @@ We now have support for DIRKs:
 .. toctree::
    :maxdepth: 1
 
-   demos/heat/demo_heat_dirk.py
+   demos/demo_heat_dirk.py
 
 Or check out an IMEX-type method for the monodomain equations:
 
 .. toctree::
    :maxdepth: 1
 
-   demos/monodomain/demo_monodomain_FHN.py
+   demos/demo_monodomain_FHN.py
 
 Advanced demos
 --------------
