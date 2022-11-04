@@ -128,7 +128,7 @@ The partitioned IMEX methods also provide an "iterator" that is used both to sta
   itparams = copy.deepcopy(params)
   itparams["ksp_rtol"] = 1.e-4
 
-Now, we access the IMEX method via the :function:`TimeStepper` as with other methods.  Note that we specify somewhat different kwargs, needing to specify the implicit and explicit parts separately as well as separate solver options for propagator and iterator.::
+Now, we access the IMEX method via the `TimeStepper` as with other methods.  Note that we specify somewhat different kwargs, needing to specify the implicit and explicit parts separately as well as separate solver options for propagator and iterator.::
   
   stepper = TimeStepper(F1, butcher_tableau, t, dt, uu,
                         stage_type="imex",
