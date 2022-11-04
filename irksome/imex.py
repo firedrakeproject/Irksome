@@ -194,6 +194,15 @@ class RadauIIAIMEXMethod:
         self.num_its_initial = num_its_initial
         self.num_its_per_step = num_its_per_step
 
+        # solver statistics
+        self.num_steps = 0
+        self.num_props = 0
+        self.num_its = 0
+        self.num_nonlinear_iterations_prop = 0
+        self.num_nonlinear_iterations_it = 0
+        self.num_linear_iterations_prop = 0
+        self.num_linear_iterations_it = 0
+
         # Since this assumes stiff accuracy, we drop
         # the update information on the floor.
         Fbig, _, UU, bigBCs, gblah, nsp = getFormStage(
@@ -258,6 +267,9 @@ class RadauIIAIMEXMethod:
         self.it_solver.solve()
         pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.UU_old.assign(self.UU)
+        self.num_its += 1
+        self.num_nonlinear_iterations_it += self.it_solver.snes.getIterationNumber()
+        self.num_linear_iterations_it += self.it_solver.snes.getLinearSolveIterations()
 
     def propagate(self):
         """Moves the solution forward in time, to be followed by 0 or
@@ -272,11 +284,26 @@ class RadauIIAIMEXMethod:
         for gdat, gcur, gmethod in self.bcdat:
             gmethod(gdat, gcur)
         push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
-        self.prop_solver.solve()
+
+        ps = self.prop_solver
+        ps.solve()
         pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.UU_old.assign(self.UU)
+        self.num_props += 1
+        self.num_nonlinear_iterations_prop += ps.snes.getIterationNumber()
+        self.num_linear_iterations_prop += ps.snes.getLinearSolveIterations()
 
     def advance(self):
         self.propagate()
         for _ in range(self.num_its_per_step):
             self.iterate()
+        self.num_steps += 1
+
+    def solver_stats(self):
+        return (self.num_steps, self.num_props, self.num_its,
+                self.num_nonlinear_iterations_prop,
+                self.num_linear_iterations_prop,
+                self.num_nonlinear_iterations_it,
+                self.num_linear_iterations_it)
+                
+
