@@ -201,7 +201,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
                               dtype=object)
 
         def bc2gcur(bc, i):
-            gorig = bc._original_arg
+            gorig = as_ufl(bc._original_arg)
             gfoo = expand_derivatives(diff(gorig, t))
             return replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
 
