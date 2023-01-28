@@ -22,13 +22,13 @@ def getBits(num_stages, num_fields, u0, UU, v, VV):
             VVbits = np.array([[VV]], dtype="O")
             UUbits = np.array([[UU]], dtype="O")
         else:  # multi-stage methods
-            VVbits = np.reshape(split(VV), nsxnf)
-            UUbits = np.reshape(split(UU), nsxnf)
+            VVbits = np.reshape(np.asarray(split(VV), dtype="O"), nsxnf)
+            UUbits = np.reshape(np.asarray(split(UU), dtype="O"), nsxnf)
     else:
         u0bits = np.array(list(split(u0)), dtype="O")
         vbits = np.array(list(split(v)), dtype="O")
-        VVbits = np.reshape(split(VV), nsxnf)
-        UUbits = np.reshape(split(UU), nsxnf)
+        VVbits = np.reshape(np.asarray(split(VV), dtype="O"), nsxnf)
+        UUbits = np.reshape(np.asarray(split(UU), dtype="O"), nsxnf)
 
     return u0bits, vbits, VVbits, UUbits
 
