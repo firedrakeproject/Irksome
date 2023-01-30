@@ -58,4 +58,4 @@ def elastodynamics(N, deg, butcher_tableau, splitting=AI):
 @pytest.mark.parametrize('splitting', (AI, IA))
 @pytest.mark.parametrize('time_stages', (1, 2))
 def test_bc(time_stages, splitting):
-    assert elastodynamics(4, 1, GaussLegendre(time_stages), splitting)
+    assert elastodynamics(4, 1, GaussLegendre(time_stages), splitting) < 1e-12
