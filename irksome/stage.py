@@ -8,6 +8,7 @@ from firedrake import (Constant, DirichletBC, Function,
                        TestFunction, dx, inner, interpolate, project, split)
 from numpy import vectorize
 from ufl.classes import Zero
+from ufl.constantvalue import as_ufl
 
 from .manipulation import extract_terms, strip_dt_form
 from .tools import AI, IA, getNullspace, is_ode, replace
@@ -226,7 +227,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                 Vsp = V.sub(sub)
                 Vbigi = lambda i: Vbig[sub+num_fields*i]
 
-        bcarg = bc._original_arg
+        bcarg = as_ufl(bc._original_arg)
         for i in range(num_stages):
             try:
                 gdat = interpolate(bcarg, Vsp)
@@ -277,7 +278,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
             else:
                 Vsp = V.sub(sub)
 
-        bcarg = bc._original_arg
+        bcarg = as_ufl(bc._original_arg)
         try:
             gdat = interpolate(bcarg, Vsp)
             gmethod = lambda gd, gc: gd.interpolate(gc)
