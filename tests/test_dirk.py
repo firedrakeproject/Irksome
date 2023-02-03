@@ -246,9 +246,9 @@ def test_stokes_bcs(butcher_tableau, bctype):
     nsp = [(1, VectorSpaceBasis(constant=True))]
     nsp_dirk = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True)])
 
-    u, p = z.split()
+    u, p = z.subfunctions
     u.interpolate(uexact)
-    u_dirk, p_dirk = z_dirk.split()
+    u_dirk, p_dirk = z_dirk.subfunctions
     u_dirk.interpolate(uexact)
 
     bcs = bctype(Z, uexact)

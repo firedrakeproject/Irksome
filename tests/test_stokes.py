@@ -42,7 +42,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
     nsp = [(1, VectorSpaceBasis(constant=True))]
 
-    u, p = z.split()
+    u, p = z.subfunctions
     u.interpolate(uexact)
 
     lu = {"mat_type": "aij",
@@ -67,7 +67,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
         stepper.advance()
         t.assign(float(t) + float(dt))
 
-    (u, p) = z.split()
+    (u, p) = z.subfunctions
 
     # check error mod the constants
     perr = norm(pexact - p - assemble((pexact-p) * dx))
@@ -125,7 +125,7 @@ def NSETest(butch, stage_type, splitting):
                           nullspace=nullspace)
 
     tfinal = 1.0
-    u, p = up.split()
+    u, p = up.subfunctions
     while (float(t) < tfinal):
         if (float(t) + float(dt) > tfinal):
             dt.assign(1.0 - float(t))

@@ -176,9 +176,9 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
         imp_stepper.advance()
         imex_stepper.advance()
         t.assign(float(t) + float(dt))
-        uimp, pimp = z_imp.split()
+        uimp, pimp = z_imp.subfunctions
         pimp -= assemble(pimp*dx)
-        usplit, psplit = z_split.split()
+        usplit, psplit = z_split.subfunctions
         psplit -= assemble(psplit*dx)
         print(errornorm(uimp, usplit), errornorm(pimp, psplit))
 

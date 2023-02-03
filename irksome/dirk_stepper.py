@@ -188,7 +188,7 @@ class DIRKTimeStepper:
         AA = bt.A
         CC = bt.c
         BB = bt.b
-        gsplit = g.split()
+        gsplit = g.subfunctions
         for i in range(self.num_stages):
             # update a, c constants tucked into the variational problem
             # for the current stage
@@ -198,7 +198,7 @@ class DIRKTimeStepper:
             # variational form
             g.assign(u0)
             for j in range(i):
-                ksplit = ks[j].split()
+                ksplit = ks[j].subfunctions
                 for (gbit, kbit) in zip(gsplit, ksplit):
                     gbit += dtc * float(AA[i, j]) * kbit
 
@@ -234,7 +234,7 @@ class DIRKTimeStepper:
 
         # update the solution with now-computed stage values.
         for i in range(self.num_stages):
-            for (u0bit, kbit) in zip(u0.split(), ks[i].split()):
+            for (u0bit, kbit) in zip(u0.subfunctions, ks[i].subfunctions):
                 u0bit += dtc * float(BB[i]) * kbit
 
         self.num_steps += 1
