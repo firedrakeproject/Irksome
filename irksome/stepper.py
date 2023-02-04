@@ -202,7 +202,7 @@ class StageDerivativeTimeStepper:
         if self.num_stages == 1 and self.num_fields == 1:
             self.ws = (stages,)
         else:
-            self.ws = stages.split()
+            self.ws = stages.subfunctions
 
         A1, A2 = splitting(butcher_tableau.A)
         try:
@@ -227,7 +227,7 @@ class StageDerivativeTimeStepper:
         nf = self.num_fields
 
         ws = self.ws
-        u0bits = u0.split()
+        u0bits = u0.subfunctions
         for s in range(ns):
             for i, u0bit in enumerate(u0bits):
                 u0bit += dtc * float(b[s]) * ws[nf*s+i]
@@ -244,7 +244,7 @@ class StageDerivativeTimeStepper:
         nf = self.num_fields
 
         ws = self.ws
-        u0bits = u0.split()
+        u0bits = u0.subfunctions
         for i, u0bit in enumerate(u0bits):
             u0bit += dtc * ws[nf*(ns-1)+i]
 

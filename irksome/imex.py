@@ -211,7 +211,7 @@ class RadauIIAIMEXMethod:
 
         self.UU = UU
         self.UU_old = UU_old = Function(UU.function_space())
-        self.UU_old_split = UU_old.split()
+        self.UU_old_split = UU_old.subfunctions
         self.bigBCs = bigBCs
         self.bcdat = gblah
 
@@ -250,7 +250,7 @@ class RadauIIAIMEXMethod:
         pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
 
         num_fields = len(self.u0.function_space())
-        u0split = u0.split()
+        u0split = u0.subfunctions
         for i, u0bit in enumerate(u0split):
             for s in range(self.num_stages):
                 ii = s * num_fields + i
@@ -277,7 +277,7 @@ class RadauIIAIMEXMethod:
 
         ns = self.num_stages
         nf = self.num_fields
-        u0split = self.u0.split()
+        u0split = self.u0.subfunctions
         for i, u0bit in enumerate(u0split):
             u0bit.assign(self.UU_old_split[(ns-1)*nf + i])
 

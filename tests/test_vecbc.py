@@ -15,11 +15,11 @@ def elastodynamics(N, deg, butcher_tableau, splitting=AI):
     VV = V * V
 
     uu1 = Function(VV)
-    u1, udot1 = uu1.split()
+    u1, udot1 = uu1.subfunctions
     u1.interpolate(as_vector([sin(pi*x)*sin(pi*y), sin(pi*x) * sin(pi*y)]))
 
     uu2 = Function(VV)
-    u2, udot2 = uu2.split()
+    u2, udot2 = uu2.subfunctions
     u2.interpolate(as_vector([sin(pi*x)*sin(pi*y), sin(pi*x) * sin(pi*y)]))
 
     u1, udot1 = split(uu1)

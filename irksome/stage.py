@@ -358,11 +358,11 @@ class StageValueTimeStepper:
     def _update_stiff_acc(self):
         u0 = self.u0
 
-        UUs = self.UU.split()
+        UUs = self.UU.subfunctions
         nf = self.num_fields
         ns = self.num_stages
 
-        u0bits = u0.split()
+        u0bits = u0.subfunctions
         for i, u0bit in enumerate(u0bits):
             u0bit.assign(UUs[nf*(ns-1)+i])
 
@@ -371,8 +371,8 @@ class StageValueTimeStepper:
         for gdat, gcur, gmethod in update_bcs_gblah:
             gmethod(gdat, gcur)
         self.update_solver.solve()
-        u0bits = self.u0.split()
-        unewbits = unew.split()
+        u0bits = self.u0.subfunctions
+        unewbits = unew.subfunctions
         for u0bit, unewbit in zip(u0bits, unewbits):
             u0bit.assign(unewbit)
 
