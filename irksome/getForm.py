@@ -52,8 +52,8 @@ class BCStageData(object):
         self.gstuff = (gdat, gcur, gmethod)
 
 
-def ConstantOrZero(x):
-    return Zero() if abs(complex(x)) < 1.e-10 else Constant(x)
+def ConstantOrZero(x, msh):
+    return Zero() if abs(complex(x)) < 1.e-10 else Constant(x, domain=msh)
 
 
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
@@ -116,6 +116,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bc_type = "DAE"
     v = F.arguments()[0]
     V = v.function_space()
+    msh = V.mesh()
     assert V == u0.function_space()
 
     c = numpy.array([Constant(ci) for ci in butch.c],
@@ -129,15 +130,15 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bA1inv = None
     try:
         bA2inv = numpy.linalg.inv(bA2)
-        A2inv = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA2inv],
+        A2inv = numpy.array([[ConstantOrZero(aa, msh) for aa in arow] for arow in bA2inv],
                             dtype=object)
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
 
-    A1 = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA1],
+    A1 = numpy.array([[ConstantOrZero(aa, msh) for aa in arow] for arow in bA1],
                      dtype=object)
     if bA1inv is not None:
-        A1inv = numpy.array([[ConstantOrZero(aa) for aa in arow] for arow in bA1inv],
+        A1inv = numpy.array([[ConstantOrZero(aa, msh) for aa in arow] for arow in bA1inv],
                             dtype=object)
     else:
         A1inv = None
@@ -197,7 +198,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     if bc_type == "ODE":
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
         u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
-        u0_mult = numpy.array([ConstantOrZero(mi)/dt for mi in u0_mult_np],
+        u0_mult = numpy.array([ConstantOrZero(mi, msh)/dt for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
@@ -210,14 +211,14 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
         u0_mult_np = A1inv @ numpy.ones_like(butch.c)
-        u0_mult = numpy.array([ConstantOrZero(mi)/dt for mi in u0_mult_np],
+        u0_mult = numpy.array([ConstantOrZero(mi, msh)/dt for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gcur = 0
             for j in range(num_stages):
-                gcur += ConstantOrZero(bA1inv[i, j]) / dt * replace(gorig, {t: t + c[j]*dt})
+                gcur += ConstantOrZero(bA1inv[i, j], msh) / dt * replace(gorig, {t: t + c[j]*dt})
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
