@@ -24,8 +24,8 @@ def heat(n, deg, time_stages, stage_type="deriv", splitting=IA):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    t = Constant(0.0)
-    dt = Constant(2.0 / N)
+    t = Constant(0.0, domain=msh)
+    dt = Constant(2.0 / N, domain=msh)
 
     uexact = exp(-t) * sin(pi * x)
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
@@ -39,7 +39,7 @@ def heat(n, deg, time_stages, stage_type="deriv", splitting=IA):
     F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
          - inner(rhs, v) * dx)
 
-    bc = DirichletBC(V, Constant(0), "on_boundary")
+    bc = DirichletBC(V, Constant(0, domain=msh), "on_boundary")
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, u,
                           bcs=bc, solver_parameters=params,

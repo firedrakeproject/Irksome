@@ -39,12 +39,13 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     which really just differ by which constants are in them."""
     v = Fexp.arguments()[0]
     V = v.function_space()
+    msh = V.mesh()
     Vbig = UU.function_space()
     VV = TestFunction(Vbig)
 
     num_stages = butch.num_stages
     num_fields = len(V)
-    vc = np.vectorize(Constant)
+    vc = np.vectorize(lambda c: Constant(c, domain=msh))
     Aexp = riia_explicit_coeffs(num_stages)
     Aprop = vc(Aexp)
     Ait = vc(butch.A)

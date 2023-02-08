@@ -104,7 +104,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
                                             u0, UU, v, VV)
 
-    vecconst = np.vectorize(Constant)
+    vecconst = np.vectorize(lambda c: Constant(c, domain=V.mesh()))
     C = vecconst(butch.c)
     A = vecconst(butch.A)
 
@@ -160,7 +160,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                 Fnew += A[i, j] * dt * replace(Ftmp, repl)
 
     elif splitting == IA:
-        Ainv = np.vectorize(Constant)(np.linalg.inv(butch.A))
+        Ainv = np.vectorize(lambda c: Constant(c, domain=V.mesh()))(np.linalg.inv(butch.A))
 
         # time derivative part gets inverse of Butcher matrix.
         for i in range(num_stages):
@@ -245,8 +245,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     unew = Function(V)
 
     Fupdate = inner(unew - u0, v) * dx
-    B = vectorize(Constant)(butch.b)
-    C = vectorize(Constant)(butch.c)
+    B = vectorize(lambda c: Constant(c, domain=V.mesh()))(butch.b)
+    C = vectorize(lambda c: Constant(c, domain=V.mesh()))(butch.c)
 
     for i in range(num_stages):
         repl = {t: t + C[i] * dt}

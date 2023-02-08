@@ -12,8 +12,8 @@ msh = UnitSquareMesh(N, N)
 V = FunctionSpace(msh, "CG", 1)
 x, y = SpatialCoordinate(msh)
 
-dt = Constant(10.0 / N)
-t = Constant(0.0)
+dt = Constant(10.0 / N, domain=msh)
+t = Constant(0.0, domain=msh)
 
 # This will give the exact solution at any time t.  We just have
 # to t.assign(time_we_want)
@@ -27,7 +27,7 @@ u = interpolate(uexact, V)
 # define the variational form once outside the loop
 h = CellSize(msh)
 n = FacetNormal(msh)
-beta = Constant(100.0)
+beta = Constant(100.0, domain=msh)
 v = TestFunction(V)
 F = (inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v) * dx
      - inner(dot(grad(u), n), v) * ds
