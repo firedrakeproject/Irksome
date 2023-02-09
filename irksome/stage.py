@@ -17,14 +17,26 @@ from .tools import AI, IA, getNullspace, is_ode, replace
 def getBits(num_stages, num_fields, u0, UU, v, VV):
     nsxnf = (num_stages, num_fields)
     if num_fields == 1:
-        u0bits = np.array([u0], dtype="O")
-        vbits = np.array([v], dtype="O")
+        u0bits = np.zeros((1,), dtype='O')
+        u0bits[0] = u0
+        vbits = np.zeros((1,), dtype='O')
+        vbits[0] = v
         if num_stages == 1:   # single-stage method
-            VVbits = np.array([[VV]], dtype="O")
-            UUbits = np.array([[UU]], dtype="O")
+            VVbits = np.zeros((1,), dtype='O')
+            VVbits[0] = np.zeros((1,), dtype='O')
+            VVbits[0][0] = VV
+            UUbits = np.zeros((1,), dtype='O')
+            UUbits[0] = np.zeros((1,), dtype='O')
+            UUbits[0][0] = UU
         else:  # multi-stage methods
-            VVbits = np.reshape(np.asarray(split(VV), dtype="O"), nsxnf)
-            UUbits = np.reshape(np.asarray(split(UU), dtype="O"), nsxnf)
+            VVbits = np.zeros((len(split(VV)),), dtype='O')
+            for (i, x) in enumerate(split(VV)):
+                VVbits[i] = np.zeros((1,), dtype='O')
+                VVbits[i][0] = x
+            UUbits = np.zeros((len(split(UU)),), dtype='O')
+            for (i, x) in enumerate(split(UU)):
+                UUbits[i] = np.zeros((1,), dtype='O')
+                UUbits[i][0] = x
     else:
         u0bits = np.array(list(split(u0)), dtype="O")
         vbits = np.array(list(split(v)), dtype="O")
