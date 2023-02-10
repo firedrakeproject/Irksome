@@ -7,7 +7,8 @@ from firedrake import (Constant, DirichletBC, Function,
                        NonlinearVariationalProblem, NonlinearVariationalSolver,
                        TestFunction, dx, inner, interpolate, project, split)
 from numpy import vectorize
-from ufl.classes import Zero
+from ufl.algorithms import extract_type
+from ufl.classes import Argument, FixedIndex, Grad, Indexed, MultiIndex, Zero
 from ufl.constantvalue import as_ufl
 
 from .manipulation import extract_terms, strip_dt_form
@@ -32,6 +33,17 @@ def getBits(num_stages, num_fields, u0, UU, v, VV):
         UUbits = np.reshape(np.asarray(split(UU), dtype="O"), nsxnf)
 
     return u0bits, vbits, VVbits, UUbits
+
+
+def getIndexedGradOfArguments(expr):
+    result = []
+    things = extract_type(expr, Indexed)
+    for thing in things:
+        indexed_thing = thing.ufl_operands[0]
+        if isinstance(indexed_thing, Grad):
+            if isinstance(indexed_thing.ufl_operands[0], Argument):
+                result.append(thing)
+    return result
 
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
@@ -140,6 +152,13 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
             # replace test function
             repl = {}
 
+            indexed_grad_v = getIndexedGradOfArguments(split_form.remainder)
+
+            for gv in indexed_grad_v:
+                idx = gv.ufl_operands[1]
+                newidx = MultiIndex((FixedIndex(i*num_fields + int(idx[0])), idx[1]))
+                repl[gv] = Indexed(Grad(VV), newidx)
+            
             for k in range(num_fields):
                 repl[vbits[k]] = VVbits[i][k]
                 for ii in np.ndindex(vbits[k].ufl_shape):
@@ -160,6 +179,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                 Fnew += A[i, j] * dt * replace(Ftmp, repl)
 
     elif splitting == IA:
+        1/0  # Not implemented on this branch yet!
         Ainv = np.vectorize(lambda c: Constant(c, domain=V.mesh()))(np.linalg.inv(butch.A))
 
         # time derivative part gets inverse of Butcher matrix.
