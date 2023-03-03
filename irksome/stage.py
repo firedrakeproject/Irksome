@@ -46,6 +46,17 @@ def getIndexedGradOfArguments(expr):
     return result
 
 
+def getIndexedGradOfFunc(expr, u):
+    result = []
+    things = extract_type(expr, Indexed)
+    for thing in things:
+        indexed_thing = thing.ufl_operands[0]
+        if isinstance(indexed_thing, Grad):
+            if indexed_thing.ufl_operands[0] == u:
+                result.append(thing)
+    return result
+
+
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                  nullspace=None):
     """Given a time-dependent variational form and a
@@ -132,6 +143,9 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     # pieces of u
     dtless = strip_dt_form(split_form.time)
 
+    indexed_grad_v = getIndexedGradOfArguments(split_form.remainder)
+    indexed_grad_u = getIndexedGradOfFunc(split_form.remainder, u0)
+
     if splitting is None or splitting == AI:
         for i in range(num_stages):
             repl = {t: t+C[i]*dt}
@@ -152,13 +166,11 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
             # replace test function
             repl = {}
 
-            indexed_grad_v = getIndexedGradOfArguments(split_form.remainder)
-
             for gv in indexed_grad_v:
                 idx = gv.ufl_operands[1]
                 newidx = MultiIndex((FixedIndex(i*num_fields + int(idx[0])), idx[1]))
                 repl[gv] = Indexed(Grad(VV), newidx)
-            
+
             for k in range(num_fields):
                 repl[vbits[k]] = VVbits[i][k]
                 for ii in np.ndindex(vbits[k].ufl_shape):
@@ -169,6 +181,11 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
             # replace the solution with stage values
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt}
+
+                for gu in indexed_grad_u:
+                    idx = gv.ufl_operands[1]
+                    newidx = MultiIndex((FixedIndex(j*num_fields + int(idx[0])), idx[1]))
+                    repl[gu] = Indexed(Grad(UU), newidx)
 
                 for k in range(num_fields):
                     repl[u0bits[k]] = UUbits[j][k]
