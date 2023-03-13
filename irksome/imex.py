@@ -3,10 +3,10 @@ import numpy as np
 from firedrake import (Constant, Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction)
 from firedrake.dmhooks import pop_parent, push_parent
-from ufl.classes import Zero
+from ufl.classes import FixedIndex, Grad, Indexed, MultiIndex, Zero
 
 from .ButcherTableaux import RadauIIA
-from .stage import getBits, getFormStage
+from .stage import getBits, getFormStage, getIndexedGradOfArguments
 from .tools import AI, IA, replace
 
 
@@ -61,6 +61,13 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
         for i in range(num_stages):
             # replace test function
             repl = {}
+
+            indexed_grad_v = getIndexedGradOfArguments(Fexp)
+
+            for gv in indexed_grad_v:
+                idx = gv.ufl_operands[1]
+                newidx = MultiIndex((FixedIndex(i*num_fields + int(idx[0])), idx[1]))
+                repl[gv] = Indexed(Grad(VV), newidx)
 
             for k in range(num_fields):
                 repl[vbits[k]] = VVbits[i][k]
