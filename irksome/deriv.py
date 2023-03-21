@@ -1,5 +1,4 @@
 from ufl.differentiation import Derivative
-from ufl.log import error
 from ufl.core.ufl_type import ufl_type
 from ufl.corealg.multifunction import MultiFunction
 from ufl.algorithms.map_integrands import map_integrand_dags, map_expr_dag
@@ -64,7 +63,7 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
         return o
 
     def derivative(self, o):
-        error("Missing derivative handler for {0}.".format(type(o).__name__))
+        raise NotImplementedError("Missing derivative handler for {0}.".format(type(o).__name__))
 
     expr = MultiFunction.reuse_if_untouched
 

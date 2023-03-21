@@ -5,7 +5,6 @@ from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.classes import CoefficientDerivative
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
-from ufl.log import error
 from irksome.deriv import TimeDerivative
 
 
@@ -54,7 +53,7 @@ class MyReplacer(MultiFunction):
         super().__init__()
         self.replacements = mapping
         if not all(k.ufl_shape == v.ufl_shape for k, v in mapping.items()):
-            error("Replacement expressions must have the same shape as what they replace.")
+            raise ValueError("Replacement expressions must have the same shape as what they replace.")
 
     def expr(self, o):
         if o in self.replacements:
