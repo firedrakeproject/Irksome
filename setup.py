@@ -1,14 +1,5 @@
-import sys
 from setuptools import setup
 
-if "clean" in sys.argv[1:]:
-    pass
-else:
-    try:
-        import firedrake # noqa
-    except ImportError:
-        raise Exception("Firedrake needs to be installed and activated. "
-                        "Please visit firedrakeproject.org")
 setup(
     name='IRKsome',
     version='0.0.1',
