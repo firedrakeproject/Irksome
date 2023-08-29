@@ -18,7 +18,9 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     Ze = MixedElement([Ve, Pe])
     Z = FunctionSpace(mesh, Ze)
 
-    t = Constant(0.0)
+    Tspace = FunctionSpace(mesh, 'R', 0)
+    t = Function(Tspace)
+    t.assign(0)
     dt = Constant(1.0/N)
     (x, y) = SpatialCoordinate(mesh)
 
@@ -115,7 +117,9 @@ def NSETest(butch, stage_type, splitting):
                          "pc_type": "lu",
                          "pc_factor_mat_solver_type": "mumps"}
 
-    t = Constant(0.0)
+    Tspace = FunctionSpace(M, 'R', 0)
+    t = Function(Tspace)
+    t.assign(0)
     dt = Constant(1.0/N)
     stepper = TimeStepper(F, butch,
                           t, dt, up,
