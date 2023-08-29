@@ -1,5 +1,5 @@
 import numpy
-from firedrake import MixedVectorSpaceBasis, split
+from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, split
 from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.classes import CoefficientDerivative
@@ -106,3 +106,13 @@ def is_ode(f, u):
     Dtbits = set(b.ufl_operands[0] for b in blah)
     ubits = set(split(u))
     return Dtbits == ubits
+
+
+# Utility class for constants on a mesh
+class MeshConstant(object):
+    def __init__(self, msh):
+        self.msh = msh
+        self.V = FunctionSpace(msh, 'R', 0)
+
+    def Constant(self, val=0.0):
+        return Function(self.V).assign(val)
