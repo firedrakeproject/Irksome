@@ -8,7 +8,7 @@ import sys
 
 cwd = abspath(dirname(__file__))
 demo_dir = join(cwd, "..", "..", "demos")
-pylit = join(os.environ["VIRTUAL_ENV"], "src", "firedrake", "pylit", "pylit.py")
+pylit = "pylit"
 
 
 # Discover the demo files by globbing the demo directory

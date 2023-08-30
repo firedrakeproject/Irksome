@@ -1,15 +1,16 @@
 import pytest
 from firedrake import *
 from ufl.algorithms.ad import expand_derivatives
-from irksome import Dt, TimeStepper, RadauIIA, GaussLegendre
+from irksome import Dt, MeshConstant, TimeStepper, RadauIIA, GaussLegendre
 from irksome.tools import AI, IA
 
 
 def heat_inhomog(N, deg, butcher_tableau, stage_type, splitting):
-    dt = Constant(1.0 / N)
-    t = Constant(0.0)
-
     msh = UnitSquareMesh(N, N)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
 
     V = FunctionSpace(msh, "CG", 1)
     x, y = SpatialCoordinate(msh)

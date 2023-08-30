@@ -2,7 +2,7 @@ from firedrake import *  # noqa: F403
 
 from ufl.algorithms.ad import expand_derivatives
 
-from irksome import LobattoIIIC, Dt, TimeStepper
+from irksome import LobattoIIIC, Dt, MeshConstant, TimeStepper
 
 ButcherTableau = LobattoIIIC(2)
 ns = ButcherTableau.num_stages
@@ -12,8 +12,9 @@ msh = UnitSquareMesh(N, N)
 V = FunctionSpace(msh, "CG", 1)
 x, y = SpatialCoordinate(msh)
 
-dt = Constant(10.0 / N, domain=msh)
-t = Constant(0.0, domain=msh)
+MC = MeshConstnt(msh)
+dt = MC.Constant(10.0 / N)
+t = MC.Constant(0.0)
 
 # This will give the exact solution at any time t.  We just have
 # to t.assign(time_we_want)

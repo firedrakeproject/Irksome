@@ -14,7 +14,7 @@ Imports::
   from firedrake import *
   from ufl.algorithms.ad import expand_derivatives
 
-  from irksome import GaussLegendre, getForm, Dt
+  from irksome import GaussLegendre, getForm, Dt, MeshConstant
 
 Note that we imported :func:`.getForm` rather than :class:`.TimeStepper`.  That's the
 lower-level function inside Irksome that manipulates UFL and boundary conditions.
@@ -24,9 +24,6 @@ Continuing::
   butcher_tableau = GaussLegendre(1)
   N = 64
 
-  dt = Constant(10 / N)
-  t = Constant(0.0)
-  
   x0 = 0.0
   x1 = 10.0
   y0 = 0.0
@@ -36,6 +33,10 @@ Continuing::
   V = FunctionSpace(msh, "CG", 1)
   x, y = SpatialCoordinate(msh)
 
+  MC = MeshConstant(msh)
+  dt = MC.Constant(10 / N)
+  t = MC.Constant(0.0)
+  
   S = Constant(2.0)
   C = Constant(1000.0)
 

@@ -7,7 +7,7 @@ problems on mixed function spaces.  This demo peels back the :class:`TimeStepper
 Imports::
 
   from firedrake import *
-  from irksome import LobattoIIIC, Dt, getForm
+  from irksome import LobattoIIIC, Dt, getForm, MeshConstant
   from ufl.algorithms.ad import expand_derivatives
 
   butcher_tableau = LobattoIIIC(2)
@@ -25,8 +25,9 @@ Build the mesh and approximating spaces::
   W = FunctionSpace(msh, "DG", 1)
   Z = V * W
 
-  dt = Constant(10.0 / N)
-  t = Constant(0.0)
+  MC = MeshConstant(msh)
+  dt = MC.Constant(10.0 / N)
+  t = MC.Constant(0.0)
 
   x, y = SpatialCoordinate(msh)
 

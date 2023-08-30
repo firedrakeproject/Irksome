@@ -5,7 +5,7 @@ from firedrake import (Constant, DirichletBC, FiniteElement, Function,
                        UnitSquareMesh, VectorElement, VectorSpaceBasis, action,
                        as_vector, assemble, derivative, div, dot, dx,
                        errornorm, grad, inner, interpolate, pi, sin, split)
-from irksome import Dt, RadauIIA, TimeStepper
+from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
 from irksome.tools import AI, IA
 
 
@@ -19,8 +19,9 @@ def test_diffreact(splitting):
     k = 2
     bt = RadauIIA(k)
 
-    dt = Constant(1.0 / N)
-    t = Constant(0.0)
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     uIC = 2 + sin(2 * pi * x)
@@ -119,8 +120,9 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     Ze = MixedElement([Ve, Pe])
     Z = FunctionSpace(mesh, Ze)
 
-    t = Constant(0.0)
-    dt = Constant(0.5 / N)
+    MC = MeshConstant(mesh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.5 / N)
 
     z_imp = Function(Z)
     z_split = Function(Z)

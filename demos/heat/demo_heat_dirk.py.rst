@@ -32,7 +32,7 @@ As usual, we need to import firedrake::
 
 We will also need to import certain items from irksome::
 
-  from irksome import Alexander, Dt, TimeStepper
+  from irksome import Alexander, Dt, MeshConstant, TimeStepper
 
 And we will need a little bit of UFL to support using the method of
 manufactured solutions::
@@ -59,8 +59,9 @@ standard Firedrake fashion::
 
 We define variables to store the time step and current time value::
 
-  dt = Constant(10.0 / N)
-  t = Constant(0.0)
+  MC = MeshConstant(msh)
+  dt = MC.Constant(10.0 / N)
+  t = MC.Constant(0.0)
 
 This defines the right-hand side using the method of manufactured solutions::
 

@@ -1,7 +1,7 @@
 import pytest
 from firedrake import *
 from math import isclose
-from irksome import LobattoIIIA, GaussLegendre, Dt, TimeStepper
+from irksome import LobattoIIIA, GaussLegendre, Dt, MeshConstant, TimeStepper
 from ufl.algorithms.ad import expand_derivatives
 
 
@@ -18,8 +18,9 @@ def test_1d_heat_dirichletbc(butcher_tableau, stage_type):
     x1 = 10.0
     msh = IntervalMesh(N, x1)
     V = FunctionSpace(msh, "CG", 1)
-    dt = Constant(10.0 / N)
-    t = Constant(0.0)
+    MC = MeshConstant(msh)
+    dt = MC.Constant(10.0 / N)
+    t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     # Method of manufactured solutions copied from Heat equation demo.
