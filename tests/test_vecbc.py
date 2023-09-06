@@ -1,15 +1,16 @@
 import pytest
 from firedrake import *
-from irksome import GaussLegendre, Dt, TimeStepper
+from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
 from irksome.tools import AI, IA
 
 
 def elastodynamics(N, deg, butcher_tableau, splitting=AI):
-    dt = Constant(1.0 / N)
-    t = Constant(0.0)
-
     msh = UnitSquareMesh(N, N)
     x, y = SpatialCoordinate(msh)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
 
     V = VectorFunctionSpace(msh, "CG", 1)
     VV = V * V

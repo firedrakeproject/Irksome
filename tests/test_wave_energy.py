@@ -2,9 +2,9 @@ import pytest
 import numpy as np
 from firedrake import (inner, dx, UnitIntervalMesh, FunctionSpace,
                        assemble, TestFunctions, SpatialCoordinate,
-                       Constant, project, as_vector, sin, pi, split)
+                       project, as_vector, sin, pi, split)
 
-from irksome import Dt, TimeStepper, GaussLegendre
+from irksome import Dt, MeshConstant, TimeStepper, GaussLegendre
 from irksome.tools import AI, IA
 
 # test the energy conservation of the 1d wave equation in mixed form
@@ -26,8 +26,9 @@ def wave(n, deg, butcher_tableau, splitting=AI):
 
     x, = SpatialCoordinate(msh)
 
-    t = Constant(0.0)
-    dt = Constant(2.0 / N)
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(2.0 / N)
 
     up = project(as_vector([0, sin(pi*x)]), Z)
     u, p = split(up)

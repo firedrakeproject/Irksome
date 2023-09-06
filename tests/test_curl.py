@@ -1,6 +1,6 @@
 import pytest
 from firedrake import *
-from irksome import GaussLegendre, Dt, TimeStepper
+from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
 from irksome.tools import AI, IA
 from ufl.algorithms.ad import expand_derivatives
 
@@ -17,8 +17,9 @@ def curltest(N, deg, butcher_tableau, splitting):
     Ve = FiniteElement("N1curl", msh.ufl_cell(), 2, variant="integral")
     V = FunctionSpace(msh, Ve)
 
-    dt = Constant(0.1 / N)
-    t = Constant(0.0)
+    MC = MeshConstant(msh)
+    dt = MC.Constant(0.1 / N)
+    t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
 

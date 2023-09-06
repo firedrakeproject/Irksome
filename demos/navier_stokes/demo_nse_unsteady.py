@@ -1,5 +1,5 @@
 from firedrake import *  # noqa: F403
-from irksome import GaussLegendre, getForm, Dt, TimeStepper
+from irksome import GaussLegendre, getForm, Dt, MeshConstant, TimeStepper
 import numpy
 
 
@@ -37,8 +37,9 @@ u, p = split(up)
 
 n= FacetNormal(msh)
 
-dt = Constant(1.0/1600)
-t = Constant(0.0)
+MC = MeshConstant(msh)
+dt = MC.Constant(1.0/1600)
+t = MC.Constant(0.0)
 nu = Constant(0.001)
 rho=1.0
 r=0.05

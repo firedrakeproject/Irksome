@@ -70,15 +70,16 @@ Zhang, given by Butcher tableau:
 Imports from Firedrake and Irksome::
 
   from firedrake import *
-  from irksome import QinZhang, Dt, TimeStepper
+  from irksome import QinZhang, Dt, MeshConstant, TimeStepper
 
 We configure the discretization::
 
   N = 10
   msh = UnitSquareMesh(N, N)
 
-  t = Constant(0.0)
-  dt = Constant(1.0/N)
+  MC = MeshConstant(msh)
+  t = MC.Constant(0.0)
+  dt = MC.Constant(1.0/N)
 
   V = FunctionSpace(msh, "RT", 2)
   W = FunctionSpace(msh, "DG", 1)

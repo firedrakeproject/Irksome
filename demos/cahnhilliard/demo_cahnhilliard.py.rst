@@ -36,7 +36,7 @@ Boilerplate imports::
   from firedrake import *
   import numpy as np
   import os
-  from irksome import Dt, GaussLegendre, TimeStepper
+  from irksome import Dt, GaussLegendre, MeshConstant, TimeStepper
 
 We create a directory to store some output pictures::
 
@@ -71,9 +71,10 @@ conditions is a Nitsche-type method.  Here is the parameter::
 
 Set up the time variables and a seeded initial condition::
 
-  dt = Constant(5.0e-6)
-  T = Constant(5.0e-6)
-  t = Constant(0.0)
+  MC = MeshConstant(msh)
+  dt = MC.Constant(5.0e-6)
+  T = MC.Constant(5.0e-6)
+  t = MC.Constant(0.0)
 
   np.random.seed(42)
   c = Function(V)

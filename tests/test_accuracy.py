@@ -5,7 +5,7 @@ from firedrake import (diff, div, dx, errornorm, exp, grad,
                        Constant, DirichletBC, FunctionSpace,
                        SpatialCoordinate, TestFunction, UnitIntervalMesh)
 
-from irksome import Dt, TimeStepper, GaussLegendre
+from irksome import Dt, MeshConstant, TimeStepper, GaussLegendre
 from irksome.tools import IA
 from ufl.algorithms import expand_derivatives
 
@@ -24,8 +24,9 @@ def heat(n, deg, time_stages, stage_type="deriv", splitting=IA):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    t = Constant(0.0, domain=msh)
-    dt = Constant(2.0 / N, domain=msh)
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(2.0 / N)
 
     uexact = exp(-t) * sin(pi * x)
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))

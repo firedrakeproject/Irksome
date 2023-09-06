@@ -11,16 +11,17 @@ Imports::
   from firedrake import *
   from ufl.algorithms.ad import expand_derivatives
 
-  from irksome import GaussLegendre, getForm, Dt
+  from irksome import GaussLegendre, getForm, Dt, MeshConstant
   
   butcher_tableau = GaussLegendre(2)
   N = 64
 
-  dt = Constant(10 / N)
-  t = Constant(0.0)
-  
   msh = UnitSquareMesh(N, N)
 
+  MC = MeshConstant(msh)
+  dt = MC.Constant(10 / N)
+  t = MC.Constant(0.0)
+  
   V = FunctionSpace(msh, "CG", 1)
   x, y = SpatialCoordinate(msh)
 

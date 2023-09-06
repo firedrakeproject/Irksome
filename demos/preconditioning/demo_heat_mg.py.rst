@@ -17,7 +17,7 @@ of :math:`f` given below
 We perform similar imports and setup as before::
 
   from firedrake import *
-  from irksome import GaussLegendre, Dt, TimeStepper
+  from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
   from ufl.algorithms.ad import expand_derivatives
   butcher_tableau = GaussLegendre(2)
 
@@ -45,8 +45,9 @@ are just as for the regular heat equation demo::
 
   V = FunctionSpace(msh, "CG", 1)
 
-  dt = Constant(10.0 / N)
-  t = Constant(0.0)
+  MC = MeshConstant(msh)
+  dt = MC.Constant(10.0 / N)
+  t = MC.Constant(0.0)
 
   x, y = SpatialCoordinate(msh)
   S = Constant(2.0)

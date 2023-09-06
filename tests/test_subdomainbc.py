@@ -1,15 +1,16 @@
 import pytest
 from firedrake import *
-from irksome import GaussLegendre, Dt, TimeStepper
+from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
 from irksome.tools import AI, IA
 from ufl.algorithms.ad import expand_derivatives
 
 
 def heat_subdomainbc(N, deg, butcher_tableau, splitting=AI):
-    dt = Constant(1.0 / N)
-    t = Constant(0.0)
-
     msh = UnitSquareMesh(N, N)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
 
     V = FunctionSpace(msh, "CG", deg)
     x, y = SpatialCoordinate(msh)
@@ -43,10 +44,11 @@ def heat_subdomainbc(N, deg, butcher_tableau, splitting=AI):
 
 
 def heat_componentbc(N, deg, butcher_tableau, splitting=AI):
-    dt = Constant(1.0 / N)
-    t = Constant(0.0)
-
     msh = UnitIntervalMesh(N)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
 
     V = VectorFunctionSpace(msh, "CG", deg, dim=2)
     (x,) = SpatialCoordinate(msh)
