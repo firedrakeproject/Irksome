@@ -1,8 +1,9 @@
 import pytest
 from irksome import Dt
 from irksome.manipulation import check_integrals, extract_terms
-from ufl import (Coefficient, FiniteElement, FunctionSpace, Mesh, MixedElement,
-                 TestFunction, VectorElement, dx, grad, inner, sin, triangle)
+from ufl import (Coefficient, FunctionSpace, Mesh,
+                 TestFunction, dx, grad, inner, sin, triangle)
+from finat.ufl import FiniteElement, MixedElement, VectorElement
 from ufl.algorithms.domain_analysis import group_form_integrals
 
 

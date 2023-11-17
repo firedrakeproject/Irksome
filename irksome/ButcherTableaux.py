@@ -85,11 +85,17 @@ class CollocationButcherTableau(ButcherTableau):
     def __init__(self, L, order):
         assert L.ref_el == FIAT.ufc_simplex(1)
 
+        points = []
         for ell in L.dual.nodes:
             assert isinstance(ell, FIAT.functional.PointEvaluation)
+            # Assert singleton point for each node.
+            pt, = ell.get_point_dict().keys()
+            points.append(pt[0])
 
-        c = numpy.asarray([list(ell.pt_dict.keys())[0][0]
-                           for ell in L.dual.nodes])
+        c = numpy.asarray(points)
+        # GLL DOFs are ordered by increasing entity dimension!
+        perm = numpy.argsort(c)
+        c = c[perm]
 
         num_stages = len(c)
 
@@ -97,7 +103,7 @@ class CollocationButcherTableau(ButcherTableau):
         qpts = Q.get_points()
         qwts = Q.get_weights()
 
-        Lvals = L.tabulate(0, qpts)[0, ]
+        Lvals = L.tabulate(0, qpts)[0, ][perm]
 
         # integrates them all!
         b = Lvals @ qwts
@@ -107,14 +113,14 @@ class CollocationButcherTableau(ButcherTableau):
         for i in range(num_stages):
             qpts_i = qpts * c[i]
             qwts_i = qwts * c[i]
-            Lvals_i = L.tabulate(0, qpts_i)[0, ]
+            Lvals_i = L.tabulate(0, qpts_i)[0, ][perm]
             A[i, :] = Lvals_i @ qwts_i
 
         Aexplicit = numpy.zeros((num_stages, num_stages))
         for i in range(num_stages):
             qpts_i = 1 + qpts * c[i]
             qwts_i = qwts * c[i]
-            Lvals_i = L.tabulate(0, qpts_i)[0, ]
+            Lvals_i = L.tabulate(0, qpts_i)[0, ][perm]
             Aexplicit[i, :] = Lvals_i @ qwts_i
 
         self.Aexplicit = Aexplicit
