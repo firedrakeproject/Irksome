@@ -3,7 +3,8 @@ from operator import mul
 
 import numpy
 from firedrake import (Constant, DirichletBC, Function, TestFunction,
-                       interpolate, project, split)
+                       assemble, project, split)
+from firedrake.__future__ import interpolate
 from ufl import diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
@@ -18,7 +19,7 @@ class BCStageData(object):
             if V.parent.index is None:  # but not part of a MFS
                 sub = V.component
                 try:
-                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
+                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub), V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
                 except:  # noqa: E722
                     gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
@@ -27,7 +28,7 @@ class BCStageData(object):
                 sub0 = V.parent.index
                 sub1 = V.component
                 try:
-                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
+                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub0).sub(sub1))
                 except:  # noqa: E722
                     gdat = project(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
@@ -35,7 +36,7 @@ class BCStageData(object):
         else:  # V is not a bit of a VFS
             if V.index is None:  # not part of MFS, either
                 try:
-                    gdat = interpolate(gcur-u0_mult[i]*u0, V)
+                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0, V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
                 except:  # noqa: E722
                     gdat = project(gcur-u0_mult[i]*u0, V)
@@ -43,7 +44,7 @@ class BCStageData(object):
             else:  # part of MFS
                 sub = V.index
                 try:
-                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
+                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub), V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
                 except:  # noqa: E722
                     gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)

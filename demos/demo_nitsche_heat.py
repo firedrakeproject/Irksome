@@ -23,7 +23,8 @@ uexact = exp(-t) * cos(pi * x) * sin(pi * y)
 # MMS works on symbolic differentiation of true solution, not weak form
 rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
-u = interpolate(uexact, V)
+u = Function(V)
+u.interpolate(uexact)
 
 # define the variational form once outside the loop
 h = CellSize(msh)
