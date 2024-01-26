@@ -1,13 +1,13 @@
 import FIAT
 import numpy as np
-from firedrake import (Constant, Function, NonlinearVariationalProblem,
+from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction)
 from firedrake.dmhooks import pop_parent, push_parent
 from ufl.classes import Zero
 
 from .ButcherTableaux import RadauIIA
 from .stage import getBits, getFormStage
-from .tools import AI, IA, replace
+from .tools import AI, IA, MeshConstant, replace
 
 
 def riia_explicit_coeffs(k):
@@ -45,7 +45,8 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
 
     num_stages = butch.num_stages
     num_fields = len(V)
-    vc = np.vectorize(lambda c: Constant(c, domain=msh))
+    MC = MeshConstant(msh)
+    vc = np.vectorize(lambda c: MC.Constant(c))
     Aexp = riia_explicit_coeffs(num_stages)
     Aprop = vc(Aexp)
     Ait = vc(butch.A)

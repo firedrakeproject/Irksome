@@ -3,7 +3,7 @@ from functools import reduce
 from operator import mul
 
 import numpy as np
-from firedrake import (Constant, DirichletBC, Function,
+from firedrake import (DirichletBC, Function,
                        NonlinearVariationalProblem, NonlinearVariationalSolver,
                        TestFunction, dx, inner, interpolate, project, split)
 from numpy import vectorize
@@ -11,7 +11,7 @@ from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
 from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, IA, getNullspace, is_ode, replace
+from .tools import AI, IA, getNullspace, MeshConstant, is_ode, replace
 
 
 def getBits(num_stages, num_fields, u0, UU, v, VV):
@@ -116,7 +116,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
                                             u0, UU, v, VV)
 
-    vecconst = np.vectorize(lambda c: Constant(c, domain=V.mesh()))
+    MC = MeshConstant(V.mesh())
+    vecconst = np.vectorize(lambda c: MC.Constant(c))
     C = vecconst(butch.c)
     A = vecconst(butch.A)
 
@@ -172,7 +173,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                 Fnew += A[i, j] * dt * replace(Ftmp, repl)
 
     elif splitting == IA:
-        Ainv = np.vectorize(lambda c: Constant(c, domain=V.mesh()))(np.linalg.inv(butch.A))
+        Ainv = np.vectorize(lambda c: MC.Constant(c))(np.linalg.inv(butch.A))
 
         # time derivative part gets inverse of Butcher matrix.
         for i in range(num_stages):
@@ -257,8 +258,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     unew = Function(V)
 
     Fupdate = inner(unew - u0, v) * dx
-    B = vectorize(lambda c: Constant(c, domain=V.mesh()))(butch.b)
-    C = vectorize(lambda c: Constant(c, domain=V.mesh()))(butch.c)
+    B = vectorize(lambda c: MC.Constant(c))(butch.b)
+    C = vectorize(lambda c: MC.Constant(c))(butch.c)
 
     for i in range(num_stages):
         repl = {t: t + C[i] * dt}
