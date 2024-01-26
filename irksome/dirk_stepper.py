@@ -2,7 +2,7 @@ import numpy
 from firedrake import Constant, DirichletBC, Function
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import assemble, split
+from firedrake import assemble, split, project
 from firedrake.__future__ import interpolate
 from ufl.constantvalue import as_ufl
 
