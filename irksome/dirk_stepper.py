@@ -2,7 +2,8 @@ import numpy
 from firedrake import Constant, DirichletBC, Function
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import interpolate, split
+from firedrake import assemble, split
+from firedrake.__future__ import interpolate
 from ufl.constantvalue import as_ufl
 
 from .deriv import TimeDerivative
@@ -110,10 +111,10 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
         bcarg = as_ufl(bc._original_arg)
         bcarg_stage = replace(bcarg, {t: t+c*dt})
         try:
-            gdat = interpolate(bcarg, Vbc)
+            gdat = assemble(interpolate(bcarg, Vbc))
             gmethod = lambda gd, gc: gd.interpolate(gc)
         except:  # noqa: E722
-            gdat = interpolate(bcarg, Vbc)
+            gdat = assemble(project(bcarg, Vbc))
             gmethod = lambda gd, gc: gd.project(gc)
 
         new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)

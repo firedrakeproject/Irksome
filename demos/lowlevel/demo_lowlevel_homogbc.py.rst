@@ -46,7 +46,8 @@ Continuing::
 
   rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
-  u = interpolate(uexact, V)
+  u = Function(V)
+  u.interpolate(uexact)
 
   v = TestFunction(V)
   F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx

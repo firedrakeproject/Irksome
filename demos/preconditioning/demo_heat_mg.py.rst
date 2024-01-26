@@ -57,7 +57,8 @@ are just as for the regular heat equation demo::
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
   rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
-  u = interpolate(uexact, V)
+  u = Function(V)
+  u.interpolate(uexact)
   v = TestFunction(V)
   F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
   bc = DirichletBC(V, 0, "on_boundary")

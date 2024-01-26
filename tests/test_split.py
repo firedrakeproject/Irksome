@@ -4,7 +4,7 @@ from firedrake import (Constant, DirichletBC, FiniteElement, Function,
                        TestFunction, TrialFunctions, UnitIntervalMesh,
                        UnitSquareMesh, VectorElement, VectorSpaceBasis, action,
                        as_vector, assemble, derivative, div, dot, dx,
-                       errornorm, grad, inner, interpolate, pi, sin, split)
+                       errornorm, grad, inner, pi, sin, split)
 from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
 from irksome.tools import AI, IA
 
@@ -26,8 +26,10 @@ def test_diffreact(splitting):
 
     uIC = 2 + sin(2 * pi * x)
 
-    u_imp = interpolate(uIC, V)
-    u_split = interpolate(uIC, V)
+    u_imp = Function(V)
+    u_split = Function(V)
+    u_imp.interpolate(uIC)
+    u_split.interpolate(uIC)
 
     bcs = DirichletBC(V, Constant(2), "on_boundary")
 

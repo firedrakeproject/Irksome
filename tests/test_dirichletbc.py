@@ -35,7 +35,9 @@ def test_1d_heat_dirichletbc(butcher_tableau, stage_type):
         + ((x - x0) / x1) * (u_1 - u_0)
     )
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    u = interpolate(uexact, V)
+    u = Function(V)
+    u.interpolate(uexact)
+
     v = TestFunction(V)
     F = (
         inner(Dt(u), v) * dx
