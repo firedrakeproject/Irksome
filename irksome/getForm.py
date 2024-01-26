@@ -120,12 +120,13 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     msh = V.mesh()
     assert V == u0.function_space()
 
-    c = numpy.array([Constant(ci) for ci in butch.c],
+    MC = MeshConstant(msh)
+
+    c = numpy.array([MC.Constant(ci) for ci in butch.c],
                     dtype=object)
 
     bA1, bA2 = splitting(butch.A)
 
-    MC = MeshConstant(msh)
     try:
         bA1inv = numpy.linalg.inv(bA1)
     except numpy.linalg.LinAlgError:
