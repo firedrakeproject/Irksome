@@ -1,5 +1,5 @@
 import numpy
-from firedrake import Constant, DirichletBC, Function
+from firedrake import DirichletBC, Function
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, split, project
@@ -7,7 +7,7 @@ from firedrake.__future__ import interpolate
 from ufl.constantvalue import as_ufl
 
 from .deriv import TimeDerivative
-from .tools import replace
+from .tools import replace, MeshConstant
 
 
 class BCThingy:
@@ -90,8 +90,9 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constant a is
     # used similarly in the variational form
-    c = Constant(1.0, domain=msh)
-    a = Constant(1.0, domain=msh)
+    MC = MeshConstant(msh)
+    c = MC.Constant(1.0)
+    a = MC.Constant(1.0)
 
     repl = {t: t+c*dt}
     for u0bit, kbit, gbit in zip(u0bits, k_bits, gbits):
