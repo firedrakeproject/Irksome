@@ -3,7 +3,7 @@ from operator import mul
 
 import numpy
 from firedrake import (DirichletBC, Function, TestFunction,
-                       project, split)
+                       assemble, project, split)
 from firedrake.__future__ import interpolate
 from ufl import diff
 from ufl.algorithms import expand_derivatives
