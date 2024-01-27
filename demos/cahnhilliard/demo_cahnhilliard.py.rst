@@ -34,6 +34,7 @@ For simplicity, we'll use a direct solver at each time step.
 Boilerplate imports::
 
   from firedrake import *
+  from firedrake.pyplot import tripcolor
   import numpy as np
   import os
   from irksome import Dt, GaussLegendre, MeshConstant, TimeStepper

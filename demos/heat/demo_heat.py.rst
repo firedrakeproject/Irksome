@@ -77,7 +77,8 @@ This defines the right-hand side using the method of manufactured solutions::
 We define the initial condition for the fully discrete problem, which
 will get overwritten at each time step::
 
-  u = interpolate(uexact, V)
+  u = Function(V)
+  u.interpolate(uexact)
 
 Now, we will define the semidiscrete variational problem using
 standard UFL notation, augmented by the ``Dt`` operator from Irksome::

@@ -5,7 +5,8 @@ from operator import mul
 import numpy as np
 from firedrake import (DirichletBC, Function,
                        NonlinearVariationalProblem, NonlinearVariationalSolver,
-                       TestFunction, dx, inner, interpolate, project, split)
+                       TestFunction, assemble, dx, inner, project, split)
+from firedrake.__future__ import interpolate
 from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
@@ -244,7 +245,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
         bcarg = as_ufl(bc._original_arg)
         for i in range(num_stages):
             try:
-                gdat = interpolate(bcarg, Vsp)
+                gdat = assemble(interpolate(bcarg, Vsp))
                 gmethod = lambda gd, gc: gd.interpolate(gc)
             except:  # noqa: E722
                 gdat = project(bcarg, Vsp)
@@ -294,7 +295,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
         bcarg = as_ufl(bc._original_arg)
         try:
-            gdat = interpolate(bcarg, Vsp)
+            gdat = assemble(interpolate(bcarg, Vsp))
             gmethod = lambda gd, gc: gd.interpolate(gc)
         except:  # noqa: E722
             gdat = project(bcarg, Vsp)

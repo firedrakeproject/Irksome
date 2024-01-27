@@ -34,7 +34,8 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         + ((x - x0) / x1) * (u_1 - u_0)
     )
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    u = interpolate(uexact, V)
+    u = Function(V)
+    u.interpolate(uexact)
     v = TestFunction(V)
     F = (
         inner(Dt(u), v) * dx
@@ -78,8 +79,11 @@ def test_1d_heat_neumannbc(butcher_tableau):
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    u_dirk = interpolate(uexact, V)
-    u = interpolate(uexact, V)
+    u_dirk = Function(V)
+    u = Function(V)
+    u_dirk.interpolate(uexact)
+    u.interpolate(uexact)
+
     v = TestFunction(V)
     F = (
         inner(Dt(u), v) * dx
@@ -120,8 +124,10 @@ def test_1d_heat_homogdbc(butcher_tableau):
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    u_dirk = interpolate(uexact, V)
-    u = interpolate(uexact, V)
+    u_dirk = Function(V)
+    u = Function(V)
+    u_dirk.interpolate(uexact)
+    u.interpolate(uexact)
     v = TestFunction(V)
     F = (
         inner(Dt(u), v) * dx
@@ -167,8 +173,10 @@ def test_1d_vectorheat_componentBC(butcher_tableau):
     uexact = as_vector([sin(pi*x/2)*exp(-(pi**2)*t/4),
                         cos(pi*x/2)*exp(-(pi**2)*t/4)])
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    u_dirk = interpolate(uexact, V)
-    u = interpolate(uexact, V)
+    u_dirk = Function(V)
+    u = Function(V)
+    u_dirk.interpolate(uexact)
+    u.interpolate(uexact)
     v = TestFunction(V)
     F = (
         inner(Dt(u), v) * dx
