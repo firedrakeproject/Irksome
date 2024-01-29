@@ -154,11 +154,11 @@ class RadauIIAIMEXMethod:
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
             the Runge-Kutta method to be used for time marching.
             Only RadauIIA is allowed here (but it can be any number of stages).
-    :arg t: A :class:`firedrake.Constant` instance that always
-            contains the time value at the beginning of a time step
-    :arg dt: A :class:`firedrake.Constant` containing the size of the
-            current time step.  The user may adjust this value between
-            time steps.
+    :arg t: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time.
+    :arg dt: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time step.
+         The user may adjust this value between time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing

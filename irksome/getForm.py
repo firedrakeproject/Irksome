@@ -2,7 +2,7 @@ from functools import reduce
 from operator import mul
 
 import numpy
-from firedrake import (Constant, DirichletBC, Function, TestFunction,
+from firedrake import (DirichletBC, Function, TestFunction,
                        assemble, project, split)
 from firedrake.__future__ import interpolate
 from ufl import diff
@@ -65,10 +65,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     :arg F: UFL form for the semidiscrete ODE/DAE
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
          advance in time.
-    :arg t: a :class:`Constant` referring to the current time level.
-         Any explicit time-dependence in F is included
-    :arg dt: a :class:`Constant` referring to the size of the current
-         time step.
+    :arg t: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time.
+    :arg dt: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time step.
+         The user may adjust this value between time steps.
     :arg splitting: a callable that maps the (floating point) Butcher matrix
          a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
          to vary between the classical RK formulation and Butcher's reformulation
@@ -120,12 +121,13 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     msh = V.mesh()
     assert V == u0.function_space()
 
-    c = numpy.array([Constant(ci) for ci in butch.c],
+    MC = MeshConstant(msh)
+
+    c = numpy.array([MC.Constant(ci) for ci in butch.c],
                     dtype=object)
 
     bA1, bA2 = splitting(butch.A)
 
-    MC = MeshConstant(msh)
     try:
         bA1inv = numpy.linalg.inv(bA1)
     except numpy.linalg.LinAlgError:
