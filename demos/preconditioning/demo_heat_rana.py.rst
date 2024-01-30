@@ -20,7 +20,7 @@ what one obtains from a backward Euler discretization of the equation.
 With a 2-stage method, we have
 
 .. math::
-   
+
    \left[ \begin{array}{cc} A_{11} & A_{12} \\ A_{21} & A_{22} \end{array} \right]
    \left[ \begin{array}{c} k_1 \\ k_2 \end{array} \right]
    &= \left[ \begin{array}{c} f_1 \\ f_2 \end{array} \right]
@@ -30,7 +30,7 @@ with a triangular approximation.  For example, if A = LDU, then one could approx
 
 .. math::
 
-  P = \left[ \begin{array}{cc} \tilde{A}_{11} & 0 \\ \tilde_{A}_{21} & \tilde{A}_{22} \end{array} \right]
+  P = \left[ \begin{array}{cc} \tilde{A}_{11} & 0 \\ \tilde{A}_{21} & \tilde{A}_{22} \end{array} \right]
 
 
 This allows one to leverage an existing methodology for a low order
