@@ -280,7 +280,7 @@ class WSODIRK432(ButcherTableau):
         super(WSODIRK432, self).__init__(A, b, None, c, 3)
 
     def __str__(self):
-        return "WSIDIRK432()"
+        return "WSODIRK432()"
 
 
 class WSODIRK433(ButcherTableau):
@@ -292,7 +292,7 @@ class WSODIRK433(ButcherTableau):
         A = numpy.array(
             [[0.13756543551, 0, 0, 0],
              [0.56695122794, 0.23483888782, 0, 0],
-             [-1.08354072813, 2.96618223864, 0.44915521951, 0]
+             [-1.08354072813, 2.96618223864, 0.44915521951, 0],
              [0.59761291500, -0.43420997584, -0.05305815322, 0.88965521406]])
         super(WSODIRK433, self).__init__(A, b, None, c, 3)
 
