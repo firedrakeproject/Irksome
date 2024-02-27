@@ -76,6 +76,7 @@ Set up the time variables and a seeded initial condition::
   dt = MC.Constant(5.0e-6)
 
 One can always run for longer if desired::
+
   T = MC.Constant(2 * 5.0e-6)
   t = MC.Constant(0.0)
 
@@ -100,7 +101,7 @@ Now we define the semidiscrete variational problem::
        inner(M*lmbda*dot(grad(c), n), lap(v))*ds +
        inner(beta/h*M*lmbda*dot(grad(c), n), dot(grad(v), n))*ds)
 
-Bell elements are fourth-order accurate in :math:`L^2`, third in :math:`H^1` so we'll use a (formally) third-order time stepping scheme
+Bell elements are fourth-order accurate in :math:`L^2`, third in :math:`H^1` so we'll use a (formally) third-order time stepping scheme::
 
   butcher_tableau = RadauIIA(3)
 
