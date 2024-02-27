@@ -47,12 +47,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     u.interpolate(uexact)
 
     lu = {"mat_type": "aij",
-          "snes_type": "newtonls",
-          "snes_linesearch_type": "l2",
-          "snes_linesearch_monitor": None,
-          "snes_monitor": None,
-          "snes_rtol": 1e-8,
-          "snes_atol": 1e-8,
+          "snes_type": "ksponly",
           "snes_force_iteration": 1,
           "ksp_type": "preonly",
           "pc_type": "lu",
