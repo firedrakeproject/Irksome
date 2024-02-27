@@ -45,6 +45,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 
     u, p = z.subfunctions
     u.interpolate(uexact)
+    p.interpolate(pexact-assemble(pexact*dx))
 
     lu = {"mat_type": "aij",
           "snes_type": "ksponly",
