@@ -54,7 +54,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
           "snes_force_iteration": 1,
           "ksp_type": "preonly",
           "pc_type": "lu",
-          "pc_factor_mat_solver_type": "pastix",
+          "pc_factor_mat_solver_type": "mumps",
           "pc_factor_shift_type": "inblocks"}
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
