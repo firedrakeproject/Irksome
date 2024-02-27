@@ -45,18 +45,17 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 
     u, p = z.subfunctions
     u.interpolate(uexact)
+    p.interpolate(pexact-assemble(pexact*dx))
 
     lu = {"mat_type": "aij",
-          "snes_type": "newtonls",
-          "snes_linesearch_type": "l2",
-          "snes_linesearch_monitor": None,
-          "snes_monitor": None,
+          "snes_type": "ksponly",
           "snes_rtol": 1e-8,
           "snes_atol": 1e-8,
           "snes_force_iteration": 1,
           "ksp_type": "preonly",
           "pc_type": "lu",
-          "pc_factor_mat_solver_type": "mumps"}
+          "pc_factor_mat_solver_type": "mumps",
+          "pc_factor_shift_type": "inblocks"}
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
                           stage_type=stage_type,
