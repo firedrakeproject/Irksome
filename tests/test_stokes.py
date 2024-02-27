@@ -41,7 +41,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
          - inner(p_rhs, q)*dx)
 
     bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
-    nsp = [(1, VectorSpaceBasis(constant=True))]
+    # nsp = [(1, VectorSpaceBasis(constant=True))]
 
     u, p = z.subfunctions
     u.interpolate(uexact)
@@ -56,7 +56,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
                           stage_type=stage_type,
-                          bcs=bcs, solver_parameters=lu)#, nullspace=nsp)
+                          bcs=bcs, solver_parameters=lu)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
