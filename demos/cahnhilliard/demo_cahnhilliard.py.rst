@@ -37,7 +37,7 @@ Boilerplate imports::
   from firedrake.pyplot import tripcolor
   import numpy as np
   import os
-  from irksome import Dt, GaussLegendre, MeshConstant, TimeStepper
+  from irksome import Dt, RadauIIA, MeshConstant, TimeStepper
 
 We create a directory to store some output pictures::
 
@@ -74,7 +74,9 @@ Set up the time variables and a seeded initial condition::
 
   MC = MeshConstant(msh)
   dt = MC.Constant(5.0e-6)
-  T = MC.Constant(5.0e-6)
+
+One can always run for longer if desired::
+  T = MC.Constant(2 * 5.0e-6)
   t = MC.Constant(0.0)
 
   np.random.seed(42)
@@ -98,10 +100,9 @@ Now we define the semidiscrete variational problem::
        inner(M*lmbda*dot(grad(c), n), lap(v))*ds +
        inner(beta/h*M*lmbda*dot(grad(c), n), dot(grad(v), n))*ds)
 
-Bell elements are fourth-order accurate in :math:`L^2`, so we'll use a
-time-stepping scheme of comparable accuracy::
+Bell elements are fourth-order accurate in :math:`L^2`, third in :math:`H^1` so we'll use a (formally) third-order time stepping scheme
 
-  butcher_tableau = GaussLegendre(2)
+  butcher_tableau = RadauIIA(3)
 
 Because of the nonlinear problem, we'll need to set set some Newton
 parameters as well as the linear solver::
@@ -140,8 +141,8 @@ Now let's set up the time stepper::
 And advance the solution in time::
 
   while float(t) < float(T):
-      if (float(t) + float(dt)) >= 1.0:
-          dt.assign(1.0 - float(t))
+      if (float(t) + float(dt)) >= float(T):
+          dt.assign(float(T) - float(t))
       stepper.advance()
       t.assign(float(t) + float(dt))
       print(float(t), float(dt))

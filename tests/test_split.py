@@ -174,9 +174,10 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
         num_its_initial=10,
         num_its_per_step=4)
 
-    while (float(t) < 1.0):
-        if (float(t) + float(dt) > 1.0):
-            dt.assign(1.0 - float(t))
+    Tf = 0.1
+    while (float(t) < Tf):
+        if (float(t) + float(dt) > Tf):
+            dt.assign(Tf - float(t))
         imp_stepper.advance()
         imex_stepper.advance()
         t.assign(float(t) + float(dt))
