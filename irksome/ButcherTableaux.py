@@ -266,6 +266,9 @@ class Alexander(ButcherTableau):
 
 
 class WSODIRK432(ButcherTableau):
+    """ Third-order, diagonally implicit, 4-stage, L-stable scheme with
+    weak stage order 2 from Ketcheson et al, Spectral and High Order Methods for
+    Partial Differential Equations (2020)."""
     def __init__(self):
         c = numpy.asarray(
             [0.01900072890, 0.78870323114, 0.41643499339, 1])
@@ -284,6 +287,9 @@ class WSODIRK432(ButcherTableau):
 
 
 class WSODIRK433(ButcherTableau):
+    """ Third-order, diagonally implicit, 4-stage, L-stable scheme with
+    weak stage order 3 from Ketcheson et al, Spectral and High Order Methods for
+    Partial Differential Equations (2020)."""
     def __init__(self):
         c = numpy.array(
             [0.13756543551, 0.80179011576, 2.33179673002, 1])
@@ -299,8 +305,11 @@ class WSODIRK433(ButcherTableau):
     def __str(self):
         return "WSODIRK433()"
 
-    
+
 class WSODIRK643(ButcherTableau):
+    """ Fourth-order, diagonally implicit, 6-stage, L-stable scheme with
+    weak stage order 3 from Ketcheson et al, Spectral and High Order Methods for
+    Partial Differential Equations (2020)."""
     def __init__(self):
         c = numpy.array(
             [0.079672377876931, 0.464364648310935,
@@ -326,7 +335,9 @@ class WSODIRK643(ButcherTableau):
 
 
 class WSODIRK744(ButcherTableau):
-    """From Biswas et al"""
+    """ Fourth-order, diagonally implicit, 7-stage, L-stable scheme with
+    weak stage order 4 from Biswas, et al, Communications in Applied
+    Mathematics and Computational Science 18(1), 2023."""
     def __init__(self):
         c = numpy.asarray(
             [1.290066345260422e-01, 4.492833135308985e-01,
@@ -354,6 +365,9 @@ class WSODIRK744(ButcherTableau):
 
 
 class WSODIRK1254():
+    """ Fifth-order, diagonally implicit, 12-stage, L-stable scheme with
+    weak stage order 4 from Biswas, et al, Communications in Applied
+    Mathematics and Computational Science 18(1), 2023."""
     def __init__(self):
         c = numpy.array(
             [2.345371908646273e-01, 7.425871511958302e-01,
@@ -430,6 +444,9 @@ class WSODIRK1254():
 
 
 class WSODIRK1255(ButcherTableau):
+    """ Fifth-order, diagonally implicit, 12-stage, L-stable scheme with
+    weak stage order 5 from Biswas, et al, Communications in Applied
+    Mathematics and Computational Science 18(1), 2023."""
     def __init__(self):
         c = numpy.array(
             [4.113473525867655e-02, 2.269850660400232e-01,

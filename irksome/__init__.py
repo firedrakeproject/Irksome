@@ -1,4 +1,3 @@
-from .ButcherTableaux import WSODIRK744  # noqa: F401
 from .ButcherTableaux import Alexander  # noqa: F401
 from .ButcherTableaux import BackwardEuler  # noqa: F401
 from .ButcherTableaux import GaussLegendre  # noqa: F401
@@ -7,8 +6,12 @@ from .ButcherTableaux import LobattoIIIC  # noqa: F401
 from .ButcherTableaux import PareschiRusso  # noqa: F401
 from .ButcherTableaux import QinZhang  # noqa: F401
 from .ButcherTableaux import RadauIIA  # noqa: F401
-from .ButcherTableaux import (
-    WSODIRK432, WSODIRK433, WSODIRK643, WSODIRK744, WSODIRK1254, WSODIRK1255) # noqa: F401
+from .ButcherTableaux import WSODIRK432  # noqa: F401
+from .ButcherTableaux import WSODIRK433  # noqa: F401
+from .ButcherTableaux import WSODIRK643  # noqa: F401
+from .ButcherTableaux import WSODIRK744  # noqa: F401
+from .ButcherTableaux import WSODIRK1254  # noqa: F401
+from .ButcherTableaux import WSODIRK1255  # noqa: F401
 from .deriv import Dt  # noqa: F401
 from .dirk_stepper import DIRKTimeStepper  # noqa: F401
 from .getForm import getForm  # noqa: F401
