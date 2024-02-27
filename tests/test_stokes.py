@@ -56,7 +56,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
                           stage_type=stage_type,
-                          bcs=bcs, solver_parameters=lu, nullspace=nsp)
+                          bcs=bcs, solver_parameters=lu)#, nullspace=nsp)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
