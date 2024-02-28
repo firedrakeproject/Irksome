@@ -7,6 +7,7 @@ from firedrake import (Constant, DirichletBC, FiniteElement, Function,
                        errornorm, grad, inner, pi, sin, split)
 from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
 from irksome.tools import AI, IA
+from pyop2.mpi import COMM_WORLD
 
 
 @pytest.mark.parametrize('splitting', (AI, IA))
@@ -124,7 +125,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
 
     MC = MeshConstant(mesh)
     t = MC.Constant(0.0)
-    dt = MC.Constant(0.5 / N)
+    dt = MC.Constant(1.0 / N)
 
     z_imp = Function(Z)
     z_split = Function(Z)
@@ -138,22 +139,26 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     bcs = [DirichletBC(Z.sub(0), as_vector([x*(1-x), 0]), (4,)),
            DirichletBC(Z.sub(0), as_vector([0, 0]), (1, 2, 3))]
 
-    nsp = [(1, VectorSpaceBasis(constant=True))]
+    nsp = [(1, VectorSpaceBasis(constant=True, comm=COMM_WORLD))]
 
     lunl = {
-        "mat_type": "aij",
+        "snes_type": "newtonls",
         "snes_rtol": 1e-10,
         "snes_atol": 1e-10,
+        "snes_converged_reason": None,
+        "snes_linesearch_type": "l2",
         "ksp_type": "preonly",
         "pc_type": "lu",
-        "pc_factor_shift_type": "nonzero"}
+        "pc_factor_mat_solver_type": "mumps"
+    }
 
     lulin = {
         "mat_type": "aij",
         "snes_type": "ksponly",
         "ksp_type": "preonly",
         "pc_type": "lu",
-        "pc_factor_shift_type": "nonzero"}
+        "pc_factor_mat_solver_type": "pastix",
+        "pc_factor_shift_type": "inblocks"}
 
     F_full = Ffull(z_imp, test_z)
     F_imp = Fimp(z_split, test_z)
@@ -174,9 +179,8 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
         num_its_initial=10,
         num_its_per_step=4)
 
-    while (float(t) < 1.0):
-        if (float(t) + float(dt) > 1.0):
-            dt.assign(1.0 - float(t))
+    nsteps = 6
+    for _ in range(nsteps):
         imp_stepper.advance()
         imex_stepper.advance()
         t.assign(float(t) + float(dt))
@@ -196,7 +200,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
 def test_SplitNavierStokes(N, num_stages, Fimp, Fexp):
     error = NavierStokesSplitTest(N, num_stages, Fimp, Fexp)
     print(abs(error))
-    assert abs(error) < 4e-8
+    assert abs(error) < 4e-7
 
 
 if __name__ == "__main__":

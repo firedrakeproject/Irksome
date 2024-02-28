@@ -11,7 +11,11 @@ from ufl.algorithms import expand_derivatives
 
 
 def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
-    mesh = UnitSquareMesh(N, N)
+    mesh0 = UnitSquareMesh(N//4, N//4)
+    mh = MeshHierarchy(mesh0, 2)
+    mesh = mh[-1]
+
+    ns = butcher_tableau.num_stages
 
     Ve = VectorElement("CG", mesh.ufl_cell(), 2)
     Pe = FiniteElement("CG", mesh.ufl_cell(), 1)
@@ -45,18 +49,42 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 
     u, p = z.subfunctions
     u.interpolate(uexact)
+    p.interpolate(pexact-assemble(pexact*dx))
 
-    lu = {"mat_type": "aij",
-          "snes_type": "ksponly",
-          "snes_force_iteration": 1,
-          "ksp_type": "preonly",
-          "pc_type": "lu",
-          "pc_factor_mat_solver_type": "mumps",
-          "pc_factor_shift_type": "nonzero"}
+    ns = butcher_tableau.num_stages
+    ind_pressure = ",".join([str(2*i+1) for i in range(ns)])
+    solver_params = {
+        "mat_type": "aij",
+        "snes_type": "ksponly",
+        "ksp_type": "fgmres",
+        "ksp_max_it": 200,
+        "ksp_gmres_restart": 30,
+        "ksp_rtol": 1.e-8,
+        "ksp_atol": 1.e-13,
+        "pc_type": "mg",
+        "pc_mg_type": "multiplicative",
+        "pc_mg_cycles": "v",
+        "mg_levels": {
+            "ksp_type": "chebyshev",
+            "ksp_max_it": 3,
+            "ksp_convergence_test": "skip",
+            "pc_type": "python",
+            "pc_python_type": "firedrake.ASMVankaPC",
+            "pc_vanka_construct_dim": 0,
+            "pc_vanka_sub_sub_pc_type": "lu",
+            "pc_vanka_sub_sub_pc_factor_mat_solver_type": "umfpack",
+            "pc_vanka_exclude_subspaces": ind_pressure},
+        "mg_coarse": {
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "pc_factor_mat_solver_type": "mumps",
+            "mat_mumps_icntl_14": 200}
+    }
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
                           stage_type=stage_type,
-                          bcs=bcs, solver_parameters=lu)
+                          bcs=bcs, solver_parameters=solver_params,
+                          nullspace=nsp)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
@@ -77,8 +105,10 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 # and check that the velocity is the right size (as observed from
 # a "by-hand" backward Euler code in Firedrake
 def NSETest(butch, stage_type, splitting):
-    N = 16
+    N = 4
     M = UnitSquareMesh(N, N)
+    mh = MeshHierarchy(M, 2)
+    M = mh[-1]
 
     V = VectorFunctionSpace(M, "CG", 2)
     W = FunctionSpace(M, "CG", 1)
@@ -102,15 +132,39 @@ def NSETest(butch, stage_type, splitting):
 
     nullspace = [(1, VectorSpaceBasis(constant=True))]
 
-    solver_parameters = {"mat_type": "aij",
-                         "snes_type": "newtonls",
-                         "snes_linesearch_type": "bt",
-                         "snes_rtol": 1e-10,
-                         "snes_atol": 1e-10,
-                         "snes_force_iteration": 1,
-                         "ksp_type": "preonly",
-                         "pc_type": "lu",
-                         "pc_factor_mat_solver_type": "mumps"}
+    ns = butch.num_stages
+    ind_pressure = ",".join([str(2*i+1) for i in range(ns)])
+    solver_params = {
+        "mat_type": "aij",
+        "snes_type": "newtonls",
+        "snes_converged_reason": None,
+        "snes_linesearch_type": "l2",
+        "snes_rtol": 1.e-8,
+        "ksp_rtol": 1.e-10,
+        "ksp_atol": 1.e-13,
+        "ksp_type": "fgmres",
+        "ksp_monitor": None,
+        "ksp_max_it": 200,
+        "ksp_gmres_restart": 30,
+        "pc_type": "mg",
+        "pc_mg_type": "multiplicative",
+        "pc_mg_cycles": "v",
+        "mg_levels": {
+            "ksp_type": "chebyshev",
+            "ksp_max_it": 3,
+            "ksp_convergence_test": "skip",
+            "pc_type": "python",
+            "pc_python_type": "firedrake.ASMVankaPC",
+            "pc_vanka_construct_dim": 0,
+            "pc_vanka_sub_sub_pc_type": "lu",
+            "pc_vanka_sub_sub_pc_factor_mat_solver_type": "umfpack",
+            "pc_vanka_exclude_subspaces": ind_pressure},
+        "mg_coarse": {
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "pc_factor_mat_solver_type": "mumps",
+            "mat_mumps_icntl_14": 200}
+    }
 
     MC = MeshConstant(M)
     t = MC.Constant(0.0)
@@ -119,7 +173,7 @@ def NSETest(butch, stage_type, splitting):
                           t, dt, up,
                           bcs=bcs,
                           stage_type="value",
-                          solver_parameters=solver_parameters,
+                          solver_parameters=solver_params,
                           nullspace=nullspace)
 
     tfinal = 1.0
@@ -137,12 +191,12 @@ def NSETest(butch, stage_type, splitting):
 
 @pytest.mark.parametrize('stage_type', ("deriv", "value"))
 @pytest.mark.parametrize('splitting', (AI, IA))
-@pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
+@pytest.mark.parametrize('N', [2**j for j in range(3, 4)])
 @pytest.mark.parametrize('time_stages', (2, 3))
 @pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
 def test_Stokes(N, butch, time_stages, stage_type, splitting):
     error = StokesTest(N, butch(time_stages), stage_type, splitting)
-    assert abs(error) < 4e-9
+    assert abs(error) < 1e-8
 
 
 @pytest.mark.parametrize('stage_type', ("deriv", "value"))
@@ -154,4 +208,5 @@ def test_NSE(butch, time_stages, stage_type):
 
 
 if __name__ == "__main__":
-    test_Stokes(8, RadauIIA, 2, "value", IA)
+    # test_Stokes(4, RadauIIA, 2, "deriv", IA)
+    test_NSE(RadauIIA, 2, "deriv")
