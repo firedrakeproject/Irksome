@@ -34,7 +34,7 @@ We start with standard Firedrake/Irksome imports::
 
 And we set up the mesh and function space.  Note this demo uses serendipity elements, but could just as easily use Lagrange on quads or triangles.::
   
-  mesh = RectangleMesh(100, 100, 70, 70, quadrilateral=True)
+  mesh = RectangleMesh(20, 20, 70, 70, quadrilateral=True)
   polyOrder = 2
   
   V = FunctionSpace(mesh, "S", polyOrder)
