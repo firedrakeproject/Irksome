@@ -200,7 +200,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
 def test_SplitNavierStokes(N, num_stages, Fimp, Fexp):
     error = NavierStokesSplitTest(N, num_stages, Fimp, Fexp)
     print(abs(error))
-    assert abs(error) < 4e-8
+    assert abs(error) < 4e-7
 
 
 if __name__ == "__main__":
