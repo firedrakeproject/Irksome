@@ -202,7 +202,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     if bc_type == "ODE":
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
         u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
-        u0_mult = numpy.array([ConstantOrZero(mi, MC)/dt for mi in u0_mult_np],
+        u0_mult = numpy.array([MC.Constant(0) for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
