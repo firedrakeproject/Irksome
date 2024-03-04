@@ -63,7 +63,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
         "ksp_atol": 1.e-13,
         "pc_type": "mg",
         "pc_mg_type": "multiplicative",
-        "pc_mg_cycles": "v",
+        "pc_mg_cycle_type": "v",
         "mg_levels": {
             "ksp_type": "chebyshev",
             "ksp_max_it": 3,
@@ -71,8 +71,9 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
             "pc_type": "python",
             "pc_python_type": "firedrake.ASMVankaPC",
             "pc_vanka_construct_dim": 0,
+            "pc_vanka_mat_ordering_type": "amd",
             "pc_vanka_sub_sub_pc_type": "lu",
-            "pc_vanka_sub_sub_pc_factor_mat_solver_type": "umfpack",
+            "pc_vanka_sub_sub_pc_factor_mat_ordering_type": "natural",
             "pc_vanka_exclude_subspaces": ind_pressure},
         "mg_coarse": {
             "ksp_type": "preonly",
@@ -148,7 +149,7 @@ def NSETest(butch, stage_type, splitting):
         "ksp_gmres_restart": 30,
         "pc_type": "mg",
         "pc_mg_type": "multiplicative",
-        "pc_mg_cycles": "v",
+        "pc_mg_cycle_type": "v",
         "mg_levels": {
             "ksp_type": "chebyshev",
             "ksp_max_it": 3,
@@ -156,8 +157,9 @@ def NSETest(butch, stage_type, splitting):
             "pc_type": "python",
             "pc_python_type": "firedrake.ASMVankaPC",
             "pc_vanka_construct_dim": 0,
+            "pc_vanka_mat_ordering_type": "amd",
             "pc_vanka_sub_sub_pc_type": "lu",
-            "pc_vanka_sub_sub_pc_factor_mat_solver_type": "umfpack",
+            "pc_vanka_sub_sub_pc_factor_mat_ordering_type": "natural",
             "pc_vanka_exclude_subspaces": ind_pressure},
         "mg_coarse": {
             "ksp_type": "preonly",
