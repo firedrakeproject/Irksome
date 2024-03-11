@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.ButcherTableaux &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.png" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/ButcherTableaux">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.ButcherTableaux</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">FIAT</span>
+<span class="kn">import</span> <span class="nn">numpy</span>
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="n">vander</span><span class="p">,</span> <span class="n">zeros</span>
+<span class="kn">from</span> <span class="nn">numpy.linalg</span> <span class="kn">import</span> <span class="n">solve</span>
+
+
+<div class="viewcode-block" id="ButcherTableau">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.ButcherTableau">[docs]</a>
+<span class="k">class</span> <span class="nc">ButcherTableau</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Top-level class representing a Butcher tableau encoding</span>
+<span class="sd">       a Runge-Kutta method.  It has members</span>
+
+<span class="sd">    :arg A: a 2d array containing the Butcher matrix</span>
+<span class="sd">    :arg b: a 1d array giving weights assigned to each stage when</span>
+<span class="sd">            computing the solution at time n+1.</span>
+<span class="sd">    :arg btilde: If present, a 1d array giving weights for an embedded</span>
+<span class="sd">            lower-order method (used in estimating temporal</span>
+<span class="sd">            truncation error.)</span>
+<span class="sd">    :arg c: a 1d array containing weights at which time-dependent</span>
+<span class="sd">            terms are evaluated.</span>
+<span class="sd">    :arg order: the (integer) formal order of accuracy of the method</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">btilde</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">A</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btilde</span> <span class="o">=</span> <span class="n">btilde</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">c</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="n">order</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">num_stages</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the number of stages the method has.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_stiffly_accurate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Determines whether the method is stiffly accurate.&quot;&quot;&quot;</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span><span class="p">)</span>
+        <span class="n">res</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">solve</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_explicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span>
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ns</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ns</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mf">1.e-15</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_diagonally_implicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span>
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ns</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">ns</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mf">1.e-15</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_implicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_explicit</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_fully_implicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_implicit</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_diagonally_implicit</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">][:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="CollocationButcherTableau">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.CollocationButcherTableau">[docs]</a>
+<span class="k">class</span> <span class="nc">CollocationButcherTableau</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;When an RK method is based on collocation with point sets present</span>
+<span class="sd">    in FIAT, we have a general formula for producing the Butcher tableau.</span>
+
+<span class="sd">    :arg L: a one-dimensional class :class:`FIAT.FiniteElement`</span>
+<span class="sd">            of Lagrange type -- the degrees of freedom must all be point</span>
+<span class="sd">            evaluation.</span>
+<span class="sd">    :arg order: the order of the resulting RK method.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">L</span><span class="o">.</span><span class="n">ref_el</span> <span class="o">==</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">points</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ell</span> <span class="ow">in</span> <span class="n">L</span><span class="o">.</span><span class="n">dual</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ell</span><span class="p">,</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">PointEvaluation</span><span class="p">)</span>
+            <span class="c1"># Assert singleton point for each node.</span>
+            <span class="n">pt</span><span class="p">,</span> <span class="o">=</span> <span class="n">ell</span><span class="o">.</span><span class="n">get_point_dict</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+            <span class="n">points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pt</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+        <span class="c1"># GLL DOFs are ordered by increasing entity dimension!</span>
+        <span class="n">perm</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="n">perm</span><span class="p">]</span>
+
+        <span class="n">num_stages</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">make_quadrature</span><span class="p">(</span><span class="n">L</span><span class="o">.</span><span class="n">ref_el</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">num_stages</span><span class="p">)</span>
+        <span class="n">qpts</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_points</span><span class="p">()</span>
+        <span class="n">qwts</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+
+        <span class="n">Lvals</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">qpts</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="p">][</span><span class="n">perm</span><span class="p">]</span>
+
+        <span class="c1"># integrates them all!</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">Lvals</span> <span class="o">@</span> <span class="n">qwts</span>
+
+        <span class="c1"># now for A, which means we have to adjust the interval</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">qpts_i</span> <span class="o">=</span> <span class="n">qpts</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">qwts_i</span> <span class="o">=</span> <span class="n">qwts</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">Lvals_i</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">qpts_i</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="p">][</span><span class="n">perm</span><span class="p">]</span>
+            <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">Lvals_i</span> <span class="o">@</span> <span class="n">qwts_i</span>
+
+        <span class="n">Aexplicit</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">qpts_i</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">qpts</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">qwts_i</span> <span class="o">=</span> <span class="n">qwts</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">Lvals_i</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">qpts_i</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="p">][</span><span class="n">perm</span><span class="p">]</span>
+            <span class="n">Aexplicit</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">Lvals_i</span> <span class="o">@</span> <span class="n">qwts_i</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">Aexplicit</span> <span class="o">=</span> <span class="n">Aexplicit</span>
+
+        <span class="n">V</span> <span class="o">=</span> <span class="n">vander</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">increasing</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">btilde</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">V</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">CollocationButcherTableau</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">btilde</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="GaussLegendre">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.GaussLegendre">[docs]</a>
+<span class="k">class</span> <span class="nc">GaussLegendre</span><span class="p">(</span><span class="n">CollocationButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collocation method based on the Gauss-Legendre points.</span>
+<span class="sd">    The order of accuracy is 2 * `num_stages`.</span>
+<span class="sd">    GL methods are A-stable, B-stable, and symplectic.</span>
+
+<span class="sd">    :arg num_stages: The number of stages (1 or greater)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">num_stages</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="n">U</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">GaussLegendre</span><span class="p">(</span><span class="n">U</span><span class="p">,</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">GaussLegendre</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num_stages</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;GaussLegendre(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span></div>
+
+
+
+<div class="viewcode-block" id="LobattoIIIA">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.LobattoIIIA">[docs]</a>
+<span class="k">class</span> <span class="nc">LobattoIIIA</span><span class="p">(</span><span class="n">CollocationButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collocation method based on the Gauss-Lobatto points.</span>
+<span class="sd">    The order of accuracy is 2 * `num_stages` - 2.</span>
+<span class="sd">    LobattoIIIA methods are A-stable but not B- or L-stable.</span>
+
+<span class="sd">    :arg num_stages: The number of stages (2 or greater)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">num_stages</span> <span class="o">&gt;</span> <span class="mi">1</span>
+        <span class="n">U</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">GaussLobattoLegendre</span><span class="p">(</span><span class="n">U</span><span class="p">,</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">LobattoIIIA</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;LobattoIIIA(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span></div>
+
+
+
+<div class="viewcode-block" id="RadauIIA">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.RadauIIA">[docs]</a>
+<span class="k">class</span> <span class="nc">RadauIIA</span><span class="p">(</span><span class="n">CollocationButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collocation method based on the Gauss-Radau points.</span>
+<span class="sd">    The order of accuracy is 2 * `num_stages` - 1.</span>
+<span class="sd">    RadauIIA methods are algebraically (hence B-) stable.</span>
+
+<span class="sd">    :arg num_stages: The number of stages (2 or greater)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">num_stages</span> <span class="o">&gt;=</span> <span class="mi">1</span>
+        <span class="n">U</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">GaussRadau</span><span class="p">(</span><span class="n">U</span><span class="p">,</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RadauIIA</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;RadauIIA(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span></div>
+
+
+
+<div class="viewcode-block" id="BackwardEuler">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.BackwardEuler">[docs]</a>
+<span class="k">class</span> <span class="nc">BackwardEuler</span><span class="p">(</span><span class="n">RadauIIA</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The rock-solid first-order implicit method.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BackwardEuler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ButcherTableau</span><span class="o">.</span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="LobattoIIIC">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.LobattoIIIC">[docs]</a>
+<span class="k">class</span> <span class="nc">LobattoIIIC</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Discontinuous collocation method based on the Lobatto points.</span>
+<span class="sd">    The order of accuracy is 2 * `num_stages` - 2.</span>
+<span class="sd">    LobattoIIIC methods are A-, L-, algebraically, and B- stable.</span>
+
+<span class="sd">    :arg num_stages: The number of stages (2 or greater)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">num_stages</span> <span class="o">&gt;</span> <span class="mi">1</span>
+        <span class="c1"># mooch the b and c from IIIA</span>
+        <span class="n">IIIA</span> <span class="o">=</span> <span class="n">LobattoIIIA</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">IIIA</span><span class="o">.</span><span class="n">b</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">IIIA</span><span class="o">.</span><span class="n">c</span>
+
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">A</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+
+        <span class="n">mat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">vander</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">increasing</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">rhs</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([(</span><span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">**</span><span class="p">(</span><span class="n">k</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">k</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="n">k</span>
+                               <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="o">-</span><span class="mi">1</span><span class="p">)])</span>
+            <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">mat</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">LobattoIIIC</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;LobattoIIIC(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span></div>
+
+
+
+<div class="viewcode-block" id="PareschiRusso">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.PareschiRusso">[docs]</a>
+<span class="k">class</span> <span class="nc">PareschiRusso</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Second order, diagonally implicit, 2-stage.</span>
+<span class="sd">    A-stable if x &gt;= 1/4 and L-stable iff x = 1 plus/minus 1/sqrt(2).&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">x</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">]])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="o">-</span><span class="n">x</span><span class="p">])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">PareschiRusso</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;PareschiRusso(</span><span class="si">%f</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span></div>
+
+
+
+<div class="viewcode-block" id="QinZhang">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.QinZhang">[docs]</a>
+<span class="k">class</span> <span class="nc">QinZhang</span><span class="p">(</span><span class="n">PareschiRusso</span><span class="p">):</span>
+    <span class="s2">&quot;Symplectic Pareschi-Russo DIRK&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">QinZhang</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="mf">0.25</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;QinZhang()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="Alexander">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.Alexander">[docs]</a>
+<span class="k">class</span> <span class="nc">Alexander</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Third-order, diagonally implicit, 3-stage, L-stable scheme from</span>
+<span class="sd">    Diagonally Implicit Runge-Kutta Methods for Stiff O.D.E.&#39;s,</span>
+<span class="sd">    R. Alexander, SINUM 14(6): 1006-1021, 1977.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Root of x^3 - 3x^2 +3x/2-1/6 between 1/6 and 1/2</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="mf">0.43586652150845899942</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.5</span><span class="o">*</span><span class="n">x</span><span class="o">*</span><span class="n">x</span> <span class="o">+</span> <span class="mi">4</span><span class="o">*</span><span class="n">x</span> <span class="o">-</span> <span class="mf">0.25</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="mf">1.5</span><span class="o">*</span><span class="n">x</span><span class="o">*</span><span class="n">x</span><span class="o">-</span><span class="mi">5</span><span class="o">*</span><span class="n">x</span><span class="o">+</span><span class="mf">1.25</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">x</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[(</span><span class="mi">1</span><span class="o">-</span><span class="n">x</span><span class="p">)</span><span class="o">/</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">x</span><span class="p">]])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">x</span><span class="p">])</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">x</span><span class="p">)</span><span class="o">/</span><span class="mf">2.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Alexander</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;Alexander()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="WSODIRK432">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.WSODIRK432">[docs]</a>
+<span class="k">class</span> <span class="nc">WSODIRK432</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Third-order, diagonally implicit, 4-stage, L-stable scheme with</span>
+<span class="sd">    weak stage order 2 from Ketcheson et al, Spectral and High Order Methods for</span>
+<span class="sd">    Partial Differential Equations (2020).&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">0.01900072890</span><span class="p">,</span> <span class="mf">0.78870323114</span><span class="p">,</span> <span class="mf">0.41643499339</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">0.02343549374</span><span class="p">,</span>
+             <span class="o">-</span><span class="mf">0.41207877888</span><span class="p">,</span> <span class="mf">0.96661161281</span><span class="p">,</span> <span class="mf">0.42203167233</span><span class="p">])</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+            <span class="p">[[</span><span class="mf">0.01900072890</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.40434605601</span><span class="p">,</span> <span class="mf">0.38435717512</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.06487908412</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.16389640295</span><span class="p">,</span> <span class="mf">0.51545231222</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.02343549374</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.41207877888</span><span class="p">,</span> <span class="mf">0.96661161281</span><span class="p">,</span> <span class="mf">0.42203167233</span><span class="p">]])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">WSODIRK432</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;WSODIRK432()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="WSODIRK433">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.WSODIRK433">[docs]</a>
+<span class="k">class</span> <span class="nc">WSODIRK433</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Third-order, diagonally implicit, 4-stage, L-stable scheme with</span>
+<span class="sd">    weak stage order 3 from Ketcheson et al, Spectral and High Order Methods for</span>
+<span class="sd">    Partial Differential Equations (2020).&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">0.13756543551</span><span class="p">,</span> <span class="mf">0.80179011576</span><span class="p">,</span> <span class="mf">2.33179673002</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">0.59761291500</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.43420997584</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.05305815322</span><span class="p">,</span> <span class="mf">0.88965521406</span><span class="p">])</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[[</span><span class="mf">0.13756543551</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.56695122794</span><span class="p">,</span> <span class="mf">0.23483888782</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">1.08354072813</span><span class="p">,</span> <span class="mf">2.96618223864</span><span class="p">,</span> <span class="mf">0.44915521951</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.59761291500</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.43420997584</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.05305815322</span><span class="p">,</span> <span class="mf">0.88965521406</span><span class="p">]])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">WSODIRK433</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;WSODIRK433()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="WSODIRK643">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.WSODIRK643">[docs]</a>
+<span class="k">class</span> <span class="nc">WSODIRK643</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Fourth-order, diagonally implicit, 6-stage, L-stable scheme with</span>
+<span class="sd">    weak stage order 3 from Ketcheson et al, Spectral and High Order Methods for</span>
+<span class="sd">    Partial Differential Equations (2020).&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">0.079672377876931</span><span class="p">,</span> <span class="mf">0.464364648310935</span><span class="p">,</span>
+             <span class="mf">1.348559241946724</span><span class="p">,</span> <span class="mf">1.312664210308764</span><span class="p">,</span>
+             <span class="mf">0.989469293495897</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">0.214823667785537</span><span class="p">,</span> <span class="mf">0.536367363903245</span><span class="p">,</span>
+             <span class="mf">0.154488125726409</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.217748592703941</span><span class="p">,</span>
+             <span class="mf">0.072226422925896</span><span class="p">,</span> <span class="mf">0.239843012362853</span><span class="p">])</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[[</span><span class="mf">0.079672377876931</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.328355391763968</span><span class="p">,</span> <span class="mf">0.136009256546967</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">0.650772774016417</span><span class="p">,</span> <span class="mf">1.742859063495349</span><span class="p">,</span> <span class="mf">0.256472952467792</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">0.714580550967259</span><span class="p">,</span> <span class="mf">1.793745752775934</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.078254785672497</span><span class="p">,</span> <span class="mf">0.311753794172585</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">1.120092779092918</span><span class="p">,</span> <span class="mf">1.983452339867353</span><span class="p">,</span> <span class="mf">3.117393885836001</span><span class="p">,</span> <span class="o">-</span><span class="mf">3.761930177913743</span><span class="p">,</span> <span class="mf">0.770646024799205</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.214823667785537</span><span class="p">,</span> <span class="mf">0.536367363903245</span><span class="p">,</span>
+             <span class="mf">0.154488125726409</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.217748592703941</span><span class="p">,</span>
+             <span class="mf">0.072226422925896</span><span class="p">,</span> <span class="mf">0.239843012362853</span><span class="p">]])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">WSODIRK643</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;WSODIRK643()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="WSODIRK744">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.WSODIRK744">[docs]</a>
+<span class="k">class</span> <span class="nc">WSODIRK744</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Fourth-order, diagonally implicit, 7-stage, L-stable scheme with</span>
+<span class="sd">    weak stage order 4 from Biswas, et al, Communications in Applied</span>
+<span class="sd">    Mathematics and Computational Science 18(1), 2023.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">1.290066345260422e-01</span><span class="p">,</span> <span class="mf">4.492833135308985e-01</span><span class="p">,</span>
+             <span class="mf">9.919659086525534e-03</span><span class="p">,</span> <span class="mf">1.230475897454758e+00</span><span class="p">,</span>
+             <span class="mf">2.978701803613543e+00</span><span class="p">,</span> <span class="mf">1.247908693583052e+00</span><span class="p">,</span>
+             <span class="mf">1.000000000000000e+00</span><span class="p">])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">2.387938238483883e-01</span><span class="p">,</span> <span class="mf">4.762495400483653e-01</span><span class="p">,</span>
+             <span class="mf">1.233935151213300e-02</span><span class="p">,</span> <span class="mf">6.011995982693821e-02</span><span class="p">,</span>
+             <span class="mf">6.553618225489034e-05</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.270730910442124e-01</span><span class="p">,</span>
+             <span class="mf">3.395048796261326e-01</span><span class="p">])</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[[</span><span class="mf">1.290066345260422e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">3.315354455306989e-01</span><span class="p">,</span> <span class="mf">1.177478680001996e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">8.009819642882672e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.408450965101765e-03</span><span class="p">,</span> <span class="mf">9.242630648045402e-02</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">1.730636616639455e+00</span><span class="p">,</span> <span class="mf">1.513225984674677e+00</span><span class="p">,</span> <span class="mf">1.221258626309848e+00</span><span class="p">,</span> <span class="mf">2.266279031096887e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">1.475353790517696e-01</span><span class="p">,</span> <span class="mf">3.618481772236499e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.603544220240282e-01</span><span class="p">,</span> <span class="mf">2.455453653222619e+00</span><span class="p">,</span> <span class="mf">5.742190161395324e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">2.099717815888321e-01</span><span class="p">,</span> <span class="mf">7.120237463672882e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.012023940726332e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.913828539529156e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.556044541810300e-03</span><span class="p">,</span> <span class="mf">3.707277349712966e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">2.387938238483883e-01</span><span class="p">,</span> <span class="mf">4.762495400483653e-01</span><span class="p">,</span> <span class="mf">1.233935151213300e-02</span><span class="p">,</span> <span class="mf">6.011995982693821e-02</span><span class="p">,</span> <span class="mf">6.553618225489034e-05</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.270730910442124e-01</span><span class="p">,</span> <span class="mf">3.395048796261326e-01</span><span class="p">]])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">WSODIRK744</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;WSODIRK744()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="WSODIRK1254">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.WSODIRK1254">[docs]</a>
+<span class="k">class</span> <span class="nc">WSODIRK1254</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Fifth-order, diagonally implicit, 12-stage, L-stable scheme with</span>
+<span class="sd">    weak stage order 4 from Biswas, et al, Communications in Applied</span>
+<span class="sd">    Mathematics and Computational Science 18(1), 2023.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">2.345371908646273e-01</span><span class="p">,</span> <span class="mf">7.425871511958302e-01</span><span class="p">,</span>
+             <span class="mf">3.296674204078279e-02</span><span class="p">,</span> <span class="mf">7.379564717201322e-01</span><span class="p">,</span>
+             <span class="mf">2.376643917109970e-01</span><span class="p">,</span> <span class="mf">1.750238160341377e+00</span><span class="p">,</span>
+             <span class="mf">2.990308150015702e+00</span><span class="p">,</span> <span class="mf">2.882138003112822e+00</span><span class="p">,</span>
+             <span class="mf">2.914399924907188e+00</span><span class="p">,</span> <span class="mf">2.573507348677332e+00</span><span class="p">,</span>
+             <span class="mf">3.567266961364713e+00</span><span class="p">,</span> <span class="mf">1.000000000000000e+00</span><span class="p">])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="o">-</span><span class="mf">7.433675378768276e-01</span><span class="p">,</span> <span class="mf">1.490594423766965e-01</span><span class="p">,</span>
+             <span class="o">-</span><span class="mf">2.042884056742363e-02</span><span class="p">,</span> <span class="mf">8.565329438087443e-04</span><span class="p">,</span>
+             <span class="mf">1.357261590983184e+00</span><span class="p">,</span> <span class="mf">2.067512027776675e-03</span><span class="p">,</span>
+             <span class="mf">9.836884265759428e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.357936974507222e-02</span><span class="p">,</span>
+             <span class="o">-</span><span class="mf">5.428992174996300e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">3.803299038293005e-02</span><span class="p">,</span>
+             <span class="o">-</span><span class="mf">9.150525836295019e-03</span><span class="p">,</span> <span class="mf">2.712352651694511e-01</span><span class="p">])</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[[</span><span class="mf">2.345371908646273e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">6.874344413888787e-01</span><span class="p">,</span> <span class="mf">5.515270980695153e-02</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">1.183552669539587e-01</span><span class="p">,</span> <span class="mf">5.463563002913454e-03</span><span class="p">,</span>
+              <span class="mf">1.458584459918280e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">1.832235204042292e-01</span><span class="p">,</span> <span class="mf">5.269029412008775e-02</span><span class="p">,</span>
+              <span class="mf">8.203685085133529e-01</span><span class="p">,</span> <span class="mf">4.812118949092085e-02</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">9.941572060659400e-02</span><span class="p">,</span> <span class="mf">4.977904930055774e-03</span><span class="p">,</span>
+              <span class="mf">5.414758174284321e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.666571741820749e-03</span><span class="p">,</span>
+              <span class="mf">8.078975617332473e-02</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">9.896614721582678e-01</span><span class="p">,</span> <span class="mf">2.860682690577833e+00</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">1.236119341063179e+00</span><span class="p">,</span> <span class="mf">2.130219523351530e+00</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">1.260655031676537e+00</span><span class="p">,</span> <span class="mf">2.457717913099987e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">5.656238413439102e-02</span><span class="p">,</span> <span class="mf">1.661985685769353e-01</span><span class="p">,</span>
+              <span class="mf">6.464600922362508e-01</span><span class="p">,</span> <span class="mf">6.608854962269927e-01</span><span class="p">,</span>
+              <span class="mf">3.736054198873429e-01</span><span class="p">,</span> <span class="mf">6.294456964407685e-01</span><span class="p">,</span>
+              <span class="mf">5.702752607818027e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">8.048962104724392e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">6.232034990249100e-02</span><span class="p">,</span>
+              <span class="mf">5.737234603323347e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">9.613723511489970e-02</span><span class="p">,</span>
+              <span class="mf">5.524106361737929e-01</span><span class="p">,</span> <span class="mf">5.961002486833255e-01</span><span class="p">,</span>
+              <span class="mf">1.978411600659203e-01</span><span class="p">,</span> <span class="mf">3.156238724024008e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">1.606381759216300e-01</span><span class="p">,</span> <span class="mf">6.833397073337708e-01</span><span class="p">,</span>
+              <span class="mf">4.734578665308685e-01</span><span class="p">,</span> <span class="mf">8.037708984872738e-01</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">1.094498069459834e-02</span><span class="p">,</span> <span class="mf">6.151263362711297e-01</span><span class="p">,</span>
+              <span class="mf">3.908946848682723e-01</span><span class="p">,</span> <span class="mf">8.966103265353116e-02</span><span class="p">,</span>
+              <span class="mf">2.973255537857041e-02</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">7.074283235644631e-01</span><span class="p">,</span> <span class="mf">4.392037300952482e-01</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">3.623592480237268e-02</span><span class="p">,</span> <span class="mf">7.189990308645932e-04</span><span class="p">,</span>
+              <span class="mf">5.820968279166545e-01</span><span class="p">,</span> <span class="mf">3.302003177175218e-01</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">2.394564021215881e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">7.540283547997615e-03</span><span class="p">,</span>
+              <span class="mf">1.702137469523672e-01</span><span class="p">,</span> <span class="mf">6.268780138721711e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">1.361197981133694e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">7.486549901902831e-01</span><span class="p">,</span>
+              <span class="mf">1.893908350024949e+00</span><span class="p">,</span> <span class="mf">3.940485196730028e-01</span><span class="p">,</span>
+              <span class="mf">6.240233526545023e-02</span><span class="p">,</span> <span class="mf">7.511983862200027e-01</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">5.283465265730526e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.661625677872943e+00</span><span class="p">,</span>
+              <span class="mf">9.998723833190827e-01</span><span class="p">,</span> <span class="mf">1.377776742457387e+00</span><span class="p">,</span>
+              <span class="mf">8.905676409277480e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">7.433675378768276e-01</span><span class="p">,</span> <span class="mf">1.490594423766965e-01</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">2.042884056742363e-02</span><span class="p">,</span> <span class="mf">8.565329438087443e-04</span><span class="p">,</span>
+              <span class="mf">1.357261590983184e+00</span><span class="p">,</span> <span class="mf">2.067512027776675e-03</span><span class="p">,</span>
+              <span class="mf">9.836884265759428e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.357936974507222e-02</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">5.428992174996300e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">3.803299038293005e-02</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">9.150525836295019e-03</span><span class="p">,</span> <span class="mf">2.712352651694511e-01</span><span class="p">]])</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">WSODIRK1254</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;WSODIRK1254()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="WSODIRK1255">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.WSODIRK1255">[docs]</a>
+<span class="k">class</span> <span class="nc">WSODIRK1255</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Fifth-order, diagonally implicit, 12-stage, L-stable scheme with</span>
+<span class="sd">    weak stage order 5 from Biswas, et al, Communications in Applied</span>
+<span class="sd">    Mathematics and Computational Science 18(1), 2023.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">4.113473525867655e-02</span><span class="p">,</span> <span class="mf">2.269850660400232e-01</span><span class="p">,</span>
+             <span class="mf">6.222969192243949e-01</span><span class="p">,</span> <span class="mf">1.377989449231234e+00</span><span class="p">,</span>
+             <span class="mf">1.259841986970257e+00</span><span class="p">,</span> <span class="mf">1.228350442796143e+00</span><span class="p">,</span>
+             <span class="mf">1.269855051265635e+00</span><span class="p">,</span> <span class="mf">2.496200652601413e+00</span><span class="p">,</span>
+             <span class="mf">2.783820705331141e+00</span><span class="p">,</span> <span class="mf">3.337101417632813e+00</span><span class="p">,</span>
+             <span class="mf">4.173423133876636e+00</span><span class="p">,</span> <span class="mf">1.000000000000000e+00</span><span class="p">])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="mf">1.207394392845339e-02</span><span class="p">,</span> <span class="mf">5.187080074649261e-01</span><span class="p">,</span>
+             <span class="mf">1.121304244847239e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.959806334780896e-03</span><span class="p">,</span>
+             <span class="o">-</span><span class="mf">1.345031364651444e+00</span><span class="p">,</span> <span class="mf">3.398828703760807e-01</span><span class="p">,</span>
+             <span class="mf">8.159251531671077e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.640104266439604e-03</span><span class="p">,</span>
+             <span class="mf">1.439060901763520e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">6.556567796749947e-03</span><span class="p">,</span>
+             <span class="mf">6.548135446843367e-04</span><span class="p">,</span> <span class="mf">5.454220210658036e-01</span><span class="p">])</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[[</span><span class="mf">4.113473525867655e-02</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">1.603459327727949e-01</span><span class="p">,</span> <span class="mf">6.663913326722831e-02</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">3.424389044264752e-01</span><span class="p">,</span> <span class="mf">8.658006324816373e-01</span><span class="p">,</span>
+              <span class="mf">9.893519116923277e-02</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">9.437182028870806e+00</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.088783359642350e+01</span><span class="p">,</span>
+              <span class="mf">2.644025436733866e+00</span><span class="p">,</span> <span class="mf">1.846155800500574e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">3.425409029430815e-01</span><span class="p">,</span> <span class="mf">5.172239272544332e-01</span><span class="p">,</span>
+              <span class="mf">9.163589909678043e-01</span><span class="p">,</span> <span class="mf">5.225142808845742e-02</span><span class="p">,</span>
+              <span class="mf">1.165485436026433e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">2.094441177460360e+00</span><span class="p">,</span> <span class="mf">2.577655753533404e+00</span><span class="p">,</span>
+              <span class="mf">5.704405293326313e-01</span><span class="p">,</span> <span class="mf">1.213637180023516e-01</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">4.752289775376601e-01</span><span class="p">,</span> <span class="mf">5.285605969257756e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">3.391631788320480e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.797427027028997e-01</span><span class="p">,</span>
+              <span class="mf">1.039483063369094e+00</span><span class="p">,</span> <span class="mf">5.978770926212172e-02</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">2.132900327070380e-01</span><span class="p">,</span> <span class="mf">8.344318363436753e-02</span><span class="p">,</span>
+              <span class="mf">2.410106515779412e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">5.904282488642163e+00</span><span class="p">,</span> <span class="mf">3.171195765985073e+00</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">1.236822836316587e+01</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.989519066913001e-01</span><span class="p">,</span>
+              <span class="mf">2.160529620826442e+00</span><span class="p">,</span> <span class="mf">1.916104322021480e+00</span><span class="p">,</span>
+              <span class="mf">1.988059486291180e+00</span><span class="p">,</span> <span class="mf">2.232092386922440e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">4.616443509508975e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.933433560549238e-01</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">1.212541486279519e-01</span><span class="p">,</span> <span class="mf">6.662362039716674e-02</span><span class="p">,</span>
+              <span class="mf">4.254912950625259e-01</span><span class="p">,</span> <span class="mf">7.856131647013712e-01</span><span class="p">,</span>
+              <span class="mf">8.369551389357689e-01</span><span class="p">,</span> <span class="mf">1.604780447895926e-01</span><span class="p">,</span>
+              <span class="mf">3.616125951766939e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="mf">7.087669749878204e-01</span><span class="p">,</span> <span class="mf">6.466527094491541e-01</span><span class="p">,</span>
+              <span class="mf">4.758821526542215e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.570518451375722e-01</span><span class="p">,</span>
+              <span class="mf">1.123185062554392e+00</span><span class="p">,</span> <span class="mf">5.546921612875290e-01</span><span class="p">,</span>
+              <span class="mf">3.192424333237050e-01</span><span class="p">,</span> <span class="mf">3.612077612576969e-01</span><span class="p">,</span>
+              <span class="mf">5.866779836068974e-01</span><span class="p">,</span> <span class="mf">2.353799736246102e-01</span><span class="p">,</span>
+              <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">4.264162484855930e-01</span><span class="p">,</span> <span class="mf">1.322816663477840e+00</span><span class="p">,</span>
+              <span class="mf">4.245673729758231e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.530402764527700e+00</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">7.822016897497742e-02</span><span class="p">,</span> <span class="mf">1.054463080605071e+00</span><span class="p">,</span>
+              <span class="mf">4.645590541391895e-01</span><span class="p">,</span> <span class="mf">1.145097379521439e+00</span><span class="p">,</span>
+              <span class="mf">4.301337846893282e-01</span><span class="p">,</span> <span class="mf">1.499513057076809e+00</span><span class="p">,</span>
+              <span class="mf">1.447942640822165e-02</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">1.207394392845339e-02</span><span class="p">,</span> <span class="mf">5.187080074649261e-01</span><span class="p">,</span>
+              <span class="mf">1.121304244847239e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.959806334780896e-03</span><span class="p">,</span>
+              <span class="o">-</span><span class="mf">1.345031364651444e+00</span><span class="p">,</span> <span class="mf">3.398828703760807e-01</span><span class="p">,</span>
+              <span class="mf">8.159251531671077e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.640104266439604e-03</span><span class="p">,</span>
+              <span class="mf">1.439060901763520e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">6.556567796749947e-03</span><span class="p">,</span>
+              <span class="mf">6.548135446843367e-04</span><span class="p">,</span> <span class="mf">5.454220210658036e-01</span><span class="p">]])</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">WSODIRK1255</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;WSODIRK1255()&quot;</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
