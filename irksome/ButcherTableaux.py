@@ -25,6 +25,7 @@ class ButcherTableau(object):
         self.btilde = btilde
         self.c = c
         self.order = order
+        self.gamma0 = None
 
     @property
     def num_stages(self):
@@ -178,6 +179,10 @@ class RadauIIA(CollocationButcherTableau):
         U = FIAT.ufc_simplex(1)
         L = FIAT.GaussRadau(U, num_stages - 1)
         super(RadauIIA, self).__init__(L, 2 * num_stages - 1)
+        if num_stages == 3:
+            self.embedded_order = 3
+            self.btilde = numpy.array([4763/13500-numpy.sqrt(503/3071), 4763/13500+numpy.sqrt(503/3071), 263/13500], dtype='float')
+            self.gamma0 = 1237.0/4500
 
     def __str__(self):
         return "RadauIIA(%d)" % self.num_stages
@@ -219,6 +224,10 @@ class LobattoIIIC(ButcherTableau):
             A[i, 1:] = numpy.linalg.solve(mat, rhs)
 
         super(LobattoIIIC, self).__init__(A, b, None, c, 2 * num_stages - 2)
+        if num_stages == 3:
+            self.embedded_order = 3
+            self.btilde = numpy.array([-1/2, 2, -1/2], dtype='float')
+            self.gamma0 = 0.0
 
     def __str__(self):
         return "LobattoIIIC(%d)" % self.num_stages
