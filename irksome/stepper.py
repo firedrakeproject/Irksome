@@ -55,7 +55,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         "deriv": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
                   "bc_type", "splitting"],
         "adapt": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
-                  "bc_type", "splitting", "tol", "dtmin", "KI", "KP"],
+                  "bc_type", "splitting", "tol", "dtmin", "dtmax", "KI", "KP"],
         "value": ["stage_type", "bcs", "nullspace", "solver_parameters",
                   "update_solver_parameters", "appctx", "splitting"],
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
@@ -89,13 +89,14 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         nullspace = kwargs.get("nullspace")
         tol = kwargs.get("tol", 1e-3)
         dtmin = kwargs.get("dtmin", 1.e-15)
+        dtmax = kwargs.get("dtmax", 1.0)
         KI = kwargs.get("KI", 1/15)
         KP = kwargs.get("KP", 0.13)
         return AdaptiveTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
             solver_parameters=solver_parameters, nullspace=nullspace,
             bc_type=bc_type, splitting=splitting,
-            tol=tol, dtmin=dtmin, KI=KI, KP=KP)
+            tol=tol, dtmin=dtmin, dtmax=dtmax, KI=KI, KP=KP)
     elif stage_type == "value":
         bcs = kwargs.get("bcs")
         splitting = kwargs.get("splitting", AI)
@@ -335,6 +336,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     :arg tol: The temporal ttruncation error tolerance
     :arg dtmin: Minimal acceptable time step.  An exception is raised
             if the step size drops below this threshhold.
+    :arg dtmax: Maximal acceptable time step, imposed as a hard cap
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
@@ -352,7 +354,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0,
                  bcs=None, appctx=None, solver_parameters=None,
                  bc_type="DAE", splitting=AI, nullspace=None,
-                 tol=1.e-3, dtmin=1.e-15, KI=1/15, KP=0.13):
+                 tol=1.e-3, dtmin=1.e-15, dtmax = 1.0, KI=1/15, KP=0.13):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
@@ -364,6 +366,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.F = F
         self.tol = tol
         self.dt_min = dtmin
+        self.dt_max = dtmax
         self.dt = dt
         self.error_func = Function(u0.function_space())
         self.delb = butcher_tableau.btilde - butcher_tableau.b
@@ -451,6 +454,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         for s in range(ns):
             for i, e in enumerate(error_func_bits):
                 e += dtc*float(delb[s])*ws[nf*s+i]
+        self.print(norm(assemble(error_func)))
         return norm(assemble(error_func))
 
     def advance(self):
@@ -489,21 +493,21 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                     raise RuntimeError("The time-step was rejected 15 times in a row. Please increase the tolerance or decrease the starting time-step.")
 
             # Initial time-step selector
-            elif err_current < dt_current*tol and numpy.abs(dt_current-dt_pred) > dt_current/5 and self.num_steps == 0 and self.contreject <= 7:
+            elif dt_current < self.dt_max and err_current < dt_current*tol and numpy.abs(dt_current-dt_pred) > dt_current/5 and self.num_steps == 0 and self.contreject <= 7:
 
                 # Increase the initial time-step
-                dtnew = dt_pred
+                dtnew = min(dt_pred, self.dt_max)
                 self.print("\tIncreasing time-step to %e" % (dtnew))
                 self.dt.assign(dtnew)
                 self.contreject += 1
 
             # Accepted step increases the time-step
             else:
-                if dt_old != 0.0 and err_old != 0.0:
-                    dtnew = dt_current*((dt_current*tol)/err_current)**self.KI*(err_old/err_current)**self.KP*(dt_current/dt_old)**self.KP
+                if dt_old != 0.0 and err_old != 0.0 and dt_current < dt_max:
+                    dtnew = min(dt_current*((dt_current*tol)/err_current)**self.KI*(err_old/err_current)**self.KP*(dt_current/dt_old)**self.KP, self.dt_max)
                     self.print("\tThe step was accepted and the new time-step is %e" % (dtnew))
                 else:
-                    dtnew = dt_current
+                    dtnew = min(dt_current, self.dt_max)
                     self.print("\tThe step was accepted and the time-step remains at %e " % (dtnew))
                 self._update()
                 self.contreject = 0
