@@ -1,7 +1,7 @@
 import numpy
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import Function, TestFunction, inner, dx, norm, assemble, replace
+from firedrake import Function, TestFunction, inner, dx, norm, assemble, replace, DirichletBC
 from firedrake.dmhooks import pop_parent, push_parent
 from .dirk_stepper import DIRKTimeStepper
 from .getForm import AI, getForm
@@ -503,7 +503,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
 
             # Accepted step increases the time-step
             else:
-                if dt_old != 0.0 and err_old != 0.0 and dt_current < dt_max:
+                if dt_old != 0.0 and err_old != 0.0 and dt_current < self.dt_max:
                     dtnew = min(dt_current*((dt_current*tol)/err_current)**self.KI*(err_old/err_current)**self.KP*(dt_current/dt_old)**self.KP, self.dt_max)
                     self.print("\tThe step was accepted and the new time-step is %e" % (dtnew))
                 else:
