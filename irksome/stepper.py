@@ -1,8 +1,11 @@
 import numpy
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import Function, TestFunction, inner, dx, norm, assemble, replace, DirichletBC
+from firedrake import (DirichletBC, Function, TestFunction,
+                       inner, dx, norm, assemble, project, replace)
+from firedrake.__future__ import interpolate
 from firedrake.dmhooks import pop_parent, push_parent
+from ufl.constantvalue import as_ufl
 from .dirk_stepper import DIRKTimeStepper
 from .getForm import AI, getForm
 from .stage import StageValueTimeStepper
@@ -354,7 +357,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0,
                  bcs=None, appctx=None, solver_parameters=None,
                  bc_type="DAE", splitting=AI, nullspace=None,
-                 tol=1.e-3, dtmin=1.e-15, dtmax = 1.0, KI=1/15, KP=0.13):
+                 tol=1.e-3, dtmin=1.e-15, dtmax=1.0, KI=1/15, KP=0.13):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
@@ -367,7 +370,6 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.tol = tol
         self.dt_min = dtmin
         self.dt_max = dtmax
-        self.dt = dt
         self.error_func = Function(u0.function_space())
         self.delb = butcher_tableau.btilde - butcher_tableau.b
         self.gamma0 = butcher_tableau.gamma0
@@ -376,6 +378,54 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.dt_old = 0.0
         self.err_old = 0.0
         self.contreject = 0
+
+        # Set up and cache boundary conditions for error estimate
+        if self.gamma0 != 0:
+            # Grab spaces for BCs
+            v = F.arguments()[0]
+            V = v.function_space()
+            num_fields = len(V)
+            num_stages = butcher_tableau.num_stages
+            btilde = butcher_tableau.btilde
+            ks = self.stages
+
+            class EmbeddedBCData(object):
+                def __init__(self, bc, t, dt, num_fields, num_stages, btilde, V, ks, u0):
+                    gorig = as_ufl(bc._original_arg)
+                    gcur = replace(gorig, {t: t+dt})
+                    if num_fields == 1:  # not mixed space
+                        comp = bc.function_space().component
+                        if comp is not None:  # check for sub-piece of vector-valued
+                            Vsp = V.sub(comp)
+                        else:
+                            Vsp = V
+                            for j in range(num_stages):
+                                gcur -= dt*btilde[j]*ks[j]
+                            try:
+                                gdat = assemble(interpolate(gcur-u0, Vsp))
+                                gmethod = lambda g, u: gdat.interpolate(g-u)
+                            except:  # noqa: E722
+                                gdat = project(gcur-u0, Vsp)
+                                gmethod = lambda g, u: gdat.project(g-u)
+
+                    else:  # mixed space
+                        sub = bc.function_space_index()
+                        comp = bc.function_space().component
+                        if comp is not None:  # check for sub-piece of vector-valued
+                            Vsp = V.sub(sub).sub(comp)
+                        else:
+                            Vsp = V.sub(sub)
+                    self.gstuff = (gdat, gcur, gmethod, Vsp)
+
+            embbc = []
+            gblah = []
+            for bc in bcs:
+                blah = EmbeddedBCData(bc, self.t, self.dt, num_fields, num_stages, btilde, V, ks, self.u0)
+                gdat, gcur, gmethod, gVsp = blah.gstuff
+                gblah.append((gdat, gcur, gmethod))
+                embbc.append(DirichletBC(gVsp, gdat, bc.sub_domain))
+            self.embbc = embbc
+            self.gblah = gblah
 
         # Watt's initial step-size selector
         if 0:
@@ -435,22 +485,25 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
 
         # Initialize e to be gamma*h*f(old value of u)
         error_func = Function(u0.function_space())
-        error_test = TestFunction(u0.function_space())
-        f_form = inner(error_func, error_test)*dx-gamma0*dtc*dtless_form
-        f_problem = NLVP(f_form, error_func, bcs=self.orig_bcs)
-        solver_params = {
-            "snes_type": "ksponly",
-            "ksp_type": "preonly",
-            "pc_type": "lu",
-        }
-
-        f_solver = NLVS(f_problem, solver_parameters=solver_params)
+        # Only do the hard stuff if gamma0 is not zero
         if gamma0 != 0.0:
+            error_test = TestFunction(u0.function_space())
+            f_form = inner(error_func, error_test)*dx-gamma0*dtc*dtless_form
+            for gdat, gcur, gmethod in self.gblah:
+                gmethod(gcur, self.u0)
+            f_problem = NLVP(f_form, error_func, bcs=self.embbc)
+            solver_params = {
+                "snes_type": "ksponly",
+                "ksp_type": "preonly",
+                "pc_type": "lu",
+            }
+
+            f_solver = NLVS(f_problem, solver_parameters=solver_params)
             f_solver.solve()
-        self.print(norm(assemble(error_func)))
-        error_func_bits = error_func.subfunctions
+            self.print(norm(assemble(error_func)))
 
         # Accumulate delta-b terms over stages
+        error_func_bits = error_func.subfunctions
         for s in range(ns):
             for i, e in enumerate(error_func_bits):
                 e += dtc*float(delb[s])*ws[nf*s+i]
