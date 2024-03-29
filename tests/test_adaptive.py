@@ -2,7 +2,6 @@ import pytest
 from firedrake import *
 from ufl.algorithms.ad import expand_derivatives
 from irksome import Dt, MeshConstant, TimeStepper, RadauIIA, LobattoIIIC
-from irksome.tools import AI, IA
 
 
 def adapt_scalar_heat(N, butcher_tableau):
