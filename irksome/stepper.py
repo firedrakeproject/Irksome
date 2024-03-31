@@ -388,20 +388,29 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             num_fields = len(V)
             num_stages = butcher_tableau.num_stages
             btilde = butcher_tableau.btilde
-            ks = self.stages
+            ws = self.ws
 
             class EmbeddedBCData(object):
-                def __init__(self, bc, t, dt, num_fields, num_stages, btilde, V, ks, u0):
+                def __init__(self, bc, t, dt, num_fields, num_stages, btilde, V, ws, u0):
                     gorig = as_ufl(bc._original_arg)
                     gcur = replace(gorig, {t: t+dt})
+                    print(gcur)
                     if num_fields == 1:  # not mixed space
                         comp = bc.function_space().component
                         if comp is not None:  # check for sub-piece of vector-valued
                             Vsp = V.sub(comp)
+                            for j in range(num_stages):
+                                gcur -= dt*btilde[j]*ws[j].sub(comp)
+                            try:
+                                gdat = assemble(interpolate(gcur-u0.sub(comp), Vsp))
+                                gmethod = lambda g, u: gdat.interpolate(g-u.sub(comp))
+                            except:  # noqa: E722
+                                gdat = project(gcur-u0.sub(comp), Vsp)
+                                gmethod = lambda g, u: gdat.project(g-u.sub(comp))
                         else:
                             Vsp = V
                             for j in range(num_stages):
-                                gcur -= dt*btilde[j]*ks[j]
+                                gcur -= dt*btilde[j]*ws[j]
                             try:
                                 gdat = assemble(interpolate(gcur-u0, Vsp))
                                 gmethod = lambda g, u: gdat.interpolate(g-u)
@@ -421,7 +430,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             embbc = []
             gblah = []
             for bc in bcs:
-                blah = EmbeddedBCData(bc, self.t, self.dt, num_fields, num_stages, btilde, V, ks, self.u0)
+                blah = EmbeddedBCData(bc, self.t, self.dt, num_fields, num_stages, btilde, V, ws, self.u0)
                 gdat, gcur, gmethod, gVsp = blah.gstuff
                 gblah.append((gdat, gcur, gmethod))
                 embbc.append(DirichletBC(gVsp, gdat, bc.sub_domain))
