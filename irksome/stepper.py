@@ -366,16 +366,17 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         from firedrake.petsc import PETSc
         self.print = lambda x: PETSc.Sys.Print(x)
 
-        self.F = F
-        self.tol = tol
         self.dt_min = dtmin
         self.dt_max = dtmax
-        self.error_func = Function(u0.function_space())
+        self.dt_old = 0.0
+
         self.delb = butcher_tableau.btilde - butcher_tableau.b
         self.gamma0 = butcher_tableau.gamma0
         self.KI = KI
         self.KP = KP
-        self.dt_old = 0.0
+
+        self.error_func = Function(u0.function_space())
+        self.tol = tol
         self.err_old = 0.0
         self.contreject = 0
 
@@ -500,14 +501,12 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
 
             f_solver = NLVS(f_problem, solver_parameters=solver_params)
             f_solver.solve()
-            self.print(norm(assemble(error_func)))
 
         # Accumulate delta-b terms over stages
         error_func_bits = error_func.subfunctions
         for s in range(ns):
             for i, e in enumerate(error_func_bits):
                 e += dtc*float(delb[s])*ws[nf*s+i]
-        self.print(norm(assemble(error_func)))
         return norm(assemble(error_func))
 
     def advance(self):
