@@ -394,7 +394,6 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                 def __init__(self, bc, t, dt, num_fields, num_stages, btilde, V, ws, u0):
                     gorig = as_ufl(bc._original_arg)
                     gcur = replace(gorig, {t: t+dt})
-                    print(gcur)
                     if num_fields == 1:  # not mixed space
                         comp = bc.function_space().component
                         if comp is not None:  # check for sub-piece of vector-valued
