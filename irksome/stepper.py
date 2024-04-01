@@ -424,6 +424,14 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                             Vsp = V.sub(sub).sub(comp)
                         else:
                             Vsp = V.sub(sub)
+                            for j in range(num_stages):
+                                gcur -= dt*btilde[j]*ws[num_fields*j+sub]
+                            try:
+                                gdat = assemble(interpolate(gcur-u0.sub(sub), Vsp))
+                                gmethod = lambda g, u: gdat.interpolate(g-u.sub(sub))
+                            except:  # noqa: E722
+                                gdat = project(gcur-u0.sub(sub), Vsp)
+                                gmethod = lambda g, u: gdat.project(g-u.sub(sub))
                     self.gstuff = (gdat, gcur, gmethod, Vsp)
 
             embbc = []
