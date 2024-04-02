@@ -422,6 +422,14 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                         comp = bc.function_space().component
                         if comp is not None:  # check for sub-piece of vector-valued
                             Vsp = V.sub(sub).sub(comp)
+                            for j in range(num_stages):
+                                gcur -= dt*btilde[j]*ws[num_fields*j+sub].sub(comp)
+                            try:
+                                gdat = assemble(interpolate(gcur-u0.sub(sub).sub(comp), Vsp))
+                                gmethod = lambda g, u: gdat.interpolate(g-u.sub(sub).sub(comp))
+                            except:  # noqa: E722
+                                gdat = project(gcur-u0.sub(sub).sub(comp), Vsp)
+                                gmethod = lambda g, u: gdat.project(g-u.sub(sub).sub(comp))
                         else:
                             Vsp = V.sub(sub)
                             for j in range(num_stages):

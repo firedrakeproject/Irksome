@@ -94,13 +94,14 @@ def adapt_mixed_heat(N, butcher_tableau):
     t = MC.Constant(0.0)
 
     V = FunctionSpace(msh, "CG", 1)
-    W = V*V
+    Z = VectorFunctionSpace(msh, "CG", 2)
+    W = V*Z
     x, y = SpatialCoordinate(msh)
     n = FacetNormal(msh)
 
     uexact_1 = t*(x+y)
     rhs_1 = expand_derivatives(diff(uexact_1, t)) - div(grad(uexact_1))
-    uexact_2 = 2*t*(x-y)
+    uexact_2 = as_vector([2*t*(x-y), t*t*(x*y-2)])
     rhs_2 = expand_derivatives(diff(uexact_2, t)) - div(grad(uexact_2))
 
     w = Function(W)
@@ -109,12 +110,13 @@ def adapt_mixed_heat(N, butcher_tableau):
     (v1, v2) = split(v)
 
     F1 = inner(Dt(u1), v1)*dx + inner(grad(u1), grad(v1))*dx - inner(rhs_1, v1)*dx - inner(inner(grad(uexact_1), n), v1)*ds(2) - inner(inner(grad(uexact_1), n), v1)*ds(4)
-    F2 = inner(Dt(u2), v2)*dx + inner(grad(u2), grad(v2))*dx - inner(rhs_2, v2)*dx
+    F2 = inner(Dt(u2), v2)*dx + inner(grad(u2), grad(v2))*dx - inner(rhs_2, v2)*dx - inner(inner(grad(uexact_2[1]), n), v2[1])*ds(1) - inner(inner(grad(uexact_2[1]), n), v2[1])*ds(3)
     F = F1+F2
 
     bc_1 = DirichletBC(W.sub(0), uexact_1, [1, 3])
-    bc_2 = DirichletBC(W.sub(1), uexact_2, "on_boundary")
-    bcs = [bc_1, bc_2]
+    bc_2 = DirichletBC(W.sub(1).sub(0), uexact_2[0], "on_boundary")
+    bc_3 = DirichletBC(W.sub(1).sub(1), uexact_2[1], [2, 4])
+    bcs = [bc_1, bc_2, bc_3]
 
     luparams = {"mat_type": "aij",
                 "snes_type": "ksponly",
