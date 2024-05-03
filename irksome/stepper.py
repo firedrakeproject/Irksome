@@ -320,7 +320,7 @@ class StageDerivativeTimeStepper:
 
 
 class AdaptiveTimeStepper(StageDerivativeTimeStepper):
-    """Front-end class for advancing a time-dependent PDE via an adaptive 
+    """Front-end class for advancing a time-dependent PDE via an adaptive
     Runge-Kutta method.
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
             F(t, u; v) == 0, where `u` is the unknown
@@ -332,7 +332,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             contains the time value at the beginning of a time step
     :arg dt: A :class:`firedrake.Constant` containing the size of the
             current time step.  The user may adjust this value between
-            time steps; however, note that the adaptive time step 
+            time steps; however, note that the adaptive time step
             controls may adjust this before the step is taken.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
@@ -340,7 +340,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     :arg dtmin: Minimal acceptable time step.  An exception is raised
             if the step size drops below this threshhold.
     :arg dtmax: Maximal acceptable time step, imposed as a hard cap;
-            this can be adjusted externally once the time-stepper is 
+            this can be adjusted externally once the time-stepper is
             instantiated, by modifying `stepper.dt_max`
     :arg KI: Integration gain for step-size controller.  Should be less
             then 1/p, where p is the expected order of the scheme
@@ -456,7 +456,6 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                 embbc.append(DirichletBC(gVsp, gdat, bc.sub_domain))
             self.embbc = embbc
             self.gblah = gblah
-
 
     def _estimate_error(self):
         """Assuming that the RK stages have been evaluated, estimates
