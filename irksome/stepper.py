@@ -539,6 +539,8 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         decrease the time step until the step is accepted.  Also
         predicts new time step once the step is accepted.
         Note: overwrites the value `u0`."""
+        if float(self.dt) > self.dt_max:
+            self.dt.assign(self.dt_max)
         self.print("\tTrying dt = %e" % (float(self.dt)))
         while 1:
             for gdat, gcur, gmethod in self.bigBCdata:
