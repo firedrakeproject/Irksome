@@ -320,8 +320,8 @@ class StageDerivativeTimeStepper:
 
 
 class AdaptiveTimeStepper(StageDerivativeTimeStepper):
-    """Front-end class for advancing a time-dependent PDE via a Runge-Kutta
-    method.
+    """Front-end class for advancing a time-dependent PDE via an adaptive 
+    Runge-Kutta method.
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` is the
@@ -332,14 +332,19 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             contains the time value at the beginning of a time step
     :arg dt: A :class:`firedrake.Constant` containing the size of the
             current time step.  The user may adjust this value between
-            time steps, but see :class:`AdaptiveTimeStepper` for a
-            method that attempts to do this automatically.
+            time steps; however, note that the adaptive time step 
+            controls may adjust this before the step is taken.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
-    :arg tol: The temporal ttruncation error tolerance
+    :arg tol: The temporal truncation error tolerance
     :arg dtmin: Minimal acceptable time step.  An exception is raised
             if the step size drops below this threshhold.
-    :arg dtmax: Maximal acceptable time step, imposed as a hard cap
+    :arg dtmax: Maximal acceptable time step, imposed as a hard cap;
+            this can be adjusted externally once the time-stepper is 
+            instantiated, by modifying `stepper.dt_max`
+    :arg KI: Integration gain for step-size controller.  Should be less
+            then 1/p, where p is the expected order of the scheme
+    :arg KP: Proportional gain for step-size controller.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
@@ -452,46 +457,6 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             self.embbc = embbc
             self.gblah = gblah
 
-        # Watt's initial step-size selector
-        if 0:
-            d0 = norm(assemble(self.u0))
-
-            f0 = Function(self.u0.function_space())
-            f0_test = TestFunction(self.u0.function_space())
-            f0_form = inner(f0, f0_test)*dx + extract_terms(F).remainder
-            f0_problem = NLVP(f0_form, f0, bcs=self.orig_bcs)
-            solver_params = {
-                "snes_type": "ksponly",
-                "ksp_type": "preonly",
-                "pc_type": "lu",
-            }
-            f0_solver = NLVS(f0_problem, solver_parameters=solver_params)
-            f0_solver.solve()
-
-            d1 = norm(assemble(f0))
-            if d0 < 10**(-5) or d1 < 10**(-5):
-                h0 = 10.0**(-6)
-            else:
-                h0 = tol*(d0/d1)
-
-            # TODO: Check assembly of f1 = ( f(t0,y0+h0) - f0) / h0
-            u1 = Function(u0)
-            u1 += h0*Function(u0.function_space()).interpolate(1.0)
-
-            fnew = Function(self.u0.function_space())
-            f0_rhs = -extract_terms(F).remainder
-            fnew_rhs = replace(f0_rhs, {u0: u1})
-            fnew_form = inner(fnew, f0_test)*dx - fnew_rhs
-            fnew_problem = NLVP(fnew_form, fnew, bcs=self.orig_bcs)
-            fnew_solver = NLVS(fnew_problem, solver_parameters=solver_params)
-            fnew_solver.solve()
-
-            f1 = Function(self.u0.function_space()).interpolate((fnew-f0)/h0)
-            d2 = norm(f1)
-            watts_dt = numpy.sqrt(2.)*tol**(1./self.butcher_tableau.order)/numpy.sqrt((d1*d2))
-            self.print("f0 = %f, fnew = %f" % (norm(f0), norm(fnew)))
-            self.print("d1 = %f, d2 = %f, h0 = %f" % (d1, d2, h0))
-            self.print("\tThe time-step predicted by Watt's is %e" % (watts_dt))
 
     def _estimate_error(self):
         """Assuming that the RK stages have been evaluated, estimates
@@ -554,13 +519,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             dt_old = float(self.dt_old)
             dt_current = float(self.dt)
             tol = float(self.tol)
-            dt_pred = dt_current*((dt_current*tol)/err_current)**(1/3)
+            dt_pred = dt_current*((dt_current*tol)/err_current)**(1/self.butcher_tableau.embedded_order)
             self.print("\tTruncation error is %e" % (err_current))
 
             # Rejected step shrinks the time-step
             if err_current >= dt_current*tol:
-
-                # Original formula for rejected time-steps
                 dtnew = dt_current*(0.9*dt_current*tol/err_current)**(1./self.butcher_tableau.embedded_order)
                 self.print("\tShrinking time-step to %e" % (dtnew))
                 self.dt.assign(dtnew)
@@ -571,7 +534,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                     raise RuntimeError("The time-step was rejected 15 times in a row. Please increase the tolerance or decrease the starting time-step.")
 
             # Initial time-step selector
-            elif dt_current < self.dt_max and err_current < dt_current*tol and numpy.abs(dt_current-dt_pred) > dt_current/5 and self.num_steps == 0 and self.contreject <= 7:
+            elif self.num_steps == 0 and dt_current < self.dt_max and numpy.abs(dt_current-dt_pred) > dt_current/5 and self.contreject <= 7:
 
                 # Increase the initial time-step
                 dtnew = min(dt_pred, self.dt_max)
