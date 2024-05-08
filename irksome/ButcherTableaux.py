@@ -25,7 +25,7 @@ class ButcherTableau(object):
         self.btilde = btilde
         self.c = c
         self.order = order
-        self.gamma0 = None
+        self.gamma0 = 0.0
 
     @property
     def num_stages(self):
@@ -227,7 +227,6 @@ class LobattoIIIC(ButcherTableau):
         if num_stages == 3:
             self.embedded_order = 3
             self.btilde = numpy.array([-1/2, 2, -1/2], dtype='float')
-            self.gamma0 = 0.0
 
     def __str__(self):
         return "LobattoIIIC(%d)" % self.num_stages

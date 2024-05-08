@@ -196,7 +196,6 @@ class StageDerivativeTimeStepper:
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
-        self.gamma0 = butcher_tableau.gamma0
 
         bigF, stages, bigBCs, bigNSP, bigBCdata = \
             getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type, splitting, nullspace)
@@ -242,8 +241,6 @@ class StageDerivativeTimeStepper:
             self._update = self._update_A2Tmb
         else:
             self._update = self._update_general
-            # For debugging: update based on embedded scheme
-            # self._update = self._update_embedded
 
     def _update_general(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -257,29 +254,6 @@ class StageDerivativeTimeStepper:
 
         ws = self.ws
         u0bits = u0.subfunctions
-        for s in range(ns):
-            for i, u0bit in enumerate(u0bits):
-                u0bit += dtc * float(b[s]) * ws[nf*s+i]
-
-    def _update_embedded(self):
-        """Assuming the algebraic problem for the RK stages has been
-        solved, updates the solution using the embedded scheme.
-        Provided for debugging only, not typically be called by an end user."""
-        b = self.updateb
-        dtc = float(self.dt)
-        u0 = self.u0
-        ns = self.num_stages
-        nf = self.num_fields
-        split_form = extract_terms(self.F)
-        dtless_form = -split_form.remainder
-        gamma0 = float(self.gamma0)
-        ws = self.ws
-
-        u0bits = u0.subfunctions
-        if gamma0 != 0.0:
-            stage0_update = assemble(gamma0*dtc*dtless_form)
-            for i, u0bit in enumerate(u0bits):
-                u0bit += stage0_update[i]
         for s in range(ns):
             for i, u0bit in enumerate(u0bits):
                 u0bit += dtc * float(b[s]) * ws[nf*s+i]
@@ -385,6 +359,9 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.err_old = 0.0
         self.contreject = 0
 
+        split_form = extract_terms(F)
+        self.dtless_form = -split_form.remainder
+
         # Set up and cache boundary conditions for error estimate
         if self.gamma0 != 0:
             # Grab spaces for BCs
@@ -468,16 +445,13 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         nf = self.num_fields
         ns = self.num_stages
         u0 = self.u0
-        split_form = extract_terms(self.F)
-        dtless_form = -split_form.remainder
-        gamma0 = float(self.gamma0)
 
         # Initialize e to be gamma*h*f(old value of u)
         error_func = Function(u0.function_space())
         # Only do the hard stuff if gamma0 is not zero
-        if gamma0 != 0.0:
+        if self.gamma0 != 0.0:
             error_test = TestFunction(u0.function_space())
-            f_form = inner(error_func, error_test)*dx-gamma0*dtc*dtless_form
+            f_form = inner(error_func, error_test)*dx-self.gamma0*dtc*self.dtless_form
             for gdat, gcur, gmethod in self.gblah:
                 gmethod(gcur, self.u0)
             f_problem = NLVP(f_form, error_func, bcs=self.embbc)
