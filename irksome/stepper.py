@@ -58,7 +58,8 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         "deriv": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
                   "bc_type", "splitting"],
         "adapt": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
-                  "bc_type", "splitting", "tol", "dtmin", "dtmax", "KI", "KP"],
+                  "bc_type", "splitting", "tol", "dtmin", "dtmax", "KI", "KP",
+                  "max_reject"],
         "value": ["stage_type", "bcs", "nullspace", "solver_parameters",
                   "update_solver_parameters", "appctx", "splitting"],
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
@@ -95,11 +96,13 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         dtmax = kwargs.get("dtmax", 1.0)
         KI = kwargs.get("KI", 1/15)
         KP = kwargs.get("KP", 0.13)
+        max_reject = kwargs.get("max_reject", 10)
         return AdaptiveTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
             solver_parameters=solver_parameters, nullspace=nullspace,
             bc_type=bc_type, splitting=splitting,
-            tol=tol, dtmin=dtmin, dtmax=dtmax, KI=KI, KP=KP)
+            tol=tol, dtmin=dtmin, dtmax=dtmax, KI=KI, KP=KP,
+            max_reject=max_reject)
     elif stage_type == "value":
         bcs = kwargs.get("bcs")
         splitting = kwargs.get("splitting", AI)
@@ -319,6 +322,8 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     :arg KI: Integration gain for step-size controller.  Should be less
             then 1/p, where p is the expected order of the scheme
     :arg KP: Proportional gain for step-size controller.
+    :arg max_reject: Maximum number of rejected timesteps in a row that
+            does not lead to a failure
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
@@ -336,7 +341,8 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0,
                  bcs=None, appctx=None, solver_parameters=None,
                  bc_type="DAE", splitting=AI, nullspace=None,
-                 tol=1.e-3, dtmin=1.e-15, dtmax=1.0, KI=1/15, KP=0.13):
+                 tol=1.e-3, dtmin=1.e-15, dtmax=1.0, KI=1/15, KP=0.13,
+                 max_reject=10):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
@@ -353,6 +359,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.gamma0 = butcher_tableau.gamma0
         self.KI = KI
         self.KP = KP
+        self.max_reject = max_reject
 
         self.error_func = Function(u0.function_space())
         self.tol = tol
@@ -503,11 +510,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                 self.contreject += 1
                 if dtnew <= self.dt_min or numpy.isfinite(dtnew) is False:
                     raise RuntimeError("The time-step became an invalid number.")
-                if self.contreject >= 15:
-                    raise RuntimeError("The time-step was rejected 15 times in a row. Please increase the tolerance or decrease the starting time-step.")
+                if self.contreject >= self.max_reject:
+                    raise RuntimeError(f"The time-step was rejected {self.max_reject} times in a row. Please increase the tolerance or decrease the starting time-step.")
 
             # Initial time-step selector
-            elif self.num_steps == 0 and dt_current < self.dt_max and numpy.abs(dt_current-dt_pred) > dt_current/5 and self.contreject <= 7:
+            elif self.num_steps == 0 and dt_current < self.dt_max and numpy.abs(dt_current-dt_pred) > dt_current/5 and self.contreject <= self.max_reject:
 
                 # Increase the initial time-step
                 dtnew = min(dt_pred, self.dt_max)
