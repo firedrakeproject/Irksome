@@ -17,14 +17,19 @@ class ButcherTableau(object):
     :arg c: a 1d array containing weights at which time-dependent
             terms are evaluated.
     :arg order: the (integer) formal order of accuracy of the method
+    :arg embedded_order: If present, the (integer) formal order of
+            accuracy of the embedded method
+    :arg gamma0: If present, the weight on the explicit term in the
+            embedded lower-order method
     """
-    def __init__(self, A, b, btilde, c, order):
+    def __init__(self, A, b, btilde, c, order, embedded_order, gamma0):
 
         self.A = A
         self.b = b
         self.btilde = btilde
         self.c = c
         self.order = order
+        self.embedded_order = embedded_order
         self.gamma0 = 0.0
 
     @property
@@ -129,8 +134,10 @@ class CollocationButcherTableau(ButcherTableau):
         V = vander(c, increasing=True)
         rhs = numpy.array([1.0/(s+1) for s in range(num_stages-1)] + [0])
         btilde = solve(V.T, rhs)
+        gamma0 = 0
+        embedded_order = num_stages-1
 
-        super(CollocationButcherTableau, self).__init__(A, b, btilde, c, order)
+        super(CollocationButcherTableau, self).__init__(A, b, btilde, c, order, embedded_order, gamma0)
 
 
 class GaussLegendre(CollocationButcherTableau):
@@ -209,7 +216,10 @@ class LobattoIIIC(ButcherTableau):
         # mooch the b and c from IIIA
         IIIA = LobattoIIIA(num_stages)
         b = IIIA.b
+        btilde = IIIA.btilde
         c = IIIA.c
+        embedded_order = IIIA.embedded_order
+        gamma0 = IIIA.gamma0
 
         A = numpy.zeros((num_stages, num_stages))
         for i in range(num_stages):
@@ -223,10 +233,7 @@ class LobattoIIIC(ButcherTableau):
                                for k in range(num_stages-1)])
             A[i, 1:] = numpy.linalg.solve(mat, rhs)
 
-        super(LobattoIIIC, self).__init__(A, b, None, c, 2 * num_stages - 2)
-        if num_stages == 3:
-            self.embedded_order = 3
-            self.btilde = numpy.array([-1/2, 2, -1/2], dtype='float')
+        super(LobattoIIIC, self).__init__(A, b, btilde, c, 2 * num_stages - 2, embedded_order, gamma0)
 
     def __str__(self):
         return "LobattoIIIC(%d)" % self.num_stages
@@ -240,7 +247,7 @@ class PareschiRusso(ButcherTableau):
         A = numpy.array([[x, 0.0], [1-2*x, x]])
         b = numpy.array([0.5, 0.5])
         c = numpy.array([x, 1-x])
-        super(PareschiRusso, self).__init__(A, b, None, c, 2)
+        super(PareschiRusso, self).__init__(A, b, None, c, 2, None, None)
 
     def __str__(self):
         return "PareschiRusso(%f)" % self.x
@@ -267,7 +274,7 @@ class Alexander(ButcherTableau):
         A = numpy.array([[x, 0.0, 0.0], [(1-x)/2.0, x, 0.0], [y, z, x]])
         b = numpy.array([y, z, x])
         c = numpy.array([x, (1+x)/2.0, 1])
-        super(Alexander, self).__init__(A, b, None, c, 3)
+        super(Alexander, self).__init__(A, b, None, c, 3, None, None)
 
     def __str__(self):
         return "Alexander()"
@@ -288,7 +295,7 @@ class WSODIRK432(ButcherTableau):
              [0.40434605601, 0.38435717512, 0, 0],
              [0.06487908412, -0.16389640295, 0.51545231222, 0],
              [0.02343549374, -0.41207877888, 0.96661161281, 0.42203167233]])
-        super(WSODIRK432, self).__init__(A, b, None, c, 3)
+        super(WSODIRK432, self).__init__(A, b, None, c, 3, None, None)
 
     def __str__(self):
         return "WSODIRK432()"
@@ -308,7 +315,7 @@ class WSODIRK433(ButcherTableau):
              [0.56695122794, 0.23483888782, 0, 0],
              [-1.08354072813, 2.96618223864, 0.44915521951, 0],
              [0.59761291500, -0.43420997584, -0.05305815322, 0.88965521406]])
-        super(WSODIRK433, self).__init__(A, b, None, c, 3)
+        super(WSODIRK433, self).__init__(A, b, None, c, 3, None, None)
 
     def __str(self):
         return "WSODIRK433()"
@@ -336,7 +343,7 @@ class WSODIRK643(ButcherTableau):
              [0.214823667785537, 0.536367363903245,
              0.154488125726409, -0.217748592703941,
              0.072226422925896, 0.239843012362853]])
-        super(WSODIRK643, self).__init__(A, b, None, c, 4)
+        super(WSODIRK643, self).__init__(A, b, None, c, 4, None, None)
 
     def __str(self):
         return "WSODIRK643()"
@@ -366,7 +373,7 @@ class WSODIRK744(ButcherTableau):
              [1.475353790517696e-01, 3.618481772236499e-01, -5.603544220240282e-01, 2.455453653222619e+00, 5.742190161395324e-01, 0, 0],
              [2.099717815888321e-01, 7.120237463672882e-01, -2.012023940726332e-02, -1.913828539529156e-02, -5.556044541810300e-03, 3.707277349712966e-01, 0],
              [2.387938238483883e-01, 4.762495400483653e-01, 1.233935151213300e-02, 6.011995982693821e-02, 6.553618225489034e-05, -1.270730910442124e-01, 3.395048796261326e-01]])
-        super(WSODIRK744, self).__init__(A, b, None, c, 4)
+        super(WSODIRK744, self).__init__(A, b, None, c, 4, None, None)
 
     def __str__(self):
         return "WSODIRK744()"
@@ -445,7 +452,7 @@ class WSODIRK1254():
               -5.428992174996300e-02, -3.803299038293005e-02,
               -9.150525836295019e-03, 2.712352651694511e-01]])
 
-        super(WSODIRK1254, self).__init__(A, b, None, c, 5)
+        super(WSODIRK1254, self).__init__(A, b, None, c, 5, None, None)
 
     def __str__(self):
         return "WSODIRK1254()"
@@ -524,7 +531,7 @@ class WSODIRK1255(ButcherTableau):
               1.439060901763520e-02, -6.556567796749947e-03,
               6.548135446843367e-04, 5.454220210658036e-01]])
 
-        super(WSODIRK1255, self).__init__(A, b, None, c, 5)
+        super(WSODIRK1255, self).__init__(A, b, None, c, 5, None, None)
 
     def __str__(self):
         return "WSODIRK1255()"
