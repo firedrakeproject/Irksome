@@ -71,6 +71,13 @@ We now have support for DIRKs:
 
    demos/demo_heat_dirk.py
 
+and for adaptive IRK methods:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_heat_adapt.py
+
 Or check out an IMEX-type method for the monodomain equations:
 
 .. toctree::

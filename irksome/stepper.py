@@ -302,6 +302,7 @@ class StageDerivativeTimeStepper:
 class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     """Front-end class for advancing a time-dependent PDE via an adaptive
     Runge-Kutta method.
+
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` is the
