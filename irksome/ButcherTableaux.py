@@ -180,13 +180,16 @@ class RadauIIA(CollocationButcherTableau):
     RadauIIA methods are algebraically (hence B-) stable.
 
     :arg num_stages: The number of stages (2 or greater)
+    :arg variant: Indicate whether to use the Radau5 style of
+          embedded scheme (with `variant = "embed_Radau5"`) or
+          the simple collocation type (with `variant = "embed_colloc"`)
     """
-    def __init__(self, num_stages):
+    def __init__(self, num_stages, variant="embed_Radau5"):
         assert num_stages >= 1
         U = FIAT.ufc_simplex(1)
         L = FIAT.GaussRadau(U, num_stages - 1)
         super(RadauIIA, self).__init__(L, 2 * num_stages - 1)
-        if num_stages == 3:
+        if num_stages == 3 and variant == "embed_Radau5":
             self.embedded_order = 3
             self.btilde = numpy.array([4763/13500-numpy.sqrt(503/3071), 4763/13500+numpy.sqrt(503/3071), 263/13500], dtype='float')
             self.gamma0 = 1237.0/4500
