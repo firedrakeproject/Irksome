@@ -12,7 +12,8 @@ from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
 from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, IA, getNullspace, MeshConstant, is_ode, replace
+from .tools import (AI, IA, getNullspace, MeshConstant,
+                    is_ode, replace, stage2spaces4bc)
 
 
 def getBits(num_stages, num_fields, u0, UU, v, VV):
@@ -224,26 +225,9 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     # time t+C[i]*dt.
 
     for bc in bcs:
-        if num_fields == 1:  # not mixed space
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(comp)
-                Vbigi = lambda i: Vbig[i].sub(comp)
-            else:
-                Vsp = V
-                Vbigi = lambda i: Vbig[i]
-        else:  # mixed space
-            sub = bc.function_space_index()
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(sub).sub(comp)
-                Vbigi = lambda i: Vbig[sub+num_fields*i].sub(comp)
-            else:
-                Vsp = V.sub(sub)
-                Vbigi = lambda i: Vbig[sub+num_fields*i]
-
         bcarg = as_ufl(bc._original_arg)
         for i in range(num_stages):
+            Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             try:
                 gdat = assemble(interpolate(bcarg, Vsp))
                 gmethod = lambda gd, gc: gd.interpolate(gc)
@@ -252,7 +236,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                 gmethod = lambda gd, gc: gd.project(gc)
 
             gcur = replace(bcarg, {t: t+C[i]*dt})
-            bcsnew.append(DirichletBC(Vbigi(i), gdat, bc.sub_domain))
+            bcsnew.append(DirichletBC(Vbigi, gdat, bc.sub_domain))
             gblah.append((gdat, gcur, gmethod))
 
     nspacenew = getNullspace(V, Vbig, butch, nullspace)

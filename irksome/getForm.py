@@ -9,7 +9,7 @@ from ufl import diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import MeshConstant, replace, getNullspace, AI
+from .tools import MeshConstant, replace, getNullspace, AI, stage2spaces4bc
 from .deriv import TimeDerivative  # , apply_time_derivatives
 
 
@@ -229,31 +229,14 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
 
     # This logic uses information set up in the previous section to
     # set up the new BCs for either method
-    for bc in bcs:
-        if num_fields == 1:  # not mixed space
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(comp)
-                Vbigi = lambda i: Vbig[i].sub(comp)
-            else:
-                Vsp = V
-                Vbigi = lambda i: Vbig[i]
-        else:  # mixed space
-            sub = bc.function_space_index()
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(sub).sub(comp)
-                Vbigi = lambda i: Vbig[sub+num_fields*i].sub(comp)
-            else:
-                Vsp = V.sub(sub)
-                Vbigi = lambda i: Vbig[sub+num_fields*i]
-
+    for bc in bcs:        
         for i in range(num_stages):
+            Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)            
             gcur = bc2gcur(bc, i)
             blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
             gdat, gcr, gmethod = blah.gstuff
             gblah.append((gdat, gcr, gmethod))
-            bcnew.append(DirichletBC(Vbigi(i), gdat, bc.sub_domain))
+            bcnew.append(DirichletBC(Vbigi, gdat, bc.sub_domain))
 
     nspnew = getNullspace(V, Vbig, butch, nullspace)
 
