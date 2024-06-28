@@ -9,7 +9,7 @@ from ufl import diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import MeshConstant, replace, getNullspace, AI, stage2spaces4bc
+from .tools import ConstantOrZero, MeshConstant, replace, getNullspace, AI, stage2spaces4bc
 from .deriv import TimeDerivative  # , apply_time_derivatives
 
 
@@ -51,10 +51,6 @@ class BCStageData(object):
                     gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
 
         self.gstuff = (gdat, gcur, gmethod)
-
-
-def ConstantOrZero(x, MC):
-    return Zero() if abs(complex(x)) < 1.e-10 else MC.Constant(x)
 
 
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
@@ -229,9 +225,9 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
 
     # This logic uses information set up in the previous section to
     # set up the new BCs for either method
-    for bc in bcs:        
+    for bc in bcs:
         for i in range(num_stages):
-            Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)            
+            Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             gcur = bc2gcur(bc, i)
             blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
             gdat, gcr, gmethod = blah.gstuff

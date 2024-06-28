@@ -2,7 +2,7 @@ import numpy
 from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, split
 from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
-from ufl.classes import CoefficientDerivative
+from ufl.classes import CoefficientDerivative, Zero
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
 from irksome.deriv import TimeDerivative
@@ -116,6 +116,10 @@ class MeshConstant(object):
 
     def Constant(self, val=0.0):
         return Function(self.V).assign(val)
+
+
+def ConstantOrZero(x, MC):
+    return Zero() if abs(complex(x)) < 1.e-10 else MC.Constant(x)
 
 
 # used to figure out how to apply Dirichlet BC to each stage
