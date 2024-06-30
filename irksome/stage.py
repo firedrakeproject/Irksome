@@ -3,6 +3,7 @@ from functools import reduce
 from operator import mul
 
 import numpy as np
+from FIAT import ufc_simplex, Bernstein
 from firedrake import (DirichletBC, Function,
                        NonlinearVariationalProblem, NonlinearVariationalSolver,
                        TestFunction, assemble, dx, inner, project, split)
@@ -332,7 +333,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 class StageValueTimeStepper:
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
-                 splitting=AI,
+                 splitting=AI, basis_type=None,
                  nullspace=None, appctx=None):
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
         ode_huh = is_ode(F, u0)
@@ -349,8 +350,16 @@ class StageValueTimeStepper:
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
+        if basis_type is None:
+            vandermonde = None
+        elif basis_type == "Bernstein":
+            bern = Bernstein(ufc_simplex(1), self.num_stages - 1)
+            vandermonde = bern.tabulate(0, np.reshape(butcher_tableau.b, (-1, 1)))[0,]
+        else:
+            raise ValueError("Unknown or unimplemented basis transformation type")
+
         Fbig, update_stuff, UU, bigBCs, gblah, nsp = getFormStage(
-            F, butcher_tableau, u0, t, dt, bcs,
+            F, butcher_tableau, u0, t, dt, bcs, vandermonde=vandermonde,
             splitting=splitting)
 
         self.UU = UU
