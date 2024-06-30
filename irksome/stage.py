@@ -12,8 +12,8 @@ from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
 from .manipulation import extract_terms, strip_dt_form
-from .tools import (AI, IA, getNullspace, MeshConstant,
-                    is_ode, replace, stage2spaces4bc)
+from .tools import (AI, ConstantOrZero, IA, MeshConstant,
+                    getNullspace, is_ode, replace, stage2spaces4bc)
 
 
 def getBits(num_stages, num_fields, u0, UU, v, VV):
@@ -48,7 +48,7 @@ def getBits(num_stages, num_fields, u0, UU, v, VV):
     return u0bits, vbits, VVbits, UUbits
 
 
-def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
+def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None,
                  nullspace=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
@@ -68,6 +68,13 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
          to vary between the classical RK formulation and Butcher's reformulation
          that leads to a denser mass matrix with block-diagonal stiffness.
          Only `AI` and `IA` are currently supported.
+    :arg vandermonde: a numpy array encoding a change of basis to the Lagrange
+         polynomials associated with the collocation nodes from some other
+         (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
+         coefficients in some basis rather than the values at particular stages,
+         which can be useful for satisfying bounds constraints.
+         If none is provided, we assume it is the identity, working in the
+         Lagrange basis.
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possible time-dependent) boundary conditions imposed
          on the system.
@@ -110,19 +117,34 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     num_stages = butch.num_stages
     num_fields = len(V)
 
+    # default to no basis transformation, identity matrix
+    if vandermonde is None:
+        vandermonde = np.eye(num_stages)
+
     # s-way product space for the stage variables
     Vbig = reduce(mul, (V for _ in range(num_stages)))
     VV = TestFunction(Vbig)
-    UU = Function(Vbig)
+    # UU = Function(Vbig)
+    ZZ = Function(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
-                                            u0, UU, v, VV)
+    # u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
+    #                                         u0, UU, v, VV)
+
+    u0bits, vbits, VVbits, ZZbits = getBits(num_stages, num_fields,
+                                            u0, ZZ, v, VV)
 
     MC = MeshConstant(V.mesh())
     vecconst = np.vectorize(lambda c: MC.Constant(c))
+
     C = vecconst(butch.c)
     A = vecconst(butch.A)
+
+    veccorz = np.vectorize(lambda c: ConstantOrZero(c, MC))
+    Vander = veccorz(vandermonde)
+    Vander_inv = veccorz(np.linalg.inv(vandermonde))
+
+    UUbits = Vander @ ZZbits
 
     split_form = extract_terms(F)
 
@@ -226,6 +248,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
+        gblah_cur = []
         for i in range(num_stages):
             Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             try:
@@ -236,8 +259,21 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                 gmethod = lambda gd, gc: gd.project(gc)
 
             gcur = replace(bcarg, {t: t+C[i]*dt})
-            bcsnew.append(DirichletBC(Vbigi, gdat, bc.sub_domain))
-            gblah.append((gdat, gcur, gmethod))
+            gblah_cur.append((gdat, gcur, gmethod))
+
+        gdats_cur = np.zeros((num_stages,), dtype="O")
+        for i in range(num_stages):
+            gdats_cur[i] = gblah_cur[i][0]
+
+        zdats_cur = Vander_inv @ gdats_cur
+
+        bcnew_cur = []
+        for i in range(num_stages):
+            Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+            bcnew_cur.append(DirichletBC(Vbigi, zdats_cur[i], bc.sub_domain))
+
+        bcsnew.extend(bcnew_cur)
+        gblah.extend(gblah_cur)
 
     nspacenew = getNullspace(V, Vbig, butch, nullspace)
 
@@ -290,7 +326,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
         update_bcs_gblah.append((gdat, gcur, gmethod))
 
     return (Fnew, (unew, Fupdate, update_bcs, update_bcs_gblah),
-            UU, bcsnew, gblah, nspacenew)
+            ZZ, bcsnew, gblah, nspacenew)
 
 
 class StageValueTimeStepper:
