@@ -353,8 +353,9 @@ class StageValueTimeStepper:
         if basis_type is None:
             vandermonde = None
         elif basis_type == "Bernstein":
+            assert self.num_stages > 1, ValueError("Bernstein only defined for degree >= 1")
             bern = Bernstein(ufc_simplex(1), self.num_stages - 1)
-            vandermonde = bern.tabulate(0, np.reshape(butcher_tableau.b, (-1, 1)))[0,]
+            vandermonde = bern.tabulate(0, np.reshape(butcher_tableau.c, (-1, 1)))[0,]
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")
 
