@@ -52,7 +52,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     valid_kwargs_per_stage_type = {
         "deriv": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
                   "bc_type", "splitting"],
-        "value": ["stage_type", "bcs", "nullspace", "solver_parameters",
+        "value": ["stage_type", "basis_type", "bcs", "nullspace", "solver_parameters",
                   "update_solver_parameters", "appctx", "splitting"],
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
         "imex": ["Fexp", "stage_type", "bcs", "nullspace",
@@ -81,12 +81,13 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         splitting = kwargs.get("splitting", AI)
         appctx = kwargs.get("appctx")
         solver_parameters = kwargs.get("solver_parameters")
+        basis_type = kwargs.get("basis_type")
         update_solver_parameters = kwargs.get("update_solver_parameters")
         nullspace = kwargs.get("nullspace")
         return StageValueTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
             solver_parameters=solver_parameters,
-            splitting=splitting,
+            splitting=splitting, basis_type=basis_type,
             update_solver_parameters=update_solver_parameters,
             nullspace=nullspace)
     elif stage_type == "dirk":
