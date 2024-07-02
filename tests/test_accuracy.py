@@ -65,9 +65,10 @@ def test_heat_eq(deg, convrate, time_stages, kwargs):
     conv = np.log2(diff[:-1] / diff[1:])
     assert (conv > convrate).all()
 
+
 @pytest.mark.parametrize(('deg', 'convrate', 'time_stages'),
                          [(2, 2.8, i) for i in (2, 3)]
-                         +[(3, 3.8, i) for i in (3, 4)])
+                         + [(3, 3.8, i) for i in (3, 4)])
 def test_heat_bern(deg, convrate, time_stages):
     diff = np.array([heat(i, deg, time_stages, **{"stage_type": "value", "basis_type": "Bernstein"}) for i in range(3, 6)])
     conv = np.log2(diff[:-1] / diff[1:])
