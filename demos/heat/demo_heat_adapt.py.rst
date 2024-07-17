@@ -102,7 +102,14 @@ will assemble into a PETSc MatNest otherwise)::
 Most of Irksome's magic happens in the :class:`.TimeStepper`.  It
 transforms our semidiscrete form `F` into a fully discrete form for
 the stage unknowns and sets up a variational problem to solve for the
-stages at each time step.::
+stages at each time step.
+
+In this demo, we use an adaptive timestepper, selected by the argument
+`stage_type="adapt"`, which tells Irksome to also compute an error estimate
+at each timestep, and use that estimate to adjust the timestep size.  The
+adaptation depends on some given parameters, including a tolerance `tol` for
+for the error at each step, and `KI` and `KP` that set the so-called integration
+and performance gain for the estimate.::
 
   stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                         stage_type="adapt", solver_parameters=luparams,
@@ -110,15 +117,18 @@ stages at each time step.::
 
 This logic is pretty self-explanatory.  We use the
 :class:`.TimeStepper`'s :meth:`~.TimeStepper.advance` method, which solves the variational
-problem to compute the Runge-Kutta stage values and then updates the solution.::
+problem to compute the Runge-Kutta stage values and then updates the solution.
+
+Here, in contrast to the non-adaptive case, we get an estimate of the error at each step
+(that we do not use here) and a new adaptive timestep size at each step.  We use these to
+control integrating to a fixed final time, `Tf`.  This exposes the `dt_max` data for
+:class:`.TimeStepper`, which puts a hard limit on the timestep size in the adaptive case.::
 
   while (float(t) < float(Tf)):
-      if (float(t) + float(dt) > float(Tf)):
-          dt.assign(float(Tf) - float(t))
+      stepper.dt_max = float(Tf)-float(t)
       (adapt_error, adapt_dt) = stepper.advance()
-      dt.assign(adapt_dt)
       print(float(t))
-      t.assign(float(t) + float(dt))
+      t.assign(float(t) + float(adapt_dt))
 
 Finally, we print out the relative :math:`L^2` error::
 
