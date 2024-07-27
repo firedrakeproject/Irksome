@@ -1,1 +1,4 @@
-This directory contains two demos for the mixed form of the wave equation using the TimeStepper and AdaptiveTimeStepper classes.  The point is that if one uses a symplectic RK method, then energy will be conserved up to roundoff error and solver tolerances for linear problems.
+This directory contains two demos for the mixed form of the wave equation using the TimeStepper class.
+We have one demo doing a fully implicit Gauss-Legendre method that exactly conserves energy but requires a stage-coupled linear solve at each time step.
+We compare this to the explicit time stepping widget with pseudo-energy-conserving methods, which require many more stages, but these can be computed independently by only inverting a mass matrix.
+
