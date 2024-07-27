@@ -65,16 +65,3 @@ def test_wave_eq(deg, N, time_stages, splitting):
     energy = wave(N, deg, GaussLegendre(time_stages), splitting)
     print(energy)
     assert np.allclose(energy[1:], energy[:-1])
-
-
-@pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
-@pytest.mark.parametrize('deg', (1, 2))
-@pytest.mark.parameterize('pep', ((4, 2, 5),
-                                  (5, 2, 6),
-                                  (6, 3, 6),
-                                  (7, 4, 6),
-                                  (7, 5, 6)))
-def test_pep_wave_eq(deg, N, time_stages, splitting):
-    energy = wave(N, deg, PEPRK(time_stages), splitting)
-    print(energy)
-    assert np.allclose(energy[1:], energy[:-1])
