@@ -11,7 +11,7 @@ from irksome.tools import AI, IA
 # various time steppers.
 
 
-def wave(n, deg, butcher_tableau, **kwargs):
+def wave(n, deg, butcher_tableau, splitting):
     N = 2**n
     msh = UnitIntervalMesh(N)
 
