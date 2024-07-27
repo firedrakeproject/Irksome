@@ -51,6 +51,7 @@ The best place to start are with some simple heat and wave equations:
    demos/demo_heat.py
    demos/demo_mixed_heat.py
    demos/demo_RTwave.py
+   demos/demo_RTwave_pep.py
 
 Since those demos invariably rely on the non-scalable LU factorization,
 we have several demos showing how to work with Firedrake solver options
