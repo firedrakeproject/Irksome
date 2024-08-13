@@ -193,11 +193,12 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     return errornorm(uimp, usplit) + errornorm(pimp, psplit)
 
 
-@pytest.mark.xfail
+
 @pytest.mark.parametrize('N', [16])
 @pytest.mark.parametrize('num_stages', [2])
 @pytest.mark.parametrize('Fimp,Fexp', [(FimpSt, FexpSt),
                                        (FimpLI, FexpLI)])
+@pytest.mark.xfail
 def test_SplitNavierStokes(N, num_stages, Fimp, Fexp):
     error = NavierStokesSplitTest(N, num_stages, Fimp, Fexp)
     print(abs(error))
