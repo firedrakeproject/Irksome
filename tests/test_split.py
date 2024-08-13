@@ -149,7 +149,8 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
         "snes_linesearch_type": "l2",
         "ksp_type": "preonly",
         "pc_type": "lu",
-        "pc_factor_mat_solver_type": "mumps"
+        "pc_factor_mat_solver_type": "pastix",
+        "pc_factor_shift_type": "inblocks"
     }
 
     lulin = {
