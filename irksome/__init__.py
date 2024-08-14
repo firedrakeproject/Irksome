@@ -6,12 +6,6 @@ from .ButcherTableaux import LobattoIIIC    # noqa: F401
 from .ButcherTableaux import PareschiRusso  # noqa: F401
 from .ButcherTableaux import QinZhang       # noqa: F401
 from .ButcherTableaux import RadauIIA       # noqa: F401
-from .ButcherTableaux import WSODIRK432     # noqa: F401
-from .ButcherTableaux import WSODIRK433     # noqa: F401
-from .ButcherTableaux import WSODIRK643     # noqa: F401
-from .ButcherTableaux import WSODIRK744     # noqa: F401
-from .ButcherTableaux import WSODIRK1254    # noqa: F401
-from .ButcherTableaux import WSODIRK1255    # noqa: F401
 from .pep_explicit_rk import PEPRK          # noqa: F401
 from .deriv import Dt                       # noqa: F401
 from .dirk_stepper import DIRKTimeStepper   # noqa: F401
@@ -21,3 +15,4 @@ from .pc import RanaBase, RanaDU, RanaLD    # noqa: F401
 from .stage import StageValueTimeStepper    # noqa: F401
 from .stepper import TimeStepper            # noqa: F401
 from .tools import MeshConstant             # noqa: F401
+from .wso_dirk_tableaux import WSODIRK      # noqa: F401
