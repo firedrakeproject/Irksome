@@ -180,4 +180,4 @@ class WSODIRK(ButcherTableau):
         except KeyError:
             raise NotImplementedError("No WSO DIRK method for that combination of stages, order and weak stage order")
         self.ws_order = ws_order
-        super(WSODIRK, self).__init__(A, b, None, c, order)
+        super(WSODIRK, self).__init__(A, b, None, c, order, None, None)

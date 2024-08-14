@@ -78,6 +78,14 @@ and for explicit schemes:
 
    demos/demo_RTwave_PEP.py
 
+and for adaptive IRK methods:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_heat_adapt.py
+
+
 Or check out an IMEX-type method for the monodomain equations:
 
 .. toctree::
