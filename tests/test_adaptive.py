@@ -33,7 +33,7 @@ def adapt_scalar_heat(N, butcher_tableau):
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                           solver_parameters=luparams,
-                          stage_type="deriv", adaptive_parameters = {"tol": 1e-2})
+                          stage_type="deriv", adaptive_parameters={"tol": 1e-2})
 
     while (float(t) < 1.0):
         stepper.dt_max = 1.0 - float(t)
@@ -76,7 +76,7 @@ def compare_scalar_heat(N, butcher_tableau):
 
     stepper_adapt = TimeStepper(F_adapt, butcher_tableau, t, dt, u_adapt, bcs=bc,
                                 solver_parameters=luparams,
-                                adaptive_parameters = {"tol": 1/N})
+                                adaptive_parameters={"tol": 1/N})
     # Fix initial step to match non-adaptive
     stepper_adapt.dt_max = 1/N
 
@@ -135,7 +135,7 @@ def adapt_vector_heat(N, butcher_tableau):
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bcs,
                           solver_parameters=luparams,
-                          stage_type="deriv", adaptive_parameters = {"tol": 1e-2})
+                          stage_type="deriv", adaptive_parameters={"tol": 1e-2})
 
     while (float(t) < 1.0):
         stepper.dt_max = 1.0 - float(t)
@@ -184,7 +184,7 @@ def adapt_mixed_heat(N, butcher_tableau):
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, w, bcs=bcs,
                           solver_parameters=luparams,
-                          stage_type="deriv", adaptive_parameters = {"tol": 1e-2})
+                          stage_type="deriv", adaptive_parameters={"tol": 1e-2})
 
     while (float(t) < 1.0):
         stepper.dt_max = 1.0 - float(t)
