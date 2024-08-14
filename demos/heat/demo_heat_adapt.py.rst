@@ -105,7 +105,7 @@ the stage unknowns and sets up a variational problem to solve for the
 stages at each time step.
 
 In this demo, we use an adaptive timestepper, selected by sending a dictionary
- of adaptive parameters, which tells Irksome to also compute an error estimate
+of adaptive parameters, which tells Irksome to also compute an error estimate
 at each timestep, and use that estimate to adjust the timestep size.  The
 adaptation depends on some given parameters, including a tolerance `tol` for
 for the error at each step, and `KI` and `KP` that set the so-called integration
