@@ -43,6 +43,65 @@ def adapt_scalar_heat(N, butcher_tableau):
     return norm(u-uexact)
 
 
+def compare_scalar_heat(N, butcher_tableau):
+    msh = UnitSquareMesh(N, N)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
+
+    V = FunctionSpace(msh, "CG", 1)
+    x, y = SpatialCoordinate(msh)
+
+    uexact = sin(pi*x)*sin(pi*y)*(1-exp(-5*t))
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+
+    u = Function(V)
+    u.interpolate(uexact)
+
+    v = TestFunction(V)
+    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
+
+    u_adapt = Function(V)
+    u_adapt.interpolate(uexact)
+
+    F_adapt = inner(Dt(u_adapt), v)*dx + inner(grad(u_adapt), grad(v))*dx - inner(rhs, v)*dx
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+
+    luparams = {"mat_type": "aij",
+                "snes_type": "ksponly",
+                "ksp_type": "preonly",
+                "pc_type": "lu"}
+
+    stepper_adapt = TimeStepper(F_adapt, butcher_tableau, t, dt, u_adapt, bcs=bc,
+                                solver_parameters=luparams,
+                                stage_type="adapt", tol=1/N)
+    # Fix initial step to match non-adaptive
+    stepper_adapt.dt_max = 1/N
+
+    stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
+                          solver_parameters=luparams)
+
+    while (float(t) < 1.0):
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    error = norm(uexact-u)
+    nsteps = stepper.solver_stats()[0]
+
+    t.assign(0.0)
+    while (float(t) < 1.0):
+        stepper_adapt.advance()
+        t.assign(float(t) + float(dt))
+        stepper_adapt.dt_max = 1.0 - float(t)
+
+    error_adapt = norm(uexact-u_adapt)
+    nsteps_adapt = stepper_adapt.solver_stats()[0]
+
+    return (nsteps_adapt, nsteps, error_adapt, error)
+
+
 def adapt_vector_heat(N, butcher_tableau):
     msh = UnitSquareMesh(N, N)
 
@@ -143,6 +202,14 @@ def adapt_mixed_heat(N, butcher_tableau):
 def test_adapt_scalar_heat(N, butcher_tableau):
     error = adapt_scalar_heat(N, butcher_tableau(3))
     assert abs(error) < 1e-10
+
+
+@pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
+@pytest.mark.parametrize('butcher_tableau', [RadauIIA, LobattoIIIC])
+def test_compare_scalar_heat(N, butcher_tableau):
+    data = compare_scalar_heat(N, butcher_tableau(3))
+    assert data[2] < 1.1*data[3]
+    assert data[0] < data[1]
 
 
 @pytest.mark.parametrize('N', [2**j for j in range(2, 4)])
