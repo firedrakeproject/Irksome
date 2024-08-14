@@ -30,7 +30,7 @@ class ButcherTableau(object):
         self.c = c
         self.order = order
         self.embedded_order = embedded_order
-        self.gamma0 = 0.0
+        self.gamma0 = gamma0
 
     @property
     def num_stages(self):
