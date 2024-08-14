@@ -18,7 +18,7 @@ together with homogeneous Dirichlet boundary conditions
 
    p = 0 \quad \textrm{on}\ \Gamma
 
-In this form, at each time, :math:`u` is a vector-valued function in the Soboleve space :math:`H(\mathrm{div})` and `p` is a scalar-valued function.  If we select appropriate test functions :math:`v` and :math:`w`, then we can arrive at the weak form
+In this form, at each time, :math:`u` is a vector-valued function in the Sobolev space :math:`H(\mathrm{div})` and `p` is a scalar-valued function.  If we select appropriate test functions :math:`v` and :math:`w`, then we can arrive at the weak form
 
 .. math::
 
@@ -89,7 +89,7 @@ system at each time step::
                         solver_parameters=params)
 
 
-And, as with the heat equation, our time-stepping logic is quite simple.  At easch time step, we print out the energy in the system::
+And, as with the heat equation, our time-stepping logic is quite simple.  At each time step, we print out the energy in the system::
 
   print("Time    Energy")
   print("==============")
@@ -104,9 +104,9 @@ And, as with the heat equation, our time-stepping logic is quite simple.  At eas
       print("{0:1.1e} {1:5e}".format(float(t), assemble(E)))
 
 If all is well with the world, the energy will be nearly identical (up
-to roundoff error) at each time step because the GL methods are
-symplectic and applied to a linear Hamiltonian system.  As an
-exercise, the reader should edit this code to use other RK methods.
-In particular, :class:`.LobattoIIIC` and :class:`.BackwardEuler` or other
-Radau methods as well as the symplectic DIRK :class:`.QinZhang`.
+to roundoff error) at each time step because the PEP methods conserve
+energy to quite high order.  The reader can compare this to the mixed
+wave demo using Gauss-Legendre methods (which exactly conserve energy up
+to roundoff and solver tolerances.
+
 
