@@ -67,4 +67,4 @@ class PEPRK(ButcherTableau):
         except KeyError:
             raise NotImplementedError("No PEP method for that combination of stages, order and pseudo-energy preserving order")
         self.peporder = peporder
-        super(PEPRK, self).__init__(A, b, None, c, order)
+        super(PEPRK, self).__init__(A, b, None, c, order, None, None)
