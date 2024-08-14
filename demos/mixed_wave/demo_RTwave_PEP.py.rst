@@ -1,5 +1,3 @@
-:orphan:
-
 Solving the Mixed Wave Equation: Energy conservation
 ====================================================
 
