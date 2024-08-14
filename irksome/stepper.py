@@ -53,7 +53,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     :arg update_solver_parameters: A :class:`dict` of parameters for
             inverting the mass matrix at each step (only used if
             stage_type is "value")
-    :arg adapt_parameters: A :class:`dict` of parameters for use with
+    :arg adaptive_parameters: A :class:`dict` of parameters for use with
             adaptive time stepping (only used if stage_type is "deriv")
     """
 
