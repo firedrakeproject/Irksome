@@ -2,9 +2,9 @@ Accessing DIRK methods
 =============================================================
 Many practitioners favor diagonally implicit methods over fully implicit
 ones since the stages can be computed sequentially rather than concurrently.
-We support a range of DIRK methods and provide 
-This demo is intended to show how Firedrake/PETSc solver options can be
-used to retain this efficiency.
+We support a range of DIRK methods and provide a convenient high-level interface
+that is very similar to other RK schemes.
+This demo is intended to show how to access DIRK methods seamlessly in Irksome.
 
 This example uses the Qin Zhang symplectic DIRK to attack the mixed form of the wave
 equation. Let :math:`\Omega` be the unit square with boundary :math:`\Gamma`.  We write
@@ -23,7 +23,7 @@ together with homogeneous Dirichlet boundary conditions
    p = 0 {\quad} \textrm{on}\ \Gamma
 
 In this form, at each time, :math:`u` is a vector-valued function in
-the Soboleve space :math:`H(\mathrm{div})` and `p` is a scalar-valued
+the Sobolev space :math:`H(\mathrm{div})` and `p` is a scalar-valued
 function.  If we select appropriate test functions :math:`v` and
 :math:`w`, then we can arrive at the weak form (see the mixed wave
 demos for more information):
