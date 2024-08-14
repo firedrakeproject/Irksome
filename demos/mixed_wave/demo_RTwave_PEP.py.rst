@@ -77,8 +77,7 @@ stages than classical explicit methods but have much better energy conservation.
 
   butcher_tableau = PEPRK(4, 2, 5)
 
-Like the heat equation demo, we are just using a direct method to solve the
-system at each time step::
+We'll use a simple iterative method to invert the mass matrix for each stage::
 
   params = {"snes_type": "ksponly",
             "ksp_type": "cg",
