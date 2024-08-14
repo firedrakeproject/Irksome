@@ -333,8 +333,14 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             this can be adjusted externally once the time-stepper is
             instantiated, by modifying `stepper.dt_max`
     :arg KI: Integration gain for step-size controller.  Should be less
-            then 1/p, where p is the expected order of the scheme
-    :arg KP: Proportional gain for step-size controller.
+            than 1/p, where p is the expected order of the scheme.  Larger
+            values lead to faster (attempted) increases in time-step size
+            when steps are accepted.  See Gustafsson, Lundh, and Soderlind,
+            BIT 1988.
+    :arg KP: Proportional gain for step-size controller. Controls dependence
+            on ratio of (error estimate)/(step size) in determining new
+            time-step size when steps are accepted.  See Gustafsson, Lundh,
+            and Soderlind, BIT 1988.
     :arg max_reject: Maximum number of rejected timesteps in a row that
             does not lead to a failure
     :arg onscale_factor: Allowable tolerance in determining initial
