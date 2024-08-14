@@ -1,31 +1,13 @@
-Using solver options to make gain efficiency for DIRK methods
+Accessing DIRK methods
 =============================================================
 Many practitioners favor diagonally implicit methods over fully implicit
 ones since the stages can be computed sequentially rather than concurrently.
+We support a range of DIRK methods and provide 
 This demo is intended to show how Firedrake/PETSc solver options can be
 used to retain this efficiency.
 
-Abstractly, if one has a 2-stage DIRK, one has a linear system of the form
-
-.. math::
-
-   \left[ \begin{array}{cc} A_{11} & 0 \\ A_{12} & A_{22} \end{array} \right]
-   \left[ \begin{array}{c} k_1 \\ k_2 \end{array} \right]
-   &= \left[ \begin{array}{c} f_1 \\ f_2 \end{array} \right]
-   
-for the two stages.  This is block-lower triangular.  Traditionally, one uses
-forward substitution -- solving for :math:`k_1 = A_{11}^{-1} f_1` and plugging
-in to the second equation to solve for :math:`k_2`.  This can, of course,
-be continued for block lower triangular systems with any number of blocks.
-
-This can be imitated in PETSc by using a block lower triangular preconditioner
-via FieldSplit.  In this case, if the diagonal blocks are inverted accurately,
-one obtains an exact inverse so that a single application of the preconditioner
-solves the linear system.  Hence, we can provide the efficiency of DIRKs within
-the framework of Irksome with a special case of solver parameters.
-
-This example uses this idea to attack the mixed form of the wave equation.
-Let :math:`\Omega` be the unit square with boundary :math:`\Gamma`.  We write
+This example uses the Qin Zhang symplectic DIRK to attack the mixed form of the wave
+equation. Let :math:`\Omega` be the unit square with boundary :math:`\Gamma`.  We write
 the wave equation as a first-order system of PDE:
 
 .. math::
@@ -104,39 +86,19 @@ sufficiently accurate in solving the linear system::
   E = 0.5 * (inner(u0, u0)*dx + inner(p0, p0)*dx)
 
 
-We will need to set up parameters to pass into the solver.
-PETSc-speak for performing a block lower-triangular preconditioner is
-a "multiplicative field split".  And since we are claiming this is
-exact, we set the Krylov method to "preonly"::
+When stepping with a DIRK, we only solve for one stage at a time.  Although we could configure
+PETSc to try some iterative solver, here we will just use a direct method::
 
   params = {"mat_type": "aij",
             "snes_type": "ksponly",
             "ksp_type": "preonly",
-            "pc_type": "fieldsplit",
-            "pc_fieldsplit_type": "multiplicative"}
+            "pc_type": "lu"}
 
-However, we have to be slightly careful here.  We have a two-stage
-method on a mixed approximating space, so there are actually four bits
-to the space we solve for stages in: `V * W * V * W`.  The natural block
-structure the DIRK gives would be `(V * W) * (V * W)`.  So, we need to
-tell PETSc to block the system this way::
 
-  params["pc_fieldsplit_0_fields"] = "0,1"
-  params["pc_fieldsplit_1_fields"] = "2,3"
+Now, we just set the stage type to be "dirk" in Irksome and we're ready to advance in time::
   
-This is the critical bit.  Any accurate solver for each diagonal piece
-(itself a mixed system) would be fine, but for simplicity we will just
-use a direct method on each stage::
-
-  per_field = {"ksp_type": "preonly",
-               "pc_type": "lu"}
-  for i in range(butcher_tableau.num_stages):
-      params["fieldsplit_%d" % i] = per_field
-
-This finishes our solver specification, and we are ready to set up the
-time stepper and advance in time::
-
   stepper = TimeStepper(F, butcher_tableau, t, dt, up0,
+                        stage_type="dirk",
                         solver_parameters=params)
 
   print("Time    Energy")

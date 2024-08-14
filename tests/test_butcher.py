@@ -1,5 +1,7 @@
 import pytest
-from irksome import GaussLegendre, LobattoIIIA, LobattoIIIC, QinZhang, RadauIIA
+from irksome import (WSODIRK, GaussLegendre, LobattoIIIA, LobattoIIIC,
+                     QinZhang, RadauIIA)
+from irksome.wso_dirk_tableaux import wsodict
 from numpy import allclose, array, sqrt
 
 # Test some generated collocation methods against known
@@ -11,9 +13,8 @@ def test_GaussLegendre():
     A = array([[1 / 4, 1 / 4 - sqrt(3) / 6],
                [1 / 4 + sqrt(3) / 6, 1 / 4]])
     b = array([1 / 2, 1 / 2])
-    # btilde = array([1 / 2 + sqrt(3) / 6, 1 / 2 - sqrt(3) / 6])
     c = array([1 / 2 - sqrt(3) / 6, 1 / 2 + sqrt(3) / (6)])
-    # assert allclose(btilde, bt.btilde)
+
     for (X, Y) in zip([A, b, c], [bt.A, bt.b, bt.c]):
         assert allclose(X, Y)
 
@@ -50,7 +51,8 @@ def test_RadauIIA():
 
 
 @pytest.mark.parametrize('bt', tuple([RadauIIA(k) for k in (1, 2, 3)]
-                                     + [LobattoIIIC(k) for k in (2, 3)]))
+                                     + [LobattoIIIC(k) for k in (2, 3)]
+                                     + [WSODIRK(*x) for x in wsodict]))
 def test_is_stiffly_accurate(bt):
     assert bt.is_stiffly_accurate
 
