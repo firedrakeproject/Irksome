@@ -60,7 +60,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
                   "bc_type", "splitting"],
         "adapt": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
                   "bc_type", "splitting", "tol", "dtmin", "dtmax", "KI", "KP",
-                  "max_reject", "onscale_factor", "safety_factor"],
+                  "max_reject", "onscale_factor", "safety_factor", "gamma0_params"],
         "value": ["stage_type", "bcs", "nullspace", "solver_parameters",
                   "update_solver_parameters", "appctx", "splitting"],
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
@@ -101,13 +101,14 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         max_reject = kwargs.get("max_reject", 10)
         onscale_factor = kwargs.get("onscale_factor", 1.2)
         safety_factor = kwargs.get("safety_factor", 0.9)
+        gamma0_params = kwargs.get("gamma0_params")
         return AdaptiveTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
             solver_parameters=solver_parameters, nullspace=nullspace,
             bc_type=bc_type, splitting=splitting,
             tol=tol, dtmin=dtmin, dtmax=dtmax, KI=KI, KP=KP,
             max_reject=max_reject, onscale_factor=onscale_factor,
-            safety_factor=safety_factor)
+            safety_factor=safety_factor, gamma0_params=gamma0_params)
     elif stage_type == "value":
         bcs = kwargs.get("bcs")
         splitting = kwargs.get("splitting", AI)
@@ -347,6 +348,8 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             timestep to be "on scale"
     :arg safety_factor: Safety factor used when shrinking timestep if
             a proposed step is rejected
+    :arg gamma0_params: Solver parameters for mass matrix solve when using
+            an embedded scheme with explicit first stage
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
@@ -365,7 +368,8 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                  bcs=None, appctx=None, solver_parameters=None,
                  bc_type="DAE", splitting=AI, nullspace=None,
                  tol=1.e-3, dtmin=1.e-15, dtmax=1.0, KI=1/15, KP=0.13,
-                 max_reject=10, onscale_factor=1.2, safety_factor=0.9):
+                 max_reject=10, onscale_factor=1.2, safety_factor=0.9,
+                 gamma0_params=None):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
@@ -380,6 +384,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
 
         self.delb = butcher_tableau.btilde - butcher_tableau.b
         self.gamma0 = butcher_tableau.gamma0
+        self.gamma0_params = gamma0_params
         self.KI = KI
         self.KP = KP
         self.max_reject = max_reject
@@ -487,13 +492,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             for gdat, gcur, gmethod in self.gblah:
                 gmethod(gcur, self.u0)
             f_problem = NLVP(f_form, error_func, bcs=self.embbc)
-            solver_params = {
-                "snes_type": "ksponly",
-                "ksp_type": "preonly",
-                "pc_type": "lu",
-            }
-
-            f_solver = NLVS(f_problem, solver_parameters=solver_params)
+            f_solver = NLVS(f_problem, solver_parameters=self.gamma0_params)
             f_solver.solve()
 
         # Accumulate delta-b terms over stages
