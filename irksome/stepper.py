@@ -53,14 +53,13 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     :arg update_solver_parameters: A :class:`dict` of parameters for
             inverting the mass matrix at each step (only used if
             stage_type is "value")
+    :arg adapt_parameters: A :class:`dict` of parameters for use with
+            adaptive time stepping (only used if stage_type is "deriv")
     """
 
     valid_kwargs_per_stage_type = {
         "deriv": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
-                  "bc_type", "splitting"],
-        "adapt": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
-                  "bc_type", "splitting", "tol", "dtmin", "dtmax", "KI", "KP",
-                  "max_reject", "onscale_factor", "safety_factor", "gamma0_params"],
+                  "bc_type", "splitting", "adaptive_parameters"],
         "value": ["stage_type", "bcs", "nullspace", "solver_parameters",
                   "update_solver_parameters", "appctx", "splitting"],
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
@@ -70,7 +69,14 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
                  "splitting", "appctx",
                  "num_its_initial", "num_its_per_step"]}
 
+    valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
+                              "max_reject", "onscale_factor",
+                              "safety_factor", "gamma0_params"]
+
     stage_type = kwargs.get("stage_type", "deriv")
+    adapt_params = kwargs.get("adaptive_parameters")
+    if adapt_params is not None:
+        assert stage_type == "deriv", "Adaptive time stepping is only implemented for derivative stage type"
     for cur_kwarg in kwargs.keys():
         if cur_kwarg not in valid_kwargs_per_stage_type:
             assert cur_kwarg in valid_kwargs_per_stage_type[stage_type]
@@ -82,26 +88,23 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         appctx = kwargs.get("appctx")
         solver_parameters = kwargs.get("solver_parameters")
         nullspace = kwargs.get("nullspace")
-        return StageDerivativeTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
-            solver_parameters=solver_parameters, nullspace=nullspace,
-            bc_type=bc_type, splitting=splitting)
-    elif stage_type == "adapt":
-        bcs = kwargs.get("bcs")
-        bc_type = kwargs.get("bc_type", "DAE")
-        splitting = kwargs.get("splitting", AI)
-        appctx = kwargs.get("appctx")
-        solver_parameters = kwargs.get("solver_parameters")
-        nullspace = kwargs.get("nullspace")
-        tol = kwargs.get("tol", 1e-3)
-        dtmin = kwargs.get("dtmin", 1.e-15)
-        dtmax = kwargs.get("dtmax", 1.0)
-        KI = kwargs.get("KI", 1/15)
-        KP = kwargs.get("KP", 0.13)
-        max_reject = kwargs.get("max_reject", 10)
-        onscale_factor = kwargs.get("onscale_factor", 1.2)
-        safety_factor = kwargs.get("safety_factor", 0.9)
-        gamma0_params = kwargs.get("gamma0_params")
+        if adapt_params is None:
+            return StageDerivativeTimeStepper(
+                F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
+                solver_parameters=solver_parameters, nullspace=nullspace,
+                bc_type=bc_type, splitting=splitting)
+        else:
+            for param in adapt_params:
+                assert param in valid_adapt_parameters
+            tol = adapt_params.get("tol", 1e-3)
+            dtmin = adapt_params.get("dtmin", 1.e-15)
+            dtmax = adapt_params.get("dtmax", 1.0)
+            KI = adapt_params.get("KI", 1/15)
+            KP = adapt_params.get("KP", 0.13)
+            max_reject = adapt_params.get("max_reject", 10)
+            onscale_factor = adapt_params.get("onscale_factor", 1.2)
+            safety_factor = adapt_params.get("safety_factor", 0.9)
+            gamma0_params = adapt_params.get("gamma0_params")
         return AdaptiveTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
             solver_parameters=solver_parameters, nullspace=nullspace,

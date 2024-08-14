@@ -104,16 +104,17 @@ transforms our semidiscrete form `F` into a fully discrete form for
 the stage unknowns and sets up a variational problem to solve for the
 stages at each time step.
 
-In this demo, we use an adaptive timestepper, selected by the argument
-`stage_type="adapt"`, which tells Irksome to also compute an error estimate
+In this demo, we use an adaptive timestepper, selected by sending a dictionary
+ of adaptive parameters, which tells Irksome to also compute an error estimate
 at each timestep, and use that estimate to adjust the timestep size.  The
 adaptation depends on some given parameters, including a tolerance `tol` for
 for the error at each step, and `KI` and `KP` that set the so-called integration
 and performance gain for the estimate.::
 
+  adapt_params = {"tol":1e-3, "KI":1/15, "KP":0.13}
   stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
-                        stage_type="adapt", solver_parameters=luparams,
-			tol=1e-3, KI=1/15, KP=0.13)
+                        stage_type="deriv", solver_parameters=luparams,
+			adaptive_parameters = adapt_params)
 
 This logic is pretty self-explanatory.  We use the
 :class:`.TimeStepper`'s :meth:`~.TimeStepper.advance` method, which solves the variational
