@@ -71,6 +71,13 @@ We now have support for DIRKs:
 
    demos/demo_heat_dirk.py
 
+and for explicit schemes:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_RTwave_PEP.py
+
 Or check out an IMEX-type method for the monodomain equations:
 
 .. toctree::
