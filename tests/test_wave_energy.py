@@ -1,17 +1,16 @@
-import pytest
 import numpy as np
-from firedrake import (inner, dx, UnitIntervalMesh, FunctionSpace,
-                       assemble, TestFunctions, SpatialCoordinate,
-                       project, as_vector, sin, pi, split)
-
-from irksome import Dt, MeshConstant, TimeStepper, GaussLegendre
+import pytest
+from firedrake import (FunctionSpace, SpatialCoordinate, TestFunctions,
+                       UnitIntervalMesh, as_vector, assemble, dx, inner, pi,
+                       project, sin, split)
+from irksome import PEPRK, Dt, GaussLegendre, MeshConstant, TimeStepper
 from irksome.tools import AI, IA
 
 # test the energy conservation of the 1d wave equation in mixed form
 # various time steppers.
 
 
-def wave(n, deg, butcher_tableau, splitting=AI):
+def wave(n, deg, alpha, butcher_tableau, **kwargs):
     N = 2**n
     msh = UnitIntervalMesh(N)
 
@@ -28,7 +27,7 @@ def wave(n, deg, butcher_tableau, splitting=AI):
 
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
-    dt = MC.Constant(2.0 / N)
+    dt = MC.Constant(alpha / N)
 
     up = project(as_vector([0, sin(pi*x)]), Z)
     u, p = split(up)
@@ -42,7 +41,7 @@ def wave(n, deg, butcher_tableau, splitting=AI):
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, up,
                           solver_parameters=params,
-                          splitting=splitting)
+                          **kwargs)
 
     energies = []
 
@@ -62,6 +61,19 @@ def wave(n, deg, butcher_tableau, splitting=AI):
                          [(1, i) for i in (1, 2)]
                          + [(2, i) for i in (2, 3)])
 def test_wave_eq(deg, N, time_stages, splitting):
-    energy = wave(N, deg, GaussLegendre(time_stages), splitting)
-    print(energy)
+    kwargs = {"splitting": splitting}
+    energy = wave(N, deg, 2.0, GaussLegendre(time_stages), **kwargs)
+    assert np.allclose(energy[1:], energy[:-1])
+
+
+@pytest.mark.parametrize('N', [2**j for j in range(2, 3)])
+@pytest.mark.parametrize('deg', (1, 2))
+@pytest.mark.parametrize('pep', ((4, 2, 5),
+                                 (5, 2, 6),
+                                 (6, 3, 6),
+                                 (7, 4, 6),
+                                 (7, 5, 6)))
+def test_wave_eq_peprk(deg, N, pep):
+    kwargs = {"stage_type": "explicit"}
+    energy = wave(N, deg, 0.3, PEPRK(*pep), **kwargs)
     assert np.allclose(energy[1:], energy[:-1])

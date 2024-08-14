@@ -7,6 +7,7 @@ from firedrake.__future__ import interpolate
 from firedrake.dmhooks import pop_parent, push_parent
 from ufl.constantvalue import as_ufl
 from .dirk_stepper import DIRKTimeStepper
+from .explicit_stepper import ExplicitTimeStepper
 from .getForm import AI, getForm
 from .stage import StageValueTimeStepper
 from .imex import RadauIIAIMEXMethod
@@ -63,6 +64,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         "value": ["stage_type", "bcs", "nullspace", "solver_parameters",
                   "update_solver_parameters", "appctx", "splitting"],
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
+        "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
         "imex": ["Fexp", "stage_type", "bcs", "nullspace",
                  "it_solver_parameters", "prop_solver_parameters",
                  "splitting", "appctx",
@@ -127,6 +129,13 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         return DIRKTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs,
             solver_parameters, appctx, nullspace)
+    elif stage_type == "explicit":
+        bcs = kwargs.get("bcs")
+        appctx = kwargs.get("appctx")
+        solver_parameters = kwargs.get("solver_parameters")
+        return ExplicitTimeStepper(
+            F, butcher_tableau, t, dt, u0, bcs,
+            solver_parameters, appctx)
     elif stage_type == "imex":
         Fexp = kwargs.get("Fexp")
         assert Fexp is not None
