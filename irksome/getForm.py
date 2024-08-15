@@ -2,13 +2,14 @@ from functools import reduce
 from operator import mul
 
 import numpy
-from firedrake import (Constant, DirichletBC, Function, TestFunction,
-                       interpolate, project, split)
+from firedrake import (DirichletBC, Function, TestFunction,
+                       assemble, project, split)
+from firedrake.__future__ import interpolate
 from ufl import diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import replace, getNullspace, AI
+from .tools import MeshConstant, replace, getNullspace, AI
 from .deriv import TimeDerivative  # , apply_time_derivatives
 
 
@@ -18,7 +19,7 @@ class BCStageData(object):
             if V.parent.index is None:  # but not part of a MFS
                 sub = V.component
                 try:
-                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
+                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub), V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
                 except:  # noqa: E722
                     gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
@@ -27,7 +28,7 @@ class BCStageData(object):
                 sub0 = V.parent.index
                 sub1 = V.component
                 try:
-                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
+                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub0).sub(sub1))
                 except:  # noqa: E722
                     gdat = project(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
@@ -35,7 +36,7 @@ class BCStageData(object):
         else:  # V is not a bit of a VFS
             if V.index is None:  # not part of MFS, either
                 try:
-                    gdat = interpolate(gcur-u0_mult[i]*u0, V)
+                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0, V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
                 except:  # noqa: E722
                     gdat = project(gcur-u0_mult[i]*u0, V)
@@ -43,7 +44,7 @@ class BCStageData(object):
             else:  # part of MFS
                 sub = V.index
                 try:
-                    gdat = interpolate(gcur-u0_mult[i]*u0.sub(sub), V)
+                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub), V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
                 except:  # noqa: E722
                     gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
@@ -52,8 +53,8 @@ class BCStageData(object):
         self.gstuff = (gdat, gcur, gmethod)
 
 
-def ConstantOrZero(x, msh):
-    return Zero() if abs(complex(x)) < 1.e-10 else Constant(x, domain=msh)
+def ConstantOrZero(x, MC):
+    return Zero() if abs(complex(x)) < 1.e-10 else MC.Constant(x)
 
 
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
@@ -64,10 +65,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     :arg F: UFL form for the semidiscrete ODE/DAE
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
          advance in time.
-    :arg t: a :class:`Constant` referring to the current time level.
-         Any explicit time-dependence in F is included
-    :arg dt: a :class:`Constant` referring to the size of the current
-         time step.
+    :arg t: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time.
+    :arg dt: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time step.
+         The user may adjust this value between time steps.
     :arg splitting: a callable that maps the (floating point) Butcher matrix
          a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
          to vary between the classical RK formulation and Butcher's reformulation
@@ -119,7 +121,9 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     msh = V.mesh()
     assert V == u0.function_space()
 
-    c = numpy.array([Constant(ci) for ci in butch.c],
+    MC = MeshConstant(msh)
+
+    c = numpy.array([MC.Constant(ci) for ci in butch.c],
                     dtype=object)
 
     bA1, bA2 = splitting(butch.A)
@@ -130,15 +134,15 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bA1inv = None
     try:
         bA2inv = numpy.linalg.inv(bA2)
-        A2inv = numpy.array([[ConstantOrZero(aa, msh) for aa in arow] for arow in bA2inv],
+        A2inv = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA2inv],
                             dtype=object)
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
 
-    A1 = numpy.array([[ConstantOrZero(aa, msh) for aa in arow] for arow in bA1],
+    A1 = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA1],
                      dtype=object)
     if bA1inv is not None:
-        A1inv = numpy.array([[ConstantOrZero(aa, msh) for aa in arow] for arow in bA1inv],
+        A1inv = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA1inv],
                             dtype=object)
     else:
         A1inv = None
@@ -198,7 +202,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     if bc_type == "ODE":
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
         u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
-        u0_mult = numpy.array([ConstantOrZero(mi, msh)/dt for mi in u0_mult_np],
+        u0_mult = numpy.array([MC.Constant(0) for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
@@ -211,14 +215,14 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
         u0_mult_np = A1inv @ numpy.ones_like(butch.c)
-        u0_mult = numpy.array([ConstantOrZero(mi, msh)/dt for mi in u0_mult_np],
+        u0_mult = numpy.array([ConstantOrZero(mi, MC)/dt for mi in u0_mult_np],
                               dtype=object)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gcur = 0
             for j in range(num_stages):
-                gcur += ConstantOrZero(bA1inv[i, j], msh) / dt * replace(gorig, {t: t + c[j]*dt})
+                gcur += ConstantOrZero(bA1inv[i, j], MC) / dt * replace(gorig, {t: t + c[j]*dt})
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)

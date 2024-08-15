@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 from firedrake import (diff, div, dx, errornorm, exp, grad,
                        inner, norm, pi, project, sin,
-                       Constant, DirichletBC, FunctionSpace,
+                       DirichletBC, FunctionSpace,
                        SpatialCoordinate, TestFunction, UnitIntervalMesh)
 
 from irksome import Dt, MeshConstant, TimeStepper, GaussLegendre
@@ -40,7 +40,7 @@ def heat(n, deg, time_stages, stage_type="deriv", splitting=IA):
     F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
          - inner(rhs, v) * dx)
 
-    bc = DirichletBC(V, Constant(0, domain=msh), "on_boundary")
+    bc = DirichletBC(V, MC.Constant(0), "on_boundary")
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, u,
                           bcs=bc, solver_parameters=params,

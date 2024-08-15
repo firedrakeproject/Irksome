@@ -17,14 +17,20 @@ class ButcherTableau(object):
     :arg c: a 1d array containing weights at which time-dependent
             terms are evaluated.
     :arg order: the (integer) formal order of accuracy of the method
+    :arg embedded_order: If present, the (integer) formal order of
+            accuracy of the embedded method
+    :arg gamma0: If present, the weight on the explicit term in the
+            embedded lower-order method
     """
-    def __init__(self, A, b, btilde, c, order):
+    def __init__(self, A, b, btilde, c, order, embedded_order, gamma0):
 
         self.A = A
         self.b = b
         self.btilde = btilde
         self.c = c
         self.order = order
+        self.embedded_order = embedded_order
+        self.gamma0 = gamma0
 
     @property
     def num_stages(self):
@@ -85,11 +91,17 @@ class CollocationButcherTableau(ButcherTableau):
     def __init__(self, L, order):
         assert L.ref_el == FIAT.ufc_simplex(1)
 
+        points = []
         for ell in L.dual.nodes:
             assert isinstance(ell, FIAT.functional.PointEvaluation)
+            # Assert singleton point for each node.
+            pt, = ell.get_point_dict().keys()
+            points.append(pt[0])
 
-        c = numpy.asarray([list(ell.pt_dict.keys())[0][0]
-                           for ell in L.dual.nodes])
+        c = numpy.asarray(points)
+        # GLL DOFs are ordered by increasing entity dimension!
+        perm = numpy.argsort(c)
+        c = c[perm]
 
         num_stages = len(c)
 
@@ -97,7 +109,7 @@ class CollocationButcherTableau(ButcherTableau):
         qpts = Q.get_points()
         qwts = Q.get_weights()
 
-        Lvals = L.tabulate(0, qpts)[0, ]
+        Lvals = L.tabulate(0, qpts)[0, ][perm]
 
         # integrates them all!
         b = Lvals @ qwts
@@ -107,14 +119,14 @@ class CollocationButcherTableau(ButcherTableau):
         for i in range(num_stages):
             qpts_i = qpts * c[i]
             qwts_i = qwts * c[i]
-            Lvals_i = L.tabulate(0, qpts_i)[0, ]
+            Lvals_i = L.tabulate(0, qpts_i)[0, ][perm]
             A[i, :] = Lvals_i @ qwts_i
 
         Aexplicit = numpy.zeros((num_stages, num_stages))
         for i in range(num_stages):
             qpts_i = 1 + qpts * c[i]
             qwts_i = qwts * c[i]
-            Lvals_i = L.tabulate(0, qpts_i)[0, ]
+            Lvals_i = L.tabulate(0, qpts_i)[0, ][perm]
             Aexplicit[i, :] = Lvals_i @ qwts_i
 
         self.Aexplicit = Aexplicit
@@ -122,8 +134,10 @@ class CollocationButcherTableau(ButcherTableau):
         V = vander(c, increasing=True)
         rhs = numpy.array([1.0/(s+1) for s in range(num_stages-1)] + [0])
         btilde = solve(V.T, rhs)
+        gamma0 = 0
+        embedded_order = num_stages-1
 
-        super(CollocationButcherTableau, self).__init__(A, b, btilde, c, order)
+        super(CollocationButcherTableau, self).__init__(A, b, btilde, c, order, embedded_order, gamma0)
 
 
 class GaussLegendre(CollocationButcherTableau):
@@ -166,12 +180,19 @@ class RadauIIA(CollocationButcherTableau):
     RadauIIA methods are algebraically (hence B-) stable.
 
     :arg num_stages: The number of stages (2 or greater)
+    :arg variant: Indicate whether to use the Radau5 style of
+          embedded scheme (with `variant = "embed_Radau5"`) or
+          the simple collocation type (with `variant = "embed_colloc"`)
     """
-    def __init__(self, num_stages):
+    def __init__(self, num_stages, variant="embed_Radau5"):
         assert num_stages >= 1
         U = FIAT.ufc_simplex(1)
         L = FIAT.GaussRadau(U, num_stages - 1)
         super(RadauIIA, self).__init__(L, 2 * num_stages - 1)
+        if num_stages == 3 and variant == "embed_Radau5":
+            self.embedded_order = 3
+            self.btilde = numpy.array([4763/13500-numpy.sqrt(503/3071), 4763/13500+numpy.sqrt(503/3071), 263/13500], dtype='float')
+            self.gamma0 = 1237.0/4500
 
     def __str__(self):
         return "RadauIIA(%d)" % self.num_stages
@@ -198,7 +219,10 @@ class LobattoIIIC(ButcherTableau):
         # mooch the b and c from IIIA
         IIIA = LobattoIIIA(num_stages)
         b = IIIA.b
+        btilde = IIIA.btilde
         c = IIIA.c
+        embedded_order = IIIA.embedded_order
+        gamma0 = IIIA.gamma0
 
         A = numpy.zeros((num_stages, num_stages))
         for i in range(num_stages):
@@ -212,7 +236,7 @@ class LobattoIIIC(ButcherTableau):
                                for k in range(num_stages-1)])
             A[i, 1:] = numpy.linalg.solve(mat, rhs)
 
-        super(LobattoIIIC, self).__init__(A, b, None, c, 2 * num_stages - 2)
+        super(LobattoIIIC, self).__init__(A, b, btilde, c, 2 * num_stages - 2, embedded_order, gamma0)
 
     def __str__(self):
         return "LobattoIIIC(%d)" % self.num_stages
@@ -226,7 +250,7 @@ class PareschiRusso(ButcherTableau):
         A = numpy.array([[x, 0.0], [1-2*x, x]])
         b = numpy.array([0.5, 0.5])
         c = numpy.array([x, 1-x])
-        super(PareschiRusso, self).__init__(A, b, None, c, 2)
+        super(PareschiRusso, self).__init__(A, b, None, c, 2, None, None)
 
     def __str__(self):
         return "PareschiRusso(%f)" % self.x
@@ -253,7 +277,7 @@ class Alexander(ButcherTableau):
         A = numpy.array([[x, 0.0, 0.0], [(1-x)/2.0, x, 0.0], [y, z, x]])
         b = numpy.array([y, z, x])
         c = numpy.array([x, (1+x)/2.0, 1])
-        super(Alexander, self).__init__(A, b, None, c, 3)
+        super(Alexander, self).__init__(A, b, None, c, 3, None, None)
 
     def __str__(self):
         return "Alexander()"

@@ -1,13 +1,13 @@
 import FIAT
 import numpy as np
-from firedrake import (Constant, Function, NonlinearVariationalProblem,
+from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction)
 from firedrake.dmhooks import pop_parent, push_parent
 from ufl.classes import Zero
 
 from .ButcherTableaux import RadauIIA
 from .stage import getBits, getFormStage
-from .tools import AI, IA, replace
+from .tools import AI, IA, MeshConstant, replace
 
 
 def riia_explicit_coeffs(k):
@@ -45,7 +45,8 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
 
     num_stages = butch.num_stages
     num_fields = len(V)
-    vc = np.vectorize(lambda c: Constant(c, domain=msh))
+    MC = MeshConstant(msh)
+    vc = np.vectorize(lambda c: MC.Constant(c))
     Aexp = riia_explicit_coeffs(num_stages)
     Aprop = vc(Aexp)
     Ait = vc(butch.A)
@@ -153,11 +154,11 @@ class RadauIIAIMEXMethod:
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
             the Runge-Kutta method to be used for time marching.
             Only RadauIIA is allowed here (but it can be any number of stages).
-    :arg t: A :class:`firedrake.Constant` instance that always
-            contains the time value at the beginning of a time step
-    :arg dt: A :class:`firedrake.Constant` containing the size of the
-            current time step.  The user may adjust this value between
-            time steps.
+    :arg t: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time.
+    :arg dt: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time step.
+         The user may adjust this value between time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing

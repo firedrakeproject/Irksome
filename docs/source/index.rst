@@ -64,19 +64,27 @@ to deploy more efficient methods:
    demos/demo_heat_rana.py
    demos/demo_dirk_parameters.py
 
-Yes, Irksome can handle nonlinear problems as well:
-
-.. toctree::
-   :maxdepth: 1
-
-   demos/demo_cahnhilliard.py
-
 We now have support for DIRKs:
 
 .. toctree::
    :maxdepth: 1
 
    demos/demo_heat_dirk.py
+
+and for explicit schemes:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_RTwave_PEP.py
+
+and for adaptive IRK methods:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_heat_adapt.py
+
 
 Or check out an IMEX-type method for the monodomain equations:
 

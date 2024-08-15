@@ -3,15 +3,16 @@ from functools import reduce
 from operator import mul
 
 import numpy as np
-from firedrake import (Constant, DirichletBC, Function,
+from firedrake import (DirichletBC, Function,
                        NonlinearVariationalProblem, NonlinearVariationalSolver,
-                       TestFunction, dx, inner, interpolate, project, split)
+                       TestFunction, assemble, dx, inner, project, split)
+from firedrake.__future__ import interpolate
 from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
 from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, IA, getNullspace, is_ode, replace
+from .tools import AI, IA, getNullspace, MeshConstant, is_ode, replace
 
 
 def getBits(num_stages, num_fields, u0, UU, v, VV):
@@ -56,10 +57,11 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
          advance in time.
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
-    :arg t: a :class:`Constant` referring to the current time level.
-         Any explicit time-dependence in F is included
-    :arg dt: a :class:`Constant` referring to the size of the current
-         time step.
+    :arg t: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time.
+    :arg dt: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time step.
+         The user may adjust this value between time steps.
     :arg splitting: a callable that maps the (floating point) Butcher matrix
          a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
          to vary between the classical RK formulation and Butcher's reformulation
@@ -116,7 +118,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
                                             u0, UU, v, VV)
 
-    vecconst = np.vectorize(lambda c: Constant(c, domain=V.mesh()))
+    MC = MeshConstant(V.mesh())
+    vecconst = np.vectorize(lambda c: MC.Constant(c))
     C = vecconst(butch.c)
     A = vecconst(butch.A)
 
@@ -172,7 +175,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                 Fnew += A[i, j] * dt * replace(Ftmp, repl)
 
     elif splitting == IA:
-        Ainv = np.vectorize(lambda c: Constant(c, domain=V.mesh()))(np.linalg.inv(butch.A))
+        Ainv = np.vectorize(lambda c: MC.Constant(c))(np.linalg.inv(butch.A))
 
         # time derivative part gets inverse of Butcher matrix.
         for i in range(num_stages):
@@ -242,7 +245,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
         bcarg = as_ufl(bc._original_arg)
         for i in range(num_stages):
             try:
-                gdat = interpolate(bcarg, Vsp)
+                gdat = assemble(interpolate(bcarg, Vsp))
                 gmethod = lambda gd, gc: gd.interpolate(gc)
             except:  # noqa: E722
                 gdat = project(bcarg, Vsp)
@@ -257,8 +260,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     unew = Function(V)
 
     Fupdate = inner(unew - u0, v) * dx
-    B = vectorize(lambda c: Constant(c, domain=V.mesh()))(butch.b)
-    C = vectorize(lambda c: Constant(c, domain=V.mesh()))(butch.c)
+    B = vectorize(lambda c: MC.Constant(c))(butch.b)
+    C = vectorize(lambda c: MC.Constant(c))(butch.c)
 
     for i in range(num_stages):
         repl = {t: t + C[i] * dt}
@@ -292,7 +295,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
         bcarg = as_ufl(bc._original_arg)
         try:
-            gdat = interpolate(bcarg, Vsp)
+            gdat = assemble(interpolate(bcarg, Vsp))
             gmethod = lambda gd, gc: gd.interpolate(gc)
         except:  # noqa: E722
             gdat = project(bcarg, Vsp)

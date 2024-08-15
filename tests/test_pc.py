@@ -1,8 +1,8 @@
 import numpy
 import pytest
-from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate,
+from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitSquareMesh, diff, div, dx, errornorm,
-                       grad, inner, interpolate)
+                       grad, inner)
 from irksome import Dt, MeshConstant, LobattoIIIC, RadauIIA, TimeStepper
 from ufl.algorithms.ad import expand_derivatives
 
@@ -10,7 +10,8 @@ from ufl.algorithms.ad import expand_derivatives
 
 
 def Fubc(V, uexact, rhs):
-    u = interpolate(uexact, V)
+    u = Function(V)
+    u.interpolate(uexact)
     v = TestFunction(V)
     F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
 

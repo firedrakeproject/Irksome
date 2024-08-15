@@ -32,18 +32,18 @@ As usual, we need to import firedrake::
 
 We will also need to import certain items from irksome::
 
-  from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
+  from irksome import RadauIIA, Dt, MeshConstant, TimeStepper
 
 And we will need a little bit of UFL to support using the method of
 manufactured solutions::
 
   from ufl.algorithms.ad import expand_derivatives
 
-We will create the Butcher tableau for the lowest-order Gauss-Legendre
-Runge-Kutta method, which is more commonly known as the implicit
-midpoint rule::
+We will create the Butcher tableau for the 3-stage RadauIIA
+Runge-Kutta method, which has an embedded scheme we can use
+for adaptivity::
 
-  butcher_tableau = GaussLegendre(1)
+  butcher_tableau = RadauIIA(3)
   ns = butcher_tableau.num_stages
 
 Now we define the mesh and piecewise linear approximating space in
@@ -58,11 +58,12 @@ standard Firedrake fashion::
   msh = RectangleMesh(N, N, x1, y1)
   V = FunctionSpace(msh, "CG", 1)
 
-We define variables to store the time step and current time value::
+We define variables to store the time step, current time value, and final time::
 
   MC = MeshConstant(msh)
   dt = MC.Constant(10.0 / N)
   t = MC.Constant(0.0)
+  Tf = MC.Constant(1.0)
 
 This defines the right-hand side using the method of manufactured solutions::
 
@@ -101,21 +102,34 @@ will assemble into a PETSc MatNest otherwise)::
 Most of Irksome's magic happens in the :class:`.TimeStepper`.  It
 transforms our semidiscrete form `F` into a fully discrete form for
 the stage unknowns and sets up a variational problem to solve for the
-stages at each time step.::
+stages at each time step.
 
+In this demo, we use an adaptive timestepper, selected by sending a dictionary
+of adaptive parameters, which tells Irksome to also compute an error estimate
+at each timestep, and use that estimate to adjust the timestep size.  The
+adaptation depends on some given parameters, including a tolerance `tol` for
+for the error at each step, and `KI` and `KP` that set the so-called integration
+and performance gain for the estimate.::
+
+  adapt_params = {"tol":1e-3, "KI":1/15, "KP":0.13}
   stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
-                        solver_parameters=luparams)
+                        stage_type="deriv", solver_parameters=luparams,
+			adaptive_parameters = adapt_params)
 
 This logic is pretty self-explanatory.  We use the
 :class:`.TimeStepper`'s :meth:`~.TimeStepper.advance` method, which solves the variational
-problem to compute the Runge-Kutta stage values and then updates the solution.::
+problem to compute the Runge-Kutta stage values and then updates the solution.
 
-  while (float(t) < 1.0):
-      if (float(t) + float(dt) > 1.0):
-          dt.assign(1.0 - float(t))
-      stepper.advance()
+Here, in contrast to the non-adaptive case, we get an estimate of the error at each step
+(that we do not use here) and a new adaptive timestep size at each step.  We use these to
+control integrating to a fixed final time, `Tf`.  This exposes the `dt_max` data for
+:class:`.TimeStepper`, which puts a hard limit on the timestep size in the adaptive case.::
+
+  while (float(t) < float(Tf)):
+      stepper.dt_max = float(Tf)-float(t)
+      (adapt_error, adapt_dt) = stepper.advance()
       print(float(t))
-      t.assign(float(t) + float(dt))
+      t.assign(float(t) + float(adapt_dt))
 
 Finally, we print out the relative :math:`L^2` error::
 

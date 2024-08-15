@@ -1,12 +1,15 @@
+from math import isclose
+
 import pytest
 from firedrake import *
-from irksome import Alexander, Dt, MeshConstant, TimeStepper
-from math import isclose
-from ufl.algorithms.ad import expand_derivatives
+from irksome import WSODIRK, Alexander, Dt, MeshConstant, TimeStepper
 from ufl import replace
+from ufl.algorithms.ad import expand_derivatives
+
+wsodirks = [WSODIRK(*x) for x in ((4, 3, 2), (4, 3, 3))]
 
 
-@pytest.mark.parametrize("butcher_tableau", [Alexander()])
+@pytest.mark.parametrize("butcher_tableau", [Alexander()] + wsodirks)
 def test_1d_heat_dirichletbc(butcher_tableau):
     # Boundary values
     u_0 = Constant(2.0)
@@ -34,7 +37,8 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         + ((x - x0) / x1) * (u_1 - u_0)
     )
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    u = interpolate(uexact, V)
+    u = Function(V)
+    u.interpolate(uexact)
     v = TestFunction(V)
     F = (
         inner(Dt(u), v) * dx
@@ -66,7 +70,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         assert isclose(u.at(x1), u_1)
 
 
-@pytest.mark.parametrize("butcher_tableau", [Alexander()])
+@pytest.mark.parametrize("butcher_tableau", [Alexander()] + wsodirks)
 def test_1d_heat_neumannbc(butcher_tableau):
     N = 20
     msh = UnitIntervalMesh(N)
@@ -78,8 +82,11 @@ def test_1d_heat_neumannbc(butcher_tableau):
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    u_dirk = interpolate(uexact, V)
-    u = interpolate(uexact, V)
+    u_dirk = Function(V)
+    u = Function(V)
+    u_dirk.interpolate(uexact)
+    u.interpolate(uexact)
+
     v = TestFunction(V)
     F = (
         inner(Dt(u), v) * dx
@@ -108,7 +115,7 @@ def test_1d_heat_neumannbc(butcher_tableau):
         assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
 
 
-@pytest.mark.parametrize("butcher_tableau", [Alexander()])
+@pytest.mark.parametrize("butcher_tableau", [Alexander()] + wsodirks)
 def test_1d_heat_homogdbc(butcher_tableau):
     N = 20
     msh = UnitIntervalMesh(N)
@@ -120,8 +127,10 @@ def test_1d_heat_homogdbc(butcher_tableau):
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    u_dirk = interpolate(uexact, V)
-    u = interpolate(uexact, V)
+    u_dirk = Function(V)
+    u = Function(V)
+    u_dirk.interpolate(uexact)
+    u.interpolate(uexact)
     v = TestFunction(V)
     F = (
         inner(Dt(u), v) * dx
@@ -154,7 +163,7 @@ def test_1d_heat_homogdbc(butcher_tableau):
         assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
 
 
-@pytest.mark.parametrize("butcher_tableau", [Alexander()])
+@pytest.mark.parametrize("butcher_tableau", [Alexander()] + wsodirks)
 def test_1d_vectorheat_componentBC(butcher_tableau):
     N = 20
     msh = UnitIntervalMesh(N)
@@ -167,8 +176,10 @@ def test_1d_vectorheat_componentBC(butcher_tableau):
     uexact = as_vector([sin(pi*x/2)*exp(-(pi**2)*t/4),
                         cos(pi*x/2)*exp(-(pi**2)*t/4)])
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    u_dirk = interpolate(uexact, V)
-    u = interpolate(uexact, V)
+    u_dirk = Function(V)
+    u = Function(V)
+    u_dirk.interpolate(uexact)
+    u.interpolate(uexact)
     v = TestFunction(V)
     F = (
         inner(Dt(u), v) * dx
@@ -212,7 +223,7 @@ def component_bc(Z, uexact):
             DirichletBC(Z.sub(0).sub(1), uexact[1], [3, 4])]
 
 
-@pytest.mark.parametrize("butcher_tableau", [Alexander()])
+@pytest.mark.parametrize("butcher_tableau", [Alexander()] + wsodirks)
 @pytest.mark.parametrize("bctype", [subspace_bc, component_bc])
 def test_stokes_bcs(butcher_tableau, bctype):
     N = 10

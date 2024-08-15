@@ -12,7 +12,7 @@ msh = UnitSquareMesh(N, N)
 V = FunctionSpace(msh, "CG", 1)
 x, y = SpatialCoordinate(msh)
 
-MC = MeshConstnt(msh)
+MC = MeshConstant(msh)
 dt = MC.Constant(10.0 / N)
 t = MC.Constant(0.0)
 
@@ -23,12 +23,13 @@ uexact = exp(-t) * cos(pi * x) * sin(pi * y)
 # MMS works on symbolic differentiation of true solution, not weak form
 rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
-u = interpolate(uexact, V)
+u = Function(V)
+u.interpolate(uexact)
 
 # define the variational form once outside the loop
 h = CellSize(msh)
 n = FacetNormal(msh)
-beta = Constant(100.0, domain=msh)
+beta = Constant(100.0)
 v = TestFunction(V)
 F = (inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v) * dx
      - inner(dot(grad(u), n), v) * ds
