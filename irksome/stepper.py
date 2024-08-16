@@ -481,23 +481,29 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                                     return gdat
                         else:
                             Vsp = V.sub(sub)
+                            
                             # for j in range(num_stages):
                             #     gcur -= dt*btilde[j]*ws[num_fields*j+sub]
                             try:
-                                gdat = assemble(interpolate(gcur-u0.sub(sub), Vsp))
-                                def gmethod(g, u):
-                                    gdat.interpolate(g-u.sub(sub))
-                                    for j in range(num_stages):
-                                        gdat -= dt * btilde[j] * ws[num_fields*j+sub]
-                                    return gdat
-                                
+                                gdat = assemble(interpolate(gcur - u0.sub(sub), Vsp))
+                                for j in range(num_fields):
+                                    gdat -= dt * btilde[j] * ws[num_fields*j+sub]
+                                def gg(g0, g, u):
+                                    g0.interpolate(g- u.sub(sub))
+                                    for j in range(num_fields):
+                                        g0 -= dt * btilde[j] * ws[num_fields*j+sub]
+                                    return g0
+                                gmethod = lambda g, u: gg(gdat, g, u) 
                             except:  # noqa: E722
-                                gdat = project(gcur-u0.sub(sub), Vsp)
-                                def gmethod(g, u):
-                                    gdat.project(g-u.sub(sub))
-                                    for j in range(num_stages):
-                                        gdat -= dt * btilde[j] * ws[num_fields*j+sub]
-                                    return gdat                                
+                                gdat = project(gcur - u0.sub(sub), Vsp)
+                                for j in range(num_fields):
+                                    gdat -= dt * btilde[j] * ws[num_fields*j+sub]
+                                def gg(g0, g, u)
+                                    g0.project(g- u.sub(sub))
+                                    for j in range(num_fields):
+                                        g0 -= dt * btilde[j] * ws[num_fields*j+sub]
+                                    return g0
+                                gmethod = lambda g, u: gg(gdat, u)
 
                     self.gstuff = (gdat, gcur, gmethod, Vsp)
 
