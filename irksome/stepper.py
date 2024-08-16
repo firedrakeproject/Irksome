@@ -420,86 +420,101 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                         comp = bc.function_space().component
                         if comp is not None:  # check for sub-piece of vector-valued
                             Vsp = V.sub(comp)
-                            # for j in range(num_stages):
-                            #     gcur -= dt*btilde[j]*ws[j].sub(comp)
                             try:
                                 gdat = assemble(interpolate(gcur-u0.sub(comp), Vsp))
-                                def gmethod(g, u):
-                                    gdat.interpolate(g-u.sub(comp))
+                                for j in range(num_stages):
+                                    gdat -= dt * btilde[j] * ws[j].sub(comp)
+
+                                def gg(g0, g, u):
+                                    g0.interpolate(g-u.sub(comp))
                                     for j in range(num_stages):
-                                        gdat -= dt * btilde[j] * ws[j].sub(comp)
-                                    return gdat
-                                # gmethod = lambda g, u: gdat.interpolate(g-u.sub(comp))
+                                        g0 -= dt * btilde[j] * ws[j].sub(comp)
+                                    return g0
+                                gmethod = lambda g, u: gg(gdat, g, u)
                             except:  # noqa: E722
                                 gdat = project(gcur-u0.sub(comp), Vsp)
-                                def gmethod(g, u):
-                                    gdat.project(g-u.sub(comp))
+                                for j in range(num_stages):
+                                    gdat -= dt * btilde[j] * ws[j].sub(comp)
+
+                                def gg(g0, g, u):
+                                    g0.project(g-u.sub(comp))
                                     for j in range(num_stages):
-                                        gdat -= dt * btilde[j] * ws[j].sub(comp)
-                                    return gdat
-                                # gmethod = lambda g, u: gdat.project(g-u.sub(comp))
+                                        g0 -= dt * btilde[j] * ws[j].sub(comp)
+                                    return g0
+                                gmethod = lambda g, u: gg(gdat, g, u)
                         else:
                             Vsp = V
                             # for j in range(num_stages):
                             #     gcur -= dt*btilde[j]*ws[j]
                             try:
                                 gdat = assemble(interpolate(gcur-u0, Vsp))
-                                def gmethod(g, y):
-                                    gdat.interpolate(g-u)
-                                    for j in range(num_steps):
-                                        gdat -= dt * btilde[j] * ws[j]
-                                    return gdat
-                                # gmethod = lambda g, u: gdat.interpolate(g-u)
+                                for j in range(num_stages):
+                                    gcur -= dt * btilde[j] * ws[j]
+
+                                def gg(g0, g, u):
+                                    g0.interpolate(g-u)
+                                    for j in range(num_stages):
+                                        g0 -= dt * btilde[j] * ws[j]
+                                    return g0
+                                gmethod = lambda g, u: gg(gdat, g, u)
                             except:  # noqa: E722
                                 gdat = project(gcur-u0, Vsp)
-                                def gmethod(g, y):
-                                    gdat.project(g-u)
-                                    for j in range(num_steps):
-                                        gdat -= dt * btilde[j] * ws[j]
-                                    return gdat                               
-                                gmethod = lambda g, u: gdat.project(g-u)
+                                for j in range(num_stages):
+                                    gdat -= dt * btilde[j] * ws[j]
+
+                                def gg(g0, g, u):
+                                    g0.project(g-u)
+                                    for j in range(num_stages):
+                                        g0 -= dt * btilde[j] * ws[j]
+                                    return g0
+                                gmethod = lambda g, u: gg(gdat, g, u)
                     else:  # mixed space
                         sub = bc.function_space_index()
                         comp = bc.function_space().component
                         if comp is not None:  # check for sub-piece of vector-valued
                             Vsp = V.sub(sub).sub(comp)
-                            # for j in range(num_stages):
-                            #     gcur -= dt*btilde[j]*ws[num_fields*j+sub].sub(comp)
                             try:
                                 gdat = assemble(interpolate(gcur-u0.sub(sub).sub(comp), Vsp))
-                                def gmethod(g, u):
-                                    gdat.interpolate(g-u.sub(sub).sub(comp))
+                                for j in range(num_stages):
+                                    gdat -= dt * btilde[j] * ws[num_fields*j+sub].sub(comp)
+
+                                def gg(g0, g, u):
+                                    g0.interpolate(g-u.sub(sub).sub(comp))
                                     for j in range(num_stages):
-                                        gdat -= dt * btilde[j] * ws[num_fields*j+sub].sub(comp)
-                                    return gdat
+                                        g0 -= dt * btilde[j] * ws[num_fields*j+sub].sub(comp)
+                                    return g0
+                                gmethod = lambda g, u: gg(gdat, g, u)
                             except:  # noqa: E722
                                 gdat = project(gcur-u0.sub(sub).sub(comp), Vsp)
-                                def gmethod(g, u):
-                                    gdat.project(g-u.sub(sub).sub(comp))
+                                for j in range(num_stages):
+                                    gdat -= dt * btilde[j] * ws[num_fields*j+sub].sub(comp)
+
+                                def gg(g0, g, u):
+                                    g0.project(g-u.sub(sub).sub(comp))
                                     for j in range(num_stages):
-                                        gdat -= dt * btilde[j] * ws[num_fields*j+sub].sub(comp)
-                                    return gdat
+                                        g0 -= dt * btilde[j] * ws[num_fields*j+sub].sub(comp)
+                                    return g0
+                                gmethod = lambda g, u: gg(gdat, g, u)
                         else:
                             Vsp = V.sub(sub)
-                            
-                            # for j in range(num_stages):
-                            #     gcur -= dt*btilde[j]*ws[num_fields*j+sub]
                             try:
                                 gdat = assemble(interpolate(gcur - u0.sub(sub), Vsp))
                                 for j in range(num_fields):
                                     gdat -= dt * btilde[j] * ws[num_fields*j+sub]
+
                                 def gg(g0, g, u):
-                                    g0.interpolate(g- u.sub(sub))
+                                    g0.interpolate(g - u.sub(sub))
                                     for j in range(num_fields):
                                         g0 -= dt * btilde[j] * ws[num_fields*j+sub]
                                     return g0
-                                gmethod = lambda g, u: gg(gdat, g, u) 
+                                gmethod = lambda g, u: gg(gdat, g, u)
                             except:  # noqa: E722
                                 gdat = project(gcur - u0.sub(sub), Vsp)
                                 for j in range(num_fields):
                                     gdat -= dt * btilde[j] * ws[num_fields*j+sub]
+
                                 def gg(g0, g, u):
-                                    g0.project(g- u.sub(sub))
+                                    g0.project(g - u.sub(sub))
                                     for j in range(num_fields):
                                         g0 -= dt * btilde[j] * ws[num_fields*j+sub]
                                     return g0
