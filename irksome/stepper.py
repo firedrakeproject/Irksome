@@ -498,7 +498,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                                 gdat = project(gcur - u0.sub(sub), Vsp)
                                 for j in range(num_fields):
                                     gdat -= dt * btilde[j] * ws[num_fields*j+sub]
-                                def gg(g0, g, u)
+                                def gg(g0, g, u):
                                     g0.project(g- u.sub(sub))
                                     for j in range(num_fields):
                                         g0 -= dt * btilde[j] * ws[num_fields*j+sub]
