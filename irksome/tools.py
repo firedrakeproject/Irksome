@@ -33,10 +33,11 @@ def getNullspace(V, Vbig, butch, nullspace):
         if (nullspace[-1][0] > num_fields) or (nullspace[0][0] < 0):
             raise ValueError("At least one index for nullspaces is out of range")
         nspnew = []
+        nsp_comp = len(nullspace)
         for i in range(num_stages):
             count = 0
             for j in range(num_fields):
-                if j == nullspace[count][0]:
+                if count < nsp_comp and j == nullspace[count][0]:
                     nspnew.append(nullspace[count][1])
                     count += 1
                 else:
