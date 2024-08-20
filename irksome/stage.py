@@ -3,18 +3,18 @@ from functools import reduce
 from operator import mul
 
 import numpy as np
-from FIAT import ufc_simplex, Bernstein
-from firedrake import (DirichletBC, Function,
-                       NonlinearVariationalProblem, NonlinearVariationalSolver,
-                       TestFunction, assemble, dx, inner, project, split)
+from FIAT import Bernstein, ufc_simplex
+from firedrake import (DirichletBC, Function, NonlinearVariationalProblem,
+                       NonlinearVariationalSolver, TestFunction, assemble, dx,
+                       inner, project, split)
 from firedrake.__future__ import interpolate
 from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
 from .manipulation import extract_terms, strip_dt_form
-from .tools import (AI, ConstantOrZero, IA, MeshConstant,
-                    getNullspace, is_ode, replace, stage2spaces4bc)
+from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
+                    replace, stage2spaces4bc)
 
 
 def getBits(num_stages, num_fields, u0, UU, v, VV):
@@ -353,9 +353,10 @@ class StageValueTimeStepper:
         if basis_type is None:
             vandermonde = None
         elif basis_type == "Bernstein":
-            assert self.num_stages > 1, ValueError("Bernstein only defined for degree >= 1")
+            # assert self.num_stages > 1, ValueError("Bernstein only defined for degree >= 1")
             bern = Bernstein(ufc_simplex(1), self.num_stages - 1)
-            vandermonde = bern.tabulate(0, np.reshape(butcher_tableau.c, (-1, 1)))[0,]
+            cc = np.reshape(np.append(0, butcher.tableau.c), (-1, 1))
+            vandermonde = bern.tabulate(0, np.reshape(cc, (-1, 1)))[0,].T
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")
 
