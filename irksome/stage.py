@@ -14,7 +14,7 @@ from ufl.constantvalue import as_ufl
 
 from .manipulation import extract_terms, strip_dt_form
 from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
-                    replace, stage2spaces4bc)
+                    replace, stage2spaces4bc, bc2space)
 
 
 def getBits(num_stages, num_fields, u0, UU, v, VV):
@@ -120,7 +120,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
     # default to no basis transformation, identity matrix
     if vandermonde is None:
-        vandermonde = np.eye(num_stages)
+        vandermonde = np.eye(num_stages + 1)
 
     # s-way product space for the stage variables
     Vbig = reduce(mul, (V for _ in range(num_stages)))
@@ -145,7 +145,19 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     Vander = veccorz(vandermonde)
     Vander_inv = veccorz(np.linalg.inv(vandermonde))
 
-    UUbits = Vander @ ZZbits
+    # multiply [u0bits; UUbits] = Vander @ [u0bits; UUbits]
+    Vander_col = Vander[1:, 0]
+    Vander0 = Vander[1:, 1:]
+
+    v0u0 = np.zeros((num_stages, num_fields), dtype="O")
+    for i in range(num_stages):
+        for j in range(num_fields):
+            v0u0[i, j] = Vander_col[i] * u0bits[j]
+
+    if num_fields == 1:
+        v0u0 = np.reshape(v0u0, (-1,))
+
+    UUbits = v0u0 + Vander0 @ ZZbits
 
     split_form = extract_terms(F)
 
@@ -249,7 +261,17 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
-        gblah_cur = []
+
+        Vsp = bc2space(bc, V)
+        try:
+            gdat = assemble(interpolate(bcarg, Vsp))
+            gmethod = lambda gd, gc: gd.interpolate(gc)
+        except:  # noqa: E722
+            gdat = project(bcarg, Vsp)
+            gmethod = lambda gd, gc: gd.project(gc)
+
+        gblah_cur = [(gdat, bcarg, gmethod)]
+
         for i in range(num_stages):
             Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             try:
@@ -262,16 +284,20 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
             gcur = replace(bcarg, {t: t+C[i]*dt})
             gblah_cur.append((gdat, gcur, gmethod))
 
-        gdats_cur = np.zeros((num_stages,), dtype="O")
+        gdats_cur = np.zeros((num_stages + 1,), dtype="O")
+        gdats_cur[0] = gblah_cur[0][0]
         for i in range(num_stages):
-            gdats_cur[i] = gblah_cur[i][0]
+            gdats_cur[i+1] = gblah_cur[i][0]
 
+        # Also need a dat/bcarg pair for BC -> t.
+        # I can just apply it
+            
         zdats_cur = Vander_inv @ gdats_cur
-
+        
         bcnew_cur = []
         for i in range(num_stages):
             Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcnew_cur.append(DirichletBC(Vbigi, zdats_cur[i], bc.sub_domain))
+            bcnew_cur.append(DirichletBC(Vbigi, zdats_cur[i+1], bc.sub_domain))
 
         bcsnew.extend(bcnew_cur)
         gblah.extend(gblah_cur)
@@ -354,8 +380,8 @@ class StageValueTimeStepper:
             vandermonde = None
         elif basis_type == "Bernstein":
             # assert self.num_stages > 1, ValueError("Bernstein only defined for degree >= 1")
-            bern = Bernstein(ufc_simplex(1), self.num_stages - 1)
-            cc = np.reshape(np.append(0, butcher.tableau.c), (-1, 1))
+            bern = Bernstein(ufc_simplex(1), self.num_stages)
+            cc = np.reshape(np.append(0, butcher_tableau.c), (-1, 1))
             vandermonde = bern.tabulate(0, np.reshape(cc, (-1, 1)))[0,].T
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")
