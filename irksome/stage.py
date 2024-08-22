@@ -14,7 +14,7 @@ from ufl.constantvalue import as_ufl
 
 from .manipulation import extract_terms, strip_dt_form
 from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
-                    replace, stage2spaces4bc, bc2space)
+                    replace, stage2spaces4bc)
 
 
 def getBits(num_stages, num_fields, u0, UU, v, VV):
@@ -262,15 +262,16 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
 
-        Vsp = bc2space(bc, V)
-        try:
-            gdat = assemble(interpolate(bcarg, Vsp))
-            gmethod = lambda gd, gc: gd.interpolate(gc)
-        except:  # noqa: E722
-            gdat = project(bcarg, Vsp)
-            gmethod = lambda gd, gc: gd.project(gc)
+        # Vsp = bc2space(bc, V)
+        # try:
+        #     gdat = assemble(interpolate(bcarg, Vsp))
+        #     gmethod = lambda gd, gc: gd.interpolate(gc)
+        # except:  # noqa: E722
+        #     gdat = project(bcarg, Vsp)
+        #     gmethod = lambda gd, gc: gd.project(gc)
 
-        gblah_cur = [(gdat, bcarg, gmethod)]
+        # gblah_cur = [(gdat, bcarg, gmethod)]
+        gblah_cur = []
 
         for i in range(num_stages):
             Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
@@ -282,22 +283,21 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
                 gmethod = lambda gd, gc: gd.project(gc)
 
             gcur = replace(bcarg, {t: t+C[i]*dt})
-            gblah_cur.append((gdat, gcur, gmethod))
+            gblah_cur.append((gdat, gcur - Vander_col[i] * bcarg, gmethod))
 
-        gdats_cur = np.zeros((num_stages + 1,), dtype="O")
-        gdats_cur[0] = gblah_cur[0][0]
+        gdats_cur = np.zeros((num_stages,), dtype="O")
         for i in range(num_stages):
-            gdats_cur[i+1] = gblah_cur[i][0]
+            gdats_cur[i] = gblah_cur[i][0]
 
         # Also need a dat/bcarg pair for BC -> t.
         # I can just apply it
-            
-        zdats_cur = Vander_inv @ gdats_cur
-        
+
+        zdats_cur = Vander_inv[1:, 1:] @ gdats_cur
+
         bcnew_cur = []
         for i in range(num_stages):
             Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcnew_cur.append(DirichletBC(Vbigi, zdats_cur[i+1], bc.sub_domain))
+            bcnew_cur.append(DirichletBC(Vbigi, zdats_cur[i], bc.sub_domain))
 
         bcsnew.extend(bcnew_cur)
         gblah.extend(gblah_cur)

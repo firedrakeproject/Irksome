@@ -5,6 +5,7 @@ from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.classes import CoefficientDerivative, Zero
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
+
 from irksome.deriv import TimeDerivative
 
 
@@ -133,7 +134,7 @@ def bc2space(bc, V):
         comp = bc.function_space().component
         Vsp = V.sub(sub) if comp is None else V.sub(sub).sub(comp)
     return Vsp
-    
+
 
 # used to figure out how to apply Dirichlet BC to each stage
 def stage2spaces4bc(bc, V, Vbig, i):
