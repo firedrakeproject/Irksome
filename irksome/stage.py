@@ -268,15 +268,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
 
-        # Vsp = bc2space(bc, V)
-        # try:
-        #     gdat = assemble(interpolate(bcarg, Vsp))
-        #     gmethod = lambda gd, gc: gd.interpolate(gc)
-        # except:  # noqa: E722
-        #     gdat = project(bcarg, Vsp)
-        #     gmethod = lambda gd, gc: gd.project(gc)
-
-        # gblah_cur = [(gdat, bcarg, gmethod)]
         gblah_cur = []
 
         for i in range(num_stages):
@@ -294,9 +285,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         gdats_cur = np.zeros((num_stages,), dtype="O")
         for i in range(num_stages):
             gdats_cur[i] = gblah_cur[i][0]
-
-        # Also need a dat/bcarg pair for BC -> t.
-        # I can just apply it
 
         zdats_cur = Vander_inv[1:, 1:] @ gdats_cur
 
@@ -430,6 +418,10 @@ class StageValueTimeStepper:
         self.update_problem = NonlinearVariationalProblem(
             Fupdate, unew, update_bcs)
 
+        if bounds is not None and bounds[0] == "time_level":
+            assert update_solver_parameters is not None, \
+                "update_solver_parameters required for bounds-constrained update"
+
         self.update_solver = NonlinearVariationalSolver(
             self.update_problem,
             solver_parameters=update_solver_parameters)
@@ -480,9 +472,10 @@ class StageValueTimeStepper:
                 self._update_solve = self.update_solver.solve
 
             elif bounds_type == "time_level":
-                self._stage_solve = self.solver.solve
-                self._update_solve = lambda: self.update_solver.solve(bounds=(lower_func, upper_func))
-                self._update = self._update_general
+                raise NotImplementedError("Time-level bounds constraints not working yet")
+                # self._stage_solve = self.solver.solve
+                # self._update_solve = lambda: self.update_solver.solve(bounds=(lower_func, upper_func))
+                # self._update = self._update_general
         else:  # no bounds constraint
             self._stage_solve = self.solver.solve
             self._update_solve = self.update_solver.solve
