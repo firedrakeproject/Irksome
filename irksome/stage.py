@@ -472,10 +472,12 @@ class StageValueTimeStepper:
                 self._update_solve = self.update_solver.solve
 
             elif bounds_type == "time_level":
-                raise NotImplementedError("Time-level bounds constraints not working yet")
-                # self._stage_solve = self.solver.solve
-                # self._update_solve = lambda: self.update_solver.solve(bounds=(lower_func, upper_func))
-                # self._update = self._update_general
+                if not ode_huh:
+                    raise NotImplementedError(
+                        """Time-level bounds constraints not working for DAE-type problems.  Please try with "bounds_type" set to "last_stage".""")
+                self._stage_solve = self.solver.solve
+                self._update_solve = lambda: self.update_solver.solve(bounds=(lower_func, upper_func))
+                self._update = self._update_general
         else:  # no bounds constraint
             self._stage_solve = self.solver.solve
             self._update_solve = self.update_solver.solve

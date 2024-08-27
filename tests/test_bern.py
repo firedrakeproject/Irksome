@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
-from firedrake import (FacetNormal, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunctions, UnitSquareMesh, cos, diff, div, dot, ds,
-                       dx, errornorm, exp, grad, inner, norm, pi, split)
+from firedrake import (DirichletBC, FacetNormal, Function, FunctionSpace,
+                       SpatialCoordinate, TestFunction, TestFunctions,
+                       UnitIntervalMesh, UnitSquareMesh, cos, diff, div, dot,
+                       ds, dx, errornorm, exp, grad, inner, norm, pi, project,
+                       split)
 from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
 from ufl.algorithms import expand_derivatives
 
@@ -15,12 +17,48 @@ lu_params = {
 
 vi_params = {
     "snes_type": "vinewtonrsls",
-    "snes_vi_monitor": None,
     "snes_max_it": 300,
     "snes_atol": 1.e-8,
     "ksp_type": "preonly",
     "pc_type": "lu",
 }
+
+
+def heat(n, deg, butcher_tableau, solver_parameters,
+         **kwargs):
+    N = 2**n
+    msh = UnitIntervalMesh(N)
+
+    V = FunctionSpace(msh, "Bernstein", deg)
+    x, = SpatialCoordinate(msh)
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(2.0 / N)
+
+    uexact = exp(-t) * cos(pi * x)**2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+
+    u = project(uexact, V)
+
+    v = TestFunction(V)
+
+    F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+         - inner(rhs, v) * dx)
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+
+    stepper = TimeStepper(F, butcher_tableau, t, dt, u,
+                          bcs=bc, solver_parameters=solver_parameters,
+                          **kwargs)
+
+    while (float(t) < 1.0):
+        if (float(t) + float(dt) > 1.0):
+            dt.assign(1.0 - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return errornorm(uexact, u) / norm(uexact)
 
 
 def mixed_heat(n, deg, butcher_tableau, solver_parameters,
@@ -78,7 +116,7 @@ def mixed_heat(n, deg, butcher_tableau, solver_parameters,
 
 
 @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
-def test_heat_bern(butcher_tableau):
+def test_mixed_heat_bern(butcher_tableau):
     deg = 1
     kwargs = {"stage_type": "value",
               "basis_type": "Bernstein",
@@ -90,12 +128,29 @@ def test_heat_bern(butcher_tableau):
     assert (conv > (deg-0.1)).all()
 
 
-@pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
+@pytest.mark.parametrize('num_stages', (2, 3))
+@pytest.mark.parametrize('bounds_type', ('stage', 'last_stage'))
+@pytest.mark.parametrize('basis_type', ('Bernstein', None))
+def test_mixed_heat_bern_bounds(num_stages, bounds_type, basis_type):
+    deg = 1
+    bounds = (bounds_type, (None, 0), (None, None))
+    kwargs = {"stage_type": "value",
+              "basis_type": basis_type,
+              "bounds": bounds,
+              "solver_parameters": vi_params}
+    diff = np.array([mixed_heat(i, deg, RadauIIA(num_stages), **kwargs) for i in range(3, 5)])
+    print(diff)
+    conv = np.log2(diff[:-1] / diff[1:])
+    print(conv)
+    assert (conv > (deg-0.1)).all()
+
+
+@pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2, 3)])
 @pytest.mark.parametrize('bounds_type', ('stage', 'last_stage'))
 @pytest.mark.parametrize('basis_type', ('Bernstein', None))
 def test_heat_bern_bounds(butcher_tableau, bounds_type, basis_type):
     deg = 1
-    bounds = (bounds_type, (None, 0), (None, None))
+    bounds = (bounds_type, 0, None)
     if bounds_type == "time_level":
         update_solver_parameters = vi_params
     else:
@@ -105,8 +160,8 @@ def test_heat_bern_bounds(butcher_tableau, bounds_type, basis_type):
               "bounds": bounds,
               "solver_parameters": vi_params,
               "update_solver_parameters": update_solver_parameters}
-    diff = np.array([mixed_heat(i, deg, butcher_tableau, **kwargs) for i in range(3, 5)])
+    diff = np.array([heat(i, deg, butcher_tableau, **kwargs) for i in range(3, 5)])
     print(diff)
     conv = np.log2(diff[:-1] / diff[1:])
     print(conv)
-    assert (conv > (deg-0.1)).all()
+    assert (conv > (deg+0.8)).all()
