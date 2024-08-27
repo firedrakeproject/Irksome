@@ -90,9 +90,10 @@ def test_heat_bern(butcher_tableau):
 
 
 @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
-def test_heat_bern_bounds(butcher_tableau):
+@pytest.mark.parametrize('bounds_type', ('stage', 'last_stage', 'time_level'))
+def test_heat_bern_bounds(butcher_tableau, bounds_type):
     deg = 1
-    bounds = ("stage", (None, 0), (None, None))
+    bounds = (bounds_type, (None, 0), (None, None))
     kwargs = {"stage_type": "value",
               "basis_type": "Bernstein",
               "bounds": bounds,

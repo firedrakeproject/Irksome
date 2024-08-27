@@ -471,8 +471,8 @@ class StageValueTimeStepper:
                         stage_upper.subfunctions[i*num_fields+j].assign(PETSc.INFINITY)
                 offset = (num_stages-1) * num_fields
                 for j in range(num_fields):
-                    stage_lower.subfunctions[offset+j].assign(lower.subfunctions[j])
-                    stage_upper.subfunctions[offset+j].assign(upper.subfunctions[j])
+                    stage_lower.subfunctions[offset+j].assign(lower_func.subfunctions[j])
+                    stage_upper.subfunctions[offset+j].assign(upper_func.subfunctions[j])
 
             if bounds_type in ["stage", "last_stage"]:
                 self._stage_solve = lambda: self.solver.solve(bounds=(stage_lower, stage_upper))
@@ -481,7 +481,7 @@ class StageValueTimeStepper:
 
             elif bounds_type == "time_level":
                 self._stage_solve = self.solver.solve
-                self._update_solve = lambda: self.update_solver.solve(bounds=(lower, upper))
+                self._update_solve = lambda: self.update_solver.solve(bounds=(lower_func, upper_func))
                 self._update = self._update_general
         else:  # no bounds constraint
             self._stage_solve = self.solver.solve
