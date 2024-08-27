@@ -24,7 +24,7 @@ vi_params = {
 
 
 def mixed_heat(n, deg, butcher_tableau, solver_parameters,
-         **kwargs):
+               **kwargs):
     N = 2**n
     msh = UnitSquareMesh(N, N)
 
