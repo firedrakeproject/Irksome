@@ -2,19 +2,31 @@ import numpy as np
 import pytest
 from firedrake import (FacetNormal, Function, FunctionSpace, SpatialCoordinate,
                        TestFunctions, UnitSquareMesh, cos, diff, div, dot, ds,
-                       dx, errornorm, exp, grad, inner, norm, pi, sin, split)
+                       dx, errornorm, exp, grad, inner, norm, pi, split)
 from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
 from ufl.algorithms import expand_derivatives
 
+lu_params = {
+    "snes_type": "ksponly",
+    "ksp_type": "preonly",
+    "mat_type": "aij",
+    "pc_type": "lu"
+}
 
-def heat(n, deg, butcher_tableau, **kwargs):
+vi_params = {
+    "snes_type": "vinewtonrsls",
+    "snes_vi_monitor": None,
+    "snes_max_it": 300,
+    "snes_atol": 1.e-8,
+    "ksp_type": "preonly",
+    "pc_type": "lu",
+}
+
+
+def mixed_heat(n, deg, butcher_tableau, solver_parameters,
+         **kwargs):
     N = 2**n
     msh = UnitSquareMesh(N, N)
-
-    params = {"snes_type": "ksponly",
-              "ksp_type": "preonly",
-              "mat_type": "aij",
-              "pc_type": "lu"}
 
     V = FunctionSpace(msh, "RT", deg)
     W = FunctionSpace(msh, "DG", deg-1)
@@ -27,7 +39,7 @@ def heat(n, deg, butcher_tableau, **kwargs):
     t = MC.Constant(0.0)
     dt = MC.Constant(1.0 / N)
 
-    pexact = sin(pi * x) * cos(2 * pi * y) * exp(-t)
+    pexact = (cos(pi * x) * cos(pi * y))**2 * exp(-t)
     uexact = -grad(pexact)
 
     up = Function(Z)
@@ -49,7 +61,7 @@ def heat(n, deg, butcher_tableau, **kwargs):
     up.subfunctions[1].project(pexact)
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, up,
-                          solver_parameters=params,
+                          solver_parameters=solver_parameters,
                           **kwargs)
 
     while (float(t) < 1.0):
@@ -68,8 +80,24 @@ def heat(n, deg, butcher_tableau, **kwargs):
 def test_heat_bern(butcher_tableau):
     deg = 1
     kwargs = {"stage_type": "value",
-              "basis_type": "Bernstein"}
-    diff = np.array([heat(i, deg, butcher_tableau, **kwargs) for i in range(2, 4)])
+              "basis_type": "Bernstein",
+              "solver_parameters": lu_params}
+    diff = np.array([mixed_heat(i, deg, butcher_tableau, **kwargs) for i in range(2, 4)])
+    print(diff)
+    conv = np.log2(diff[:-1] / diff[1:])
+    print(conv)
+    assert (conv > (deg-0.1)).all()
+
+
+@pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
+def test_heat_bern_bounds(butcher_tableau):
+    deg = 1
+    bounds = ("stage", (None, 0), (None, None))
+    kwargs = {"stage_type": "value",
+              "basis_type": "Bernstein",
+              "bounds": bounds,
+              "solver_parameters": vi_params}
+    diff = np.array([mixed_heat(i, deg, butcher_tableau, **kwargs) for i in range(2, 4)])
     print(diff)
     conv = np.log2(diff[:-1] / diff[1:])
     print(conv)
