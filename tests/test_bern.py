@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
-from firedrake import (DirichletBC, FacetNormal, Function, FunctionSpace,
+from firedrake import (DirichletBC, BrokenElement, FacetNormal,
+                       FiniteElement, Function, FunctionSpace,
                        SpatialCoordinate, TestFunction, TestFunctions,
                        UnitIntervalMesh, UnitSquareMesh, cos, diff, div, dot,
                        ds, dx, errornorm, exp, grad, inner, norm, pi, project,
@@ -67,8 +68,69 @@ def mixed_heat(n, deg, butcher_tableau, solver_parameters,
     msh = UnitSquareMesh(N, N)
 
     V = FunctionSpace(msh, "RT", deg)
-    el_type = "Bernstein" if deg > 1 else "DG"
-    W = FunctionSpace(msh, el_type, deg-1)
+    if deg == 1:
+        el = FiniteElement("DG", "triangle", 0)
+    else:
+        el = BrokenElement(FiniteElement("Bernstein", "triangle", deg-1))
+    W = FunctionSpace(msh, el)
+
+    Z = V * W
+
+    x, y = SpatialCoordinate(msh)
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(1.0 / N)
+
+    pexact = (cos(pi * x) * cos(pi * y))**2 * exp(-t)
+    uexact = -grad(pexact)
+
+    up = Function(Z)
+    u, p = split(up)
+
+    v, w = TestFunctions(Z)
+
+    n = FacetNormal(msh)
+
+    rhs = expand_derivatives(diff(pexact, t) + div(uexact))
+
+    F = (inner(Dt(p), w) * dx
+         + inner(div(u), w) * dx
+         - inner(rhs, w) * dx
+         + inner(u, v) * dx
+         - inner(p, div(v)) * dx
+         + inner(pexact, dot(v, n)) * ds)
+
+    up.subfunctions[0].project(uexact)
+    up.subfunctions[1].project(pexact)
+
+    stepper = TimeStepper(F, butcher_tableau, t, dt, up,
+                          solver_parameters=solver_parameters,
+                          **kwargs)
+
+    while (float(t) < 1.0):
+        if (float(t) + float(dt) > 1.0):
+            dt.assign(1.0 - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    u, p = up.subfunctions
+    erru = errornorm(uexact, u) / norm(uexact)
+    errp = errornorm(pexact, p) / norm(pexact)
+    return erru + errp
+
+
+def mixed_wave(n, deg, butcher_tableau, solver_parameters,
+               **kwargs):
+    N = 2**n
+    msh = UnitSquareMesh(N, N)
+
+    V = FunctionSpace(msh, "RT", deg)
+    if deg == 1:
+        el = FiniteElement("DG", "triangle", 0)
+    else:
+        el = BrokenElement(FiniteElement("Bernstein", "triangle", deg-1))
+    W = FunctionSpace(msh, el)  
 
     Z = V * W
 
