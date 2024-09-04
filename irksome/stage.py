@@ -298,56 +298,65 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
     nspacenew = getNullspace(V, Vbig, butch, nullspace)
 
-    unew = Function(V)
+    # only form update stuff if we need it
+    # which means neither stiffly accurate nor Vandermonde
+    boo = np.zeros(vandermonde.shape[1])
+    boo[-1] = 1.0
 
-    Fupdate = inner(unew - u0, v) * dx
-    B = vectorize(lambda c: MC.Constant(c))(butch.b)
-    C = vectorize(lambda c: MC.Constant(c))(butch.c)
+    if not butch.stiffly_accurate and not np.allclose(boo, vandermonde[-1, :]):
+        unew = Function(V)
 
-    for i in range(num_stages):
-        repl = {t: t + C[i] * dt}
+        Fupdate = inner(unew - u0, v) * dx
+        B = vectorize(lambda c: MC.Constant(c))(butch.b)
+        C = vectorize(lambda c: MC.Constant(c))(butch.c)
 
-        for k in range(num_fields):
-            repl[u0bits[k]] = UUbits[i][k]
-            for ii in np.ndindex(u0bits[k].ufl_shape):
-                repl[u0bits[k][ii]] = UUbits[i][k][ii]
+        for i in range(num_stages):
+            repl = {t: t + C[i] * dt}
 
-        eFFi = replace(split_form.remainder, repl)
+            for k in range(num_fields):
+                repl[u0bits[k]] = UUbits[i][k]
+                for ii in np.ndindex(u0bits[k].ufl_shape):
+                    repl[u0bits[k][ii]] = UUbits[i][k][ii]
 
-        Fupdate += dt * B[i] * eFFi
+            eFFi = replace(split_form.remainder, repl)
 
-    # And the BC's for the update -- just the original BC at t+dt
-    update_bcs = []
-    update_bcs_gblah = []
-    for bc in bcs:
-        if num_fields == 1:  # not mixed space
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(comp)
-            else:
-                Vsp = V
-        else:  # mixed space
-            sub = bc.function_space_index()
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(sub).sub(comp)
-            else:
-                Vsp = V.sub(sub)
+            Fupdate += dt * B[i] * eFFi
 
-        bcarg = as_ufl(bc._original_arg)
-        try:
-            gdat = assemble(interpolate(bcarg, Vsp))
-            gmethod = lambda gd, gc: gd.interpolate(gc)
-        except:  # noqa: E722
-            gdat = project(bcarg, Vsp)
-            gmethod = lambda gd, gc: gd.project(gc)
+        # And the BC's for the update -- just the original BC at t+dt
+        update_bcs = []
+        update_bcs_gblah = []
+        for bc in bcs:
+            if num_fields == 1:  # not mixed space
+                comp = bc.function_space().component
+                if comp is not None:  # check for sub-piece of vector-valued
+                    Vsp = V.sub(comp)
+                else:
+                    Vsp = V
+            else:  # mixed space
+                sub = bc.function_space_index()
+                comp = bc.function_space().component
+                if comp is not None:  # check for sub-piece of vector-valued
+                    Vsp = V.sub(sub).sub(comp)
+                else:
+                    Vsp = V.sub(sub)
 
-        gcur = replace(bcarg, {t: t+dt})
-        update_bcs.append(DirichletBC(Vsp, gdat, bc.sub_domain))
-        update_bcs_gblah.append((gdat, gcur, gmethod))
+            bcarg = as_ufl(bc._original_arg)
+            try:
+                gdat = assemble(interpolate(bcarg, Vsp))
+                gmethod = lambda gd, gc: gd.interpolate(gc)
+            except:  # noqa: E722
+                gdat = project(bcarg, Vsp)
+                gmethod = lambda gd, gc: gd.project(gc)
 
-    return (Fnew, (unew, Fupdate, update_bcs, update_bcs_gblah),
-            ZZ, bcsnew, gblah, nspacenew)
+            gcur = replace(bcarg, {t: t+dt})
+            update_bcs.append(DirichletBC(Vsp, gdat, bc.sub_domain))
+            update_bcs_gblah.append((gdat, gcur, gmethod))
+
+        update_stuff = (unew, Fupdate, update_bcs, update_bcs_gblah)
+    else:
+        update_stuff = None
+
+    return (Fnew, update_stuff, ZZ, bcsnew, gblah, nspacenew)
 
 
 class StageValueTimeStepper:
