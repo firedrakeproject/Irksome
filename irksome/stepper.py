@@ -524,6 +524,9 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
 
             embbc = []
             gblah = []
+            if bcs is None:
+                bcs = []
+
             for bc in bcs:
                 blah = EmbeddedBCData(bc, self.t, self.dt, num_fields, num_stages, btilde, V, ws, self.u0)
                 gdat, gcur, gmethod, gVsp = blah.gstuff
