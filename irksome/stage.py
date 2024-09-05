@@ -151,7 +151,11 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     Vander = veccorz(vandermonde)
     Vander_inv = veccorz(np.linalg.inv(vandermonde))
 
-    # multiply [u0bits; UUbits] = Vander @ [u0bits; UUbits]
+    # Note that the structure of the Vandermonde matrix means the first entry is unchanged.
+    # it's the value at the previous time step, and we really want the action on the stage variables.
+    # So to multiply [u0bits; UUbits] = Vander @ [u0bits; UUbits],
+    # we partition Vander accordingly to do this computation.x
+
     Vander_col = Vander[1:, 0]
     Vander0 = Vander[1:, 1:]
 

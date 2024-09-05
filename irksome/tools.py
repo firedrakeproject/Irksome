@@ -124,18 +124,6 @@ def ConstantOrZero(x, MC):
     return Zero() if abs(complex(x)) < 1.e-10 else MC.Constant(x)
 
 
-def bc2space(bc, V):
-    num_fields = len(V)
-    if num_fields == 1:  # not mixed space
-        comp = bc.function_space().component
-        Vsp = V if comp is None else V.sub(comp)
-    else:  # mixed space
-        sub = bc.function_space_index()
-        comp = bc.function_space().component
-        Vsp = V.sub(sub) if comp is None else V.sub(sub).sub(comp)
-    return Vsp
-
-
 # used to figure out how to apply Dirichlet BC to each stage
 def stage2spaces4bc(bc, V, Vbig, i):
     num_fields = len(V)
