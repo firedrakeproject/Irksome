@@ -303,7 +303,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     boo = np.zeros(vandermonde.shape[1])
     boo[-1] = 1.0
 
-    if not butch.stiffly_accurate and not np.allclose(boo, vandermonde[-1, :]):
+    if not butch.is_stiffly_accurate and not np.allclose(boo, vandermonde[-1, :]):
         unew = Function(V)
 
         Fupdate = inner(unew - u0, v) * dx
@@ -423,17 +423,18 @@ class StageValueTimeStepper:
             self.prob, appctx=appctx, nullspace=nsp,
             solver_parameters=solver_parameters)
 
-        unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
-        self.update_problem = NonlinearVariationalProblem(
-            Fupdate, unew, update_bcs)
-
         if bounds is not None and bounds[0] == "time_level":
             assert update_solver_parameters is not None, \
                 "update_solver_parameters required for bounds-constrained update"
 
-        self.update_solver = NonlinearVariationalSolver(
-            self.update_problem,
-            solver_parameters=update_solver_parameters)
+        if not stiff_acc_huh:
+            unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
+            self.update_problem = NonlinearVariationalProblem(
+                Fupdate, unew, update_bcs)
+
+            self.update_solver = NonlinearVariationalSolver(
+                self.update_problem,
+                solver_parameters=update_solver_parameters)
 
         if bounds is not None:
             V = u0.function_space()
@@ -477,8 +478,11 @@ class StageValueTimeStepper:
 
             if bounds_type in ["stage", "last_stage"]:
                 self._stage_solve = lambda: self.solver.solve(bounds=(stage_lower, stage_upper))
-                self._update = self._update_stiff_acc if stiff_acc_huh else self._update_general
-                self._update_solve = self.update_solver.solve
+                if stiff_acc_huh:
+                    self._update = self._update_stiff_acc
+                else:
+                    self._update_general
+                    self._update_solve = self.update_solver.solve
 
             elif bounds_type == "time_level":
                 if not ode_huh:
@@ -489,8 +493,11 @@ class StageValueTimeStepper:
                 self._update = self._update_general
         else:  # no bounds constraint
             self._stage_solve = self.solver.solve
-            self._update_solve = self.update_solver.solve
-            self._update = self._update_stiff_acc if stiff_acc_huh else self._update_general
+            if stiff_acc_huh:
+                self._update = self._update_stiff_acc
+            else:
+                self._update_solve = self.update_solver.solve
+                self._update = self._update_general
 
     def _update_stiff_acc(self):
         u0 = self.u0

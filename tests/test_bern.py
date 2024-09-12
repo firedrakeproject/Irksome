@@ -5,7 +5,7 @@ from firedrake import (DirichletBC, FacetNormal, Function, FunctionSpace,
                        UnitIntervalMesh, UnitSquareMesh, assemble, cos, diff,
                        div, dot, ds, dx, errornorm, exp, grad, inner, norm, pi,
                        project, sin, split)
-from irksome import Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper
+from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
 from ufl.algorithms import expand_derivatives
 
 lu_params = {
@@ -17,7 +17,6 @@ lu_params = {
 
 vi_params = {
     "snes_type": "vinewtonrsls",
-    #"snes_vi_monitor": None,
     "snes_max_it": 300,
     "snes_atol": 1.e-8,
     "ksp_type": "preonly",
@@ -237,7 +236,6 @@ def test_heat_bern_bounds(butcher_tableau, bounds_type, basis_type):
 #     print(conv)
 #     assert (conv > (deg-0.1)).all()
 
-    
 # mixed_wave(5, 2, GaussLegendre(3), stage_type="value",
 #            basis_type="Bernstein",
 #            bounds=("time_level", (None, -1), (None, 1)),
