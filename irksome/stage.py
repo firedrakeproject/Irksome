@@ -150,7 +150,11 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     Vander = veccorz(vandermonde)
     Vander_inv = veccorz(np.linalg.inv(vandermonde))
 
-    # multiply [u0bits; UUbits] = Vander @ [u0bits; UUbits]
+    # convert from Bernstein to Lagrange representation
+    # the Bernstein coefficients are [u0; ZZ], and the Lagrange
+    # are [u0; UU] since the value at the left-endpoint is unchanged.
+    # Since u0 is not part of the unknown vector of stages, we disassemble
+    # the Vandermonde matrix (first row is [1, 0, ...])
     Vander_col = Vander[1:, 0]
     Vander0 = Vander[1:, 1:]
 
