@@ -303,7 +303,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     boo = np.zeros(vandermonde.shape[1])
     boo[-1] = 1.0
 
-    if not butch.is_stiffly_accurate and not np.allclose(boo, vandermonde[-1, :]):
+    if not butch.is_stiffly_accurate:
         unew = Function(V)
 
         Fupdate = inner(unew - u0, v) * dx
