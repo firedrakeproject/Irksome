@@ -9,7 +9,6 @@ from firedrake import (DirichletBC, Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, assemble, dx,
                        inner, project, split)
 from firedrake.__future__ import interpolate
-from firedrake.petsc import PETSc
 from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
@@ -363,23 +362,18 @@ class StageValueTimeStepper:
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
                  splitting=AI, basis_type=None,
-                 nullspace=None, appctx=None,
-                 bounds=None):
+                 nullspace=None, appctx=None):
 
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
         ode_huh = is_ode(F, u0)
         stiff_acc_huh = butcher_tableau.is_stiffly_accurate
         assert ode_huh or stiff_acc_huh
 
-        # validate bounds
-        if bounds is not None:
-            assert bounds[0] in ["stage", "last_stage", "time_level"]
-
         self.u0 = u0
         self.t = t
         self.dt = dt
-        num_fields = self.num_fields = len(u0.function_space())
         num_stages = self.num_stages = len(butcher_tableau.b)
+        self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
@@ -389,7 +383,7 @@ class StageValueTimeStepper:
             vandermonde = None
         elif basis_type == "Bernstein":
             # assert self.num_stages > 1, ValueError("Bernstein only defined for degree >= 1")
-            bern = Bernstein(ufc_simplex(1), self.num_stages)
+            bern = Bernstein(ufc_simplex(1), num_stages)
             cc = np.reshape(np.append(0, butcher_tableau.c), (-1, 1))
             vandermonde = bern.tabulate(0, np.reshape(cc, (-1, 1)))[0,].T
         else:
@@ -423,10 +417,6 @@ class StageValueTimeStepper:
             self.prob, appctx=appctx, nullspace=nsp,
             solver_parameters=solver_parameters)
 
-        if bounds is not None and bounds[0] == "time_level":
-            assert update_solver_parameters is not None, \
-                "update_solver_parameters required for bounds-constrained update"
-
         if not stiff_acc_huh:
             unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
             self.update_problem = NonlinearVariationalProblem(
@@ -435,69 +425,9 @@ class StageValueTimeStepper:
             self.update_solver = NonlinearVariationalSolver(
                 self.update_problem,
                 solver_parameters=update_solver_parameters)
-
-        if bounds is not None:
-            V = u0.function_space()
-            bounds_type, lower, upper = bounds
-            lower_func = Function(V)
-            upper_func = Function(V)
-            if not isiterable(lower):
-                lower = (lower,)
-            if not isiterable(upper):
-                upper = (upper,)
-            for l, lf in zip(lower, lower_func.subfunctions):
-                if l is not None:
-                    lf.assign(l)
-                else:
-                    lf.assign(PETSc.NINFINITY)
-            for u, uf in zip(upper, upper_func.subfunctions):
-                if u is not None:
-                    uf.assign(u)
-                else:
-                    uf.assign(PETSc.INFINITY)
-
-            if bounds_type in ["stage", "last_stage"]:
-                Vbig = UU.function_space()
-                stage_lower = Function(Vbig)
-                stage_upper = Function(Vbig)
-
-            if bounds_type == "stage":
-                for i in range(num_stages):
-                    for j in range(num_fields):
-                        stage_lower.subfunctions[i*num_fields+j].assign(lower_func.subfunctions[j])
-                        stage_upper.subfunctions[i*num_fields+j].assign(upper_func.subfunctions[j])
-            elif bounds_type == "last_stage":
-                for i in range(num_stages-1):
-                    for j in range(num_fields):
-                        stage_lower.subfunctions[i*num_fields+j].assign(PETSc.NINFINITY)
-                        stage_upper.subfunctions[i*num_fields+j].assign(PETSc.INFINITY)
-                offset = (num_stages-1) * num_fields
-                for j in range(num_fields):
-                    stage_lower.subfunctions[offset+j].assign(lower_func.subfunctions[j])
-                    stage_upper.subfunctions[offset+j].assign(upper_func.subfunctions[j])
-
-            if bounds_type in ["stage", "last_stage"]:
-                self._stage_solve = lambda: self.solver.solve(bounds=(stage_lower, stage_upper))
-                if stiff_acc_huh:
-                    self._update = self._update_stiff_acc
-                else:
-                    self._update_general
-                    self._update_solve = self.update_solver.solve
-
-            elif bounds_type == "time_level":
-                if not ode_huh:
-                    raise NotImplementedError(
-                        """Time-level bounds constraints not working for DAE-type problems.  Please try with "bounds_type" set to "last_stage".""")
-                self._stage_solve = self.solver.solve
-                self._update_solve = lambda: self.update_solver.solve(bounds=(lower_func, upper_func))
-                self._update = self._update_general
-        else:  # no bounds constraint
-            self._stage_solve = self.solver.solve
-            if stiff_acc_huh:
-                self._update = self._update_stiff_acc
-            else:
-                self._update_solve = self.update_solver.solve
-                self._update = self._update_general
+            self._update = self._update_general
+        else:
+            self._update = self._update_stiff_acc
 
     def _update_stiff_acc(self):
         u0 = self.u0
@@ -514,7 +444,7 @@ class StageValueTimeStepper:
         (unew, Fupdate, update_bcs, update_bcs_gblah) = self.update_stuff
         for gdat, gcur, gmethod in update_bcs_gblah:
             gmethod(gdat, gcur)
-        self._update_solve()
+        self.update_solver.solve()
         u0bits = self.u0.subfunctions
         unewbits = unew.subfunctions
         for u0bit, unewbit in zip(u0bits, unewbits):
@@ -524,7 +454,7 @@ class StageValueTimeStepper:
         for gdat, gcur, gmethod in self.bcdat:
             gmethod(gdat, gcur)
 
-        self._stage_solve()
+        self.solver.solve()
 
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
