@@ -9,6 +9,7 @@ from firedrake import (DirichletBC, Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, assemble, dx,
                        inner, project, split)
 from firedrake.__future__ import interpolate
+from firedrake.petsc import PETSc
 from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
@@ -433,6 +434,10 @@ class StageValueTimeStepper:
         else:
             self._update = self._update_stiff_acc
 
+        # in case we do bounds constraints
+        self.stage_lower_bound = Function(UU.function_space())
+        self.stage_upper_bound = Function(UU.function_space())
+
     def _update_stiff_acc(self):
         u0 = self.u0
 
@@ -454,11 +459,52 @@ class StageValueTimeStepper:
         for u0bit, unewbit in zip(u0bits, unewbits):
             u0bit.assign(unewbit)
 
-    def advance(self):
+    def advance(self, bounds=None):
+        if bounds is None:
+            stage_bounds = None
+        else:
+            bounds_type, lower, upper = bounds
+            slb = self.stage_lower_bound
+            sub = self.stage_upper_bound
+            if bounds_type == "stage":
+                if lower is None:
+                    slb.assign(PETSc.NINFINITY)
+                else:
+                    for i in range(self.num_stages):
+                        for j, lower_bit in enumerate(lower.subfunctions):
+                            slb.subfunctions[i*self.num_fields+j].assign(lower_bit)
+                if upper is None:
+                    sub.assign(PETSc.INFINITY)
+                else:
+                    for i in range(self.num_stages):
+                        for j, upper_bit in enumerate(upper.subfunctions):
+                            sub.subfunctions[i*self.num_fields+j].assign(upper_bit)
+            elif bounds_type == "last_stage":
+                if lower is None:
+                    slb.assign(PETSc.NINFINITY)
+                else:
+                    for i in range(self.num_stages-1):
+                        for j in range(self.num_fields):
+                            slb.subfunctions[i*self.num_fields+j].assign(PETSc.NINFINITY)
+                    for j, lower_bit in enumerate(lower.subfunctions):
+                        slb.subfunctions[-(self.num_fields-j)].assign(lower_bit)
+                if upper is None:
+                    sub.assign(PETSc.INFINITY)
+                else:
+                    for i in range(self.num_stages-1):
+                        for j in range(self.num_fields):
+                            sub.subfunctions[i*self.num_fields+j].assign(PETSc.INFINITY)
+                    for j, upper_bit in enumerate(upper.subfunctions):
+                        sub.subfunctions[-(self.num_fields-j)].assign(upper_bit)
+            else:
+                raise ValueError("Unknown bounds type")
+
+            stage_bounds = (slb, sub)
+
         for gdat, gcur, gmethod in self.bcdat:
             gmethod(gdat, gcur)
 
-        self.solver.solve()
+        self.solver.solve(bounds=stage_bounds)
 
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()

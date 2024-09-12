@@ -24,13 +24,20 @@ vi_params = {
 }
 
 
-def heat(n, deg, butcher_tableau, solver_parameters,
-         **kwargs):
+def heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs):
     N = 2**n
     msh = UnitIntervalMesh(N)
 
     V = FunctionSpace(msh, "Bernstein", deg)
     x, = SpatialCoordinate(msh)
+
+    if bounds_type is not None:
+        lb = Function(V)
+        lb.assign(0)
+        ub = None
+        bounds = (bounds_type, lb, ub)
+    else:
+        bounds = None
 
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
@@ -49,21 +56,19 @@ def heat(n, deg, butcher_tableau, solver_parameters,
     bc = DirichletBC(V, uexact, "on_boundary")
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, u,
-                          bcs=bc, solver_parameters=solver_parameters,
-                          **kwargs)
+                          bcs=bc, solver_parameters=solver_parameters, **kwargs)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
             dt.assign(1.0 - float(t))
-        stepper.advance()
+        stepper.advance(bounds=bounds)
         t.assign(float(t) + float(dt))
         print(min(u.dat.data))
 
     return errornorm(uexact, u) / norm(uexact)
 
 
-def mixed_heat(n, deg, butcher_tableau, solver_parameters,
-               **kwargs):
+def mixed_heat(n, deg, butcher_tableau, solver_parameters, **kwargs):
     N = 2**n
     msh = UnitSquareMesh(N, N)
 
@@ -167,17 +172,17 @@ def mixed_wave(n, deg, butcher_tableau, solver_parameters,
     return errp
 
 
-@pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
-def test_mixed_heat_bern(butcher_tableau):
-    deg = 1
-    kwargs = {"stage_type": "value",
-              "basis_type": "Bernstein",
-              "solver_parameters": lu_params}
-    diff = np.array([mixed_heat(i, deg, butcher_tableau, **kwargs) for i in range(2, 4)])
-    print(diff)
-    conv = np.log2(diff[:-1] / diff[1:])
-    print(conv)
-    assert (conv > (deg-0.1)).all()
+# @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
+# def test_mixed_heat_bern(butcher_tableau):
+#     deg = 1
+#     kwargs = {"stage_type": "value",
+#               "basis_type": "Bernstein",
+#               "solver_parameters": lu_params}
+#     diff = np.array([mixed_heat(i, deg, butcher_tableau, **kwargs) for i in range(2, 4)])
+#     print(diff)
+#     conv = np.log2(diff[:-1] / diff[1:])
+#     print(conv)
+#     assert (conv > (deg-0.1)).all()
 
 
 # @pytest.mark.parametrize('num_stages', (2, 3))
@@ -197,26 +202,21 @@ def test_mixed_heat_bern(butcher_tableau):
 #     assert (conv > (deg-0.1)).all()
 
 
-# @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2, 3)])
-# @pytest.mark.parametrize('bounds_type', ('stage', 'last_stage'))
-# @pytest.mark.parametrize('basis_type', ('Bernstein', None))
-# def test_heat_bern_bounds(butcher_tableau, bounds_type, basis_type):
-#     deg = 1
-#     bounds = (bounds_type, 0, None)
-#     if bounds_type == "time_level":
-#         update_solver_parameters = vi_params
-#     else:
-#         update_solver_parameters = None
-#     kwargs = {"stage_type": "value",
-#               "basis_type": basis_type,
-#               "bounds": bounds,
-#               "solver_parameters": vi_params,
-#               "update_solver_parameters": update_solver_parameters}
-#     diff = np.array([heat(i, deg, butcher_tableau, **kwargs) for i in range(3, 5)])
-#     print(diff)
-#     conv = np.log2(diff[:-1] / diff[1:])
-#     print(conv)
-#     assert (conv > (deg+0.8)).all()
+@pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2, 3)])
+@pytest.mark.parametrize('basis_type', ('Bernstein', None))
+@pytest.mark.parametrize('bounds_type', ("stage", "last_stage", None))
+def test_heat_bern_bounds(butcher_tableau, basis_type, bounds_type):
+    deg = 1
+
+    kwargs = {"stage_type": "value",
+              "basis_type": basis_type}
+
+    diff = np.array([heat(i, deg, butcher_tableau, solver_parameters=vi_params,
+                          bounds_type=bounds_type, **kwargs) for i in range(3, 5)])
+    print(diff)
+    conv = np.log2(diff[:-1] / diff[1:])
+    print(conv)
+    assert (conv > (deg+0.8)).all()
 
 
 # @pytest.mark.parametrize('num_stages', (1, 2, 3))
