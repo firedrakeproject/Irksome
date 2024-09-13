@@ -27,30 +27,24 @@ def split_field(num_fields, u):
     return np.array((u,) if num_fields == 1 else split(u), dtype="O")
 
 
-def getBits(num_stages, num_fields, u0, UU, v, VV):
-    nsxnf = (num_stages, num_fields)
+def split_stage_field(num_stages, num_fields, UU):
     if num_fields == 1:
         if num_stages == 1:   # single-stage method
-            VVbits = np.zeros((1,), dtype='O')
-            VVbits[0] = np.zeros((1,), dtype='O')
-            VVbits[0][0] = VV
-            UUbits = np.zeros((1,), dtype='O')
-            UUbits[0] = np.zeros((1,), dtype='O')
-            UUbits[0][0] = UU
+            UUbits = np.reshape(np.array((UU,), dtype='O'), (num_stages, num_fields))
         else:  # multi-stage methods
-            VVbits = np.zeros((len(split(VV)),), dtype='O')
-            for (i, x) in enumerate(split(VV)):
-                VVbits[i] = np.zeros((1,), dtype='O')
-                VVbits[i][0] = x
             UUbits = np.zeros((len(split(UU)),), dtype='O')
             for (i, x) in enumerate(split(UU)):
                 UUbits[i] = np.zeros((1,), dtype='O')
                 UUbits[i][0] = x
     else:
-        VVbits = np.reshape(np.asarray(split(VV), dtype="O"), nsxnf)
-        UUbits = np.reshape(np.asarray(split(UU), dtype="O"), nsxnf)
+        UUbits = np.reshape(np.asarray(split(UU), dtype="O"), (num_stages, num_fields))
+    return UUbits
 
+
+def getBits(num_stages, num_fields, u0, UU, v, VV):
     u0bits, vbits = (split_field(num_fields, x) for x in (u0, v))
+    UUbits, VVbits = (split_stage_field(num_stages, num_fields, x)
+                      for x in (UU, VV))
 
     return u0bits, vbits, VVbits, UUbits
 
@@ -131,13 +125,9 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     # s-way product space for the stage variables
     Vbig = reduce(mul, (V for _ in range(num_stages)))
     VV = TestFunction(Vbig)
-    # UU = Function(Vbig)
     ZZ = Function(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    # u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
-    #                                         u0, UU, v, VV)
-
     u0bits, vbits, VVbits, ZZbits = getBits(num_stages, num_fields,
                                             u0, ZZ, v, VV)
 
