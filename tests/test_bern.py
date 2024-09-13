@@ -65,7 +65,6 @@ def heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs):
             dt.assign(1.0 - float(t))
         stepper.advance(bounds=bounds)
         t.assign(float(t) + float(dt))
-        print(min(u.dat.data))
 
     return errornorm(uexact, u) / norm(uexact)
 
@@ -189,7 +188,6 @@ def mixed_wave(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs
             dt.assign(1.0 - float(t))
         stepper.advance(bounds=bounds)
         t.assign(float(t) + float(dt))
-        print(f"{assemble(E):.4e}, {min(up.subfunctions[1].dat.data):.5e}, {max(up.subfunctions[1].dat.data):.5e}")
 
     u, p = up.subfunctions
     errp = errornorm(pexact, p) / norm(pexact)
@@ -207,9 +205,7 @@ def test_heat_bern_bounds(butcher_tableau, basis_type, bounds_type):
 
     diff = np.array([heat(i, deg, butcher_tableau, solver_parameters=vi_params,
                           bounds_type=bounds_type, **kwargs) for i in range(3, 5)])
-    print(diff)
     conv = np.log2(diff[:-1] / diff[1:])
-    print(conv)
     assert (conv > (deg+0.8)).all()
 
 
@@ -224,9 +220,7 @@ def test_mixed_wave_bern_bounds(butcher_tableau, basis_type, bounds_type):
 
     diff = np.array([mixed_wave(i, deg, butcher_tableau, solver_parameters=vi_params,
                                 bounds_type=bounds_type, **kwargs) for i in range(3, 5)])
-    print(diff)
     conv = np.log2(diff[:-1] / diff[1:])
-    print(conv)
     assert (conv > (deg-0.1)).all()
 
 
@@ -241,7 +235,5 @@ def test_mixed_heat_bern_bounds(butcher_tableau, basis_type, bounds_type):
 
     diff = np.array([mixed_heat(i, deg, butcher_tableau, solver_parameters=vi_params,
                                 bounds_type=bounds_type, **kwargs) for i in range(3, 5)])
-    print(diff)
     conv = np.log2(diff[:-1] / diff[1:])
-    print(conv)
     assert (conv > (deg-0.1)).all()
