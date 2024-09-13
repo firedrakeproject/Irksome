@@ -3,9 +3,9 @@ import pytest
 from firedrake import (BrokenElement, DirichletBC, FacetNormal, FiniteElement,
                        Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, TestFunctions, UnitIntervalMesh,
-                       UnitSquareMesh, assemble, cos, diff, div, dot, ds, dx,
-                       errornorm, exp, grad, inner, norm, pi, project, sin,
-                       split, triangle)
+                       UnitSquareMesh, cos, diff, div, dot, ds, dx, errornorm,
+                       exp, grad, inner, norm, pi, project, sin, split,
+                       triangle)
 from firedrake.petsc import PETSc
 from irksome import Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper
 from ufl.algorithms import expand_derivatives
@@ -182,7 +182,6 @@ def mixed_wave(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs
                           solver_parameters=solver_parameters,
                           **kwargs)
 
-    E = 0.5 * inner(u, u) * dx + 0.5 * inner(p, p) * dx
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
             dt.assign(1.0 - float(t))

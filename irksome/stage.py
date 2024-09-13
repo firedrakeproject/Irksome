@@ -23,13 +23,13 @@ def isiterable(x):
     return hasattr(x, "__iter__") or isinstance(x, Iterable)
 
 
+def split_field(num_fields, u):
+    return np.array((u,) if num_fields == 1 else split(u), dtype="O")
+
+
 def getBits(num_stages, num_fields, u0, UU, v, VV):
     nsxnf = (num_stages, num_fields)
     if num_fields == 1:
-        u0bits = np.zeros((1,), dtype='O')
-        u0bits[0] = u0
-        vbits = np.zeros((1,), dtype='O')
-        vbits[0] = v
         if num_stages == 1:   # single-stage method
             VVbits = np.zeros((1,), dtype='O')
             VVbits[0] = np.zeros((1,), dtype='O')
@@ -47,10 +47,10 @@ def getBits(num_stages, num_fields, u0, UU, v, VV):
                 UUbits[i] = np.zeros((1,), dtype='O')
                 UUbits[i][0] = x
     else:
-        u0bits = np.array(list(split(u0)), dtype="O")
-        vbits = np.array(list(split(v)), dtype="O")
         VVbits = np.reshape(np.asarray(split(VV), dtype="O"), nsxnf)
         UUbits = np.reshape(np.asarray(split(UU), dtype="O"), nsxnf)
+
+    u0bits, vbits = (split_field(num_fields, x) for x in (u0, v))
 
     return u0bits, vbits, VVbits, UUbits
 
