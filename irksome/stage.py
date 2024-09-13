@@ -422,7 +422,7 @@ class StageValueTimeStepper:
             self.prob, appctx=appctx, nullspace=nsp,
             solver_parameters=solver_parameters)
 
-        if not stiff_acc_huh:
+        if (not stiff_acc_huh) and (basis_type != "Bernstein"):
             unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
             self.update_problem = NonlinearVariationalProblem(
                 Fupdate, unew, update_bcs)
