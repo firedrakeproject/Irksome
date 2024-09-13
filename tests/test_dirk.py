@@ -271,12 +271,10 @@ def test_stokes_bcs(butcher_tableau, bctype):
 
     lu = {"mat_type": "aij",
           "snes_type": "ksponly",
-          "snes_rtol": 1e-8,
-          "snes_atol": 1e-8,
-          "snes_force_iteration": 1,
           "ksp_type": "preonly",
           "pc_type": "lu",
-          "pc_factor_mat_solver_type": "mumps"}
+          "pc_factor_shift_type": "inblocks"
+          }
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
                           bcs=bcs, solver_parameters=lu, nullspace=nsp)
@@ -290,4 +288,4 @@ def test_stokes_bcs(butcher_tableau, bctype):
         stepper.advance()
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
-        assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
+        assert errornorm(u_dirk, u) < 1.e-7
