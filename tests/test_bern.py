@@ -1,11 +1,13 @@
 import numpy as np
 import pytest
-from firedrake import (DirichletBC, FacetNormal, Function, FunctionSpace,
-                       SpatialCoordinate, TestFunction, TestFunctions,
-                       UnitIntervalMesh, UnitSquareMesh, assemble, cos, diff,
-                       div, dot, ds, dx, errornorm, exp, grad, inner, norm, pi,
-                       project, sin, split)
-from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
+from firedrake import (BrokenElement, DirichletBC, FacetNormal, FiniteElement,
+                       Function, FunctionSpace, SpatialCoordinate,
+                       TestFunction, TestFunctions, UnitIntervalMesh,
+                       UnitSquareMesh, assemble, cos, diff, div, dot, ds, dx,
+                       errornorm, exp, grad, inner, norm, pi, project, sin,
+                       split, triangle)
+from firedrake.petsc import PETSc
+from irksome import Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper
 from ufl.algorithms import expand_derivatives
 
 lu_params = {
@@ -68,15 +70,25 @@ def heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs):
     return errornorm(uexact, u) / norm(uexact)
 
 
-def mixed_heat(n, deg, butcher_tableau, solver_parameters, **kwargs):
+def mixed_heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs):
     N = 2**n
     msh = UnitSquareMesh(N, N)
 
     V = FunctionSpace(msh, "RT", deg)
-    el_type = "Bernstein" if deg > 1 else "DG"
-    W = FunctionSpace(msh, el_type, deg-1)
+    if deg == 1:
+        W = FunctionSpace(msh, "DG", 0)
+    else:
+        W = FunctionSpace(msh, BrokenElement(FiniteElement("Bernstein", triangle, deg-1)))
 
     Z = V * W
+
+    if bounds_type is not None:
+        lb = Function(Z)
+        lb.subfunctions[0].assign(PETSc.NINFINITY)
+        lb.subfunctions[1].assign(0)
+        bounds = (bounds_type, lb, None)
+    else:
+        bounds = None
 
     x, y = SpatialCoordinate(msh)
 
@@ -112,9 +124,8 @@ def mixed_heat(n, deg, butcher_tableau, solver_parameters, **kwargs):
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
             dt.assign(1.0 - float(t))
-        stepper.advance()
+        stepper.advance(bounds=bounds)
         t.assign(float(t) + float(dt))
-        print(min(up.subfunctions[1].dat.data))
 
     u, p = up.subfunctions
     erru = errornorm(uexact, u) / norm(uexact)
@@ -122,16 +133,29 @@ def mixed_heat(n, deg, butcher_tableau, solver_parameters, **kwargs):
     return erru + errp
 
 
-def mixed_wave(n, deg, butcher_tableau, solver_parameters,
-               **kwargs):
+def mixed_wave(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs):
     N = 2**n
     msh = UnitSquareMesh(N, N)
 
     V = FunctionSpace(msh, "RT", deg)
-    el_type = "Bernstein" if deg > 1 else "DG"
-    W = FunctionSpace(msh, el_type, deg-1)
+    if deg == 1:
+        W = FunctionSpace(msh, "DG", 0)
+    else:
+        W = FunctionSpace(msh, BrokenElement(FiniteElement("Bernstein", triangle, deg-1)))
 
     Z = V * W
+
+    if bounds_type is not None:
+        lb = Function(Z)
+        lb.subfunctions[0].assign(PETSc.NINFINITY)
+        lb.subfunctions[1].assign(-1)
+        ub = Function(Z)
+        ub.subfunctions[0].assign(PETSc.INFINITY)
+        ub.subfunctions[1].assign(1)
+
+        bounds = (bounds_type, lb, ub)
+    else:
+        bounds = None
 
     x, y = SpatialCoordinate(msh)
 
@@ -139,7 +163,7 @@ def mixed_wave(n, deg, butcher_tableau, solver_parameters,
     t = MC.Constant(0.0)
     dt = MC.Constant(1.0 / N)
 
-    pexact = sin(pi * x) * sin(pi * y) * exp(-t)
+    pexact = sin(pi * x) * sin(pi * y) * cos(np.sqrt(2) * pi * t)
 
     up = Function(Z)
     u, p = split(up)
@@ -163,43 +187,13 @@ def mixed_wave(n, deg, butcher_tableau, solver_parameters,
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
             dt.assign(1.0 - float(t))
-        stepper.advance()
+        stepper.advance(bounds=bounds)
         t.assign(float(t) + float(dt))
         print(f"{assemble(E):.4e}, {min(up.subfunctions[1].dat.data):.5e}, {max(up.subfunctions[1].dat.data):.5e}")
 
     u, p = up.subfunctions
     errp = errornorm(pexact, p) / norm(pexact)
     return errp
-
-
-# @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
-# def test_mixed_heat_bern(butcher_tableau):
-#     deg = 1
-#     kwargs = {"stage_type": "value",
-#               "basis_type": "Bernstein",
-#               "solver_parameters": lu_params}
-#     diff = np.array([mixed_heat(i, deg, butcher_tableau, **kwargs) for i in range(2, 4)])
-#     print(diff)
-#     conv = np.log2(diff[:-1] / diff[1:])
-#     print(conv)
-#     assert (conv > (deg-0.1)).all()
-
-
-# @pytest.mark.parametrize('num_stages', (2, 3))
-# @pytest.mark.parametrize('bounds_type', ('stage', 'last_stage'))
-# @pytest.mark.parametrize('basis_type', ('Bernstein', None))
-# def test_mixed_heat_bern_bounds(num_stages, bounds_type, basis_type):
-#     deg = 1
-#     bounds = (bounds_type, (None, 0), (None, None))
-#     kwargs = {"stage_type": "value",
-#               "basis_type": basis_type,
-#               "bounds": bounds,
-#               "solver_parameters": vi_params}
-#     diff = np.array([mixed_heat(i, deg, RadauIIA(num_stages), **kwargs) for i in range(3, 5)])
-#     print(diff)
-#     conv = np.log2(diff[:-1] / diff[1:])
-#     print(conv)
-#     assert (conv > (deg-0.1)).all()
 
 
 @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2, 3)])
@@ -219,25 +213,35 @@ def test_heat_bern_bounds(butcher_tableau, basis_type, bounds_type):
     assert (conv > (deg+0.8)).all()
 
 
-# @pytest.mark.parametrize('num_stages', (1, 2, 3))
-# @pytest.mark.parametrize('bounds_type', ('stage', 'last_stage'))
-# @pytest.mark.parametrize('basis_type', ('Bernstein', None))
-# def test_wave_bounds(num_stages, bounds_type, basis_type):
-#     deg = 1
-#     # bounds = (bounds_type, (-1, None), (1, None))
-#     bounds = (bounds_type, (None, None), (None, None))
-#     kwargs = {"stage_type": "value",
-#               "basis_type": basis_type,
-#               "bounds": bounds,
-#               "solver_parameters": vi_params}
-#     diff = np.array([wave(i, deg, GaussLegendre(num_stages), **kwargs) for i in range(5, 7)])
-#     print(diff)
-#     conv = np.log2(diff[:-1] / diff[1:])
-#     print(conv)
-#     assert (conv > (deg-0.1)).all()
+@pytest.mark.parametrize('butcher_tableau', [GaussLegendre(i) for i in (1, 2)])
+@pytest.mark.parametrize('basis_type', ('Bernstein', None))
+@pytest.mark.parametrize('bounds_type', ("stage", "last_stage", None))
+def test_mixed_wave_bern_bounds(butcher_tableau, basis_type, bounds_type):
+    deg = 2
 
-# mixed_wave(5, 2, GaussLegendre(3), stage_type="value",
-#            basis_type="Bernstein",
-#            bounds=("time_level", (None, -1), (None, 1)),
-#            solver_parameters=vi_params,
-#            update_solver_parameters=vi_params)
+    kwargs = {"stage_type": "value",
+              "basis_type": basis_type}
+
+    diff = np.array([mixed_wave(i, deg, butcher_tableau, solver_parameters=vi_params,
+                                bounds_type=bounds_type, **kwargs) for i in range(3, 5)])
+    print(diff)
+    conv = np.log2(diff[:-1] / diff[1:])
+    print(conv)
+    assert (conv > (deg-0.1)).all()
+
+
+@pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
+@pytest.mark.parametrize('basis_type', ('Bernstein', None))
+@pytest.mark.parametrize('bounds_type', ("stage", "last_stage", None))
+def test_mixed_heat_bern_bounds(butcher_tableau, basis_type, bounds_type):
+    deg = 1
+
+    kwargs = {"stage_type": "value",
+              "basis_type": basis_type}
+
+    diff = np.array([mixed_heat(i, deg, butcher_tableau, solver_parameters=vi_params,
+                                bounds_type=bounds_type, **kwargs) for i in range(3, 5)])
+    print(diff)
+    conv = np.log2(diff[:-1] / diff[1:])
+    print(conv)
+    assert (conv > (deg-0.1)).all()
