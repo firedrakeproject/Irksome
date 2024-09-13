@@ -294,9 +294,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
     # only form update stuff if we need it
     # which means neither stiffly accurate nor Vandermonde
-    boo = np.zeros(vandermonde.shape[1])
-    boo[-1] = 1.0
-
     if not butch.is_stiffly_accurate:
         unew = Function(V)
 
@@ -360,9 +357,7 @@ class StageValueTimeStepper:
                  nullspace=None, appctx=None):
 
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
-        ode_huh = is_ode(F, u0)
-        stiff_acc_huh = butcher_tableau.is_stiffly_accurate
-        assert ode_huh or stiff_acc_huh
+        assert is_ode(F, u0) or butcher_tableau.is_stiffly_accurate
 
         self.u0 = u0
         self.t = t
@@ -412,7 +407,7 @@ class StageValueTimeStepper:
             self.prob, appctx=appctx, nullspace=nsp,
             solver_parameters=solver_parameters)
 
-        if (not stiff_acc_huh) and (basis_type != "Bernstein"):
+        if (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
             unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
             self.update_problem = NonlinearVariationalProblem(
                 Fupdate, unew, update_bcs)
@@ -424,29 +419,25 @@ class StageValueTimeStepper:
         else:
             self._update = self._update_stiff_acc
 
-        # in case we do bounds constraints
+        # stash these for later in case we do bounds constraints
         self.stage_lower_bound = Function(UU.function_space())
         self.stage_upper_bound = Function(UU.function_space())
 
     def _update_stiff_acc(self):
         u0 = self.u0
-
-        UUs = self.UU.subfunctions
-        nf = self.num_fields
-        ns = self.num_stages
-
         u0bits = u0.subfunctions
+        UUs = self.UU.subfunctions
+
         for i, u0bit in enumerate(u0bits):
-            u0bit.assign(UUs[nf*(ns-1)+i])
+            u0bit.assign(UUs[self.num_fields*(self.num_stages-1)+i])
 
     def _update_general(self):
         (unew, Fupdate, update_bcs, update_bcs_gblah) = self.update_stuff
         for gdat, gcur, gmethod in update_bcs_gblah:
             gmethod(gdat, gcur)
         self.update_solver.solve()
-        u0bits = self.u0.subfunctions
         unewbits = unew.subfunctions
-        for u0bit, unewbit in zip(u0bits, unewbits):
+        for u0bit, unewbit in zip(self.u0.subfunctions, unewbits):
             u0bit.assign(unewbit)
 
     def advance(self, bounds=None):
