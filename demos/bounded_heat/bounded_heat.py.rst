@@ -21,6 +21,19 @@ We then have the variational problem of finding :math:`u:[0,T]\rightarrow V` suc
 
 This demo uses particular choices of the functions :math:`f` and :math:`g` to be defined below.
 
+The approach to bounds constraints below relies on the geometric properties of the Bernstein basis. 
+In one dimension (on :math:`[0,1]`), the graph of the polynomial 
+.. math::
+    p(x) = \sum_{i = 0}^n p_i b_i^n(x),
+
+where :math:`b_i^n(x)` are Bernstein basis polynomials, lies in the convex-hull of the points
+.. math::
+    \left\{\left(\frac{i}{n}, p_i\right)\right\}_{i = 0}^n.
+
+In particular, if the coefficients :math:`p_i` lie in the interval :math:`[m,M]`, then the output of :math:`p(x)` will 
+also fall within this range.  Similar results hold in higher dimensions.  This property provides a straightforward 
+approach to uniformly enforced bounds constraints in both space and time.
+
 First, we must import firedrake and certain items from Irksome: ::
 
     from firedrake import *
@@ -62,7 +75,7 @@ parameters: ::
     lu_params = {
         "snes_type": "ksponly",
         "ksp_type": "preonly",
-        "mat_typ": "aij",
+        "mat_type": "aij",
         "pc_type": "lu"
     }
 
@@ -71,6 +84,7 @@ parameters: ::
         "snes_max_it": 300,
         "snes_atol": 1.e-8,
         "ksp_type": "preonly",
+        "mat_type": "aij",
         "pc_type": "lu",
     }
 
@@ -90,25 +104,26 @@ projection does not satisfy the lower bound of :math:`0`. We instead solve a var
 to find a bounds-preserving initial condition: ::
 
     v = TestFunction(V)
-    u = Function(V)
+    u_init = Function(V)
 
-    G = inner(u - uexact, v) * dx
+    G = inner(u_init - uexact, v) * dx
 
-    nlvp = NonlinearVariationalProblem(G, u)
+    nlvp = NonlinearVariationalProblem(G, u_init)
     nlvs = NonlinearVariationalSolver(nlvp, solver_parameters=vi_params)
 
-    upper = Function(V)
-    lower = Function(V)
+    lb = Function(V)
+    ub = Function(V)
 
-    with upper.dat.vec as upper_vec:
-        upper_vec.set(np.inf)
+    ub.assign(np.inf)
+    lb.assign(0.0)
 
-    with lower.dat.vec as lower_vec:
-        lower_vec.set(0.0)
+    nlvs.solve(bounds=(lb, ub))
 
-    nlvs.solve(bounds=(lower, upper))
+    u = Function(V)
+    u.assign(u_init)
 
-    u_c = u.copy(deepcopy=True)
+    u_c = Function(V)
+    u_c.assign(u_init)
 
 ``u`` and ``u_c`` now hold a bounds-constrained approximation to the exact solution 
 at :math:`t = 0`.
@@ -148,6 +163,9 @@ as ``solver_parameters`` to the :class:`.TimeStepper`: ::
 
     stepper_c = TimeStepper(F_c, butcher_tableau, t, dt, u_c, bcs=bc, **kwargs_c)
 
+Note that if one does not set the ``basis_type`` to Bernstein, the standard basis will be used.  The bounds will 
+then be enforced at the discrete stages and time levels, but not uniformly between them. 
+
 We set the bounds as follows: ::
 
     lb = Function(V)
@@ -157,9 +175,9 @@ We set the bounds as follows: ::
 
     bounds = ('stage', lb, ub)
 
-Passing the :meth:`~.TimeStepper.advance` method ``bounds`` will enforce the 
-given bounds on the coefficients of the collocation polynomial (now represented in the Bernstein basis). This 
-enforces the lower bound of :math:`0` uniformly in time.
+When using a stage-value formulation, passing ``bounds`` to the :class:`TimeStepper` through the :meth:`~.TimeStepper.advance` method 
+will enforce the bounds constraints at the discrete stages and time levels (this results in uniformly enforced constraints when using 
+the Bernstein basis).
 
 We now advance both semidiscrete systems in the usual way. We add the bounds as an argument 
 to the :meth:`~.TimeStepper.advance` method for the constrained approximation.  
@@ -167,9 +185,10 @@ to the :meth:`~.TimeStepper.advance` method for the constrained approximation.
 In order to monitor our approximate solutions, we check the minimum value of each after every step in time. 
 If an approximate solution violates the lower bound, we append a tuple to indicate the time and minimum value. ::
 
-    mins = []
-    mins_c = []
+    vios = []
+    vios_c = []
 
+    timestep = 0
     while (float(t) < float(Tf)):
 
         if (float(t) + float(dt) > float(Tf)):
@@ -179,14 +198,15 @@ If an approximate solution violates the lower bound, we append a tuple to indica
         stepper_c.advance(bounds=bounds)
 
         t.assign(float(t) + float(dt))
+        timestep = timestep + 1
 
         minv = min(u.dat.data)
         if minv < 0:
-            mins.append((float(t), minv))
+            vios.append((float(t), timestep, round(minv, 3)))
 
         minv_c = min(u_c.dat.data)
         if minv_c < 0:
-            mins_c.append((float(t), minv_c))
+            vios_c.append((float(t), timestep, round(minv_c, 3)))
 
         print(float(t))
   
@@ -195,8 +215,11 @@ Finally, we print the relative :math:`L^2` error and the time and severity (if a
     np.set_printoptions(legacy='1.25')
 
     print()
-    print(norm(u - uexact) / norm(uexact))
-    print(norm(u_c - uexact) / norm(uexact))
+    print(f"Relative L^2 norm of the unconstrained solution: {norm(u - uexact) / norm(uexact)}")
+    print(f"Relative L^2 norm of the constrained solution:   {norm(u_c - uexact) / norm(uexact)}")
     print()
-    print(mins)
-    print(mins_c)
+    print("List of constraint violations in the form (time, time step, minimum value) for each approximation:")
+    print()
+    print(f"Unconstrained solution: {vios}")
+    print()
+    print(f"Constrained solution: {vios_c}")
