@@ -14,6 +14,7 @@ from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
+from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
 from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
                     replace, stage2spaces4bc)
@@ -372,7 +373,7 @@ class StageValueTimeStepper:
         if basis_type is None:
             vandermonde = None
         elif basis_type == "Bernstein":
-            # assert self.num_stages > 1, ValueError("Bernstein only defined for degree >= 1")
+            assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
             bern = Bernstein(ufc_simplex(1), num_stages)
             cc = np.reshape(np.append(0, butcher_tableau.c), (-1, 1))
             vandermonde = bern.tabulate(0, np.reshape(cc, (-1, 1)))[0,].T
