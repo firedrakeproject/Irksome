@@ -24,11 +24,13 @@ This demo uses particular choices of the functions :math:`f` and :math:`g` to be
 The approach to bounds constraints below relies on the geometric properties of the Bernstein basis. 
 In one dimension (on :math:`[0,1]`), the graph of the polynomial 
 .. math::
-    p(x) = \sum_{i = 0}^n p_i b_i^n(x),
+
+   p(x) = \sum_{i = 0}^n p_i b_i^n(x),
 
 where :math:`b_i^n(x)` are Bernstein basis polynomials, lies in the convex-hull of the points
 .. math::
-    \left\{\left(\frac{i}{n}, p_i\right)\right\}_{i = 0}^n.
+
+   \left\{\left(\frac{i}{n}, p_i\right)\right\}_{i = 0}^n.
 
 In particular, if the coefficients :math:`p_i` lie in the interval :math:`[m,M]`, then the output of :math:`p(x)` will 
 also fall within this range.  Similar results hold in higher dimensions.  This property provides a straightforward 
