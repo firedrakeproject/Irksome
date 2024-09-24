@@ -7,7 +7,7 @@ import numpy as np
 from FIAT import Bernstein, ufc_simplex
 from firedrake import (DirichletBC, Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, assemble, dx,
-                       inner, project, split)
+                       inner, project, solve, split)
 from firedrake.__future__ import interpolate
 from firedrake.petsc import PETSc
 from numpy import vectorize
@@ -51,7 +51,7 @@ def getBits(num_stages, num_fields, u0, UU, v, VV):
 
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None,
-                 nullspace=None):
+                 bc_constraints=None, nullspace=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -80,6 +80,12 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possible time-dependent) boundary conditions imposed
          on the system.
+    :arg bc_constraints: optionally, a dictionary mapping (some of) the boundary
+         conditions in `bcs` to triples of the form (params, lower, upper) indicating
+         solver parameters to use and lower and upper bounds to provide in doing
+         a bounds-constrained projection of the boundary data.
+         Note: if these bounds change over time, the user is responsible for maintaining
+         a handle on them and updating them between time steps.
     :arg nullspace: A list of tuples of the form (index, VSB) where
          index is an index into the function space associated with `u`
          and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
@@ -252,6 +258,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
     if bcs is None:
         bcs = []
+    if bc_constraints is None:
+        bc_constraints = {}
     bcsnew = []
     gblah = []
 
@@ -265,31 +273,42 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
         gblah_cur = []
 
-        for i in range(num_stages):
-            Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            try:
-                gdat = assemble(interpolate(bcarg, Vsp))
-                gmethod = lambda gd, gc: gd.interpolate(gc)
-            except:  # noqa: E722
-                gdat = project(bcarg, Vsp)
-                gmethod = lambda gd, gc: gd.project(gc)
-
-            gcur = replace(bcarg, {t: t+C[i]*dt})
+        if bc in bc_constraints:
+            bcparams, bclower, bcupper = bc_constraints[bc]
+            for i in range(num_stages):
+                Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                gdat = Function(Vsp)
+                vbc = TestFunction(Vsp)
+                gmethod = lambda gd, gc: solve(inner(gd - gc, vbc) * dx == 0,
+                                               gd, solver_parameters=bcparams)
+            gcur = replace(bcarg, {t: t+C[i] * dt})
             gblah_cur.append((gdat, gcur - Vander_col[i] * bcarg, gmethod))
+        else:
+            for i in range(num_stages):
+                Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                try:
+                    gdat = assemble(interpolate(bcarg, Vsp))
+                    gmethod = lambda gd, gc: gd.interpolate(gc)
+                except:  # noqa: E722
+                    gdat = project(bcarg, Vsp)
+                    gmethod = lambda gd, gc: gd.project(gc)
 
-        gdats_cur = np.zeros((num_stages,), dtype="O")
-        for i in range(num_stages):
-            gdats_cur[i] = gblah_cur[i][0]
+                gcur = replace(bcarg, {t: t+C[i]*dt})
+                gblah_cur.append((gdat, gcur - Vander_col[i] * bcarg, gmethod))
 
-        zdats_cur = Vander_inv[1:, 1:] @ gdats_cur
+            gdats_cur = np.zeros((num_stages,), dtype="O")
+            for i in range(num_stages):
+                gdats_cur[i] = gblah_cur[i][0]
 
-        bcnew_cur = []
-        for i in range(num_stages):
-            Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcnew_cur.append(DirichletBC(Vbigi, zdats_cur[i], bc.sub_domain))
+            zdats_cur = Vander_inv[1:, 1:] @ gdats_cur
 
-        bcsnew.extend(bcnew_cur)
-        gblah.extend(gblah_cur)
+            bcnew_cur = []
+            for i in range(num_stages):
+                Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                bcnew_cur.append(DirichletBC(Vbigi, zdats_cur[i], bc.sub_domain))
+
+            bcsnew.extend(bcnew_cur)
+            gblah.extend(gblah_cur)
 
     nspacenew = getNullspace(V, Vbig, butch, nullspace)
 
@@ -354,6 +373,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 class StageValueTimeStepper:
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
+                 bc_projection_solver_parameters=None,
+                 bc_constraints=None,
                  splitting=AI, basis_type=None,
                  nullspace=None, appctx=None):
 
