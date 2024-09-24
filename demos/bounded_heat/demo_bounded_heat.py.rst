@@ -128,7 +128,8 @@ to find a bounds-preserving initial condition: ::
     u_c.assign(u_init)
 
 ``u`` and ``u_c`` now hold a bounds-constrained approximation to the exact solution 
-at :math:`t = 0`.
+at :math:`t = 0`.  Note that `ub = None` is also supported and gets internally converted
+to what we have here.
 
 We now construct semidiscrete variational problems for both the constrained and unconstrained 
 approximations using UFL notation and the ``Dt`` operator from Irksome: ::
@@ -185,8 +186,8 @@ to the :meth:`~.TimeStepper.advance` method for the constrained approximation.
 In order to monitor our approximate solutions, we check the minimum value of each after every step in time. 
 If an approximate solution violates the lower bound, we append a tuple to indicate the time and minimum value. ::
 
-    vios = []
-    vios_c = []
+    violations_for_unconstrained_method = []
+    violations_for_constrained_method = []
 
     timestep = 0
     while (float(t) < float(Tf)):
@@ -200,13 +201,13 @@ If an approximate solution violates the lower bound, we append a tuple to indica
         t.assign(float(t) + float(dt))
         timestep = timestep + 1
 
-        minv = min(u.dat.data)
-        if minv < 0:
-            vios.append((float(t), timestep, round(minv, 3)))
+        min_value = min(u.dat.data)
+        if min_value < 0:
+            violations_for_unconstrained_method.append((float(t), timestep, round(min_value, 3)))
 
-        minv_c = min(u_c.dat.data)
-        if minv_c < 0:
-            vios_c.append((float(t), timestep, round(minv_c, 3)))
+        min_value_c = min(u_c.dat.data)
+        if min_value_c < 0:
+            vios_c.append((float(t), timestep, round(min_value_c, 3)))
 
         print(float(t))
   
@@ -220,6 +221,6 @@ Finally, we print the relative :math:`L^2` error and the time and severity (if a
     print()
     print("List of constraint violations in the form (time, time step, minimum value) for each approximation:")
     print()
-    print(f"Unconstrained solution: {vios}")
+    print(f"Unconstrained solution: {violations_for_unconstrained_method}")
     print()
-    print(f"Constrained solution: {vios_c}")
+    print(f"Constrained solution: {violations_for_constrained_method}")
