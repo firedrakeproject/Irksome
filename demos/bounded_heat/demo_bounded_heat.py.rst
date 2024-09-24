@@ -156,10 +156,13 @@ keyword ``stage_type``, that we wish to use a stage-value formulation of the und
 method. The keyword ``basis_type`` then allows us to change the basis of the collocation 
 polynomial to the Bernstein basis. Having done this, we must specify a solver which is able to handle bounds 
 constraints. In this example we solve a variational inequality using ``vinewtonrsls`` by passing ``vi_params`` 
-as ``solver_parameters`` to the :class:`.TimeStepper`: ::
+as ``solver_parameters`` to the :class:`.TimeStepper`.
+We also ensure that projecting the boundary condition data satisfies bounds constraints through the
+`bc_constraints` keyword: ::
 
     kwargs_c = {"stage_type": "value",
                 "basis_type": 'Bernstein',
+		"bc_constraints": {bc: (vi_params, lb, ub)},
                 "solver_parameters": vi_params
             }
 
@@ -168,12 +171,7 @@ as ``solver_parameters`` to the :class:`.TimeStepper`: ::
 Note that if one does not set the ``basis_type`` to Bernstein, the standard basis will be used.  The bounds will 
 then be enforced at the discrete stages and time levels, but not uniformly between them. 
 
-We set the bounds as follows: ::
-
-    lb = Function(V)
-    lb.assign(0)
-
-    ub = None
+We set the bounds as follows (reusing those defined in the initial condition): ::
 
     bounds = ('stage', lb, ub)
 
