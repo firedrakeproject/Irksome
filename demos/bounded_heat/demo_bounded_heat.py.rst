@@ -207,7 +207,7 @@ If an approximate solution violates the lower bound, we append a tuple to indica
 
         min_value_c = min(u_c.dat.data)
         if min_value_c < 0:
-            vios_c.append((float(t), timestep, round(min_value_c, 3)))
+            violations_for_constrained_method.append((float(t), timestep, round(min_value_c, 3)))
 
         print(float(t))
   
