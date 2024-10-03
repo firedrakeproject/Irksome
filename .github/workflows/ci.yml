@@ -9,7 +9,7 @@ on:
 jobs:
 
   test:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
     container:
       image: docker://firedrakeproject/firedrake-vanilla:latest
 
