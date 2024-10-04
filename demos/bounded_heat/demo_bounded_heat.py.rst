@@ -17,9 +17,10 @@ The weak form is found by multiplying by an arbitrary test function :math:`v\in 
 We then have the variational problem of finding :math:`u:[0,T]\rightarrow V` such that 
 .. math::
 
-    (u_t, v) + (\nabla u, \nabla v) = (f, v)
+    (u_t, v) + (\nabla u, \nabla v) = (f, v)\quad \forall v \in V \textrm{ and } t\in [0, T],
 
-This demo uses particular choices of the functions :math:`f` and :math:`g` to be defined below.
+subject to the boundary condition :math:`u = g` on :math:`\Gamma`.  This demo uses particular choices of the 
+functions :math:`f` and :math:`g` to be defined below.
 
 The approach to bounds constraints below relies on the geometric properties of the Bernstein basis. 
 In one dimension (on :math:`[0,1]`), the graph of the polynomial 
@@ -100,10 +101,11 @@ We now define the right-hand side using the method of manufactured solutions: ::
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
 Note that the exact solution is uniformly positive in space and time. Using a manufactured 
-solution, one would typically project the exact solution at time :math:`t = 0` onto the 
-approximation space and use the projection as the initial condition. In this case, the 
-projection does not satisfy the lower bound of :math:`0`. We instead solve a variational inequality 
-to find a bounds-preserving initial condition: ::
+solution, one usually interpolates or projects the exact solution at time :math:`t = 0` onto the 
+approximation space to obtain the initial condition. Interpolation does not work with the 
+Bernstein basis, and there is no guarantee that an interpolant or projection would satisfy the bounds constraints. 
+To guarantee that the initial condition satisfies the bounds constraints, we solve a variational 
+inequality: ::
 
     v = TestFunction(V)
     u_init = Function(V)
@@ -142,7 +144,11 @@ approximations using UFL notation and the ``Dt`` operator from Irksome: ::
 
     F_c = (inner(Dt(u_c), v_c) * dx + inner(grad(u_c), grad(v_c)) * dx - inner(rhs, v_c) * dx)
 
-We use exact boundary conditions in both cases: ::
+We use exact boundary conditions in both cases. Internally, Firedrake creates its own version of 
+the boundary conditions by either interpolating or projecting the expressions for the boundary conditions 
+onto the finite element space (projecting in this case because the Bernstein basis is used). To ensure 
+that this projection satisfies the bounds constraints, we will pass the bounds to 
+the :class:`TimeStepper` below. ::
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -169,8 +175,10 @@ We also ensure that projecting the boundary condition data satisfies bounds cons
 
     stepper_c = TimeStepper(F_c, butcher_tableau, t, dt, u_c, bcs=bc, **kwargs_c)
 
-Note that if one does not set the ``basis_type`` to Bernstein, the standard basis will be used.  The bounds will 
-then be enforced at the discrete stages and time levels, but not uniformly between them. 
+Note that if one does not set the ``basis_type`` to Bernstein, the standard basis will be used. Solving for the 
+Bernstein coefficients of the collocation polynomial we obtain uniform-in-time bounds constraints. If the standard 
+basis is used, the bounds constraints are guaranteed at the Runge-Kutta stages and the discrete times, but not necessarily 
+between them.
 
 We set the bounds as follows (reusing those defined in the initial condition): ::
 
