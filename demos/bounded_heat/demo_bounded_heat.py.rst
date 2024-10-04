@@ -144,10 +144,10 @@ approximations using UFL notation and the ``Dt`` operator from Irksome: ::
 
     F_c = (inner(Dt(u_c), v_c) * dx + inner(grad(u_c), grad(v_c)) * dx - inner(rhs, v_c) * dx)
 
-We use exact boundary conditions in both cases. Internally, Firedrake creates its own version of 
-the boundary conditions by either interpolating or projecting the expressions for the boundary conditions 
-onto the finite element space (projecting in this case because the Bernstein basis is used). To ensure 
-that this projection satisfies the bounds constraints, we will pass the bounds to 
+We use exact boundary conditions in both cases. When :math:`g` is the trace of a function 
+defined over the whole domain, Firedrake creates its own version of the boundary condition by either interpolating 
+or projecting that function onto the finite element space and computing the trace of the result. 
+To ensure the internal boundary condition satisfies the bounds constraints, we will pass the bounds to 
 the :class:`TimeStepper` below. ::
 
     bc = DirichletBC(V, uexact, "on_boundary")
