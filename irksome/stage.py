@@ -373,7 +373,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 class StageValueTimeStepper:
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
-                 bc_projection_solver_parameters=None,
                  bc_constraints=None,
                  splitting=AI, basis_type=None,
                  nullspace=None, appctx=None):
