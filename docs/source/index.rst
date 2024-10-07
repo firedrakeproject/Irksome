@@ -78,6 +78,13 @@ and for explicit schemes:
 
    demos/demo_RTwave_PEP.py
 
+and for bounds constraints:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_bounded_heat.py
+
 and for adaptive IRK methods:
 
 .. toctree::

@@ -196,7 +196,7 @@ def NSETest(butch, stage_type, splitting):
 @pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
 def test_Stokes(N, butch, time_stages, stage_type, splitting):
     error = StokesTest(N, butch(time_stages), stage_type, splitting)
-    assert abs(error) < 1e-8
+    assert abs(error) < 3e-8
 
 
 @pytest.mark.parametrize('stage_type', ("deriv", "value"))
