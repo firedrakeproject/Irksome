@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>irksome package &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="_static/fenics.css?v=c6f455f8" />
+    <script src="_static/documentation_options.js?v=41c113e4"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Mixed problems with the low-level interface" href="demos/demo_lowlevel_mixed_heat.py.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="index.html"><img src="_static/fence.png" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="irksome">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="irksome-package">
+<h1>irksome package<a class="headerlink" href="#irksome-package" title="Link to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-irksome.ButcherTableaux">
+<span id="irksome-butchertableaux-module"></span><h2>irksome.ButcherTableaux module<a class="headerlink" href="#module-irksome.ButcherTableaux" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.Alexander">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">Alexander</span></span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#Alexander"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.Alexander" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.ButcherTableau" title="irksome.ButcherTableaux.ButcherTableau"><code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code></a></p>
+<p>Third-order, diagonally implicit, 3-stage, L-stable scheme from
+Diagonally Implicit Runge-Kutta Methods for Stiff O.D.E.’s,
+R. Alexander, SINUM 14(6): 1006-1021, 1977.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.BackwardEuler">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">BackwardEuler</span></span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#BackwardEuler"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.BackwardEuler" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.RadauIIA" title="irksome.ButcherTableaux.RadauIIA"><code class="xref py py-class docutils literal notranslate"><span class="pre">RadauIIA</span></code></a></p>
+<p>The rock-solid first-order implicit method.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.ButcherTableau">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">ButcherTableau</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">btilde</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">embedded_order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#ButcherTableau"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.ButcherTableau" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="simple">
+<dt>Top-level class representing a Butcher tableau encoding</dt><dd><p>a Runge-Kutta method.  It has members</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>A</strong> – a 2d array containing the Butcher matrix</p></li>
+<li><p><strong>b</strong> – a 1d array giving weights assigned to each stage when
+computing the solution at time n+1.</p></li>
+<li><p><strong>btilde</strong> – If present, a 1d array giving weights for an embedded
+lower-order method (used in estimating temporal
+truncation error.)</p></li>
+<li><p><strong>c</strong> – a 1d array containing weights at which time-dependent
+terms are evaluated.</p></li>
+<li><p><strong>order</strong> – the (integer) formal order of accuracy of the method</p></li>
+<li><p><strong>embedded_order</strong> – If present, the (integer) formal order of
+accuracy of the embedded method</p></li>
+<li><p><strong>gamma0</strong> – If present, the weight on the explicit term in the
+embedded lower-order method</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.ButcherTableau.is_diagonally_implicit">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_diagonally_implicit</span></span><a class="headerlink" href="#irksome.ButcherTableaux.ButcherTableau.is_diagonally_implicit" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.ButcherTableau.is_explicit">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_explicit</span></span><a class="headerlink" href="#irksome.ButcherTableaux.ButcherTableau.is_explicit" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.ButcherTableau.is_fully_implicit">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_fully_implicit</span></span><a class="headerlink" href="#irksome.ButcherTableaux.ButcherTableau.is_fully_implicit" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.ButcherTableau.is_implicit">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_implicit</span></span><a class="headerlink" href="#irksome.ButcherTableaux.ButcherTableau.is_implicit" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.ButcherTableau.is_stiffly_accurate">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_stiffly_accurate</span></span><a class="headerlink" href="#irksome.ButcherTableaux.ButcherTableau.is_stiffly_accurate" title="Link to this definition">¶</a></dt>
+<dd><p>Determines whether the method is stiffly accurate.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.ButcherTableau.num_stages">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_stages</span></span><a class="headerlink" href="#irksome.ButcherTableaux.ButcherTableau.num_stages" title="Link to this definition">¶</a></dt>
+<dd><p>Return the number of stages the method has.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.CollocationButcherTableau">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">CollocationButcherTableau</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">L</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#CollocationButcherTableau"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.CollocationButcherTableau" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.ButcherTableau" title="irksome.ButcherTableaux.ButcherTableau"><code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code></a></p>
+<p>When an RK method is based on collocation with point sets present
+in FIAT, we have a general formula for producing the Butcher tableau.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>L</strong> – a one-dimensional class <code class="xref py py-class docutils literal notranslate"><span class="pre">FIAT.FiniteElement</span></code>
+of Lagrange type – the degrees of freedom must all be point
+evaluation.</p></li>
+<li><p><strong>order</strong> – the order of the resulting RK method.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.GaussLegendre">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">GaussLegendre</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_stages</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#GaussLegendre"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.GaussLegendre" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.CollocationButcherTableau" title="irksome.ButcherTableaux.CollocationButcherTableau"><code class="xref py py-class docutils literal notranslate"><span class="pre">CollocationButcherTableau</span></code></a></p>
+<p>Collocation method based on the Gauss-Legendre points.
+The order of accuracy is 2 * <cite>num_stages</cite>.
+GL methods are A-stable, B-stable, and symplectic.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>num_stages</strong> – The number of stages (1 or greater)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.LobattoIIIA">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">LobattoIIIA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_stages</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#LobattoIIIA"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.LobattoIIIA" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.CollocationButcherTableau" title="irksome.ButcherTableaux.CollocationButcherTableau"><code class="xref py py-class docutils literal notranslate"><span class="pre">CollocationButcherTableau</span></code></a></p>
+<p>Collocation method based on the Gauss-Lobatto points.
+The order of accuracy is 2 * <cite>num_stages</cite> - 2.
+LobattoIIIA methods are A-stable but not B- or L-stable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>num_stages</strong> – The number of stages (2 or greater)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.LobattoIIIC">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">LobattoIIIC</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_stages</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#LobattoIIIC"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.LobattoIIIC" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.ButcherTableau" title="irksome.ButcherTableaux.ButcherTableau"><code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code></a></p>
+<p>Discontinuous collocation method based on the Lobatto points.
+The order of accuracy is 2 * <cite>num_stages</cite> - 2.
+LobattoIIIC methods are A-, L-, algebraically, and B- stable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>num_stages</strong> – The number of stages (2 or greater)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.PareschiRusso">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">PareschiRusso</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#PareschiRusso"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.PareschiRusso" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.ButcherTableau" title="irksome.ButcherTableaux.ButcherTableau"><code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code></a></p>
+<p>Second order, diagonally implicit, 2-stage.
+A-stable if x &gt;= 1/4 and L-stable iff x = 1 plus/minus 1/sqrt(2).</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.QinZhang">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">QinZhang</span></span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#QinZhang"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.QinZhang" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.PareschiRusso" title="irksome.ButcherTableaux.PareschiRusso"><code class="xref py py-class docutils literal notranslate"><span class="pre">PareschiRusso</span></code></a></p>
+<p>Symplectic Pareschi-Russo DIRK</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ButcherTableaux.RadauIIA">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.ButcherTableaux.</span></span><span class="sig-name descname"><span class="pre">RadauIIA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_stages</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'embed_Radau5'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ButcherTableaux.html#RadauIIA"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ButcherTableaux.RadauIIA" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.CollocationButcherTableau" title="irksome.ButcherTableaux.CollocationButcherTableau"><code class="xref py py-class docutils literal notranslate"><span class="pre">CollocationButcherTableau</span></code></a></p>
+<p>Collocation method based on the Gauss-Radau points.
+The order of accuracy is 2 * <cite>num_stages</cite> - 1.
+RadauIIA methods are algebraically (hence B-) stable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>num_stages</strong> – The number of stages (2 or greater)</p></li>
+<li><p><strong>variant</strong> – Indicate whether to use the Radau5 style of
+embedded scheme (with <cite>variant = “embed_Radau5”</cite>) or
+the simple collocation type (with <cite>variant = “embed_colloc”</cite>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-irksome.deriv">
+<span id="irksome-deriv-module"></span><h2>irksome.deriv module<a class="headerlink" href="#module-irksome.deriv" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.deriv.Dt">
+<span class="sig-prename descclassname"><span class="pre">irksome.deriv.</span></span><span class="sig-name descname"><span class="pre">Dt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#Dt"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.Dt" title="Link to this definition">¶</a></dt>
+<dd><p>Short-hand function to produce a <a class="reference internal" href="#irksome.deriv.TimeDerivative" title="irksome.deriv.TimeDerivative"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeDerivative</span></code></a> of the
+input.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivative">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.deriv.</span></span><span class="sig-name descname"><span class="pre">TimeDerivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivative" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Derivative" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Derivative</span></code></a></p>
+<p>UFL node representing a time derivative of some quantity/field.
+Note: Currently form compilers do not understand how to process
+these nodes.  Instead, Irksome pre-processes forms containing
+<cite>TimeDerivative</cite> nodes.</p>
+<p>Initalise.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivative.ufl_free_indices">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ufl_free_indices</span></span><a class="headerlink" href="#irksome.deriv.TimeDerivative.ufl_free_indices" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivative.ufl_index_dimensions">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ufl_index_dimensions</span></span><a class="headerlink" href="#irksome.deriv.TimeDerivative.ufl_index_dimensions" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivative.ufl_shape">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ufl_shape</span></span><a class="headerlink" href="#irksome.deriv.TimeDerivative.ufl_shape" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.deriv.</span></span><span class="sig-name descname"><span class="pre">TimeDerivativeRuleDispatcher</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timedep_coeffs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleDispatcher"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.corealg.html#ufl.corealg.multifunction.MultiFunction" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultiFunction</span></code></a></p>
+<p>Initialise.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher.coefficient_derivative">
+<span class="sig-name descname"><span class="pre">coefficient_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleDispatcher.coefficient_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher.coefficient_derivative" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher.coordinate_derivative">
+<span class="sig-name descname"><span class="pre">coordinate_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleDispatcher.coordinate_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher.coordinate_derivative" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher.derivative">
+<span class="sig-name descname"><span class="pre">derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleDispatcher.derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher.derivative" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher.div">
+<span class="sig-name descname"><span class="pre">div</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleDispatcher.div"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher.div" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher.expr">
+<span class="sig-name descname"><span class="pre">expr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher.expr" title="Link to this definition">¶</a></dt>
+<dd><p>Reuse object if operands are the same objects.</p>
+<p>Use in your own subclass by setting e.g.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">expr</span> <span class="o">=</span> <span class="n">MultiFunction</span><span class="o">.</span><span class="n">reuse_if_untouched</span>
+</pre></div>
+</div>
+<p>as a default rule.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher.grad">
+<span class="sig-name descname"><span class="pre">grad</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleDispatcher.grad"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher.grad" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher.reference_grad">
+<span class="sig-name descname"><span class="pre">reference_grad</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleDispatcher.reference_grad"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher.reference_grad" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher.terminal">
+<span class="sig-name descname"><span class="pre">terminal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleDispatcher.terminal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher.terminal" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleDispatcher.time_derivative">
+<span class="sig-name descname"><span class="pre">time_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleDispatcher.time_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleDispatcher.time_derivative" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleset">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.deriv.</span></span><span class="sig-name descname"><span class="pre">TimeDerivativeRuleset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timedep_coeffs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleset" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.algorithms.html#ufl.algorithms.apply_derivatives.GenericDerivativeRuleset" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">GenericDerivativeRuleset</span></code></a></p>
+<p>Apply AD rules to time derivative expressions.  WIP</p>
+<p>Initialise.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.deriv.TimeDerivativeRuleset.coefficient">
+<span class="sig-name descname"><span class="pre">coefficient</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#TimeDerivativeRuleset.coefficient"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.TimeDerivativeRuleset.coefficient" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.deriv.apply_time_derivatives">
+<span class="sig-prename descclassname"><span class="pre">irksome.deriv.</span></span><span class="sig-name descname"><span class="pre">apply_time_derivatives</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expression</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timedep_coeffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/deriv.html#apply_time_derivatives"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.deriv.apply_time_derivatives" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-irksome.dirk_stepper">
+<span id="irksome-dirk-stepper-module"></span><h2>irksome.dirk_stepper module<a class="headerlink" href="#module-irksome.dirk_stepper" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.dirk_stepper.BCCompOfMixedBitThingy">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.dirk_stepper.</span></span><span class="sig-name descname"><span class="pre">BCCompOfMixedBitThingy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sub</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">comp</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/dirk_stepper.html#BCCompOfMixedBitThingy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.dirk_stepper.BCCompOfMixedBitThingy" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.dirk_stepper.BCCompOfNotMixedThingy">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.dirk_stepper.</span></span><span class="sig-name descname"><span class="pre">BCCompOfNotMixedThingy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">comp</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/dirk_stepper.html#BCCompOfNotMixedThingy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.dirk_stepper.BCCompOfNotMixedThingy" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.dirk_stepper.BCMixedBitThingy">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.dirk_stepper.</span></span><span class="sig-name descname"><span class="pre">BCMixedBitThingy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sub</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/dirk_stepper.html#BCMixedBitThingy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.dirk_stepper.BCMixedBitThingy" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.dirk_stepper.BCThingy">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.dirk_stepper.</span></span><span class="sig-name descname"><span class="pre">BCThingy</span></span><a class="reference internal" href="_modules/irksome/dirk_stepper.html#BCThingy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.dirk_stepper.BCThingy" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.dirk_stepper.DIRKTimeStepper">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.dirk_stepper.</span></span><span class="sig-name descname"><span class="pre">DIRKTimeStepper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butcher_tableau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bcs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">appctx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nullspace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/dirk_stepper.html#DIRKTimeStepper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.dirk_stepper.DIRKTimeStepper" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Front-end class for advancing a time-dependent PDE via a diagonally-implicit
+Runge-Kutta method formulated in terms of stage derivatives.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.dirk_stepper.DIRKTimeStepper.advance">
+<span class="sig-name descname"><span class="pre">advance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/dirk_stepper.html#DIRKTimeStepper.advance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.dirk_stepper.DIRKTimeStepper.advance" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.dirk_stepper.DIRKTimeStepper.solver_stats">
+<span class="sig-name descname"><span class="pre">solver_stats</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/dirk_stepper.html#DIRKTimeStepper.solver_stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.dirk_stepper.DIRKTimeStepper.solver_stats" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.dirk_stepper.getFormDIRK">
+<span class="sig-prename descclassname"><span class="pre">irksome.dirk_stepper.</span></span><span class="sig-name descname"><span class="pre">getFormDIRK</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bcs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/dirk_stepper.html#getFormDIRK"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.dirk_stepper.getFormDIRK" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.dirk_stepper.getThingy">
+<span class="sig-prename descclassname"><span class="pre">irksome.dirk_stepper.</span></span><span class="sig-name descname"><span class="pre">getThingy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">V</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bc</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/dirk_stepper.html#getThingy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.dirk_stepper.getThingy" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-irksome.explicit_stepper">
+<span id="irksome-explicit-stepper-module"></span><h2>irksome.explicit_stepper module<a class="headerlink" href="#module-irksome.explicit_stepper" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.explicit_stepper.ExplicitTimeStepper">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.explicit_stepper.</span></span><span class="sig-name descname"><span class="pre">ExplicitTimeStepper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butcher_tableau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bcs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">appctx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/explicit_stepper.html#ExplicitTimeStepper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.explicit_stepper.ExplicitTimeStepper" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.dirk_stepper.DIRKTimeStepper" title="irksome.dirk_stepper.DIRKTimeStepper"><code class="xref py py-class docutils literal notranslate"><span class="pre">DIRKTimeStepper</span></code></a></p>
+</dd></dl>
+
+</section>
+<section id="module-irksome.getForm">
+<span id="irksome-getform-module"></span><h2>irksome.getForm module<a class="headerlink" href="#module-irksome.getForm" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.getForm.BCStageData">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.getForm.</span></span><span class="sig-name descname"><span class="pre">BCStageData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">V</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gcur</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0_mult</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/getForm.html#BCStageData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.getForm.BCStageData" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.getForm.getForm">
+<span class="sig-prename descclassname"><span class="pre">irksome.getForm.</span></span><span class="sig-name descname"><span class="pre">getForm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bcs=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bc_type=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">splitting=&lt;function</span> <span class="pre">AI&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nullspace=None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/getForm.html#getForm"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.getForm.getForm" title="Link to this definition">¶</a></dt>
+<dd><p>Given a time-dependent variational form and a
+<code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code>, produce UFL for the s-stage RK method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>F</strong> – UFL form for the semidiscrete ODE/DAE</p></li>
+<li><p><strong>butch</strong> – the <code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code> for the RK method being used to
+advance in time.</p></li>
+<li><p><strong>t</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time.</p></li>
+<li><p><strong>dt</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time step.
+The user may adjust this value between time steps.</p></li>
+<li><p><strong>splitting</strong> – a callable that maps the (floating point) Butcher matrix
+a to a pair of matrices <cite>A1, A2</cite> such that <cite>butch.A = A1 A2</cite>.  This is used
+to vary between the classical RK formulation and Butcher’s reformulation
+that leads to a denser mass matrix with block-diagonal stiffness.
+Some choices of function will assume that <cite>butch.A</cite> is invertible.</p></li>
+<li><p><strong>u0</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> referring to the state of
+the PDE system at time <cite>t</cite></p></li>
+<li><p><strong>bcs</strong> – optionally, a <code class="xref py py-class docutils literal notranslate"><span class="pre">DirichletBC</span></code> object (or iterable thereof)
+containing (possible time-dependent) boundary conditions imposed
+on the system.</p></li>
+<li><p><strong>bc_type</strong> – How to manipulate the strongly-enforced boundary
+conditions to derive the stage boundary conditions.  Should
+be a string, either “DAE”, which implements BCs as
+constraints in the style of a differential-algebraic
+equation, or “ODE”, which takes the time derivative of the
+boundary data and evaluates this for the stage values</p></li>
+<li><p><strong>nullspace</strong> – A list of tuples of the form (index, VSB) where
+index is an index into the function space associated with <cite>u</cite>
+and VSB is a :class: <cite>firedrake.VectorSpaceBasis</cite> instance to
+be passed to a <cite>firedrake.MixedVectorSpaceBasis</cite> over the
+larger space associated with the Runge-Kutta method</p></li>
+</ul>
+</dd>
+</dl>
+<p>On output, we return a tuple consisting of four parts:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Fnew, the <code class="xref py py-class docutils literal notranslate"><span class="pre">Form</span></code></p></li>
+<li><p>k, the <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span></code> holding all the stages.
+It lives in a <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.FunctionSpace</span></code> corresponding to the
+s-way tensor product of the space on which the semidiscrete
+form lives.</p></li>
+<li><p><cite>bcnew</cite>, a list of <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.DirichletBC</span></code> objects to be posed
+on the stages,</p></li>
+<li><p>‘nspnew’, the <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.MixedVectorSpaceBasis</span></code> object
+that represents the nullspace of the coupled system</p></li>
+<li><p><cite>gblah</cite>, a list of tuples of the form (f, expr, method),
+where f is a <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span></code> and expr is a
+<code class="xref py py-class docutils literal notranslate"><span class="pre">ufl.Expr</span></code>.  At each time step, each expr needs to be
+re-interpolated/projected onto the corresponding f in order
+for Firedrake to pick up that time-dependent boundary
+conditions need to be re-applied.  The
+interpolation/projection is encoded in method, which is
+either <cite>f.interpolate(expr-c*u0)</cite> or <cite>f.project(expr-c*u0)</cite>, depending
+on whether the function space for f supports interpolation or
+not.</p></li>
+</ul>
+</div></blockquote>
+</dd></dl>
+
+</section>
+<section id="module-irksome.imex">
+<span id="irksome-imex-module"></span><h2>irksome.imex module<a class="headerlink" href="#module-irksome.imex" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.imex.RadauIIAIMEXMethod">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.imex.</span></span><span class="sig-name descname"><span class="pre">RadauIIAIMEXMethod</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Fexp</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butcher_tableau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bcs=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">it_solver_parameters=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prop_solver_parameters=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">splitting=&lt;function</span> <span class="pre">AI&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">appctx=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nullspace=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_its_initial=0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_its_per_step=0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/imex.html#RadauIIAIMEXMethod"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.imex.RadauIIAIMEXMethod" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Class for advancing a time-dependent PDE via a polynomial
+IMEX/RadauIIA method.  This requires one to split the PDE into
+an implicit and explicit part.
+The class sets up two methods – <cite>advance</cite> and <cite>iterate</cite>.
+The former is used to move the solution forward in time,
+while the latter is used both to start the method (filling up
+the initial stage values) and can be used at each time step
+to increase the accuracy/stability.  In the limit as
+the iterator is applied many times per time step,
+one expects convergence to the solution that would have been
+obtained from fully-implicit RadauIIA method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>F</strong> – A <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ufl.Form</span></code></a> instance describing the implicit part
+of the semi-discrete problem
+F(t, u; v) == 0, where <cite>u</cite> is the unknown
+<code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span> <span class="pre">and</span> <span class="pre">`v</span></code> is the
+:class:firedrake.TestFunction`.</p></li>
+<li><p><strong>Fexp</strong> – A <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ufl.Form</span></code></a> instance describing the part of the
+PDE that is explicitly split off.</p></li>
+<li><p><strong>butcher_tableau</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code> instance giving
+the Runge-Kutta method to be used for time marching.
+Only RadauIIA is allowed here (but it can be any number of stages).</p></li>
+<li><p><strong>t</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time.</p></li>
+<li><p><strong>dt</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time step.
+The user may adjust this value between time steps.</p></li>
+<li><p><strong>u0</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span></code> containing the current
+state of the problem to be solved.</p></li>
+<li><p><strong>bcs</strong> – An iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.DirichletBC</span></code> containing
+the strongly-enforced boundary conditions.  Irksome will
+manipulate these to obtain boundary conditions for each
+stage of the RK method.</p></li>
+<li><p><strong>it_solver_parameters</strong> – A <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> of solver parameters that
+will be used in solving the algebraic problem associated
+with the iterator.</p></li>
+<li><p><strong>prop_solver_parameters</strong> – A <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> of solver parameters that
+will be used in solving the algebraic problem associated
+with the propagator.</p></li>
+<li><p><strong>splitting</strong> – A callable used to factor the Butcher matrix,
+currently, only AI is supported.</p></li>
+<li><p><strong>appctx</strong> – An optional <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> containing application context.</p></li>
+<li><p><strong>nullspace</strong> – An optional null space object.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.imex.RadauIIAIMEXMethod.advance">
+<span class="sig-name descname"><span class="pre">advance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/imex.html#RadauIIAIMEXMethod.advance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.imex.RadauIIAIMEXMethod.advance" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.imex.RadauIIAIMEXMethod.iterate">
+<span class="sig-name descname"><span class="pre">iterate</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/imex.html#RadauIIAIMEXMethod.iterate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.imex.RadauIIAIMEXMethod.iterate" title="Link to this definition">¶</a></dt>
+<dd><p>Called 1 or more times to set up the initial state of the
+system before time-stepping.  Can also be called after each
+call to <cite>advance</cite></p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.imex.RadauIIAIMEXMethod.propagate">
+<span class="sig-name descname"><span class="pre">propagate</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/imex.html#RadauIIAIMEXMethod.propagate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.imex.RadauIIAIMEXMethod.propagate" title="Link to this definition">¶</a></dt>
+<dd><p>Moves the solution forward in time, to be followed by 0 or
+more calls to <cite>iterate</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.imex.RadauIIAIMEXMethod.solver_stats">
+<span class="sig-name descname"><span class="pre">solver_stats</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/imex.html#RadauIIAIMEXMethod.solver_stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.imex.RadauIIAIMEXMethod.solver_stats" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.imex.getFormExplicit">
+<span class="sig-prename descclassname"><span class="pre">irksome.imex.</span></span><span class="sig-name descname"><span class="pre">getFormExplicit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Fexp</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">UU</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">splitting</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/imex.html#getFormExplicit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.imex.getFormExplicit" title="Link to this definition">¶</a></dt>
+<dd><p>Processes the explicitly split-off part for a RadauIIA-IMEX
+method.  Returns the forms for both the iterator and propagator,
+which really just differ by which constants are in them.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.imex.riia_explicit_coeffs">
+<span class="sig-prename descclassname"><span class="pre">irksome.imex.</span></span><span class="sig-name descname"><span class="pre">riia_explicit_coeffs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">k</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/imex.html#riia_explicit_coeffs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.imex.riia_explicit_coeffs" title="Link to this definition">¶</a></dt>
+<dd><p>Computes the coefficients needed for the explicit part
+of a RadauIIA-IMEX method.</p>
+</dd></dl>
+
+</section>
+<section id="module-irksome.manipulation">
+<span id="irksome-manipulation-module"></span><h2>irksome.manipulation module<a class="headerlink" href="#module-irksome.manipulation" title="Link to this heading">¶</a></h2>
+<p>Manipulation of expressions containing <a class="reference internal" href="#irksome.deriv.TimeDerivative" title="irksome.deriv.TimeDerivative"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeDerivative</span></code></a>
+terms.</p>
+<p>These can be used to do some basic checking of the suitability of a
+<a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Form</span></code></a> for use in Irksome (via <a class="reference internal" href="#irksome.manipulation.check_integrals" title="irksome.manipulation.check_integrals"><code class="xref py py-func docutils literal notranslate"><span class="pre">check_integrals</span></code></a>), and
+splitting out terms in the <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Form</span></code></a> that contain a time
+derivative from those that don’t (via <a class="reference internal" href="#irksome.manipulation.extract_terms" title="irksome.manipulation.extract_terms"><code class="xref py py-func docutils literal notranslate"><span class="pre">extract_terms</span></code></a>).</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.manipulation.SplitTimeForm">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.manipulation.</span></span><span class="sig-name descname"><span class="pre">SplitTimeForm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">remainder</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/manipulation.html#SplitTimeForm"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.manipulation.SplitTimeForm" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></a></p>
+<p>A container for a form split into time terms and a remainder.</p>
+<p>Create new instance of SplitTimeForm(time, remainder)</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="irksome.manipulation.SplitTimeForm.remainder">
+<span class="sig-name descname"><span class="pre">remainder</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></em><a class="headerlink" href="#irksome.manipulation.SplitTimeForm.remainder" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="irksome.manipulation.SplitTimeForm.time">
+<span class="sig-name descname"><span class="pre">time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></em><a class="headerlink" href="#irksome.manipulation.SplitTimeForm.time" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.manipulation.check_integrals">
+<span class="sig-prename descclassname"><span class="pre">irksome.manipulation.</span></span><span class="sig-name descname"><span class="pre">check_integrals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">integrals</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.13)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.integral.Integral" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Integral</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expect_time_derivative</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.13)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.integral.Integral" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Integral</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/irksome/manipulation.html#check_integrals"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.manipulation.check_integrals" title="Link to this definition">¶</a></dt>
+<dd><p>Check a list of integrals for linearity in the time derivative.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>integrals</strong> – list of integrals.</p></li>
+<li><p><strong>expect_time_derivative</strong> – Are we expecting to see a time
+derivative?</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – if we are expecting a time derivative and
+don’t see one, or time derivatives are applied nonlinearly, to
+more than one coefficient, or more than first order.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.manipulation.extract_terms">
+<span class="sig-prename descclassname"><span class="pre">irksome.manipulation.</span></span><span class="sig-name descname"><span class="pre">extract_terms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">form</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#irksome.manipulation.SplitTimeForm" title="irksome.manipulation.SplitTimeForm"><span class="pre">SplitTimeForm</span></a></span></span><a class="reference internal" href="_modules/irksome/manipulation.html#extract_terms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.manipulation.extract_terms" title="Link to this definition">¶</a></dt>
+<dd><p>Extract terms from a <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Form</span></code></a>.</p>
+<p>This splits a form (a sum of integrals) into those integrals which
+do contain a <a class="reference internal" href="#irksome.deriv.TimeDerivative" title="irksome.deriv.TimeDerivative"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeDerivative</span></code></a> and those that don’t.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>form</strong> – The form to split.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>a <a class="reference internal" href="#irksome.manipulation.SplitTimeForm" title="irksome.manipulation.SplitTimeForm"><code class="xref py py-class docutils literal notranslate"><span class="pre">SplitTimeForm</span></code></a> tuple.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – if the form does not apply anything other than
+first-order time derivatives to a single coefficient.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-irksome.pc">
+<span id="irksome-pc-module"></span><h2>irksome.pc module<a class="headerlink" href="#module-irksome.pc" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.pc.RanaBase">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.pc.</span></span><span class="sig-name descname"><span class="pre">RanaBase</span></span><a class="reference internal" href="_modules/irksome/pc.html#RanaBase"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.pc.RanaBase" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://www.firedrakeproject.org/firedrake.preconditioners.html#firedrake.preconditioners.assembled.AuxiliaryOperatorPC" title="(in Firedrake v0.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">AuxiliaryOperatorPC</span></code></a></p>
+<p>Base class for methods out of Rana, Howle, Long, Meek, &amp; Milestone.
+It inherits from Firedrake’s AuxiliaryOperatorPC class and
+provides the preconditioning bilinear form associated with an
+approximation to the Butcher matrix (which is provided by
+subclasses).</p>
+<p>Create a PC context suitable for PETSc.</p>
+<p>Matrix free preconditioners should inherit from this class and
+implement:</p>
+<ul class="simple">
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">initialize</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">update</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">applyTranspose</span></code></p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.pc.RanaBase.form">
+<span class="sig-name descname"><span class="pre">form</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trial</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/pc.html#RanaBase.form"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.pc.RanaBase.form" title="Link to this definition">¶</a></dt>
+<dd><p>Implements the interface for AuxiliaryOperatorPC.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.pc.RanaBase.getAtilde">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">getAtilde</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/pc.html#RanaBase.getAtilde"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.pc.RanaBase.getAtilde" title="Link to this definition">¶</a></dt>
+<dd><p>Derived classes produce a typically structured
+approximation to A.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.pc.RanaDU">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.pc.</span></span><span class="sig-name descname"><span class="pre">RanaDU</span></span><a class="reference internal" href="_modules/irksome/pc.html#RanaDU"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.pc.RanaDU" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.pc.RanaBase" title="irksome.pc.RanaBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">RanaBase</span></code></a></p>
+<p>Implements Rana-type preconditioner using Atilde = DU where A=LDU.</p>
+<p>Create a PC context suitable for PETSc.</p>
+<p>Matrix free preconditioners should inherit from this class and
+implement:</p>
+<ul class="simple">
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">initialize</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">update</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">applyTranspose</span></code></p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.pc.RanaDU.getAtilde">
+<span class="sig-name descname"><span class="pre">getAtilde</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/pc.html#RanaDU.getAtilde"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.pc.RanaDU.getAtilde" title="Link to this definition">¶</a></dt>
+<dd><p>Derived classes produce a typically structured
+approximation to A.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.pc.RanaLD">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.pc.</span></span><span class="sig-name descname"><span class="pre">RanaLD</span></span><a class="reference internal" href="_modules/irksome/pc.html#RanaLD"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.pc.RanaLD" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.pc.RanaBase" title="irksome.pc.RanaBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">RanaBase</span></code></a></p>
+<p>Implements Rana-type preconditioner using Atilde = LD where A=LDU.</p>
+<p>Create a PC context suitable for PETSc.</p>
+<p>Matrix free preconditioners should inherit from this class and
+implement:</p>
+<ul class="simple">
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">initialize</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">update</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply</span></code></p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">applyTranspose</span></code></p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.pc.RanaLD.getAtilde">
+<span class="sig-name descname"><span class="pre">getAtilde</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/pc.html#RanaLD.getAtilde"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.pc.RanaLD.getAtilde" title="Link to this definition">¶</a></dt>
+<dd><p>Derived classes produce a typically structured
+approximation to A.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.pc.ldu">
+<span class="sig-prename descclassname"><span class="pre">irksome.pc.</span></span><span class="sig-name descname"><span class="pre">ldu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/pc.html#ldu"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.pc.ldu" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-irksome.pep_explicit_rk">
+<span id="irksome-pep-explicit-rk-module"></span><h2>irksome.pep_explicit_rk module<a class="headerlink" href="#module-irksome.pep_explicit_rk" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.pep_explicit_rk.PEPRK">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.pep_explicit_rk.</span></span><span class="sig-name descname"><span class="pre">PEPRK</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ns</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peporder</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/pep_explicit_rk.html#PEPRK"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.pep_explicit_rk.PEPRK" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.ButcherTableau" title="irksome.ButcherTableaux.ButcherTableau"><code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code></a></p>
+</dd></dl>
+
+</section>
+<section id="module-irksome.stage">
+<span id="irksome-stage-module"></span><h2>irksome.stage module<a class="headerlink" href="#module-irksome.stage" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.stage.StageValueTimeStepper">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.stage.</span></span><span class="sig-name descname"><span class="pre">StageValueTimeStepper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butcher_tableau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bcs=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver_parameters=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">update_solver_parameters=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bc_constraints=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">splitting=&lt;function</span> <span class="pre">AI&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">basis_type=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nullspace=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">appctx=None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stage.html#StageValueTimeStepper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stage.StageValueTimeStepper" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.stage.StageValueTimeStepper.advance">
+<span class="sig-name descname"><span class="pre">advance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stage.html#StageValueTimeStepper.advance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stage.StageValueTimeStepper.advance" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.stage.StageValueTimeStepper.solver_stats">
+<span class="sig-name descname"><span class="pre">solver_stats</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stage.html#StageValueTimeStepper.solver_stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stage.StageValueTimeStepper.solver_stats" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.stage.getBits">
+<span class="sig-prename descclassname"><span class="pre">irksome.stage.</span></span><span class="sig-name descname"><span class="pre">getBits</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_stages</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_fields</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">UU</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">VV</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stage.html#getBits"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stage.getBits" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.stage.getFormStage">
+<span class="sig-prename descclassname"><span class="pre">irksome.stage.</span></span><span class="sig-name descname"><span class="pre">getFormStage</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bcs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">splitting</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vandermonde</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bc_constraints</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nullspace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stage.html#getFormStage"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stage.getFormStage" title="Link to this definition">¶</a></dt>
+<dd><p>Given a time-dependent variational form and a
+<code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code>, produce UFL for the s-stage RK method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>F</strong> – UFL form for the semidiscrete ODE/DAE</p></li>
+<li><p><strong>butch</strong> – the <code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code> for the RK method being used to
+advance in time.</p></li>
+<li><p><strong>u0</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> referring to the state of
+the PDE system at time <cite>t</cite></p></li>
+<li><p><strong>t</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time.</p></li>
+<li><p><strong>dt</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time step.
+The user may adjust this value between time steps.</p></li>
+<li><p><strong>splitting</strong> – a callable that maps the (floating point) Butcher matrix
+a to a pair of matrices <cite>A1, A2</cite> such that <cite>butch.A = A1 A2</cite>.  This is used
+to vary between the classical RK formulation and Butcher’s reformulation
+that leads to a denser mass matrix with block-diagonal stiffness.
+Only <cite>AI</cite> and <cite>IA</cite> are currently supported.</p></li>
+<li><p><strong>vandermonde</strong> – a numpy array encoding a change of basis to the Lagrange
+polynomials associated with the collocation nodes from some other
+(e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
+coefficients in some basis rather than the values at particular stages,
+which can be useful for satisfying bounds constraints.
+If none is provided, we assume it is the identity, working in the
+Lagrange basis.</p></li>
+<li><p><strong>bcs</strong> – optionally, a <code class="xref py py-class docutils literal notranslate"><span class="pre">DirichletBC</span></code> object (or iterable thereof)
+containing (possible time-dependent) boundary conditions imposed
+on the system.</p></li>
+<li><p><strong>bc_constraints</strong> – optionally, a dictionary mapping (some of) the boundary
+conditions in <cite>bcs</cite> to triples of the form (params, lower, upper) indicating
+solver parameters to use and lower and upper bounds to provide in doing
+a bounds-constrained projection of the boundary data.
+Note: if these bounds change over time, the user is responsible for maintaining
+a handle on them and updating them between time steps.</p></li>
+<li><p><strong>nullspace</strong> – A list of tuples of the form (index, VSB) where
+index is an index into the function space associated with <cite>u</cite>
+and VSB is a :class: <cite>firedrake.VectorSpaceBasis</cite> instance to
+be passed to a <cite>firedrake.MixedVectorSpaceBasis</cite> over the
+larger space associated with the Runge-Kutta method</p></li>
+</ul>
+</dd>
+</dl>
+<p>On output, we return a tuple consisting of several parts:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Fnew, the <code class="xref py py-class docutils literal notranslate"><span class="pre">Form</span></code></p></li>
+<li><p>possibly a 4-tuple containing information needed to solve a mass matrix to update
+the solution (this is empty for RadauIIA methods for which there is a trivial
+update function.</p></li>
+<li><p>UU, the <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span></code> holding all the stage time values.
+It lives in a <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.FunctionSpace</span></code> corresponding to the
+s-way tensor product of the space on which the semidiscrete
+form lives.</p></li>
+<li><p><cite>bcnew</cite>, a list of <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.DirichletBC</span></code> objects to be posed
+on the stages,</p></li>
+<li><p>‘nspnew’, the <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.MixedVectorSpaceBasis</span></code> object
+that represents the nullspace of the coupled system</p></li>
+<li><p><cite>gblah</cite>, a list of tuples of the form (f, expr, method),
+where f is a <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span></code> and expr is a
+<code class="xref py py-class docutils literal notranslate"><span class="pre">ufl.Expr</span></code>.  At each time step, each expr needs to be
+re-interpolated/projected onto the corresponding f in order
+for Firedrake to pick up that time-dependent boundary
+conditions need to be re-applied.  The
+interpolation/projection is encoded in method, which is
+either <cite>f.interpolate(expr-c*u0)</cite> or <cite>f.project(expr-c*u0)</cite>, depending
+on whether the function space for f supports interpolation or
+not.</p></li>
+</ul>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.stage.isiterable">
+<span class="sig-prename descclassname"><span class="pre">irksome.stage.</span></span><span class="sig-name descname"><span class="pre">isiterable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stage.html#isiterable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stage.isiterable" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.stage.split_field">
+<span class="sig-prename descclassname"><span class="pre">irksome.stage.</span></span><span class="sig-name descname"><span class="pre">split_field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_fields</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stage.html#split_field"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stage.split_field" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.stage.split_stage_field">
+<span class="sig-prename descclassname"><span class="pre">irksome.stage.</span></span><span class="sig-name descname"><span class="pre">split_stage_field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_stages</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_fields</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">UU</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stage.html#split_stage_field"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stage.split_stage_field" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-irksome.stepper">
+<span id="irksome-stepper-module"></span><h2>irksome.stepper module<a class="headerlink" href="#module-irksome.stepper" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.stepper.AdaptiveTimeStepper">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.stepper.</span></span><span class="sig-name descname"><span class="pre">AdaptiveTimeStepper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butcher_tableau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bcs=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">appctx=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver_parameters=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bc_type='DAE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">splitting=&lt;function</span> <span class="pre">AI&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nullspace=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol=0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtmin=1e-15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtmax=1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">KI=0.06666666666666667</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">KP=0.13</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_reject=10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">onscale_factor=1.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">safety_factor=0.9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma0_params=None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stepper.html#AdaptiveTimeStepper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stepper.AdaptiveTimeStepper" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.stepper.StageDerivativeTimeStepper" title="irksome.stepper.StageDerivativeTimeStepper"><code class="xref py py-class docutils literal notranslate"><span class="pre">StageDerivativeTimeStepper</span></code></a></p>
+<p>Front-end class for advancing a time-dependent PDE via an adaptive
+Runge-Kutta method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>F</strong> – A <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ufl.Form</span></code></a> instance describing the semi-discrete problem
+F(t, u; v) == 0, where <cite>u</cite> is the unknown
+<code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span> <span class="pre">and</span> <span class="pre">`v</span></code> is the
+:class:firedrake.TestFunction`.</p></li>
+<li><p><strong>butcher_tableau</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code> instance giving
+the Runge-Kutta method to be used for time marching.</p></li>
+<li><p><strong>t</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Constant</span></code> instance that always
+contains the time value at the beginning of a time step</p></li>
+<li><p><strong>dt</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Constant</span></code> containing the size of the
+current time step.  The user may adjust this value between
+time steps; however, note that the adaptive time step
+controls may adjust this before the step is taken.</p></li>
+<li><p><strong>u0</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span></code> containing the current
+state of the problem to be solved.</p></li>
+<li><p><strong>tol</strong> – The temporal truncation error tolerance</p></li>
+<li><p><strong>dtmin</strong> – Minimal acceptable time step.  An exception is raised
+if the step size drops below this threshhold.</p></li>
+<li><p><strong>dtmax</strong> – Maximal acceptable time step, imposed as a hard cap;
+this can be adjusted externally once the time-stepper is
+instantiated, by modifying <cite>stepper.dt_max</cite></p></li>
+<li><p><strong>KI</strong> – Integration gain for step-size controller.  Should be less
+than 1/p, where p is the expected order of the scheme.  Larger
+values lead to faster (attempted) increases in time-step size
+when steps are accepted.  See Gustafsson, Lundh, and Soderlind,
+BIT 1988.</p></li>
+<li><p><strong>KP</strong> – Proportional gain for step-size controller. Controls dependence
+on ratio of (error estimate)/(step size) in determining new
+time-step size when steps are accepted.  See Gustafsson, Lundh,
+and Soderlind, BIT 1988.</p></li>
+<li><p><strong>max_reject</strong> – Maximum number of rejected timesteps in a row that
+does not lead to a failure</p></li>
+<li><p><strong>onscale_factor</strong> – Allowable tolerance in determining initial
+timestep to be “on scale”</p></li>
+<li><p><strong>safety_factor</strong> – Safety factor used when shrinking timestep if
+a proposed step is rejected</p></li>
+<li><p><strong>gamma0_params</strong> – Solver parameters for mass matrix solve when using
+an embedded scheme with explicit first stage</p></li>
+<li><p><strong>bcs</strong> – An iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.DirichletBC</span></code> containing
+the strongly-enforced boundary conditions.  Irksome will
+manipulate these to obtain boundary conditions for each
+stage of the RK method.</p></li>
+<li><p><strong>solver_parameters</strong> – A <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> of solver parameters that
+will be used in solving the algebraic problem associated
+with each time step.</p></li>
+<li><p><strong>nullspace</strong> – A list of tuples of the form (index, VSB) where
+index is an index into the function space associated with
+<cite>u</cite> and VSB is a :class: <cite>firedrake.VectorSpaceBasis</cite>
+instance to be passed to a
+<cite>firedrake.MixedVectorSpaceBasis</cite> over the larger space
+associated with the Runge-Kutta method</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.stepper.AdaptiveTimeStepper.advance">
+<span class="sig-name descname"><span class="pre">advance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stepper.html#AdaptiveTimeStepper.advance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stepper.AdaptiveTimeStepper.advance" title="Link to this definition">¶</a></dt>
+<dd><p>Attempts to advances the system from time <cite>t</cite> to time <cite>t +
+dt</cite>.  If the error threshhold is exceeded, will adaptively
+decrease the time step until the step is accepted.  Also
+predicts new time step once the step is accepted.
+Note: overwrites the value <cite>u0</cite>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.stepper.StageDerivativeTimeStepper">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.stepper.</span></span><span class="sig-name descname"><span class="pre">StageDerivativeTimeStepper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butcher_tableau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bcs=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver_parameters=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">splitting=&lt;function</span> <span class="pre">AI&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">appctx=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nullspace=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bc_type='DAE'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stepper.html#StageDerivativeTimeStepper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stepper.StageDerivativeTimeStepper" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Front-end class for advancing a time-dependent PDE via a Runge-Kutta
+method formulated in terms of stage derivatives.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>F</strong> – A <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ufl.Form</span></code></a> instance describing the semi-discrete problem
+F(t, u; v) == 0, where <cite>u</cite> is the unknown
+<code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span> <span class="pre">and</span> <span class="pre">`v</span></code> is the
+:class:firedrake.TestFunction`.</p></li>
+<li><p><strong>butcher_tableau</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code> instance giving
+the Runge-Kutta method to be used for time marching.</p></li>
+<li><p><strong>t</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time.</p></li>
+<li><p><strong>dt</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time step.
+The user may adjust this value between time steps.</p></li>
+<li><p><strong>u0</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span></code> containing the current
+state of the problem to be solved.</p></li>
+<li><p><strong>bcs</strong> – An iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.DirichletBC</span></code> containing
+the strongly-enforced boundary conditions.  Irksome will
+manipulate these to obtain boundary conditions for each
+stage of the RK method.</p></li>
+<li><p><strong>bc_type</strong> – How to manipulate the strongly-enforced boundary
+conditions to derive the stage boundary conditions.
+Should be a string, either “DAE”, which implements BCs as
+constraints in the style of a differential-algebraic
+equation, or “ODE”, which takes the time derivative of the
+boundary data and evaluates this for the stage values</p></li>
+<li><p><strong>solver_parameters</strong> – A <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> of solver parameters that
+will be used in solving the algebraic problem associated
+with each time step.</p></li>
+<li><p><strong>splitting</strong> – An callable used to factor the Butcher matrix</p></li>
+<li><p><strong>appctx</strong> – An optional <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> containing application context.
+This gets included with particular things that Irksome will
+pass into the nonlinear solver so that, say, user-defined preconditioners
+have access to it.</p></li>
+<li><p><strong>nullspace</strong> – A list of tuples of the form (index, VSB) where
+index is an index into the function space associated with
+<cite>u</cite> and VSB is a :class: <cite>firedrake.VectorSpaceBasis</cite>
+instance to be passed to a
+<cite>firedrake.MixedVectorSpaceBasis</cite> over the larger space
+associated with the Runge-Kutta method</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.stepper.StageDerivativeTimeStepper.advance">
+<span class="sig-name descname"><span class="pre">advance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stepper.html#StageDerivativeTimeStepper.advance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stepper.StageDerivativeTimeStepper.advance" title="Link to this definition">¶</a></dt>
+<dd><p>Advances the system from time <cite>t</cite> to time <cite>t + dt</cite>.
+Note: overwrites the value <cite>u0</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.stepper.StageDerivativeTimeStepper.solver_stats">
+<span class="sig-name descname"><span class="pre">solver_stats</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stepper.html#StageDerivativeTimeStepper.solver_stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stepper.StageDerivativeTimeStepper.solver_stats" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.stepper.TimeStepper">
+<span class="sig-prename descclassname"><span class="pre">irksome.stepper.</span></span><span class="sig-name descname"><span class="pre">TimeStepper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">F</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butcher_tableau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/stepper.html#TimeStepper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.stepper.TimeStepper" title="Link to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>Helper function to dispatch between various back-end classes</dt><dd><p>for doing time stepping.  Returns an instance of the
+appropriate class.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>F</strong> – A <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ufl.Form</span></code></a> instance describing the semi-discrete problem
+F(t, u; v) == 0, where <cite>u</cite> is the unknown
+<code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span> <span class="pre">and</span> <span class="pre">`v</span></code> iss the
+:class:firedrake.TestFunction`.</p></li>
+<li><p><strong>butcher_tableau</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code> instance giving
+the Runge-Kutta method to be used for time marching.</p></li>
+<li><p><strong>t</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time.</p></li>
+<li><p><strong>dt</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> on the Real space over the same mesh as
+<cite>u0</cite>.  This serves as a variable referring to the current time step.
+The user may adjust this value between time steps.</p></li>
+<li><p><strong>u0</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.Function</span></code> containing the current
+state of the problem to be solved.</p></li>
+<li><p><strong>bcs</strong> – An iterable of <code class="xref py py-class docutils literal notranslate"><span class="pre">firedrake.DirichletBC</span></code> containing
+the strongly-enforced boundary conditions.  Irksome will
+manipulate these to obtain boundary conditions for each
+stage of the RK method.</p></li>
+<li><p><strong>nullspace</strong> – A list of tuples of the form (index, VSB) where
+index is an index into the function space associated with
+<cite>u</cite> and VSB is a :class: <cite>firedrake.VectorSpaceBasis</cite>
+instance to be passed to a
+<cite>firedrake.MixedVectorSpaceBasis</cite> over the larger space
+associated with the Runge-Kutta method</p></li>
+<li><p><strong>stage_type</strong> – Whether to formulate in terms of a stage
+derivatives or stage values.</p></li>
+<li><p><strong>splitting</strong> – An callable used to factor the Butcher matrix</p></li>
+<li><p><strong>bc_type</strong> – For stage derivative formulation, how to manipulate
+the strongly-enforced boundary conditions.</p></li>
+<li><p><strong>solver_parameters</strong> – A <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> of solver parameters that
+will be used in solving the algebraic problem associated
+with each time step.</p></li>
+<li><p><strong>update_solver_parameters</strong> – A <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> of parameters for
+inverting the mass matrix at each step (only used if
+stage_type is “value”)</p></li>
+<li><p><strong>adaptive_parameters</strong> – A <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> of parameters for use with
+adaptive time stepping (only used if stage_type is “deriv”)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-irksome.tools">
+<span id="irksome-tools-module"></span><h2>irksome.tools module<a class="headerlink" href="#module-irksome.tools" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.tools.AI">
+<span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">AI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#AI"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.AI" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.tools.ConstantOrZero">
+<span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">ConstantOrZero</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MC</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#ConstantOrZero"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.ConstantOrZero" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.tools.IA">
+<span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">IA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#IA"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.IA" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.tools.MeshConstant">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">MeshConstant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msh</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#MeshConstant"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.MeshConstant" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.tools.MeshConstant.Constant">
+<span class="sig-name descname"><span class="pre">Constant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#MeshConstant.Constant"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.MeshConstant.Constant" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.tools.MyReplacer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">MyReplacer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mapping</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#MyReplacer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.MyReplacer" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.corealg.html#ufl.corealg.multifunction.MultiFunction" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultiFunction</span></code></a></p>
+<p>Initialise.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.tools.MyReplacer.expr">
+<span class="sig-name descname"><span class="pre">expr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#MyReplacer.expr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.MyReplacer.expr" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.tools.bc2space">
+<span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">bc2space</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#bc2space"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.bc2space" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.tools.getNullspace">
+<span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">getNullspace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">V</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Vbig</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">butch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nullspace</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#getNullspace"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.getNullspace" title="Link to this definition">¶</a></dt>
+<dd><p>Computes the nullspace for a multi-stage method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>V</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">FunctionSpace</span></code> on which the original time-dependent PDE is posed.</p></li>
+<li><p><strong>Vbig</strong> – The multi-stage <code class="xref py py-class docutils literal notranslate"><span class="pre">FunctionSpace</span></code> for the stage problem</p></li>
+<li><p><strong>butch</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code> defining the RK method</p></li>
+<li><p><strong>nullspace</strong> – The nullspace for the original problem.</p></li>
+</ul>
+</dd>
+</dl>
+<p>On output, we produce a <code class="xref py py-class docutils literal notranslate"><span class="pre">MixedVectorSpaceBasis</span></code> defining the nullspace
+for the multistage problem.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.tools.is_ode">
+<span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">is_ode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#is_ode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.is_ode" title="Link to this definition">¶</a></dt>
+<dd><p>Given a form defined over a function <cite>u</cite>, checks if
+(each bit of) u appears under a time derivative.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.tools.replace">
+<span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mapping</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#replace"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.replace" title="Link to this definition">¶</a></dt>
+<dd><p>Replace subexpressions in expression.</p>
+<dl class="simple">
+<dt>&#64;param e:</dt><dd><p>An Expr or Form.</p>
+</dd>
+<dt>&#64;param mapping:</dt><dd><p>A dict with from:to replacements to perform.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.tools.stage2spaces4bc">
+<span class="sig-prename descclassname"><span class="pre">irksome.tools.</span></span><span class="sig-name descname"><span class="pre">stage2spaces4bc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Vbig</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/tools.html#stage2spaces4bc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.tools.stage2spaces4bc" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-irksome.wso_dirk_tableaux">
+<span id="irksome-wso-dirk-tableaux-module"></span><h2>irksome.wso_dirk_tableaux module<a class="headerlink" href="#module-irksome.wso_dirk_tableaux" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.wso_dirk_tableaux.WSODIRK">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">irksome.wso_dirk_tableaux.</span></span><span class="sig-name descname"><span class="pre">WSODIRK</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ns</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ws_order</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/wso_dirk_tableaux.html#WSODIRK"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.wso_dirk_tableaux.WSODIRK" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#irksome.ButcherTableaux.ButcherTableau" title="irksome.ButcherTableaux.ButcherTableau"><code class="xref py py-class docutils literal notranslate"><span class="pre">ButcherTableau</span></code></a></p>
+</dd></dl>
+
+</section>
+<section id="module-irksome">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-irksome" title="Link to this heading">¶</a></h2>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
