@@ -15,13 +15,16 @@ from .deriv import TimeDerivative  # , apply_time_derivatives
 
 class BCStageData(object):
     def __init__(self, V, gcur, u0, u0_mult, i, t, dt):
-        if V.component is not None:     # bottommost space is bit of VFS
+        if gcur == 0:  # special case DirichletBC(V, 0, ...), do nothing
+            gdat = gcur
+            gmethod = lambda g, u: None
+        elif V.component is not None:     # bottommost space is bit of VFS
             if V.parent.index is None:  # but not part of a MFS
                 sub = V.component
                 try:
                     gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub), V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-                except:  # noqa: E722
+                except NotImplementedError:
                     gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
                     gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
             else:   # V is a bit of a VFS inside an MFS
@@ -30,7 +33,7 @@ class BCStageData(object):
                 try:
                     gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub0).sub(sub1))
-                except:  # noqa: E722
+                except NotImplementedError:
                     gdat = project(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
                     gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub0).sub(sub1))
         else:  # V is not a bit of a VFS
@@ -38,7 +41,7 @@ class BCStageData(object):
                 try:
                     gdat = assemble(interpolate(gcur-u0_mult[i]*u0, V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
-                except:  # noqa: E722
+                except NotImplementedError:
                     gdat = project(gcur-u0_mult[i]*u0, V)
                     gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
             else:  # part of MFS
@@ -46,7 +49,7 @@ class BCStageData(object):
                 try:
                     gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub), V))
                     gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-                except:  # noqa: E722
+                except NotImplementedError:
                     gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
                     gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
 
