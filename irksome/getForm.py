@@ -16,43 +16,32 @@ from .deriv import TimeDerivative  # , apply_time_derivatives
 class BCStageData(object):
     def __init__(self, V, gcur, u0, u0_mult, i, t, dt):
         if gcur == 0:  # special case DirichletBC(V, 0, ...), do nothing
-            gdat = gcur
-            gmethod = lambda g, u: None
+            u0 = 0
         elif V.component is not None:     # bottommost space is bit of VFS
             if V.parent.index is None:  # but not part of a MFS
                 sub = V.component
-                try:
-                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub), V))
-                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-                except NotImplementedError:
-                    gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
-                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
+                u0 = u0.sub(sub)
             else:   # V is a bit of a VFS inside an MFS
                 sub0 = V.parent.index
                 sub1 = V.component
-                try:
-                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V))
-                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub0).sub(sub1))
-                except NotImplementedError:
-                    gdat = project(gcur-u0_mult[i]*u0.sub(sub0).sub(sub1), V)
-                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub0).sub(sub1))
+                u0 = u0.sub(sub0).sub(sub1)
         else:  # V is not a bit of a VFS
             if V.index is None:  # not part of MFS, either
-                try:
-                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0, V))
-                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u)
-                except NotImplementedError:
-                    gdat = project(gcur-u0_mult[i]*u0, V)
-                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u)
+                pass
             else:  # part of MFS
                 sub = V.index
-                try:
-                    gdat = assemble(interpolate(gcur-u0_mult[i]*u0.sub(sub), V))
-                    gmethod = lambda g, u: gdat.interpolate(g-u0_mult[i]*u.sub(sub))
-                except NotImplementedError:
-                    gdat = project(gcur-u0_mult[i]*u0.sub(sub), V)
-                    gmethod = lambda g, u: gdat.project(g-u0_mult[i]*u.sub(sub))
-
+                u0 = u0.sub(sub)
+        if u0 == 0:
+            gdat = gcur
+            gmethod = lambda g, u: None
+        else:
+            gexpr = gcur-u0_mult[i]*u0
+            try:
+                gdat = assemble(interpolate(gexpr, V))
+                gmethod = lambda g, u: gdat.interpolate(gexpr)
+            except (NotImplementedError, AttributeError):
+                gdat = project(gexpr, V)
+                gmethod = lambda g, u: gdat.project(gexpr)
         self.gstuff = (gdat, gcur, gmethod)
 
 

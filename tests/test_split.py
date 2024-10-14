@@ -137,7 +137,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
         return Fimp(z, test) + Fexp(z, test)
 
     bcs = [DirichletBC(Z.sub(0), as_vector([x*(1-x), 0]), (4,)),
-           DirichletBC(Z.sub(0), as_vector([0, 0]), (1, 2, 3))]
+           DirichletBC(Z.sub(0), 0, (1, 2, 3))]
 
     nsp = [(1, VectorSpaceBasis(constant=True, comm=COMM_WORLD))]
 
