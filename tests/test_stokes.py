@@ -128,7 +128,7 @@ def NSETest(butch, stage_type, splitting):
          )
 
     bcs = [DirichletBC(Z.sub(0), Constant((1, 0)), (4,)),
-           DirichletBC(Z.sub(0), Constant((0, 0)), (1, 2, 3))]
+           DirichletBC(Z.sub(0), 0, (1, 2, 3))]
 
     nullspace = [(1, VectorSpaceBasis(constant=True))]
 
