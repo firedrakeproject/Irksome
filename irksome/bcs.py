@@ -73,6 +73,7 @@ class EmbeddedBCData(object):
         gorig = bc._original_arg
         if gorig == 0:
             gdat = gorig
+            gcur = gorig
             gmethod = lambda *args, **kwargs: None
         else:
             gcur = replace(gorig, {t: t+dt})
