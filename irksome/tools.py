@@ -2,9 +2,10 @@ import numpy
 from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, split
 from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
-from ufl.classes import CoefficientDerivative
+from ufl.classes import CoefficientDerivative, Zero
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
+
 from irksome.deriv import TimeDerivative
 
 
@@ -117,3 +118,43 @@ class MeshConstant(object):
 
     def Constant(self, val=0.0):
         return Function(self.V).assign(val)
+
+
+def ConstantOrZero(x, MC):
+    return Zero() if abs(complex(x)) < 1.e-10 else MC.Constant(x)
+
+
+def bc2space(bc, V):
+    num_fields = len(V)
+    if num_fields == 1:  # not mixed space
+        comp = bc.function_space().component
+        Vsp = V if comp is None else V.sub(comp)
+    else:  # mixed space
+        sub = bc.function_space_index()
+        comp = bc.function_space().component
+        Vsp = V.sub(sub) if comp is None else V.sub(sub).sub(comp)
+    return Vsp
+
+
+# used to figure out how to apply Dirichlet BC to each stage
+def stage2spaces4bc(bc, V, Vbig, i):
+    num_fields = len(V)
+    if num_fields == 1:  # not mixed space
+        comp = bc.function_space().component
+        if comp is not None:  # check for sub-piece of vector-valued
+            Vsp = V.sub(comp)
+            Vbigi = Vbig[i].sub(comp)
+        else:
+            Vsp = V
+            Vbigi = Vbig[i]
+    else:  # mixed space
+        sub = bc.function_space_index()
+        comp = bc.function_space().component
+        if comp is not None:  # check for sub-piece of vector-valued
+            Vsp = V.sub(sub).sub(comp)
+            Vbigi = Vbig[sub+num_fields*i].sub(comp)
+        else:
+            Vsp = V.sub(sub)
+            Vbigi = Vbig[sub+num_fields*i]
+
+    return Vsp, Vbigi

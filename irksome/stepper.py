@@ -1,17 +1,18 @@
 import numpy
+from firedrake import DirichletBC, Function
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import (DirichletBC, Function, TestFunction,
-                       inner, dx, norm, assemble, project, replace)
+from firedrake import TestFunction, assemble, dx, inner, norm, project, replace
 from firedrake.__future__ import interpolate
 from firedrake.dmhooks import pop_parent, push_parent
 from ufl.constantvalue import as_ufl
+
 from .dirk_stepper import DIRKTimeStepper
 from .explicit_stepper import ExplicitTimeStepper
 from .getForm import AI, getForm
-from .stage import StageValueTimeStepper
 from .imex import RadauIIAIMEXMethod
 from .manipulation import extract_terms
+from .stage import StageValueTimeStepper
 
 
 def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
@@ -60,7 +61,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     valid_kwargs_per_stage_type = {
         "deriv": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
                   "bc_type", "splitting", "adaptive_parameters"],
-        "value": ["stage_type", "bcs", "nullspace", "solver_parameters",
+        "value": ["stage_type", "basis_type", "bc_constraints", "bcs", "nullspace", "solver_parameters",
                   "update_solver_parameters", "appctx", "splitting"],
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
         "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
@@ -114,17 +115,21 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             safety_factor=safety_factor, gamma0_params=gamma0_params)
     elif stage_type == "value":
         bcs = kwargs.get("bcs")
+        bc_constraints = kwargs.get("bc_constraints")
         splitting = kwargs.get("splitting", AI)
         appctx = kwargs.get("appctx")
         solver_parameters = kwargs.get("solver_parameters")
+        basis_type = kwargs.get("basis_type")
         update_solver_parameters = kwargs.get("update_solver_parameters")
         nullspace = kwargs.get("nullspace")
         return StageValueTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
             solver_parameters=solver_parameters,
-            splitting=splitting,
+            splitting=splitting, basis_type=basis_type,
+            bc_constraints=bc_constraints,
             update_solver_parameters=update_solver_parameters,
             nullspace=nullspace)
+
     elif stage_type == "dirk":
         bcs = kwargs.get("bcs")
         appctx = kwargs.get("appctx")

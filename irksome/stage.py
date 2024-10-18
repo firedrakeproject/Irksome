@@ -1,48 +1,51 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
+from collections.abc import Iterable
 from functools import reduce
 from operator import mul
 
 import numpy as np
-from firedrake import (DirichletBC, Function,
-                       NonlinearVariationalProblem, NonlinearVariationalSolver,
-                       TestFunction, assemble, dx, inner, project, split)
+from FIAT import Bernstein, ufc_simplex
+from firedrake import (DirichletBC, Function, NonlinearVariationalProblem,
+                       NonlinearVariationalSolver, TestFunction, assemble, dx,
+                       inner, project, solve, split)
 from firedrake.__future__ import interpolate
+from firedrake.petsc import PETSc
 from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
+from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, IA, getNullspace, MeshConstant, is_ode, replace
+from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
+                    replace, stage2spaces4bc)
 
 
-def getBits(num_stages, num_fields, u0, UU, v, VV):
-    nsxnf = (num_stages, num_fields)
+def isiterable(x):
+    return hasattr(x, "__iter__") or isinstance(x, Iterable)
+
+
+def split_field(num_fields, u):
+    return np.array((u,) if num_fields == 1 else split(u), dtype="O")
+
+
+def split_stage_field(num_stages, num_fields, UU):
     if num_fields == 1:
-        u0bits = np.zeros((1,), dtype='O')
-        u0bits[0] = u0
-        vbits = np.zeros((1,), dtype='O')
-        vbits[0] = v
         if num_stages == 1:   # single-stage method
-            VVbits = np.zeros((1,), dtype='O')
-            VVbits[0] = np.zeros((1,), dtype='O')
-            VVbits[0][0] = VV
-            UUbits = np.zeros((1,), dtype='O')
-            UUbits[0] = np.zeros((1,), dtype='O')
-            UUbits[0][0] = UU
+            UUbits = np.reshape(np.array((UU,), dtype='O'), (num_stages, num_fields))
         else:  # multi-stage methods
-            VVbits = np.zeros((len(split(VV)),), dtype='O')
-            for (i, x) in enumerate(split(VV)):
-                VVbits[i] = np.zeros((1,), dtype='O')
-                VVbits[i][0] = x
             UUbits = np.zeros((len(split(UU)),), dtype='O')
             for (i, x) in enumerate(split(UU)):
                 UUbits[i] = np.zeros((1,), dtype='O')
                 UUbits[i][0] = x
     else:
-        u0bits = np.array(list(split(u0)), dtype="O")
-        vbits = np.array(list(split(v)), dtype="O")
-        VVbits = np.reshape(np.asarray(split(VV), dtype="O"), nsxnf)
-        UUbits = np.reshape(np.asarray(split(UU), dtype="O"), nsxnf)
+        UUbits = np.reshape(np.asarray(split(UU), dtype="O"), (num_stages, num_fields))
+    return UUbits
+
+
+def getBits(num_stages, num_fields, u0, UU, v, VV):
+    u0bits, vbits = (split_field(num_fields, x) for x in (u0, v))
+    UUbits, VVbits = (split_stage_field(num_stages, num_fields, x)
+                      for x in (UU, VV))
 
     return u0bits, vbits, VVbits, UUbits
 
@@ -55,14 +58,14 @@ def gstuff(V, g):
         try:
             gdat = assemble(interpolate(g, V))
             gmethod = lambda gd, gc: gd.interpolate(gc)
-        except:  # noqa: E722
+        except (NotImplementedError, AttributeError):
             gdat = project(g, V)
             gmethod = lambda gd, gc: gd.project(gc)
     return gdat, gmethod
 
 
-def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
-                 nullspace=None):
+def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None,
+                 bc_constraints=None, nullspace=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -81,9 +84,22 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
          to vary between the classical RK formulation and Butcher's reformulation
          that leads to a denser mass matrix with block-diagonal stiffness.
          Only `AI` and `IA` are currently supported.
+    :arg vandermonde: a numpy array encoding a change of basis to the Lagrange
+         polynomials associated with the collocation nodes from some other
+         (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
+         coefficients in some basis rather than the values at particular stages,
+         which can be useful for satisfying bounds constraints.
+         If none is provided, we assume it is the identity, working in the
+         Lagrange basis.
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possible time-dependent) boundary conditions imposed
          on the system.
+    :arg bc_constraints: optionally, a dictionary mapping (some of) the boundary
+         conditions in `bcs` to triples of the form (params, lower, upper) indicating
+         solver parameters to use and lower and upper bounds to provide in doing
+         a bounds-constrained projection of the boundary data.
+         Note: if these bounds change over time, the user is responsible for maintaining
+         a handle on them and updating them between time steps.
     :arg nullspace: A list of tuples of the form (index, VSB) where
          index is an index into the function space associated with `u`
          and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
@@ -123,19 +139,46 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     num_stages = butch.num_stages
     num_fields = len(V)
 
+    # default to no basis transformation, identity matrix
+    if vandermonde is None:
+        vandermonde = np.eye(num_stages + 1)
+
     # s-way product space for the stage variables
     Vbig = reduce(mul, (V for _ in range(num_stages)))
     VV = TestFunction(Vbig)
-    UU = Function(Vbig)
+    ZZ = Function(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
-                                            u0, UU, v, VV)
+    u0bits, vbits, VVbits, ZZbits = getBits(num_stages, num_fields,
+                                            u0, ZZ, v, VV)
 
     MC = MeshConstant(V.mesh())
     vecconst = np.vectorize(lambda c: MC.Constant(c))
+
     C = vecconst(butch.c)
     A = vecconst(butch.A)
+
+    veccorz = np.vectorize(lambda c: ConstantOrZero(c, MC))
+    Vander = veccorz(vandermonde)
+    Vander_inv = veccorz(np.linalg.inv(vandermonde))
+
+    # convert from Bernstein to Lagrange representation
+    # the Bernstein coefficients are [u0; ZZ], and the Lagrange
+    # are [u0; UU] since the value at the left-endpoint is unchanged.
+    # Since u0 is not part of the unknown vector of stages, we disassemble
+    # the Vandermonde matrix (first row is [1, 0, ...])
+    Vander_col = Vander[1:, 0]
+    Vander0 = Vander[1:, 1:]
+
+    v0u0 = np.zeros((num_stages, num_fields), dtype="O")
+    for i in range(num_stages):
+        for j in range(num_fields):
+            v0u0[i, j] = Vander_col[i] * u0bits[j]
+
+    if num_fields == 1:
+        v0u0 = np.reshape(v0u0, (-1,))
+
+    UUbits = v0u0 + Vander0 @ ZZbits
 
     split_form = extract_terms(F)
 
@@ -229,6 +272,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
     if bcs is None:
         bcs = []
+    if bc_constraints is None:
+        bc_constraints = {}
     bcsnew = []
     gblah = []
 
@@ -238,101 +283,125 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
     # time t+C[i]*dt.
 
     for bc in bcs:
-        if num_fields == 1:  # not mixed space
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(comp)
-                Vbigi = lambda i: Vbig[i].sub(comp)
-            else:
-                Vsp = V
-                Vbigi = lambda i: Vbig[i]
-        else:  # mixed space
-            sub = bc.function_space_index()
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(sub).sub(comp)
-                Vbigi = lambda i: Vbig[sub+num_fields*i].sub(comp)
-            else:
-                Vsp = V.sub(sub)
-                Vbigi = lambda i: Vbig[sub+num_fields*i]
-
         bcarg = as_ufl(bc._original_arg)
-        for i in range(num_stages):
-            gdat, gmethod = gstuff(Vsp, bcarg)
-            gcur = replace(bcarg, {t: t+C[i]*dt})
-            bcsnew.append(DirichletBC(Vbigi(i), gdat, bc.sub_domain))
-            gblah.append((gdat, gcur, gmethod))
+        gblah_cur = []
+
+        if bc in bc_constraints:
+            bcparams, bclower, bcupper = bc_constraints[bc]
+            for i in range(num_stages):
+                Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                gdat = Function(Vsp)
+                vbc = TestFunction(Vsp)
+                gmethod = lambda gd, gc: solve(inner(gd - gc, vbc) * dx == 0,
+                                               gd, solver_parameters=bcparams)
+            gcur = replace(bcarg, {t: t+C[i] * dt})
+            gblah_cur.append((gdat, gcur - Vander_col[i] * bcarg, gmethod))
+        else:
+            for i in range(num_stages):
+                Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                gdat, gmethod = gstuff(Vsp, bcarg)
+                gcur = replace(bcarg, {t: t+C[i]*dt})
+                gblah_cur.append((gdat, gcur - Vander_col[i] * bcarg, gmethod))
+
+            gdats_cur = np.zeros((num_stages,), dtype="O")
+            for i in range(num_stages):
+                gdats_cur[i] = gblah_cur[i][0]
+
+            zdats_cur = Vander_inv[1:, 1:] @ gdats_cur
+
+            bcnew_cur = []
+            for i in range(num_stages):
+                Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                bcnew_cur.append(DirichletBC(Vbigi, zdats_cur[i], bc.sub_domain))
+
+            bcsnew.extend(bcnew_cur)
+            gblah.extend(gblah_cur)
 
     nspacenew = getNullspace(V, Vbig, butch, nullspace)
 
-    unew = Function(V)
+    # only form update stuff if we need it
+    # which means neither stiffly accurate nor Vandermonde
+    if not butch.is_stiffly_accurate:
+        unew = Function(V)
 
-    Fupdate = inner(unew - u0, v) * dx
-    B = vectorize(lambda c: MC.Constant(c))(butch.b)
-    C = vectorize(lambda c: MC.Constant(c))(butch.c)
+        Fupdate = inner(unew - u0, v) * dx
+        B = vectorize(lambda c: MC.Constant(c))(butch.b)
+        C = vectorize(lambda c: MC.Constant(c))(butch.c)
 
-    for i in range(num_stages):
-        repl = {t: t + C[i] * dt}
+        for i in range(num_stages):
+            repl = {t: t + C[i] * dt}
+            for k in range(num_fields):
+                repl[u0bits[k]] = UUbits[i][k]
+                for ii in np.ndindex(u0bits[k].ufl_shape):
+                    repl[u0bits[k][ii]] = UUbits[i][k][ii]
 
-        for k in range(num_fields):
-            repl[u0bits[k]] = UUbits[i][k]
-            for ii in np.ndindex(u0bits[k].ufl_shape):
-                repl[u0bits[k][ii]] = UUbits[i][k][ii]
+            eFFi = replace(split_form.remainder, repl)
 
-        eFFi = replace(split_form.remainder, repl)
+            Fupdate += dt * B[i] * eFFi
 
-        Fupdate += dt * B[i] * eFFi
+        # And the BC's for the update -- just the original BC at t+dt
+        update_bcs = []
+        update_bcs_gblah = []
+        for bc in bcs:
+            if num_fields == 1:  # not mixed space
+                comp = bc.function_space().component
+                if comp is not None:  # check for sub-piece of vector-valued
+                    Vsp = V.sub(comp)
+                else:
+                    Vsp = V
+            else:  # mixed space
+                sub = bc.function_space_index()
+                comp = bc.function_space().component
+                if comp is not None:  # check for sub-piece of vector-valued
+                    Vsp = V.sub(sub).sub(comp)
+                else:
+                    Vsp = V.sub(sub)
 
-    # And the BC's for the update -- just the original BC at t+dt
-    update_bcs = []
-    update_bcs_gblah = []
-    for bc in bcs:
-        if num_fields == 1:  # not mixed space
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(comp)
-            else:
-                Vsp = V
-        else:  # mixed space
-            sub = bc.function_space_index()
-            comp = bc.function_space().component
-            if comp is not None:  # check for sub-piece of vector-valued
-                Vsp = V.sub(sub).sub(comp)
-            else:
-                Vsp = V.sub(sub)
+            bcarg = as_ufl(bc._original_arg)
+            gdat, gmethod = gstuff(Vsp, bcarg)
+            gcur = replace(bcarg, {t: t+dt})
+            update_bcs.append(DirichletBC(Vsp, gdat, bc.sub_domain))
+            update_bcs_gblah.append((gdat, gcur, gmethod))
 
-        bcarg = as_ufl(bc._original_arg)
-        gdat, gmethod = gstuff(Vsp, bcarg)
-        gcur = replace(bcarg, {t: t+dt})
-        update_bcs.append(DirichletBC(Vsp, gdat, bc.sub_domain))
-        update_bcs_gblah.append((gdat, gcur, gmethod))
+        update_stuff = (unew, Fupdate, update_bcs, update_bcs_gblah)
+    else:
+        update_stuff = None
 
-    return (Fnew, (unew, Fupdate, update_bcs, update_bcs_gblah),
-            UU, bcsnew, gblah, nspacenew)
+    return (Fnew, update_stuff, ZZ, bcsnew, gblah, nspacenew)
 
 
 class StageValueTimeStepper:
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
-                 splitting=AI,
+                 bc_constraints=None,
+                 splitting=AI, basis_type=None,
                  nullspace=None, appctx=None):
+
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
-        ode_huh = is_ode(F, u0)
-        stiff_acc_huh = butcher_tableau.is_stiffly_accurate
-        assert ode_huh or stiff_acc_huh
+        assert is_ode(F, u0) or butcher_tableau.is_stiffly_accurate
 
         self.u0 = u0
         self.t = t
         self.dt = dt
+        num_stages = self.num_stages = len(butcher_tableau.b)
         self.num_fields = len(u0.function_space())
-        self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
+        if basis_type is None:
+            vandermonde = None
+        elif basis_type == "Bernstein":
+            assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
+            bern = Bernstein(ufc_simplex(1), num_stages)
+            cc = np.reshape(np.append(0, butcher_tableau.c), (-1, 1))
+            vandermonde = bern.tabulate(0, np.reshape(cc, (-1, 1)))[0,].T
+        else:
+            raise ValueError("Unknown or unimplemented basis transformation type")
+
         Fbig, update_stuff, UU, bigBCs, gblah, nsp = getFormStage(
-            F, butcher_tableau, u0, t, dt, bcs,
+            F, butcher_tableau, u0, t, dt, bcs, vandermonde=vandermonde,
             splitting=splitting)
 
         self.UU = UU
@@ -359,45 +428,85 @@ class StageValueTimeStepper:
             self.prob, appctx=appctx, nullspace=nsp,
             solver_parameters=solver_parameters)
 
-        unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
-        self.update_problem = NonlinearVariationalProblem(
-            Fupdate, unew, update_bcs)
+        if (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
+            unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
+            self.update_problem = NonlinearVariationalProblem(
+                Fupdate, unew, update_bcs)
 
-        self.update_solver = NonlinearVariationalSolver(
-            self.update_problem,
-            solver_parameters=update_solver_parameters)
-
-        if stiff_acc_huh:
-            self._update = self._update_stiff_acc
-        else:
+            self.update_solver = NonlinearVariationalSolver(
+                self.update_problem,
+                solver_parameters=update_solver_parameters)
             self._update = self._update_general
+        else:
+            self._update = self._update_stiff_acc
+
+        # stash these for later in case we do bounds constraints
+        self.stage_lower_bound = Function(UU.function_space())
+        self.stage_upper_bound = Function(UU.function_space())
 
     def _update_stiff_acc(self):
         u0 = self.u0
-
-        UUs = self.UU.subfunctions
-        nf = self.num_fields
-        ns = self.num_stages
-
         u0bits = u0.subfunctions
+        UUs = self.UU.subfunctions
+
         for i, u0bit in enumerate(u0bits):
-            u0bit.assign(UUs[nf*(ns-1)+i])
+            u0bit.assign(UUs[self.num_fields*(self.num_stages-1)+i])
 
     def _update_general(self):
         (unew, Fupdate, update_bcs, update_bcs_gblah) = self.update_stuff
         for gdat, gcur, gmethod in update_bcs_gblah:
             gmethod(gdat, gcur)
         self.update_solver.solve()
-        u0bits = self.u0.subfunctions
         unewbits = unew.subfunctions
-        for u0bit, unewbit in zip(u0bits, unewbits):
+        for u0bit, unewbit in zip(self.u0.subfunctions, unewbits):
             u0bit.assign(unewbit)
 
-    def advance(self):
+    def advance(self, bounds=None):
+        if bounds is None:
+            stage_bounds = None
+        else:
+            bounds_type, lower, upper = bounds
+            slb = self.stage_lower_bound
+            sub = self.stage_upper_bound
+            if bounds_type == "stage":
+                if lower is None:
+                    slb.assign(PETSc.NINFINITY)
+                else:
+                    for i in range(self.num_stages):
+                        for j, lower_bit in enumerate(lower.subfunctions):
+                            slb.subfunctions[i*self.num_fields+j].assign(lower_bit)
+                if upper is None:
+                    sub.assign(PETSc.INFINITY)
+                else:
+                    for i in range(self.num_stages):
+                        for j, upper_bit in enumerate(upper.subfunctions):
+                            sub.subfunctions[i*self.num_fields+j].assign(upper_bit)
+            elif bounds_type == "last_stage":
+                if lower is None:
+                    slb.assign(PETSc.NINFINITY)
+                else:
+                    for i in range(self.num_stages-1):
+                        for j in range(self.num_fields):
+                            slb.subfunctions[i*self.num_fields+j].assign(PETSc.NINFINITY)
+                    for j, lower_bit in enumerate(lower.subfunctions):
+                        slb.subfunctions[-(self.num_fields-j)].assign(lower_bit)
+                if upper is None:
+                    sub.assign(PETSc.INFINITY)
+                else:
+                    for i in range(self.num_stages-1):
+                        for j in range(self.num_fields):
+                            sub.subfunctions[i*self.num_fields+j].assign(PETSc.INFINITY)
+                    for j, upper_bit in enumerate(upper.subfunctions):
+                        sub.subfunctions[-(self.num_fields-j)].assign(upper_bit)
+            else:
+                raise ValueError("Unknown bounds type")
+
+            stage_bounds = (slb, sub)
+
         for gdat, gcur, gmethod in self.bcdat:
             gmethod(gdat, gcur)
 
-        self.solver.solve()
+        self.solver.solve(bounds=stage_bounds)
 
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
