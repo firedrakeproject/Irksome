@@ -5,7 +5,7 @@ from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import TestFunction, assemble, dx, inner, norm
 from firedrake.dmhooks import pop_parent, push_parent
 
-from .bcs import EmbeddedBCData
+from .bcs import EmbeddedBCData, bc2space
 from .dirk_stepper import DIRKTimeStepper
 from .explicit_stepper import ExplicitTimeStepper
 from .getForm import AI, getForm
@@ -220,12 +220,11 @@ class StageDerivativeTimeStepper:
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
-        bigF, stages, bigBCs, bigNSP, bigBCdata = \
+        bigF, stages, bigBCs, bigNSP = \
             getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type, splitting, nullspace)
 
         self.stages = stages
         self.bigBCs = bigBCs
-        self.bigBCdata = bigBCdata
         problem = NLVP(bigF, stages, bigBCs)
         appctx_irksome = {"F": F,
                           "butcher_tableau": butcher_tableau,
@@ -300,9 +299,6 @@ class StageDerivativeTimeStepper:
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
-        for gdat, gcur, gmethod in self.bigBCdata:
-            gmethod(gcur, self.u0)
-
         push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
         self.solver.solve()
         pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
@@ -407,6 +403,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.dtless_form = -split_form.remainder
 
         # Set up and cache boundary conditions for error estimate
+        embbc = []
         if self.gamma0 != 0:
             # Grab spaces for BCs
             v = F.arguments()[0]
@@ -416,15 +413,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             btilde = butcher_tableau.btilde
             ws = self.ws
 
-            embbc = []
-            gblah = []
             for bc in bcs:
-                blah = EmbeddedBCData(bc, self.t, self.dt, num_fields, num_stages, btilde, V, ws, self.u0)
-                gdat, gcur, gmethod, gVsp = blah.gstuff
-                gblah.append((gdat, gcur, gmethod))
+                gVsp = bc2space(bc, V)
+                gdat = EmbeddedBCData(bc, self.t, self.dt, num_fields, num_stages, btilde, V, ws, self.u0)
                 embbc.append(bc.reconstruct(V=gVsp, g=gdat))
-            self.embbc = embbc
-            self.gblah = gblah
+        self.embbc = embbc
 
     def _estimate_error(self):
         """Assuming that the RK stages have been evaluated, estimates
@@ -444,8 +437,6 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         if self.gamma0 != 0.0:
             error_test = TestFunction(u0.function_space())
             f_form = inner(error_func, error_test)*dx-self.gamma0*dtc*self.dtless_form
-            for gdat, gcur, gmethod in self.gblah:
-                gmethod(gcur, self.u0)
             f_problem = NLVP(f_form, error_func, bcs=self.embbc)
             f_solver = NLVS(f_problem, solver_parameters=self.gamma0_params)
             f_solver.solve()
@@ -467,9 +458,6 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             self.dt.assign(self.dt_max)
         self.print("\tTrying dt = %e" % (float(self.dt)))
         while 1:
-            for gdat, gcur, gmethod in self.bigBCdata:
-                gmethod(gcur, self.u0)
-
             self.solver.solve()
             self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
             self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()

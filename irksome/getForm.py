@@ -2,15 +2,14 @@ from functools import reduce
 from operator import mul
 
 import numpy
-from firedrake import (DirichletBC, Function, TestFunction,
-                       split)
+from firedrake import Function, TestFunction, split
 from ufl import diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 from .tools import ConstantOrZero, MeshConstant, replace, getNullspace, AI
 from .deriv import TimeDerivative  # , apply_time_derivatives
-from .bcs import BCStageData, stage2spaces4bc
+from .bcs import BCStageData, bc2space, stage2spaces4bc
 
 
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
@@ -59,16 +58,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
          on the stages,
        - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
          that represents the nullspace of the coupled system
-       - `gblah`, a list of tuples of the form (f, expr, method),
-         where f is a :class:`firedrake.Function` and expr is a
-         :class:`ufl.Expr`.  At each time step, each expr needs to be
-         re-interpolated/projected onto the corresponding f in order
-         for Firedrake to pick up that time-dependent boundary
-         conditions need to be re-applied.  The
-         interpolation/projection is encoded in method, which is
-         either `f.interpolate(expr-c*u0)` or `f.project(expr-c*u0)`, depending
-         on whether the function space for f supports interpolation or
-         not.
     """
     if bc_type is None:
         bc_type = "DAE"
@@ -151,7 +140,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         Fnew += replace(F, repl)
 
     bcnew = []
-    gblah = []
 
     if bcs is None:
         bcs = []
@@ -187,13 +175,12 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     # set up the new BCs for either method
     for bc in bcs:
         for i in range(num_stages):
-            Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+            Vsp = bc2space(bc, V)
+            Vbigi = stage2spaces4bc(bc, Vbig, i)
             gcur = bc2gcur(bc, i)
-            blah = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
-            gdat, gcr, gmethod = blah.gstuff
-            gblah.append((gdat, gcr, gmethod))
-            bcnew.append(DirichletBC(Vbigi, gdat, bc.sub_domain))
+            gdat = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
+            bcnew.append(bc.reconstruct(V=Vbigi, g=gdat))
 
     nspnew = getNullspace(V, Vbig, butch, nullspace)
 
-    return Fnew, w, bcnew, nspnew, gblah
+    return Fnew, w, bcnew, nspnew

@@ -5,15 +5,15 @@ from operator import mul
 
 import numpy as np
 from FIAT import Bernstein, ufc_simplex
-from firedrake import (DirichletBC, Function, NonlinearVariationalProblem,
+from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
-                       inner, solve, split)
+                       inner, split)
 from firedrake.petsc import PETSc
 from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
-from .bcs import gstuff, stage2spaces4bc
+from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
 from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
@@ -106,16 +106,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
          on the stages,
        - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
          that represents the nullspace of the coupled system
-       - `gblah`, a list of tuples of the form (f, expr, method),
-         where f is a :class:`firedrake.Function` and expr is a
-         :class:`ufl.Expr`.  At each time step, each expr needs to be
-         re-interpolated/projected onto the corresponding f in order
-         for Firedrake to pick up that time-dependent boundary
-         conditions need to be re-applied.  The
-         interpolation/projection is encoded in method, which is
-         either `f.interpolate(expr-c*u0)` or `f.project(expr-c*u0)`, depending
-         on whether the function space for f supports interpolation or
-         not.
     """
     v = F.arguments()[0]
     V = v.function_space()
@@ -261,7 +251,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     if bc_constraints is None:
         bc_constraints = {}
     bcsnew = []
-    gblah = []
 
     # For each BC, we need a new BC for each stage
     # so we need to figure out how the function is indexed (mixed + vec)
@@ -270,38 +259,27 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
-        gblah_cur = []
 
         if bc in bc_constraints:
             bcparams, bclower, bcupper = bc_constraints[bc]
-            for i in range(num_stages):
-                Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                gdat = Function(Vsp)
-                vbc = TestFunction(Vsp)
-                gmethod = lambda gd, gc: solve(inner(gd - gc, vbc) * dx == 0,
-                                               gd, solver_parameters=bcparams)
             gcur = replace(bcarg, {t: t+C[i] * dt})
-            gblah_cur.append((gdat, gcur - Vander_col[i] * bcarg, gmethod))
+            gcur = gcur - Vander_col[i] * bcarg
         else:
-            for i in range(num_stages):
-                Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                gdat, gmethod = gstuff(Vsp, bcarg)
-                gcur = replace(bcarg, {t: t+C[i]*dt})
-                gblah_cur.append((gdat, gcur - Vander_col[i] * bcarg, gmethod))
-
             gdats_cur = np.zeros((num_stages,), dtype="O")
             for i in range(num_stages):
-                gdats_cur[i] = gblah_cur[i][0]
+                Vbigi = stage2spaces4bc(bc, Vbig, i)
+                gcur = replace(bcarg, {t: t+C[i]*dt})
+                gcur = gcur - Vander_col[i] * bcarg
+                gdats_cur[i] = gcur
 
             zdats_cur = Vander_inv[1:, 1:] @ gdats_cur
 
             bcnew_cur = []
             for i in range(num_stages):
-                Vsp, Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                bcnew_cur.append(DirichletBC(Vbigi, zdats_cur[i], bc.sub_domain))
+                Vbigi = stage2spaces4bc(bc, Vbig, i)
+                bcnew_cur.append(bc.reconstruct(V=Vbigi, g=zdats_cur[i]))
 
             bcsnew.extend(bcnew_cur)
-            gblah.extend(gblah_cur)
 
     nspacenew = getNullspace(V, Vbig, butch, nullspace)
 
@@ -327,19 +305,16 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
         # And the BC's for the update -- just the original BC at t+dt
         update_bcs = []
-        update_bcs_gblah = []
         for bc in bcs:
             bcarg = as_ufl(bc._original_arg)
             gcur = replace(bcarg, {t: t+dt})
-            gdat, gmethod = gstuff(V, bcarg)
-            update_bcs.append(bc.reconstruct(g=gdat))
-            update_bcs_gblah.append((gdat, gcur, gmethod))
+            update_bcs.append(bc.reconstruct(g=gcur))
 
-        update_stuff = (unew, Fupdate, update_bcs, update_bcs_gblah)
+        update_stuff = (unew, Fupdate, update_bcs)
     else:
         update_stuff = None
 
-    return (Fnew, update_stuff, ZZ, bcsnew, gblah, nspacenew)
+    return (Fnew, update_stuff, ZZ, bcsnew, nspacenew)
 
 
 class StageValueTimeStepper:
@@ -368,17 +343,16 @@ class StageValueTimeStepper:
             assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
             bern = Bernstein(ufc_simplex(1), num_stages)
             cc = np.reshape(np.append(0, butcher_tableau.c), (-1, 1))
-            vandermonde = bern.tabulate(0, np.reshape(cc, (-1, 1)))[0,].T
+            vandermonde = bern.tabulate(0, np.reshape(cc, (-1, 1)))[(0, )].T
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")
 
-        Fbig, update_stuff, UU, bigBCs, gblah, nsp = getFormStage(
+        Fbig, update_stuff, UU, bigBCs, nsp = getFormStage(
             F, butcher_tableau, u0, t, dt, bcs, vandermonde=vandermonde,
             splitting=splitting)
 
         self.UU = UU
         self.bigBCs = bigBCs
-        self.bcdat = gblah
         self.update_stuff = update_stuff
 
         self.prob = NonlinearVariationalProblem(Fbig, UU, bigBCs)
@@ -401,7 +375,7 @@ class StageValueTimeStepper:
             solver_parameters=solver_parameters)
 
         if (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
-            unew, Fupdate, update_bcs, update_bcs_gblah = self.update_stuff
+            unew, Fupdate, update_bcs = self.update_stuff
             self.update_problem = NonlinearVariationalProblem(
                 Fupdate, unew, update_bcs)
 
@@ -425,9 +399,7 @@ class StageValueTimeStepper:
             u0bit.assign(UUs[self.num_fields*(self.num_stages-1)+i])
 
     def _update_general(self):
-        (unew, Fupdate, update_bcs, update_bcs_gblah) = self.update_stuff
-        for gdat, gcur, gmethod in update_bcs_gblah:
-            gmethod(gdat, gcur)
+        unew, Fupdate, update_bcs = self.update_stuff
         self.update_solver.solve()
         unewbits = unew.subfunctions
         for u0bit, unewbit in zip(self.u0.subfunctions, unewbits):
@@ -474,9 +446,6 @@ class StageValueTimeStepper:
                 raise ValueError("Unknown bounds type")
 
             stage_bounds = (slb, sub)
-
-        for gdat, gcur, gmethod in self.bcdat:
-            gmethod(gdat, gcur)
 
         self.solver.solve(bounds=stage_bounds)
 

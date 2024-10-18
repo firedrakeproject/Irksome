@@ -69,11 +69,11 @@ class RanaBase(AuxiliaryOperatorPC):
         # which getForm do I need to get?
 
         if stage_type in ("deriv", None):
-            Fnew, w, bcnew, bignsp, _ = \
+            Fnew, w, bcnew, bignsp = \
                 getForm(F, butcher_new, t, dt, u0, bcs,
                         bc_type, splitting, nullspace)
         elif stage_type == "value":
-            Fnew, _, w, bcnew, _, bignsp = \
+            Fnew, _, w, bcnew, bignsp = \
                 getFormStage(F, butcher_new, u0, t, dt, bcs,
                              splitting, nullspace)
         # Now we get the Jacobian for the modified system,
