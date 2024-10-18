@@ -11,12 +11,11 @@ def bc2space(bc, V):
     return get_sub(V, bc._indices)
 
 
-def stage2spaces4bc(bc, Vbig, i):
+def stage2spaces4bc(bc, V, Vbig, i):
     """used to figure out how to apply Dirichlet BC to each stage"""
-    V = bc.function_space()
     num_fields = len(V)
     sub = 0 if num_fields == 1 else bc.function_space_index()
-    comp = V.component
+    comp = bc.function_space().component
 
     Vbigi = Vbig[sub+num_fields*i]
     if comp is not None:  # check for sub-piece of vector-valued
@@ -50,8 +49,15 @@ def EmbeddedBCData(bc, t, dt, num_fields, num_stages, btilde, V, ws, u0):
         gdat = gorig
     else:
         gcur = replace(gorig, {t: t+dt})
-        for j in range(num_stages):
-            wj = stage2spaces4bc(bc, ws, j)
-            gcur -= (dt * btilde[j]) * wj
+        num_fields = len(V)
+        sub = 0 if num_fields == 1 else bc.function_space_index()
+        comp = bc.function_space().component
+        if comp is None:  # check for sub-piece of vector-valued
+            for j in range(num_stages):
+                gcur -= dt*btilde[j]*ws[num_fields*j+sub]
+        else:
+            for j in range(num_stages):
+                gcur -= dt*btilde[j]*ws[num_fields*j+sub].sub(comp)
+
         gdat = gcur - bc2space(bc, u0)
     return gdat

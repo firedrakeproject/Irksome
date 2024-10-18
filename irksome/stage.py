@@ -267,7 +267,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         else:
             gdats_cur = np.zeros((num_stages,), dtype="O")
             for i in range(num_stages):
-                Vbigi = stage2spaces4bc(bc, Vbig, i)
+                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
                 gcur = replace(bcarg, {t: t+C[i]*dt})
                 gcur = gcur - Vander_col[i] * bcarg
                 gdats_cur[i] = gcur
@@ -276,7 +276,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
             bcnew_cur = []
             for i in range(num_stages):
-                Vbigi = stage2spaces4bc(bc, Vbig, i)
+                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
                 bcnew_cur.append(bc.reconstruct(V=Vbigi, g=zdats_cur[i]))
 
             bcsnew.extend(bcnew_cur)

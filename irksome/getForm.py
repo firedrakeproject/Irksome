@@ -176,7 +176,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     for bc in bcs:
         for i in range(num_stages):
             Vsp = bc2space(bc, V)
-            Vbigi = stage2spaces4bc(bc, Vbig, i)
+            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             gcur = bc2gcur(bc, i)
             gdat = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
             bcnew.append(bc.reconstruct(V=Vbigi, g=gdat))
