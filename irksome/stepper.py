@@ -1,5 +1,5 @@
 import numpy
-from firedrake import DirichletBC, Function
+from firedrake import Function
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import TestFunction, assemble, dx, inner, norm
@@ -422,7 +422,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                 blah = EmbeddedBCData(bc, self.t, self.dt, num_fields, num_stages, btilde, V, ws, self.u0)
                 gdat, gcur, gmethod, gVsp = blah.gstuff
                 gblah.append((gdat, gcur, gmethod))
-                embbc.append(DirichletBC(gVsp, gdat, bc.sub_domain))
+                embbc.append(bc.reconstruct(V=gVsp, g=gdat))
             self.embbc = embbc
             self.gblah = gblah
 

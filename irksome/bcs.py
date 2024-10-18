@@ -55,15 +55,12 @@ class BCStageData(object):
 
         if gcur == 0:  # special case DirichletBC(V, 0, ...), do nothing
             gdat = gcur
-            gmethod = lambda *args, **kwargs: None
         else:
-            gexpr = lambda g, u: g-u0_mult[i]*get_sub(u, indices)
-            try:
-                gdat = assemble(interpolate(gexpr(gcur, u0), V))
-                gmethod = lambda g, u: gdat.interpolate(gexpr(g, u))
-            except (NotImplementedError, AttributeError):
-                gdat = project(gexpr(gcur, u0), V)
-                gmethod = lambda g, u: gdat.project(gexpr(g, u))
+            gdat = gcur - u0_mult[i] * get_sub(u0, indices)
+
+        # DirichletBC handles the update
+        # an external update callback is not necessary
+        gmethod = lambda *args, **kwargs: None
         self.gstuff = (gdat, gcur, gmethod)
 
 
@@ -71,10 +68,9 @@ class EmbeddedBCData(object):
     def __init__(self, bc, t, dt, num_fields, num_stages, btilde, V, ws, u0):
         Vsp = bc2space(bc, V)
         gorig = bc._original_arg
-        if gorig == 0:
+        if gorig == 0:  # special case DirichletBC(V, 0, ...), do nothing
             gdat = gorig
             gcur = gorig
-            gmethod = lambda *args, **kwargs: None
         else:
             gcur = replace(gorig, {t: t+dt})
             num_fields = len(V)
@@ -87,11 +83,9 @@ class EmbeddedBCData(object):
                 for j in range(num_stages):
                     gcur -= dt*btilde[j]*ws[num_fields*j+sub].sub(comp)
 
-            gexpr = lambda g, u: g - bc2space(bc, u)
-            try:
-                gdat = assemble(interpolate(gexpr(gcur, u0), Vsp))
-                gmethod = lambda g, u: gdat.interpolate(gexpr(g, u))
-            except (NotImplementedError, AttributeError):
-                gdat = project(gexpr(gcur, u0), Vsp)
-                gmethod = lambda g, u: gdat.project(gexpr(g, u))
+            gdat = gcur - bc2space(bc, u0)
+
+        # DirichletBC handles the update
+        # an external update callback is not necessary
+        gmethod = lambda *args, **kwargs: None
         self.gstuff = (gdat, gcur, gmethod, Vsp)
