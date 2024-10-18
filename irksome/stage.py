@@ -52,7 +52,7 @@ def getBits(num_stages, num_fields, u0, UU, v, VV):
 
 def gstuff(V, g):
     if g == 0:
-        gdat = 0
+        gdat = g
         gmethod = lambda *args, **kargs: None
     else:
         try:

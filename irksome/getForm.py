@@ -16,7 +16,7 @@ from .deriv import TimeDerivative  # , apply_time_derivatives
 class BCStageData(object):
     def __init__(self, V, gcur, u0, u0_mult, i, t, dt):
         if gcur == 0:  # special case DirichletBC(V, 0, ...), do nothing
-            u0 = 0
+            pass
         elif V.component is not None:     # bottommost space is bit of VFS
             if V.parent.index is None:  # but not part of a MFS
                 sub = V.component
@@ -31,7 +31,7 @@ class BCStageData(object):
             else:  # part of MFS
                 sub = V.index
                 u0 = u0.sub(sub)
-        if u0 == 0:
+        if gcur == 0:
             gdat = gcur
             gmethod = lambda g, u: None
         else:
