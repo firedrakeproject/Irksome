@@ -47,6 +47,20 @@ def getBits(num_stages, num_fields, u0, UU, v, VV):
     return u0bits, vbits, VVbits, UUbits
 
 
+def gstuff(V, g):
+    if g == 0:
+        gdat = 0
+        gmethod = lambda *args, **kargs: None
+    else:
+        try:
+            gdat = assemble(interpolate(g, V))
+            gmethod = lambda gd, gc: gd.interpolate(gc)
+        except:  # noqa: E722
+            gdat = project(g, V)
+            gmethod = lambda gd, gc: gd.project(gc)
+    return gdat, gmethod
+
+
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                  nullspace=None):
     """Given a time-dependent variational form and a
@@ -244,13 +258,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
 
         bcarg = as_ufl(bc._original_arg)
         for i in range(num_stages):
-            try:
-                gdat = assemble(interpolate(bcarg, Vsp))
-                gmethod = lambda gd, gc: gd.interpolate(gc)
-            except:  # noqa: E722
-                gdat = project(bcarg, Vsp)
-                gmethod = lambda gd, gc: gd.project(gc)
-
+            gdat, gmethod = gstuff(Vsp, bcarg)
             gcur = replace(bcarg, {t: t+C[i]*dt})
             bcsnew.append(DirichletBC(Vbigi(i), gdat, bc.sub_domain))
             gblah.append((gdat, gcur, gmethod))
@@ -294,13 +302,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None,
                 Vsp = V.sub(sub)
 
         bcarg = as_ufl(bc._original_arg)
-        try:
-            gdat = assemble(interpolate(bcarg, Vsp))
-            gmethod = lambda gd, gc: gd.interpolate(gc)
-        except:  # noqa: E722
-            gdat = project(bcarg, Vsp)
-            gmethod = lambda gd, gc: gd.project(gc)
-
+        gdat, gmethod = gstuff(Vsp, bcarg)
         gcur = replace(bcarg, {t: t+dt})
         update_bcs.append(DirichletBC(Vsp, gdat, bc.sub_domain))
         update_bcs_gblah.append((gdat, gcur, gmethod))
