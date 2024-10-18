@@ -207,7 +207,7 @@ class RadauIIAIMEXMethod:
 
         # Since this assumes stiff accuracy, we drop
         # the update information on the floor.
-        Fbig, _, UU, bigBCs, gblah, nsp = getFormStage(
+        Fbig, _, UU, bigBCs, nsp = getFormStage(
             F, butcher_tableau, u0, t, dt, bcs,
             splitting=splitting, nullspace=nullspace)
 
@@ -215,7 +215,6 @@ class RadauIIAIMEXMethod:
         self.UU_old = UU_old = Function(UU.function_space())
         self.UU_old_split = UU_old.subfunctions
         self.bigBCs = bigBCs
-        self.bcdat = gblah
 
         Fit, Fprop = getFormExplicit(
             Fexp, butcher_tableau, u0, UU_old, t, dt, splitting)
@@ -283,8 +282,6 @@ class RadauIIAIMEXMethod:
         for i, u0bit in enumerate(u0split):
             u0bit.assign(self.UU_old_split[(ns-1)*nf + i])
 
-        for gdat, gcur, gmethod in self.bcdat:
-            gmethod(gdat, gcur)
         push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
 
         ps = self.prop_solver
