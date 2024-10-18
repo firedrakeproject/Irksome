@@ -14,10 +14,12 @@ from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
+from .bcs import gstuff
 from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
 from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
-                    replace, stage2spaces4bc)
+                    replace)
+from .bcs import gstuff, stage2spaces4bc
 
 
 def isiterable(x):
@@ -48,20 +50,6 @@ def getBits(num_stages, num_fields, u0, UU, v, VV):
                       for x in (UU, VV))
 
     return u0bits, vbits, VVbits, UUbits
-
-
-def gstuff(V, g):
-    if g == 0:
-        gdat = g
-        gmethod = lambda *args, **kargs: None
-    else:
-        try:
-            gdat = assemble(interpolate(g, V))
-            gmethod = lambda gd, gc: gd.interpolate(gc)
-        except (NotImplementedError, AttributeError):
-            gdat = project(g, V)
-            gmethod = lambda gd, gc: gd.project(gc)
-    return gdat, gmethod
 
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None,
@@ -343,24 +331,10 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         update_bcs = []
         update_bcs_gblah = []
         for bc in bcs:
-            if num_fields == 1:  # not mixed space
-                comp = bc.function_space().component
-                if comp is not None:  # check for sub-piece of vector-valued
-                    Vsp = V.sub(comp)
-                else:
-                    Vsp = V
-            else:  # mixed space
-                sub = bc.function_space_index()
-                comp = bc.function_space().component
-                if comp is not None:  # check for sub-piece of vector-valued
-                    Vsp = V.sub(sub).sub(comp)
-                else:
-                    Vsp = V.sub(sub)
-
             bcarg = as_ufl(bc._original_arg)
-            gdat, gmethod = gstuff(Vsp, bcarg)
             gcur = replace(bcarg, {t: t+dt})
-            update_bcs.append(DirichletBC(Vsp, gdat, bc.sub_domain))
+            gdat, gmethod = gstuff(V, bcarg)
+            update_bcs.append(bc.reconstruct(g=gdat))
             update_bcs_gblah.append((gdat, gcur, gmethod))
 
         update_stuff = (unew, Fupdate, update_bcs, update_bcs_gblah)

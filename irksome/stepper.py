@@ -13,6 +13,7 @@ from .getForm import AI, getForm
 from .imex import RadauIIAIMEXMethod
 from .manipulation import extract_terms
 from .stage import StageValueTimeStepper
+from .bcs import EmbeddedBCData
 
 
 def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
@@ -416,58 +417,6 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             num_stages = butcher_tableau.num_stages
             btilde = butcher_tableau.btilde
             ws = self.ws
-
-            class EmbeddedBCData(object):
-                def __init__(self, bc, t, dt, num_fields, num_stages, btilde, V, ws, u0):
-                    gorig = as_ufl(bc._original_arg)
-                    gcur = replace(gorig, {t: t+dt})
-                    if num_fields == 1:  # not mixed space
-                        comp = bc.function_space().component
-                        if comp is not None:  # check for sub-piece of vector-valued
-                            Vsp = V.sub(comp)
-                            for j in range(num_stages):
-                                gcur -= dt*btilde[j]*ws[j].sub(comp)
-                            try:
-                                gdat = assemble(interpolate(gcur-u0.sub(comp), Vsp))
-                                gmethod = lambda g, u: gdat.interpolate(g-u.sub(comp))
-                            except:  # noqa: E722
-                                gdat = project(gcur-u0.sub(comp), Vsp)
-                                gmethod = lambda g, u: gdat.project(g-u.sub(comp))
-                        else:
-                            Vsp = V
-                            for j in range(num_stages):
-                                gcur -= dt*btilde[j]*ws[j]
-                            try:
-                                gdat = assemble(interpolate(gcur-u0, Vsp))
-                                gmethod = lambda g, u: gdat.interpolate(g-u)
-                            except:  # noqa: E722
-                                gdat = project(gcur-u0, Vsp)
-                                gmethod = lambda g, u: gdat.project(g-u)
-
-                    else:  # mixed space
-                        sub = bc.function_space_index()
-                        comp = bc.function_space().component
-                        if comp is not None:  # check for sub-piece of vector-valued
-                            Vsp = V.sub(sub).sub(comp)
-                            for j in range(num_stages):
-                                gcur -= dt*btilde[j]*ws[num_fields*j+sub].sub(comp)
-                            try:
-                                gdat = assemble(interpolate(gcur-u0.sub(sub).sub(comp), Vsp))
-                                gmethod = lambda g, u: gdat.interpolate(g-u.sub(sub).sub(comp))
-                            except:  # noqa: E722
-                                gdat = project(gcur-u0.sub(sub).sub(comp), Vsp)
-                                gmethod = lambda g, u: gdat.project(g-u.sub(sub).sub(comp))
-                        else:
-                            Vsp = V.sub(sub)
-                            for j in range(num_stages):
-                                gcur -= dt*btilde[j]*ws[num_fields*j+sub]
-                            try:
-                                gdat = assemble(interpolate(gcur-u0.sub(sub), Vsp))
-                                gmethod = lambda g, u: gdat.interpolate(g-u.sub(sub))
-                            except:  # noqa: E722
-                                gdat = project(gcur-u0.sub(sub), Vsp)
-                                gmethod = lambda g, u: gdat.project(g-u.sub(sub))
-                    self.gstuff = (gdat, gcur, gmethod, Vsp)
 
             embbc = []
             gblah = []

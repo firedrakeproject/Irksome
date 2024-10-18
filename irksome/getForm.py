@@ -3,46 +3,14 @@ from operator import mul
 
 import numpy
 from firedrake import (DirichletBC, Function, TestFunction,
-                       assemble, project, split)
-from firedrake.__future__ import interpolate
+                       split)
 from ufl import diff
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import ConstantOrZero, MeshConstant, replace, getNullspace, AI, stage2spaces4bc
+from .tools import ConstantOrZero, MeshConstant, replace, getNullspace, AI
 from .deriv import TimeDerivative  # , apply_time_derivatives
-
-
-class BCStageData(object):
-    def __init__(self, V, gcur, u0, u0_mult, i, t, dt):
-        if gcur == 0:  # special case DirichletBC(V, 0, ...), do nothing
-            pass
-        elif V.component is not None:     # bottommost space is bit of VFS
-            if V.parent.index is None:  # but not part of a MFS
-                sub = V.component
-                u0 = u0.sub(sub)
-            else:   # V is a bit of a VFS inside an MFS
-                sub0 = V.parent.index
-                sub1 = V.component
-                u0 = u0.sub(sub0).sub(sub1)
-        else:  # V is not a bit of a VFS
-            if V.index is None:  # not part of MFS, either
-                pass
-            else:  # part of MFS
-                sub = V.index
-                u0 = u0.sub(sub)
-        if gcur == 0:
-            gdat = gcur
-            gmethod = lambda g, u: None
-        else:
-            gexpr = gcur-u0_mult[i]*u0
-            try:
-                gdat = assemble(interpolate(gexpr, V))
-                gmethod = lambda g, u: gdat.interpolate(gexpr)
-            except (NotImplementedError, AttributeError):
-                gdat = project(gexpr, V)
-                gmethod = lambda g, u: gdat.project(gexpr)
-        self.gstuff = (gdat, gcur, gmethod)
+from .bcs import BCStageData, stage2spaces4bc
 
 
 def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
