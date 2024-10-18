@@ -1,6 +1,5 @@
-from firedrake import assemble, project
+from firedrake import assemble, project, replace
 from firedrake.__future__ import interpolate
-from ufl import replace
 
 
 def get_sub(u, indices):
@@ -77,6 +76,7 @@ class EmbeddedBCData(object):
             gmethod = lambda *args, **kwargs: None
         else:
             gcur = replace(gorig, {t: t+dt})
+            num_fields = len(V)
             sub = 0 if num_fields == 1 else bc.function_space_index()
             comp = bc.function_space().component
             if comp is None:  # check for sub-piece of vector-valued

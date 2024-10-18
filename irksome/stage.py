@@ -6,20 +6,18 @@ from operator import mul
 import numpy as np
 from FIAT import Bernstein, ufc_simplex
 from firedrake import (DirichletBC, Function, NonlinearVariationalProblem,
-                       NonlinearVariationalSolver, TestFunction, assemble, dx,
-                       inner, project, solve, split)
-from firedrake.__future__ import interpolate
+                       NonlinearVariationalSolver, TestFunction, dx,
+                       inner, solve, split)
 from firedrake.petsc import PETSc
 from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
-from .bcs import gstuff
+from .bcs import gstuff, stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
 from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
                     replace)
-from .bcs import gstuff, stage2spaces4bc
 
 
 def isiterable(x):
