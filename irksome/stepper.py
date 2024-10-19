@@ -409,13 +409,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             v = F.arguments()[0]
             V = v.function_space()
             num_fields = len(V)
-            num_stages = butcher_tableau.num_stages
-            btilde = butcher_tableau.btilde
             ws = self.ws
 
             for bc in bcs:
                 gVsp = bc2space(bc, V)
-                gdat = EmbeddedBCData(bc, self.t, self.dt, num_fields, num_stages, btilde, V, ws, self.u0)
+                gdat = EmbeddedBCData(bc, self.t, self.dt, num_fields, butcher_tableau, ws, self.u0)
                 embbc.append(bc.reconstruct(V=gVsp, g=gdat))
         self.embbc = embbc
 
