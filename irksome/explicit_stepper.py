@@ -11,6 +11,7 @@ class ExplicitTimeStepper(DIRKTimeStepper):
         assert butcher_tableau.is_explicit
         # we just have one mass matrix we're reusing for each time step and
         # each stage, so we can nudge this along
+        solver_parameters = {} if solver_parameters is None else solver_parameters
         solver_parameters["snes_lag_jacobian_persists"] = "true"
         solver_parameters["snes_lag_jacobian"] = -2
         solver_parameters["snes_lag_preconditioner_persists"] = "true"
