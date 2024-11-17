@@ -140,12 +140,16 @@ class DIRKTimeStepper:
         self.num_linear_iterations = 0
 
         self.butcher_tableau = butcher_tableau
+        self.num_stages = num_stages = butcher_tableau.num_stages
+        self.AAb = numpy.zeros((num_stages+1, num_stages))
+        self.AAb[:-1, :] = butcher_tableau.A
+        self.AAb[-1, :] = butcher_tableau.b
+
         self.V = V = u0.function_space()
         self.u0 = u0
         self.t = t
         self.dt = dt
         self.num_fields = len(u0.function_space())
-        self.num_stages = num_stages = butcher_tableau.num_stages
         self.ks = [Function(V) for _ in range(num_stages)]
 
         # "k" is a generic function for which we will solve the
@@ -179,13 +183,13 @@ class DIRKTimeStepper:
 
         self.kgac = k, g, a, c, a_vals, d_val
 
-    def update_bc_constants(self, butch, i, a_vals, d_val):
-        AA = butch.A
+    def update_bc_constants(self, AAb, i, a_vals, d_val):
+        ns = AAb.shape[1]
         for j in range(i):
-            a_vals[j].assign(AA[i, j])
-        for j in range(i, butch.num_stages):
+            a_vals[j].assign(AAb[i, j])
+        for j in range(i, ns):
             a_vals[j].assign(0)
-        d_val.assign(AA[i, i])
+        d_val.assign(AAb[i, i])
 
     def advance(self):
         k, g, a, c, a_vals, d_val = self.kgac
@@ -211,7 +215,7 @@ class DIRKTimeStepper:
                     gbit += dtc * float(AA[i, j]) * kbit
 
             # update BC constants for the variational problem
-            self.update_bc_constants(bt, i, a_vals, d_val)
+            self.update_bc_constants(self.AAb, i, a_vals, d_val)
 
             # solve new variational problem, stash the computed
             # stage value.
