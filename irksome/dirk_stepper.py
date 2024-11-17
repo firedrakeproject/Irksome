@@ -2,8 +2,7 @@ import numpy
 from firedrake import DirichletBC, Function
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import assemble, split, project
-from firedrake.__future__ import interpolate
+from firedrake import split
 from ufl.constantvalue import as_ufl
 
 from .deriv import TimeDerivative
@@ -61,7 +60,7 @@ def getThingy(V, bc):
             return BCCompOfMixedBitThingy(sub, comp)
 
 
-def getFormDIRK(F, butch, t, dt, u0, bcs=None):
+def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
 
@@ -71,7 +70,7 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     assert V == u0.function_space()
 
     num_fields = len(V)
-
+    num_stages = butch.num_stages
     k = Function(V)
     g = Function(V)
 
@@ -101,31 +100,30 @@ def getFormDIRK(F, butch, t, dt, u0, bcs=None):
     stage_F = replace(F, repl)
 
     bcnew = []
-    gblah = []
 
     # For the DIRK case, we need one new BC for each old one (rather
     # than one per stage), but we need a `Function` inside of each BC
     # and a rule for computing that function at each time for each
     # stage.
+    a_vals = numpy.array([MC.Constant(0) for i in range(num_stages)],
+                         dtype=object)
+    d_val = MC.Constant(1.0)
     for bc in bcs:
         Vbc = bc.function_space()
+        dat4bc = getThingy(V, bc)
         bcarg = as_ufl(bc._original_arg)
         bcarg_stage = replace(bcarg, {t: t+c*dt})
-        try:
-            gdat = assemble(interpolate(bcarg, Vbc))
-            gmethod = lambda gd, gc: gd.interpolate(gc)
-        except:  # noqa: E722
-            gdat = assemble(project(bcarg, Vbc))
-            gmethod = lambda gd, gc: gd.project(gc)
+
+        gdat = bcarg_stage - dat4bc(u0)
+        for i in range(num_stages):
+            gdat -= dt*a_vals[i]*dat4bc(ks[i])
+
+        gdat /= dt*d_val
 
         new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)
         bcnew.append(new_bc)
 
-        dat4bc = getThingy(V, bc)
-        gdat2 = Function(gdat.function_space())
-        gblah.append((gdat, gdat2, bcarg_stage, gmethod, dat4bc))
-
-    return stage_F, (k, g, a, c), bcnew, gblah
+    return stage_F, (k, g, a, c, a_vals, d_val), bcnew
 
 
 class DIRKTimeStepper:
@@ -156,11 +154,10 @@ class DIRKTimeStepper:
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
 
-        stage_F, (k, g, a, c), bcnew, gblah = getFormDIRK(
-            F, butcher_tableau, t, dt, u0, bcs=bcs)
+        stage_F, (k, g, a, c, a_vals, d_val), bcnew = getFormDIRK(
+            F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
 
         self.bcnew = bcnew
-        self.gblah = gblah
 
         appctx_irksome = {"F": F,
                           "butcher_tableau": butcher_tableau,
@@ -180,10 +177,18 @@ class DIRKTimeStepper:
             self.problem, appctx=appctx, solver_parameters=solver_parameters,
             nullspace=nullspace)
 
-        self.kgac = k, g, a, c
+        self.kgac = k, g, a, c, a_vals, d_val
+
+    def update_bc_constants(self, butch, i, a_vals, d_val):
+        AA = butch.A
+        for j in range(i):
+            a_vals[j].assign(AA[i, j])
+        for j in range(i, butch.num_stages):
+            a_vals[j].assign(0)
+        d_val.assign(AA[i, i])
 
     def advance(self):
-        k, g, a, c = self.kgac
+        k, g, a, c, a_vals, d_val = self.kgac
         ks = self.ks
         u0 = self.u0
         dtc = float(self.dt)
@@ -205,21 +210,8 @@ class DIRKTimeStepper:
                 for (gbit, kbit) in zip(gsplit, ksplit):
                     gbit += dtc * float(AA[i, j]) * kbit
 
-            # update BC's for the variational problem
-            for (bc, (gdat, gdat2, gcur, gmethod, dat4bc)) in zip(self.bcnew, self.gblah):
-                # Evaluate the Dirichlet BC at the current stage time
-                gmethod(gdat, gcur)
-
-                gmethod(gdat2, dat4bc(u0))
-                gdat -= gdat2
-
-                # Subtract previous stage values
-                for j in range(i):
-                    gmethod(gdat2, dat4bc(ks[j]))
-                    gdat -= dtc * float(AA[i, j]) * gdat2
-
-                # Rescale gdat
-                gdat /= dtc * float(AA[i, i])
+            # update BC constants for the variational problem
+            self.update_bc_constants(bt, i, a_vals, d_val)
 
             # solve new variational problem, stash the computed
             # stage value.
