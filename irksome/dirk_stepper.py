@@ -144,6 +144,9 @@ class DIRKTimeStepper:
         self.AAb = numpy.zeros((num_stages+1, num_stages))
         self.AAb[:-1, :] = butcher_tableau.A
         self.AAb[-1, :] = butcher_tableau.b
+        self.CCone = numpy.zeros(num_stages+1)
+        self.CCone[:-1] = butcher_tableau.c
+        self.CCone[-1] = 1.0
 
         self.V = V = u0.function_space()
         self.u0 = u0
@@ -183,13 +186,14 @@ class DIRKTimeStepper:
 
         self.kgac = k, g, a, c, a_vals, d_val
 
-    def update_bc_constants(self, AAb, i, a_vals, d_val):
+    def update_bc_constants(self, AAb, CCone, i, a_vals, d_val, c):
         ns = AAb.shape[1]
         for j in range(i):
             a_vals[j].assign(AAb[i, j])
         for j in range(i, ns):
             a_vals[j].assign(0)
         d_val.assign(AAb[i, i])
+        c.assign(CCone[i])
 
     def advance(self):
         k, g, a, c, a_vals, d_val = self.kgac
@@ -198,14 +202,9 @@ class DIRKTimeStepper:
         dtc = float(self.dt)
         bt = self.butcher_tableau
         AA = bt.A
-        CC = bt.c
         BB = bt.b
         gsplit = g.subfunctions
         for i in range(self.num_stages):
-            # update a, c constants tucked into the variational problem
-            # for the current stage
-            a.assign(AA[i, i])
-            c.assign(CC[i])
             # compute the already-known part of the state in the
             # variational form
             g.assign(u0)
@@ -215,7 +214,8 @@ class DIRKTimeStepper:
                     gbit += dtc * float(AA[i, j]) * kbit
 
             # update BC constants for the variational problem
-            self.update_bc_constants(self.AAb, i, a_vals, d_val)
+            self.update_bc_constants(self.AAb, self.CCone, i, a_vals, d_val, c)
+            a.assign(AA[i, i])
 
             # solve new variational problem, stash the computed
             # stage value.
