@@ -26,6 +26,16 @@ class ExplicitTimeStepper(DIRKTimeStepper):
     # stage for all but that last stage, and that they are satisfied
     # for the next timestep for the last stage.
     def update_bc_constants(self, i, c):
+        """This sets the BCs that are imposed on the solution at stage i.  In
+           the explicit case, we say that the stage i solution should
+           match the prescribed boundary values at time c[i+1], and at
+           the next time step for the last stage.  So, we set c to be
+           the (i+1)^st stage time, and a_vals and d_vals to
+           correspond to the (i+1)^st row of A.  For the last stage,
+           we use c = 1 for the next time-step, and use the row b to
+           impose the final solution satisfies the BCs there.
+        """
+
         AAb = self.AAb
         CCone = self.CCone
         a_vals, d_val = self.bc_constants

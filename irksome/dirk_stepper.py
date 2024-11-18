@@ -132,6 +132,12 @@ class DIRKTimeStepper:
         self.bc_constants = a_vals, d_val
 
     def update_bc_constants(self, i, c):
+        """This sets the BCs that are imposed on the solution at stage i.  In
+           the DIRK case, we say that the stage i solution should match the
+           prescribed boundary values at time c[i].  So, we set c to be the i^th
+           stage time, and a_vals and d_vals to correspond to the i^th row of A
+        """
+
         AAb = self.AAb
         CCone = self.CCone
         a_vals, d_val = self.bc_constants
