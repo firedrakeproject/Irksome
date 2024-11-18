@@ -89,12 +89,8 @@ class DIRKTimeStepper:
 
         self.butcher_tableau = butcher_tableau
         self.num_stages = num_stages = butcher_tableau.num_stages
-        self.AAb = numpy.zeros((num_stages+1, num_stages))
-        self.AAb[:-1, :] = butcher_tableau.A
-        self.AAb[-1, :] = butcher_tableau.b
-        self.CCone = numpy.zeros(num_stages+1)
-        self.CCone[:-1] = butcher_tableau.c
-        self.CCone[-1] = 1.0
+        self.AAb = numpy.vstack((butcher_tableau.A, butcher_tableau.b))
+        self.CCone = numpy.append(butcher_tableau.c, 1.0)
 
         self.V = V = u0.function_space()
         self.u0 = u0
@@ -134,7 +130,9 @@ class DIRKTimeStepper:
 
         self.kgac = k, g, a, c, a_vals, d_val
 
-    def update_bc_constants(self, AAb, CCone, i, a_vals, d_val, c):
+    def update_bc_constants(self, i, a_vals, d_val, c):
+        AAb = self.AAb
+        CCone = self.CCone
         ns = AAb.shape[1]
         for j in range(i):
             a_vals[j].assign(AAb[i, j])
@@ -162,7 +160,7 @@ class DIRKTimeStepper:
                     gbit += dtc * float(AA[i, j]) * kbit
 
             # update BC constants for the variational problem
-            self.update_bc_constants(self.AAb, self.CCone, i, a_vals, d_val, c)
+            self.update_bc_constants(i, a_vals, d_val, c)
             a.assign(AA[i, i])
 
             # solve new variational problem, stash the computed
