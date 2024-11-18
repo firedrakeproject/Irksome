@@ -92,6 +92,24 @@ class DIRKTimeStepper:
         self.AAb = numpy.vstack((butcher_tableau.A, butcher_tableau.b))
         self.CCone = numpy.append(butcher_tableau.c, 1.0)
 
+        # Need to be able to set BCs for either the DIRK or explicit cases.
+
+        # For DIRK, we say that the stage i solution should match the
+        # prescribed boundary values at time c[i], which means we use
+        # the i^th row of the Butcher tableau in determining the
+        # boundary condition
+
+        # For explicit, we say that the stage i solution should be
+        # determined to match the prescribed boundary values at time
+        # c[i+1] (the first stage where it appears), which means we
+        # use the (i+1)^st row of the Butcher tableau in determining
+        # the boundary condition, and the full reconstruction for the
+        # final stage
+
+        shift = 1 if butcher_tableau.is_explicit else 0
+        self.AAb = self.AAb[shift:]
+        self.CCone = self.CCone[shift:]
+
         self.V = V = u0.function_space()
         self.u0 = u0
         self.t = t
@@ -132,12 +150,6 @@ class DIRKTimeStepper:
         self.bc_constants = a_vals, d_val
 
     def update_bc_constants(self, i, c):
-        """This sets the BCs that are imposed on the solution at stage i.  In
-           the DIRK case, we say that the stage i solution should match the
-           prescribed boundary values at time c[i].  So, we set c to be the i^th
-           stage time, and a_vals and d_vals to correspond to the i^th row of A
-        """
-
         AAb = self.AAb
         CCone = self.CCone
         a_vals, d_val = self.bc_constants
