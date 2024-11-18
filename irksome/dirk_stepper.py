@@ -71,7 +71,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
         new_bc = bc.reconstruct(g=gdat)
         bcnew.append(new_bc)
 
-    return stage_F, (k, g, a, c, a_vals, d_val), bcnew
+    return stage_F, (k, g, a, c), bcnew, (a_vals, d_val)
 
 
 class DIRKTimeStepper:
@@ -105,7 +105,7 @@ class DIRKTimeStepper:
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
 
-        stage_F, (k, g, a, c, a_vals, d_val), bcnew = getFormDIRK(
+        stage_F, (k, g, a, c), bcnew, (a_vals, d_val) = getFormDIRK(
             F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
 
         self.bcnew = bcnew
@@ -128,11 +128,13 @@ class DIRKTimeStepper:
             self.problem, appctx=appctx, solver_parameters=solver_parameters,
             nullspace=nullspace)
 
-        self.kgac = k, g, a, c, a_vals, d_val
+        self.kgac = k, g, a, c
+        self.bc_constants = a_vals, d_val
 
-    def update_bc_constants(self, i, a_vals, d_val, c):
+    def update_bc_constants(self, i, c):
         AAb = self.AAb
         CCone = self.CCone
+        a_vals, d_val = self.bc_constants
         ns = AAb.shape[1]
         for j in range(i):
             a_vals[j].assign(AAb[i, j])
@@ -142,7 +144,7 @@ class DIRKTimeStepper:
         c.assign(CCone[i])
 
     def advance(self):
-        k, g, a, c, a_vals, d_val = self.kgac
+        k, g, a, c = self.kgac
         ks = self.ks
         u0 = self.u0
         dtc = float(self.dt)
@@ -160,7 +162,7 @@ class DIRKTimeStepper:
                     gbit += dtc * float(AA[i, j]) * kbit
 
             # update BC constants for the variational problem
-            self.update_bc_constants(i, a_vals, d_val, c)
+            self.update_bc_constants(i, c)
             a.assign(AA[i, i])
 
             # solve new variational problem, stash the computed

@@ -25,7 +25,10 @@ class ExplicitTimeStepper(DIRKTimeStepper):
     # we should impose the BCs so that they are satisfied for the next
     # stage for all but that last stage, and that they are satisfied
     # for the next timestep for the last stage.
-    def update_bc_constants(self, AAb, CCone, i, a_vals, d_val, c):
+    def update_bc_constants(self, i, c):
+        AAb = self.AAb
+        CCone = self.CCone
+        a_vals, d_val = self.bc_constants
         ns = AAb.shape[1]
         for j in range(i):
             a_vals[j].assign(AAb[i+1, j])
