@@ -1,5 +1,5 @@
 import numpy
-from firedrake import DirichletBC, Function
+from firedrake import Function
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import split
@@ -7,57 +7,7 @@ from ufl.constantvalue import as_ufl
 
 from .deriv import TimeDerivative
 from .tools import replace, MeshConstant
-
-
-class BCThingy:
-    def __init__(self):
-        pass
-
-    def __call__(self, u):
-        return u
-
-
-class BCCompOfNotMixedThingy:
-    def __init__(self, comp):
-        self.comp = comp
-
-    def __call__(self, u):
-        return u[self.comp]
-
-
-class BCMixedBitThingy:
-    def __init__(self, sub):
-        self.sub = sub
-
-    def __call__(self, u):
-        return u.sub(self.sub)
-
-
-class BCCompOfMixedBitThingy:
-    def __init__(self, sub, comp):
-        self.sub = sub
-        self.comp = comp
-
-    def __call__(self, u):
-        return u.sub(self.sub)[self.comp]
-
-
-def getThingy(V, bc):
-    num_fields = len(V)
-    Vbc = bc.function_space()
-    if num_fields == 1:
-        comp = Vbc.component
-        if comp is None:
-            return BCThingy()
-        else:
-            return BCCompOfNotMixedThingy(comp)
-    else:
-        sub = bc.function_space_index()
-        comp = Vbc.component
-        if comp is None:
-            return BCMixedBitThingy(sub)
-        else:
-            return BCCompOfMixedBitThingy(sub, comp)
+from .bcs import bc2space
 
 
 def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
@@ -109,18 +59,16 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
                          dtype=object)
     d_val = MC.Constant(1.0)
     for bc in bcs:
-        Vbc = bc.function_space()
-        dat4bc = getThingy(V, bc)
         bcarg = as_ufl(bc._original_arg)
         bcarg_stage = replace(bcarg, {t: t+c*dt})
 
-        gdat = bcarg_stage - dat4bc(u0)
+        gdat = bcarg_stage - bc2space(bc, u0)
         for i in range(num_stages):
-            gdat -= dt*a_vals[i]*dat4bc(ks[i])
+            gdat -= dt*a_vals[i]*bc2space(bc, ks[i])
 
         gdat /= dt*d_val
 
-        new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)
+        new_bc = bc.reconstruct(g=gdat)
         bcnew.append(new_bc)
 
     return stage_F, (k, g, a, c, a_vals, d_val), bcnew
