@@ -61,6 +61,10 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
         bcarg_stage = replace(bcarg, {t: t+c*dt})
+        if bcarg_stage == 0:
+            # Homogeneous BC, just zero out stage dofs
+            bcnew.append(bc.reconstruct(g=0))
+            continue
 
         gdat = bcarg_stage - bc2space(bc, u0)
         for i in range(num_stages):
@@ -68,8 +72,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
 
         gdat /= dt*d_val
 
-        new_bc = bc.reconstruct(g=gdat)
-        bcnew.append(new_bc)
+        bcnew.append(bc.reconstruct(g=gdat))
 
     return stage_F, (k, g, a, c), bcnew, (a_vals, d_val)
 
@@ -106,9 +109,9 @@ class DIRKTimeStepper:
         # the boundary condition, and the full reconstruction for the
         # final stage
 
-        shift = 1 if butcher_tableau.is_explicit else 0
-        self.AAb = self.AAb[shift:]
-        self.CCone = self.CCone[shift:]
+        if butcher_tableau.is_explicit:
+            self.AAb = self.AAb[1:]
+            self.CCone = self.CCone[1:]
 
         self.V = V = u0.function_space()
         self.u0 = u0
