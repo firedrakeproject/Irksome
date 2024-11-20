@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ufl.corealg.multifunction &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../../index.html"><img src="../../../_static/fence.png" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/ufl/corealg/multifunction">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for ufl.corealg.multifunction</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Base class for multifunctions with UFL ``Expr`` type dispatch.&quot;&quot;&quot;</span>
+<span class="c1"># Copyright (C) 2008-2016 Martin Sandve Alnæs</span>
+<span class="c1">#</span>
+<span class="c1"># This file is part of UFL (https://www.fenicsproject.org)</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier:    LGPL-3.0-or-later</span>
+<span class="c1">#</span>
+<span class="c1"># Modified by Massimiliano Leoni, 2016</span>
+
+<span class="kn">import</span> <span class="nn">inspect</span>
+
+<span class="kn">from</span> <span class="nn">ufl.core.expr</span> <span class="kn">import</span> <span class="n">Expr</span>
+<span class="kn">from</span> <span class="nn">ufl.core.ufl_type</span> <span class="kn">import</span> <span class="n">UFLType</span>
+
+
+<span class="k">def</span> <span class="nf">get_num_args</span><span class="p">(</span><span class="n">function</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the number of arguments accepted by *function*.&quot;&quot;&quot;</span>
+    <span class="n">sig</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">memoized_handler</span><span class="p">(</span><span class="n">handler</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Function decorator to memoize ``MultiFunction`` handlers.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_memoized_handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_memoized_handler_cache&quot;</span><span class="p">)</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span>
+            <span class="n">c</span><span class="p">[</span><span class="n">o</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
+        <span class="k">return</span> <span class="n">r</span>
+
+    <span class="k">return</span> <span class="n">_memoized_handler</span>
+
+
+<span class="k">class</span> <span class="nc">MultiFunction</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base class for collections of non-recursive expression node handlers.</span>
+
+<span class="sd">    Subclass this (remember to call the ``__init__`` method of this class),</span>
+<span class="sd">    and implement handler functions for each ``Expr`` type, using the lower case</span>
+<span class="sd">    handler name of the type (``exprtype._ufl_handler_name_``).</span>
+
+<span class="sd">    This class is optimized for efficient type based dispatch in the</span>
+<span class="sd">    ``__call__``</span>
+<span class="sd">    operator via typecode based lookup of the handler function bound to the</span>
+<span class="sd">    algorithm object. Of course Python&#39;s function call overhead still applies.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_handlers_cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialise.&quot;&quot;&quot;</span>
+        <span class="c1"># Analyse class properties and cache handler data the</span>
+        <span class="c1"># first time this is run for a particular class</span>
+        <span class="c1"># (cached for each algorithm for performance)</span>
+        <span class="n">algorithm_class</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">cache_data</span> <span class="o">=</span> <span class="n">MultiFunction</span><span class="o">.</span><span class="n">_handlers_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">algorithm_class</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cache_data</span><span class="p">:</span>
+            <span class="n">handler_names</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">Expr</span><span class="o">.</span><span class="n">_ufl_all_classes_</span><span class="p">)</span>
+
+            <span class="c1"># Iterate over the inheritance chain for each Expr</span>
+            <span class="c1"># subclass (NB! This assumes that all UFL classes inherits</span>
+            <span class="c1"># from a single Expr subclass and that the first</span>
+            <span class="c1"># superclass is always from the UFL Expr hierarchy!)</span>
+            <span class="k">for</span> <span class="n">classobject</span> <span class="ow">in</span> <span class="n">Expr</span><span class="o">.</span><span class="n">_ufl_all_classes_</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">classobject</span><span class="o">.</span><span class="n">mro</span><span class="p">():</span>
+                    <span class="c1"># Register classobject with handler for the first</span>
+                    <span class="c1"># encountered superclass</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">handler_name</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">_ufl_handler_name_</span>
+                    <span class="k">except</span> <span class="ne">AttributeError</span> <span class="k">as</span> <span class="n">attribute_error</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">classobject</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">UFLType</span><span class="p">:</span>
+                            <span class="k">raise</span> <span class="n">attribute_error</span>
+                        <span class="c1"># Default handler name for UFL types</span>
+                        <span class="n">handler_name</span> <span class="o">=</span> <span class="n">UFLType</span><span class="o">.</span><span class="n">_ufl_handler_name_</span>
+
+                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">handler_name</span><span class="p">):</span>
+                        <span class="n">handler_names</span><span class="p">[</span><span class="n">classobject</span><span class="o">.</span><span class="n">_ufl_typecode_</span><span class="p">]</span> <span class="o">=</span> <span class="n">handler_name</span>
+                        <span class="k">break</span>
+            <span class="n">is_cutoff_type</span> <span class="o">=</span> <span class="p">[</span><span class="n">get_num_args</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">handler_names</span><span class="p">]</span>
+            <span class="n">cache_data</span> <span class="o">=</span> <span class="p">(</span><span class="n">handler_names</span><span class="p">,</span> <span class="n">is_cutoff_type</span><span class="p">)</span>
+            <span class="n">MultiFunction</span><span class="o">.</span><span class="n">_handlers_cache</span><span class="p">[</span><span class="n">algorithm_class</span><span class="p">]</span> <span class="o">=</span> <span class="n">cache_data</span>
+
+        <span class="c1"># Build handler list for this particular class (get functions</span>
+        <span class="c1"># bound to self, these cannot be cached)</span>
+        <span class="n">handler_names</span><span class="p">,</span> <span class="n">is_cutoff_type</span> <span class="o">=</span> <span class="n">cache_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span> <span class="o">=</span> <span class="p">[</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">handler_names</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_cutoff_type</span> <span class="o">=</span> <span class="n">is_cutoff_type</span>
+
+        <span class="c1"># Create cache for memoized_handler</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_memoized_handler_cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Delegate to handler function based on typecode of first argument.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handlers</span><span class="p">[</span><span class="n">o</span><span class="o">.</span><span class="n">_ufl_typecode_</span><span class="p">](</span><span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">undefined</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Trigger error for types with missing handlers.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No handler defined for </span><span class="si">{</span><span class="n">o</span><span class="o">.</span><span class="n">_ufl_class_</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">reuse_if_untouched</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">ops</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reuse object if operands are the same objects.</span>
+
+<span class="sd">        Use in your own subclass by setting e.g.</span>
+<span class="sd">        ::</span>
+
+<span class="sd">            expr = MultiFunction.reuse_if_untouched</span>
+
+<span class="sd">        as a default rule.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span> <span class="ow">is</span> <span class="n">b</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">,</span> <span class="n">ops</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">o</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_ufl_expr_reconstruct_</span><span class="p">(</span><span class="o">*</span><span class="n">ops</span><span class="p">)</span>
+
+    <span class="c1"># Set default behaviour for any UFLType as undefined</span>
+    <span class="n">ufl_type</span> <span class="o">=</span> <span class="n">undefined</span>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
