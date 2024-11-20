@@ -8,6 +8,11 @@ from ufl.algorithms.ad import expand_derivatives
 peprks = [PEPRK(*x) for x in ((4, 2, 5), (5, 2, 6))]
 
 
+# Note that this test is constructed with dt small enough relative to
+# dx that these explicit methods stay stable -- while Irksome provides
+# support for explicit schemes, we also caution users that there are
+# no checks in the code that the method you are trying to run is
+# actually sensible!
 @pytest.mark.parametrize("butcher_tableau", peprks)
 def test_1d_heat_dirichletbc(butcher_tableau):
     # Boundary values
