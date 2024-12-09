@@ -2,9 +2,10 @@ import numpy
 from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, split
 from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
-from ufl.classes import CoefficientDerivative
+from ufl.classes import CoefficientDerivative, Zero
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
+
 from irksome.deriv import TimeDerivative
 
 
@@ -33,10 +34,11 @@ def getNullspace(V, Vbig, butch, nullspace):
         if (nullspace[-1][0] > num_fields) or (nullspace[0][0] < 0):
             raise ValueError("At least one index for nullspaces is out of range")
         nspnew = []
+        nsp_comp = len(nullspace)
         for i in range(num_stages):
             count = 0
             for j in range(num_fields):
-                if j == nullspace[count][0]:
+                if count < nsp_comp and j == nullspace[count][0]:
                     nspnew.append(nullspace[count][1])
                     count += 1
                 else:
@@ -116,3 +118,7 @@ class MeshConstant(object):
 
     def Constant(self, val=0.0):
         return Function(self.V).assign(val)
+
+
+def ConstantOrZero(x, MC):
+    return Zero() if abs(complex(x)) < 1.e-10 else MC.Constant(x)

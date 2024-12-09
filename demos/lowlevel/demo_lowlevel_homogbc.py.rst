@@ -56,7 +56,7 @@ Continuing::
 
 Now, we use the :func:`.getForm` function, which processes the semidiscrete problem::
 
-  Fnew, k, bcnew, nspnew, bcdata = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
+  Fnew, k, bcnew, nspnew = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
 
 This returns several things:
 
@@ -68,18 +68,7 @@ This returns several things:
   be enforced on the variational problem for the stages
 * ``nspnew`` is a new :class:`~firedrake.MixedVectorSpaceBasis` that
   can be used to express the nullspace of `Fnew`
-* ``bcdata`` contains information needed to update the boundary
-  conditions.  It is a list of pairs of the form (``f``, ``expr``), where
-  ``f`` is a :class:`~firedrake.function.Function` and ``expr`` is an
-  :class:`~ufl.core.expr.Expr` for each of the Dirichlet boundary conditions.
-  Because Firedrake isn't smart enough to detect that `t` changes in
-  the expression for the boundary condition, we need to manually
-  interpolate or project each :py:class:`~ufl.core.expr.Expr` onto the corresponding ``f`` at the
-  beginning of each time step.  Firedrake will notice this change and
-  re-apply the boundary conditions.  This hassle is easy to overlook
-  (not needed in this demo with homogeneous BC) and part of the reason
-  we recommend using the :class:`.TimeStepper` interface that does this
-  for you.
+
 
 Solver parameters are just blunt-force LU.  Other options are surely possible::
 

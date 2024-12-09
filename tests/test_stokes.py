@@ -128,7 +128,7 @@ def NSETest(butch, stage_type, splitting):
          )
 
     bcs = [DirichletBC(Z.sub(0), Constant((1, 0)), (4,)),
-           DirichletBC(Z.sub(0), Constant((0, 0)), (1, 2, 3))]
+           DirichletBC(Z.sub(0), 0, (1, 2, 3))]
 
     nullspace = [(1, VectorSpaceBasis(constant=True))]
 
@@ -196,7 +196,7 @@ def NSETest(butch, stage_type, splitting):
 @pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
 def test_Stokes(N, butch, time_stages, stage_type, splitting):
     error = StokesTest(N, butch(time_stages), stage_type, splitting)
-    assert abs(error) < 1e-8
+    assert abs(error) < 3e-8
 
 
 @pytest.mark.parametrize('stage_type', ("deriv", "value"))

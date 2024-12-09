@@ -39,7 +39,7 @@ Imports::
 As with the homogeneous BC case, we use the `getForm` method to
 process the semidiscrete problem::
 
-  Fnew, k, bcnew, nspnew, bcdata = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
+  Fnew, k, bcnew, nspnew = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
 
 Recall that `getForm` produces:
 
@@ -47,14 +47,6 @@ Recall that `getForm` produces:
 * ``k`` is a new :class:`~firedrake.function.Function` of stages on the s-way product of the space on which the problem was originally posed
 * ``bcnew`` is a list of new :class:`~firedrake.bcs.DirichletBC` that need to
   be enforced on the variational problem for the stages
-* ``bcdata`` contains information needed to update the boundary
-  conditions.  It is a list of triples of the form
-  (``f``,``expr``,``method``), where ``f`` is a
-  :class:`~firedrake.function.Function`, ``expr`` is an
-  :class:`~ufl.core.expr.Expr`, and ``method`` is either a project or
-  interpolate operation for each of the Dirichlet boundary conditions.
-  You're using the low-level interface and have to force Firedrake to
-  reapply the boundary conditions.
 
 
 We just use basic solver parameters and set up the variational problem
@@ -76,9 +68,6 @@ boundary conditions at each time step::
   while (float(t) < 1.0):
       if float(t) + float(dt) > 1.0:
           dt.assign(1.0 - float(t))
-
-      for (gdat, gcur, gmethod) in bcdata:
-          gmethod(gcur, u)
 
       solver.solve()
 
