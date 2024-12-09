@@ -29,7 +29,8 @@ parallel, too!
 Acknowledgements
 ================
 
-The Irksome team is deeply grateful to David Ham for setting up our initial documentation, Jack Betteridge for initializing the CI.  Lawrence Mitchell provided early assistance on some UFL manipulation and documentation
+The Irksome team is deeply grateful to David Ham for setting up our initial documentation and Jack Betteridge for initializing the CI.  Ivan Yashchuk set up the GitHub Actions.
+Lawrence Mitchell provided early assistance on some UFL manipulation and documentation
 
 
 Getting started
