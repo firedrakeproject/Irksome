@@ -189,11 +189,14 @@ latex_elements = {
 \usepackage{cancel}''',
 }
 
+authlist = u'Pablo Brubeck, Patrick E. Farrell, Robert C. Kirby and Scott P. MacLachlan'
+
+
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
     ('index', 'Irksome.tex', u'Irksome Documentation',
-     u'the Irksome team', 'manual'),
+     authlist, 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -223,7 +226,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'firedrake', u'Irksome Documentation',
-     [u'the Irksome team'], 1)
+     [authlist], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -237,7 +240,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     ('index', 'Irksome', u'Irksome Documentation',
-     u'the Irksome team', 'Irksome', 'One line description of project.',
+     authlist, 'Irksome', 'One line description of project.',
      'Miscellaneous'),
 ]
 
