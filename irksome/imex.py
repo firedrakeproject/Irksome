@@ -1,11 +1,14 @@
 import FIAT
 import numpy as np
-from firedrake import (Function, NonlinearVariationalProblem,
-                       NonlinearVariationalSolver, TestFunction)
+from firedrake import (DirichletBC, Function, NonlinearVariationalProblem,
+                       NonlinearVariationalSolver, TestFunction,
+                       assemble, as_ufl, dx, inner, interpolate,
+                       project, split)
 from firedrake.dmhooks import pop_parent, push_parent
 from ufl.classes import Zero
 
 from .ButcherTableaux import RadauIIA
+from .deriv import TimeDerivative
 from .stage import getBits, getFormStage
 from .tools import AI, IA, MeshConstant, replace
 
@@ -304,3 +307,260 @@ class RadauIIAIMEXMethod:
                 self.num_linear_iterations_prop,
                 self.num_nonlinear_iterations_it,
                 self.num_linear_iterations_it)
+
+
+class BCThingy:
+    def __init__(self):
+        pass
+
+    def __call__(self, u):
+        return u
+
+
+class BCCompOfNotMixedThingy:
+    def __init__(self, comp):
+        self.comp = comp
+
+    def __call__(self, u):
+        return u[self.comp]
+
+
+class BCMixedBitThingy:
+    def __init__(self, sub):
+        self.sub = sub
+
+    def __call__(self, u):
+        return u.sub(self.sub)
+
+
+class BCCompOfMixedBitThingy:
+    def __init__(self, sub, comp):
+        self.sub = sub
+        self.comp = comp
+
+    def __call__(self, u):
+        return u.sub(self.sub)[self.comp]
+
+
+def getThingy(V, bc):
+    num_fields = len(V)
+    Vbc = bc.function_space()
+    if num_fields == 1:
+        comp = Vbc.component
+        if comp is None:
+            return BCThingy()
+        else:
+            return BCCompOfNotMixedThingy(comp)
+    else:
+        sub = bc.function_space_index()
+        comp = Vbc.component
+        if comp is None:
+            return BCMixedBitThingy(sub)
+        else:
+            return BCCompOfMixedBitThingy(sub, comp)
+
+
+def getFormsIMEX(F, Fexp, butch, t, dt, u0, bcs=None):
+    if bcs is None:
+        bcs = []
+
+    v = F.arguments()[0]
+    V = v.function_space()
+    msh = V.mesh()
+    assert V == u0.function_space()
+
+    num_fields = len(V)
+
+    k = Function(V)
+    g = Function(V)
+
+    khat = Function(V)
+    vhat = TestFunction(V)
+    ghat = Function(V)
+
+    if num_fields == 1:
+        k_bits = [k]
+        u0bits = [u0]
+        gbits = [g]
+        ghat_bits = [ghat]
+    else:
+        k_bits = np.array(split(k), dtype=object)
+        u0bits = split(u0)
+        gbits = split(g)
+        ghat_bits = split(g)
+
+    MC = MeshConstant(msh)
+    c = MC.Constant(1.0)
+    chat = MC.Constant(1.0)
+    a = MC.Constant(1.0)
+
+    repl = {t: t + c * dt}
+    for u0bit, kbit, gbit in zip(u0bits, k_bits, gbits):
+        repl[u0bit] = gbit + dt * a * kbit
+        repl[TimeDerivative(u0bit)] = kbit
+    stage_F = replace(F, repl)
+
+    replhat = {t: t + chat * dt}
+    for u0bit, ghatbit in zip(u0bits, ghat_bits):
+        replhat[u0bit] = ghatbit
+    Fhat = inner(khat, vhat)*dx - replace(Fexp, replhat)
+
+    bcnew = []
+    gblah = []
+
+    for bc in bcs:
+        Vbc = bc.function_space()
+        bcarg = as_ufl(bc._original_arg)
+        bcarg_stage = replace(bcarg, {t: t + c * dt})
+        try:
+            gdat = assemble(interpolate(bcarg, Vbc))
+            gmethod = lambda gd, gc: gd.interpolate(gc)
+        except:  # noqa: E722
+            gdat = assemble(project(bcarg, Vbc))
+            gmethod = lambda gd, gc: gd.project(gc)
+
+        new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)
+        bcnew.append(new_bc)
+
+        dat4bc = getThingy(V, bc)
+        gdat2 = Function(gdat.function_space())
+        gblah.append((gdat, gdat2, bcarg_stage, gmethod, dat4bc))
+
+    return stage_F, (k, g, a, c), bcnew, gblah, Fhat, (khat, ghat, chat)
+
+
+class DIRKIMEXMethod:
+    """Front-end class for advancing a time-dependent PDE via a diagonally-implicit
+    Runge-Kutta method formulated in terms of stage derivatives."""
+
+    def __init__(self, F, F_explicit, butcher_tableau, t, dt, u0, bcs=None,
+                 solver_parameters=None, mass_parameters=None, appctx=None, nullspace=None):
+        assert butcher_tableau.is_explicit_implicit
+
+        self.num_steps = 0
+        self.num_nonlinear_iterations = 0
+        self.num_linear_iterations = 0
+
+        self.butcher_tableau = butcher_tableau
+        self.V = V = u0.function_space()
+        self.u0 = u0
+        self.t = t
+        self.dt = dt
+        self.num_fields = len(u0.function_space())
+        self.num_stages = butcher_tableau.num_stages
+        self.ks = [Function(V) for _ in range(self.num_stages)]
+        self.k_hat_s = [Function(V) for _ in range(self.num_stages+1)]
+
+        stage_F, (k, g, a, c), bcnew, gblah, Fhat, (khat, ghat, chat) = getFormsIMEX(
+            F, F_explicit, butcher_tableau, t, dt, u0, bcs=bcs)
+
+        self.bcnew = bcnew
+        self.gblah = gblah
+
+        appctx_irksome = {"F": F,
+                          "butcher_tableau": butcher_tableau,
+                          "t": t,
+                          "dt": dt,
+                          "u0": u0,
+                          "bcs": bcs,
+                          "bc_type": "DAE",
+                          "nullspace": nullspace}
+        if appctx is None:
+            appctx = appctx_irksome
+        else:
+            appctx = {**appctx, **appctx_irksome}
+
+        self.problem = NonlinearVariationalProblem(stage_F, k, bcnew)
+        self.solver = NonlinearVariationalSolver(self.problem, appctx=appctx,
+                                                 solver_parameters=solver_parameters,
+                                                 nullspace=nullspace)
+
+        self.mass_problem = NonlinearVariationalProblem(Fhat, khat)
+        self.mass_solver = NonlinearVariationalSolver(self.mass_problem,
+                                                      solver_parameters=mass_parameters)
+
+        self.kgac = k, g, a, c
+        self.kgchat = khat, ghat, chat
+
+    def advance(self):
+        k, g, a, c = self.kgac
+        khat, ghat, chat = self.kgchat
+        ks = self.ks
+        k_hat_s = self.k_hat_s
+        u0 = self.u0
+        dtc = float(self.dt)
+        bt = self.butcher_tableau
+        AA = bt.A
+        A_hat = bt.A_hat
+        CC = bt.c
+        C_hat = bt.c_hat
+        BB = bt.b
+        B_hat = bt.b_hat
+
+        # Calculate explicit term for the first stage
+        ghat.assign(u0)
+        chat.assign(C_hat[0])
+        self.mass_solver.solve()
+        k_hat_s[0].assign(khat)
+
+        for i in range(self.num_stages):
+            # Set implicit coefficients
+            a.assign(AA[i, i])
+            c.assign(CC[i])
+
+            g.assign(u0)
+
+            # Update g with contributions from previous stages
+            for j in range(i):
+                ksplit = ks[j].subfunctions
+                for gbit, kbit in zip(g.subfunctions, ksplit):
+                    gbit += dtc * AA[i, j] * kbit
+
+            for j in range(i+1):
+                k_hat_split = k_hat_s[j].subfunctions
+                for gbit, k_hat_bit in zip(g.subfunctions, k_hat_split):
+                    gbit += dtc * A_hat[i, j] * k_hat_bit
+
+            # Solve for current stage
+            for (bc, (gdat, gdat2, gcur, gmethod, dat4bc)) in zip(self.bcnew, self.gblah):
+                gmethod(gdat, gcur)
+                gmethod(gdat2, dat4bc(u0))
+                gdat -= gdat2
+
+                for j in range(i):
+                    gmethod(gdat2, dat4bc(ks[j]))
+                    gdat -= dtc * AA[i, j] * gdat2
+
+                for j in range(i+1):
+                    gmethod(gdat2, dat4bc(k_hat_s[j]))
+                    gdat -= dtc * A_hat[i, j] * gdat2
+
+                gdat /= dtc * AA[i, i]
+
+            # Solve the nonlinear problem at stage i
+            self.solver.solve()
+            ks[i].assign(k)
+
+            # Update the solution for next stage
+            for ghatbit, gbit in zip(ghat.subfunctions, g.subfunctions):
+                ghatbit.assign(gbit)
+            for ghatbit, kbit in zip(ghat.subfunctions, ks[i].subfunctions):
+                ghatbit += dtc * AA[i, i] * kbit
+            chat.assign(C_hat[i+1])
+
+            self.mass_solver.solve()
+            k_hat_s[i + 1].assign(khat)
+
+        # Final solution update
+        for i in range(self.num_stages):
+            for u0bit, kbit in zip(u0.subfunctions, ks[i].subfunctions):
+                u0bit += dtc * BB[i] * kbit
+
+        for i in range(self.num_stages+1):
+            for u0bit, k_hat_bit in zip(u0.subfunctions, k_hat_s[i].subfunctions):
+                u0bit += dtc * B_hat[i] * k_hat_bit
+
+        self.num_steps += 1
+
+    def solver_stats(self):
+        return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
