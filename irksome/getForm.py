@@ -181,6 +181,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
             gdat = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
             bcnew.append(bc.reconstruct(V=Vbigi, g=gdat))
 
-    nspnew = getNullspace(V, Vbig, butch, nullspace)
+    nspnew = getNullspace(V, Vbig, num_stages, nullspace)
 
     return Fnew, w, bcnew, nspnew

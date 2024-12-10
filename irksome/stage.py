@@ -281,7 +281,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
             bcsnew.extend(bcnew_cur)
 
-    nspacenew = getNullspace(V, Vbig, butch, nullspace)
+    nspacenew = getNullspace(V, Vbig, num_stages, nullspace)
 
     # only form update stuff if we need it
     # which means neither stiffly accurate nor Vandermonde

@@ -2,9 +2,11 @@ from functools import reduce
 import FIAT
 from operator import mul
 from ufl.classes import Zero
+from ufl.constantvalue import as_ufl
+from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative
 from .stage import getBits
-from .tools import MeshConstant, replace
+from .tools import MeshConstant, getNullSpace, replace
 import np
 from firedrake import TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
 
@@ -53,6 +55,9 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0,
     V = v.function_space()
     assert V == u0.function_space()
 
+    MC = MeshConstant(V.mesh())
+    vecconst = np.vectorize(lambda c: MC.Constant(c))
+
     num_fields = len(V)
     num_stages = L_test.space_dimension()
 
@@ -63,10 +68,16 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0,
     UU = Function(Vbig)  # u0 + this are coefficients of the Galerkin polynomial
 
     qpts = Q.get_points()
+    qwts = Q.get_weights()
+
     tabulate_trials = L_trial.tabulate(0, qpts)
     trial_vals = tabulate_trials[0,]
     trial_dvals = tabulate_trials[1,]
     test_vals = L_test.tabulate(0, qpts)[0,]
+
+    # mass-ish matrix later for BC
+    mmat = test_vals @ np.diag(qwts) @ trial_vals[:, 1:].T
+    mmat_inv = vecconst(np.linalg.inv(mmat))
 
     if L_trial.is_nodal():
         points = []
@@ -102,13 +113,11 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0,
 
     Fnew = Zero()
 
-    MC = MeshConstant(V.mesh())
-    vecconst = np.vectorize(lambda c: MC.Constant(c))
     trial_vals = vecconst(trial_vals)
     trial_dvals = vecconst(trial_dvals)
     test_vals = vecconst(test_vals)
-    qpts = vecconst(Q.get_points())
-    qwts = vecconst(Q.get_weights())
+    qpts = vecconst(qpts)
+    qwts = vecconst(qwts)
 
     for i in range(num_stages):
         repl = {}
@@ -140,6 +149,22 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0,
                     repl[u0bits[k][ii]] = tosub
                     repl[TimeDerivative(u0bits[k][ii])] = d_tosub / dt
             Fnew += dt * qwts[q] * test_vals[i, q] * replace(F_i, repl)
+
+    # Oh, honey, is it the boundary conditions?
+    if bcs is None:
+        bcs = []
+    bcsnew = []
+    for bc in bcs:
+        bcarg = as_ufl(bc._original_arg)
+        bcblah_at_qp = np.zeros((len(qpts),), dtype="O")
+        for q in range(len(qpts)):
+            bcblah_at_qp[q] = qwts[q] * (
+                replace(bcarg, {t: t + qpts[q] * dt})
+                - bc2space(bc, u0) * trial_vals[0, q])
+        bc_func_for_stages = mmat_inv @ (test_vals @ bcblah_at_qp)
+        for i in range(num_stages):
+            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+            bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
 
 
 # class GalkerinTimeStepper:
@@ -225,7 +250,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0,
 #         # u0bits = u0.subfunctions
 #         # for s in range(ns):
 #         #     for i, u0bit in enumerate(u0bits):
-#         #         u0bit = 
+#         #         u0bit =
 
 #     def advance(self):
 #         """Advances the system from time `t` to time `t + dt`.
