@@ -279,9 +279,9 @@ class GalkerinTimeStepper:
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
-        push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
+        push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.solver.solve()
-        pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
+        pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
 
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
