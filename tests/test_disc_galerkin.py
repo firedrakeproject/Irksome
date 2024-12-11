@@ -127,7 +127,7 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     dt = MC.Constant(1.0 / N)
     t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(msh)
-    butcher_tableau = RadauIIA(order)
+    butcher_tableau = RadauIIA(order+1)
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
@@ -147,8 +147,11 @@ def test_1d_heat_homogeneous_dirichletbc(order):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
+    ufc_line = FIAT.ufc_simplex(1)
+    quadrature = FIAT.quadrature.RadauQuadratureLineRule(ufc_line, order+1)
+
     stepper = DiscGalerkinTimeStepper(
-        F, order, t, dt, u, bcs=bcs,
+        F, order, t, dt, u, bcs=bcs, quadrature=quadrature,
         solver_parameters=luparams
     )
     stepper_Radau = TimeStepper(
