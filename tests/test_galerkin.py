@@ -5,6 +5,7 @@ from firedrake import *
 from irksome import Dt, MeshConstant, GalerkinTimeStepper
 from irksome import TimeStepper, GaussLegendre
 from ufl.algorithms.ad import expand_derivatives
+from FIAT import make_quadrature, ufc_simplex
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
@@ -69,7 +70,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-def test_1d_heat_neumannbc(order):
+@pytest.mark.parametrize("num_quad_points", [3, 4])
+def test_1d_heat_neumannbc(order, num_quad_points):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
@@ -96,8 +98,11 @@ def test_1d_heat_neumannbc(order):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
+    ufc_line = ufc_simplex(1)
+    quadrature = make_quadrature(ufc_line, num_quad_points)
+
     stepper = GalerkinTimeStepper(
-        F, order, t, dt, u,
+        F, order, t, dt, u, quadrature=quadrature,
         solver_parameters=luparams
     )
     stepper_GL = TimeStepper(
