@@ -282,7 +282,7 @@ class DiscGalerkinTimeStepper:
         UUs = self.UU.subfunctions
 
         for i, u0bit in enumerate(u0bits):
-            u0bit.assign(UUs[self.num_fields*(self.order-1)+i])
+            u0bit.assign(UUs[self.num_fields*(self.order)+i])
 
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
