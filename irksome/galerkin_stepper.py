@@ -7,7 +7,7 @@ from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative
 from .stage import getBits
 from .tools import MeshConstant, getNullspace, replace
-import np
+import numpy as np
 from firedrake import TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
 
@@ -70,13 +70,14 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     qpts = Q.get_points()
     qwts = Q.get_weights()
 
-    tabulate_trials = L_trial.tabulate(0, qpts)
+    tabulate_trials = L_trial.tabulate(1, qpts)
     trial_vals = tabulate_trials[0,]
     trial_dvals = tabulate_trials[1,]
     test_vals = L_test.tabulate(0, qpts)[0,]
 
+
     # mass-ish matrix later for BC
-    mmat = test_vals @ np.diag(qwts) @ trial_vals[:, 1:].T
+    mmat = test_vals @ np.diag(qwts) @ trial_vals[1:, :].T
     mmat_inv = vecconst(np.linalg.inv(mmat))
 
     if L_trial.is_nodal():
@@ -169,7 +170,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     return Fnew, UU, bcsnew, getNullspace(V, Vbig, num_stages, nullspace)
 
 
-class GalkerinTimeStepper:
+class GalerkinTimeStepper:
     """Front-end class for advancing a time-dependent PDE via a Galerkin
     in time method
 
@@ -228,6 +229,7 @@ class GalkerinTimeStepper:
         else:
             raise NotImplementedError("Not implemented basis type")
 
+        # This doesn't work when order = 1, probably need to be careful with FIAT.DiscontinuousLagrange in that case
         self.trial_el = elgetter(ufc_line, order)
         self.test_el = elgetter(ufc_line, order-1)
 
