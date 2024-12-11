@@ -116,7 +116,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     trial_vals = vecconst(trial_vals)
     trial_dvals = vecconst(trial_dvals)
     test_vals = vecconst(test_vals)
-    qpts = vecconst(qpts)
+    qpts = vecconst(qpts.reshape((-1,)))
     qwts = vecconst(qwts)
 
     for i in range(num_stages):
