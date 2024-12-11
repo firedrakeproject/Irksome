@@ -164,3 +164,55 @@ def test_1d_heat_homogeneous_dirichletbc(order):
         stepper_GL.advance()
         t.assign(float(t) + float(dt))
         assert (errornorm(u_GL, u) / norm(u)) < 1.e-10
+
+
+def galerkin_wave(n, deg, alpha, order):
+    N = 2**n
+    msh = UnitIntervalMesh(N)
+
+    params = {"snes_type": "ksponly",
+              "ksp_type": "preonly",
+              "mat_type": "aij",
+              "pc_type": "lu"}
+
+    V = FunctionSpace(msh, "CG", deg)
+    W = FunctionSpace(msh, "DG", deg - 1)
+    Z = V * W
+
+    x, = SpatialCoordinate(msh)
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(alpha / N)
+
+    up = project(as_vector([0, sin(pi*x)]), Z)
+    u, p = split(up)
+
+    v, w = TestFunctions(Z)
+
+    F = (inner(Dt(u), v)*dx + inner(u.dx(0), w) * dx
+         + inner(Dt(p), w)*dx - inner(p, v.dx(0)) * dx)
+
+    E = 0.5 * (inner(u, u)*dx + inner(p, p)*dx)
+
+    stepper = GalerkinTimeStepper(F, order, t, dt, up,
+                                  solver_parameters=params)
+
+    energies = []
+
+    while (float(t) < 1.0):
+        if (float(t) + float(dt) > 1.0):
+            dt.assign(1.0 - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+        energies.append(assemble(E))
+
+    return np.array(energies)
+
+
+@pytest.mark.parametrize('N', [2**j for j in range(2, 3)])
+@pytest.mark.parametrize('deg', (2,))
+@pytest.mark.parametrize('order', (1, 2))
+def test_wave_eq_galerkin(deg, N, order):
+    energy = galerkin_wave(N, deg, 0.3, order)
+    assert np.allclose(energy[1:], energy[:-1])
