@@ -5,7 +5,7 @@ from firedrake import *
 from irksome import Dt, MeshConstant, DiscGalerkinTimeStepper
 from irksome import TimeStepper, RadauIIA
 from ufl.algorithms.ad import expand_derivatives
-from FIAT import make_quadrature, ufc_simplex
+import FIAT
 
 
 @pytest.mark.parametrize("order", [0, 1])
@@ -70,8 +70,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
 
 @pytest.mark.parametrize("order", [0, 1, 2])
-@pytest.mark.parametrize("num_quad_points", [3, ])
-def test_1d_heat_neumannbc(order, num_quad_points):
+def test_1d_heat_neumannbc(order):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
@@ -98,8 +97,8 @@ def test_1d_heat_neumannbc(order, num_quad_points):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    ufc_line = ufc_simplex(1)
-    quadrature = make_quadrature(ufc_line, num_quad_points)
+    ufc_line = FIAT.ufc_simplex(1)
+    quadrature = FIAT.quadrature.RadauQuadratureLineRule(ufc_line, order+1)
 
     stepper = DiscGalerkinTimeStepper(
         F, order, t, dt, u, quadrature=quadrature,
@@ -116,7 +115,7 @@ def test_1d_heat_neumannbc(order, num_quad_points):
         stepper.advance()
         stepper_Radau.advance()
         t.assign(float(t) + float(dt))
-        assert (errornorm(uexact, u) / norm(u)) < 1.e-3
+        assert (errornorm(u_Radau, u) / norm(u)) < 1.e-10
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
