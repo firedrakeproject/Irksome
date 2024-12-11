@@ -6,7 +6,6 @@ from operator import mul
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 from .bcs import bc2space, stage2spaces4bc
-from .deriv import TimeDerivative
 from .manipulation import extract_terms, strip_dt_form
 from .stage import getBits
 from .tools import MeshConstant, getNullspace, replace
@@ -98,11 +97,11 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
 
     split_form = extract_terms(F)
     dtless = strip_dt_form(split_form.time)
-    
+
     Fnew = Zero()
 
-    basis_vals = vecconst(trial_vals)
-    basis_dvals = vecconst(trial_dvals)
+    basis_vals = vecconst(basis_vals)
+    basis_dvals = vecconst(basis_dvals)
 
     qpts = vecconst(qpts.reshape((-1,)))
     qwts = vecconst(qwts)
@@ -126,6 +125,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
                                   for ell in range(num_stages)) / dt
                     repl[u0bits[k][ii]] = d_tosub
             Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
+
     # jump terms
     for k in range(num_fields):
         repl[u0bits[k]] = UUbits[0][k] - u0bits[k]
@@ -134,10 +134,8 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
             repl[u0bits[k][ii]] = UUbits[0][k][ii] - u0bits[k][ii]
             repl[vbits[k][ii]] = VVbits[0][k][ii]
     Fnew += replace(dtless, repl)
-    
-    
+
     # handle the rest of the terms
-    
     for i in range(num_stages):
         repl = {}
         for j in range(num_fields):
@@ -152,14 +150,14 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
             for k in range(num_fields):
                 tosub = u0bits[k] * basis_vals[0, q]
                 for ell in range(num_stages):
-                    tosub += UUbits[ell][k] * basis_vals[1 + ell, q]
+                    tosub += UUbits[ell][k] * basis_vals[ell, q]
 
                 repl[u0bits[k]] = tosub
 
                 for ii in np.ndindex(u0bits[k].ufl_shape):
                     tosub = u0bits[k][ii] * basis_vals[0, q]
                     for ell in range(num_stages):
-                        tosub += UUbits[ell][k][ii] * basis_vals[1 + ell, q]
+                        tosub += UUbits[ell][k][ii] * basis_vals[ell, q]
                     repl[u0bits[k][ii]] = tosub
             Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
 
@@ -182,8 +180,8 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     return Fnew, UU, bcsnew, getNullspace(V, Vbig, num_stages, nullspace)
 
 
-class GalerkinTimeStepper:
-    """Front-end class for advancing a time-dependent PDE via a Galerkin
+class DiscGalerkinTimeStepper:
+    """Front-end class for advancing a time-dependent PDE via a Discontinuous Galerkin
     in time method
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
@@ -234,30 +232,28 @@ class GalerkinTimeStepper:
         ufc_line = ufc_simplex(1)
 
         if basis_type == "Lagrange":
-            self.trial_el = Lagrange(ufc_line, order)
-            self.test_el = DiscontinuousLagrange(ufc_line, order-1)
+            self.el = DiscontinuousLagrange(ufc_line, order)
         elif basis_type == "Bernstein":
-            self.trial_el = Bernstein(ufc_line, order)
-            if order == 1:
-                self.test_el = DiscontinuousLagrange(ufc_line, 0)
+            if order == 0:
+                self.el = DiscontinuousLagrange(ufc_line, 0)
             else:
-                self.test_el = DiscontinuousElement(
-                    Bernstein(ufc_line, order-1))
+                self.el = DiscontinuousElement(
+                    Bernstein(ufc_line, order))
         else:
             raise NotImplementedError("Not implemented basis type")
 
         if quadrature is None:
-            quadrature = make_quadrature(ufc_line, order)
+            quadrature = make_quadrature(ufc_line, order+1)
         self.quadrature = quadrature
-        assert np.size(quadrature.get_points()) >= order
+        assert np.size(quadrature.get_points()) >= order+1
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
         bigF, UU, bigBCs, bigNSP = \
-            getFormGalerkin(F, self.trial_el, self.test_el,
-                            quadrature, t, dt, u0, bcs, nullspace)
+            getFormDiscGalerkin(F, self.el,
+                                quadrature, t, dt, u0, bcs, nullspace)
 
         self.UU = UU
         self.bigBCs = bigBCs
