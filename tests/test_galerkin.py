@@ -111,3 +111,50 @@ def test_1d_heat_neumannbc(order):
         stepper_GL.advance()
         t.assign(float(t) + float(dt))
         assert (errornorm(u_GL, u) / norm(u)) < 1.e-10
+
+
+@pytest.mark.parametrize("order", [1, 2, 3])
+def test_1d_heat_homogeneous_dirichletbc(order):
+    N = 20
+    msh = UnitIntervalMesh(N)
+    V = FunctionSpace(msh, "CG", 1)
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
+    (x,) = SpatialCoordinate(msh)
+    butcher_tableau = GaussLegendre(order)
+
+    uexact = sin(pi*x)*exp(-(pi**2)*t)
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    bcs = DirichletBC(V, uexact, "on_boundary")
+    u_GL = Function(V)
+    u = Function(V)
+    u_GL.interpolate(uexact)
+    u.interpolate(uexact)
+
+    v = TestFunction(V)
+    F = (
+        inner(Dt(u), v) * dx
+        + inner(grad(u), grad(v)) * dx
+        - inner(rhs, v) * dx
+    )
+    F_GL = replace(F, {u: u_GL})
+
+    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+
+    stepper = GalerkinTimeStepper(
+        F, order, t, dt, u, bcs=bcs,
+        solver_parameters=luparams
+    )
+    stepper_GL = TimeStepper(
+        F_GL, butcher_tableau, t, dt, u_GL, bcs=bcs, solver_parameters=luparams
+    )
+
+    t_end = 1.0
+    while float(t) < t_end:
+        if float(t) + float(dt) > t_end:
+            dt.assign(t_end - float(t))
+        stepper.advance()
+        stepper_GL.advance()
+        t.assign(float(t) + float(dt))
+        assert (errornorm(u_GL, u) / norm(u)) < 1.e-10
