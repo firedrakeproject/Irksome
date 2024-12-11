@@ -3,6 +3,7 @@ from math import isclose
 import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, GalerkinTimeStepper
+from irksome import TimeStepper, GaussLegendre
 from ufl.algorithms.ad import expand_derivatives
 
 
@@ -64,3 +65,49 @@ def test_1d_heat_dirichletbc(order):
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
+
+
+@pytest.mark.parametrize("order", [1, 2, 3])
+def test_1d_heat_neumannbc(order):
+    N = 20
+    msh = UnitIntervalMesh(N)
+    V = FunctionSpace(msh, "CG", 1)
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
+    (x,) = SpatialCoordinate(msh)
+    butcher_tableau = GaussLegendre(order)
+
+    uexact = cos(pi*x)*exp(-(pi**2)*t)
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    u_GL = Function(V)
+    u = Function(V)
+    u_GL.interpolate(uexact)
+    u.interpolate(uexact)
+
+    v = TestFunction(V)
+    F = (
+        inner(Dt(u), v) * dx
+        + inner(grad(u), grad(v)) * dx
+        - inner(rhs, v) * dx
+    )
+    F_GL = replace(F, {u: u_GL})
+
+    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+
+    stepper = GalerkinTimeStepper(
+        F, order, t, dt, u,
+        solver_parameters=luparams
+    )
+    stepper_GL = TimeStepper(
+        F_GL, butcher_tableau, t, dt, u_GL, solver_parameters=luparams
+    )
+
+    t_end = 1.0
+    while float(t) < t_end:
+        if float(t) + float(dt) > t_end:
+            dt.assign(t_end - float(t))
+        stepper.advance()
+        stepper_GL.advance()
+        t.assign(float(t) + float(dt))
+        assert (errornorm(u_GL, u) / norm(u)) < 1.e-10
