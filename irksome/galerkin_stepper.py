@@ -77,10 +77,6 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     trial_dvals = tabulate_trials[1,]
     test_vals = L_test.tabulate(0, qpts)[0,]
 
-    # mass-ish matrix later for BC
-    mmat = test_vals @ np.diag(qwts) @ trial_vals[1:, :].T
-    mmat_inv = vecconst(np.linalg.inv(mmat))
-
     if L_trial.is_nodal():
         points = []
         for ell in L_trial.dual.nodes:
@@ -109,6 +105,10 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
         test_perm = np.argsort(c_test)
         c_test = c_test[test_perm]
         test_vals = test_vals[test_perm]
+
+    # mass-ish matrix later for BC
+    mmat = test_vals @ np.diag(qwts) @ trial_vals[1:, :].T
+    mmat_inv = vecconst(np.linalg.inv(mmat))
 
     u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
                                             u0, UU, v, VV)
