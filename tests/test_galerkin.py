@@ -8,7 +8,8 @@ from ufl.algorithms.ad import expand_derivatives
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-def test_1d_heat_dirichletbc(order):
+@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein"])
+def test_1d_heat_dirichletbc(order, basis_type):
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -51,7 +52,7 @@ def test_1d_heat_dirichletbc(order):
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
     stepper = GalerkinTimeStepper(
-        F, order, t, dt, u, bcs=bc,
+        F, order, t, dt, u, bcs=bc, basis_type=basis_type,
         solver_parameters=luparams
     )
 

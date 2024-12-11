@@ -48,10 +48,10 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
        - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
          that represents the nullspace of the coupled system
     """
-    assert L_test.ref_el == ufc_simplex(1)
-    assert L_trial.ref_el == ufc_simplex(1)
+    assert L_test.get_reference_element() == ufc_simplex(1)
+    assert L_trial.get_reference_element() == ufc_simplex(1)
     assert Q.ref_el == ufc_simplex(1)
-    assert L_trial.order == L_test.order + 1
+    assert L_trial.get_order() == L_test.get_order() + 1
 
     v = F.arguments()[0]
     V = v.function_space()
@@ -77,7 +77,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     trial_dvals = tabulate_trials[1,]
     test_vals = L_test.tabulate(0, qpts)[0,]
 
-    if L_trial.is_nodal():
+    if isinstance(L_trial, Lagrange):
         points = []
         for ell in L_trial.dual.nodes:
             assert isinstance(ell, PointEvaluation)
@@ -92,7 +92,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
         c_trial = c_trial[trial_perm]
         trial_vals = trial_vals[trial_perm]
         trial_dvals = trial_dvals[trial_perm]
-    if L_test.is_nodal():
+
         points = []
         for ell in L_test.dual.nodes:
             assert isinstance(ell, PointEvaluation)
