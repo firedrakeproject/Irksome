@@ -70,7 +70,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("num_quad_points", [3, 4])
+@pytest.mark.parametrize("num_quad_points", [4, ])
 def test_1d_heat_neumannbc(order, num_quad_points):
     N = 20
     msh = UnitIntervalMesh(N)

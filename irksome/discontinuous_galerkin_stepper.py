@@ -121,12 +121,13 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
                 repl[u0bits[k]] = d_tosub
 
                 for ii in np.ndindex(u0bits[k].ufl_shape):
-                    d_tosub = sum(basis_dvals[ell, q] * UUbits[ell][k][ii] * basis_dvals[ell, q]
+                    d_tosub = sum(basis_dvals[ell, q] * UUbits[ell][k][ii]
                                   for ell in range(num_stages)) / dt
                     repl[u0bits[k][ii]] = d_tosub
             Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
 
     # jump terms
+    repl = {}
     for k in range(num_fields):
         repl[u0bits[k]] = UUbits[0][k] - u0bits[k]
         repl[vbits[k]] = VVbits[0][k]
@@ -148,16 +149,12 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
         for q in range(len(qpts)):
             repl = {t: t + dt * qpts[q]}
             for k in range(num_fields):
-                tosub = u0bits[k] * basis_vals[0, q]
-                for ell in range(num_stages):
-                    tosub += UUbits[ell][k] * basis_vals[ell, q]
-
+                tosub = sum(basis_vals[ell, q] * UUbits[ell][k] for ell in range(num_stages))
                 repl[u0bits[k]] = tosub
 
                 for ii in np.ndindex(u0bits[k].ufl_shape):
-                    tosub = u0bits[k][ii] * basis_vals[0, q]
-                    for ell in range(num_stages):
-                        tosub += UUbits[ell][k][ii] * basis_vals[ell, q]
+                    tosub = sum(basis_vals[ell, q] * UUbits[ell][k][ii]
+                                for ell in range(num_stages))
                     repl[u0bits[k][ii]] = tosub
             Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
 
