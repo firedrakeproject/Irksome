@@ -237,8 +237,8 @@ class GalerkinTimeStepper:
 
         if quadrature is None:
             quadrature = make_quadrature(ufc_line, order)
-
         self.quadrature = quadrature
+        assert np.size(quadrature.get_points()) >= order
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
