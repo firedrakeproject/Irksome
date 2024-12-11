@@ -1,6 +1,6 @@
 from functools import reduce
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
-                  Lagrange, make_quadrature, ufc_simplex)
+                  make_quadrature, ufc_simplex)
 from FIAT.functional import PointEvaluation
 from operator import mul
 from ufl.classes import Zero
@@ -72,7 +72,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     basis_vals = tabulate_basis[0,]
     basis_dvals = tabulate_basis[1,]
 
-    if isinstance(L, Lagrange):
+    if not isinstance(L, Bernstein):
         points = []
         for ell in L.dual.nodes:
             assert isinstance(ell, PointEvaluation)
