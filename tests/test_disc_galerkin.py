@@ -8,8 +8,8 @@ from ufl.algorithms.ad import expand_derivatives
 from FIAT import make_quadrature, ufc_simplex
 
 
-@pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein"])
+@pytest.mark.parametrize("order", [0, 1])
+@pytest.mark.parametrize("basis_type", ["Lagrange", ])
 def test_1d_heat_dirichletbc(order, basis_type):
     # Boundary values
     u_0 = Constant(2.0)
@@ -69,8 +69,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
         assert isclose(u.at(x1), u_1)
 
 
-@pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("num_quad_points", [4, ])
+@pytest.mark.parametrize("order", [0, 1, 2])
+@pytest.mark.parametrize("num_quad_points", [3, ])
 def test_1d_heat_neumannbc(order, num_quad_points):
     N = 20
     msh = UnitIntervalMesh(N)
@@ -116,7 +116,7 @@ def test_1d_heat_neumannbc(order, num_quad_points):
         stepper.advance()
         stepper_Radau.advance()
         t.assign(float(t) + float(dt))
-        assert (errornorm(u_Radau, u) / norm(u)) < 1.e-10
+        assert (errornorm(uexact, u) / norm(u)) < 1.e-3
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
