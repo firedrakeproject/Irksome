@@ -1,5 +1,7 @@
 from functools import reduce
-import FIAT
+from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
+                  Lagrange, make_quadrature, ufc_simplex)
+from FIAT.functional import PointEvaluation
 from operator import mul
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
@@ -46,9 +48,9 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
        - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
          that represents the nullspace of the coupled system
     """
-    assert L_test.ref_el == FIAT.ufc_simplex(1)
-    assert L_trial.ref_el == FIAT.ufc_simplex(1)
-    assert Q.ref_el == FIAT.ufc_simplex(1)
+    assert L_test.ref_el == ufc_simplex(1)
+    assert L_trial.ref_el == ufc_simplex(1)
+    assert Q.ref_el == ufc_simplex(1)
     assert L_trial.order == L_test.order + 1
 
     v = F.arguments()[0]
@@ -82,7 +84,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     if L_trial.is_nodal():
         points = []
         for ell in L_trial.dual.nodes:
-            assert isinstance(ell, FIAT.functional.PointEvaluation)
+            assert isinstance(ell, PointEvaluation)
             # Assert singleton point for each node.
             pt, = ell.get_point_dict().keys()
             points.append(pt[0])
@@ -97,7 +99,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     if L_test.is_nodal():
         points = []
         for ell in L_test.dual.nodes:
-            assert isinstance(ell, FIAT.functional.PointEvaluation)
+            assert isinstance(ell, PointEvaluation)
             # Assert singleton point for each node.
             pt, = ell.get_point_dict().keys()
             points.append(pt[0])
@@ -218,23 +220,24 @@ class GalerkinTimeStepper:
         V = u0.function_space()
         self.num_fields = len(V)
 
-        ufc_line = FIAT.reference_element.ufc_simplex(1)
+        ufc_line = ufc_simplex(1)
 
         if basis_type == "Lagrange":
-            elgetter = FIAT.Lagrange
+            self.trial_el = Lagrange(ufc_line, order)
+            self.test_el = DiscontinuousLagrange(ufc_line, order-1)
         elif basis_type == "Bernstein":
-            assert order >= 1
-            elgetter = FIAT.Bernstein
+            self.trial_el = Bernstein(ufc_line, order)
+            if order == 1:
+                self.test_el = DiscontinuousLagrange(ufc_line, 0)
+            else:
+                self.test_el = DiscontinuousElement(
+                    Bernstein(ufc_line, order-1))
         else:
             raise NotImplementedError("Not implemented basis type")
 
-        # This doesn't work when order = 1, probably need to be careful with FIAT.DiscontinuousLagrange in that case
-        self.trial_el = elgetter(ufc_line, order)
-        self.test_el = elgetter(ufc_line, order-1)
-
         if quadrature is None:
-            quadrature = FIAT.quadrature.make_quadrature(ufc_line, order)
-        assert isinstance(quadrature, FIAT.quadrature.QuadratureRule)
+            quadrature = make_quadrature(ufc_line, order)
+
         self.quadrature = quadrature
 
         self.num_steps = 0

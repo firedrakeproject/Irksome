@@ -6,7 +6,7 @@ from irksome import Dt, MeshConstant, GalerkinTimeStepper
 from ufl.algorithms.ad import expand_derivatives
 
 
-@pytest.mark.parametrize("order", [2, 3])
+@pytest.mark.parametrize("order", [1, 2, 3])
 def test_1d_heat_dirichletbc(order):
     # Boundary values
     u_0 = Constant(2.0)
