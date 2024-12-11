@@ -3,7 +3,6 @@ from math import isclose
 import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, GalerkinTimeStepper
-from ufl import replace
 from ufl.algorithms.ad import expand_derivatives
 
 
@@ -65,5 +64,3 @@ def test_1d_heat_dirichletbc(order):
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
-
-

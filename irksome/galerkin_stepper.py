@@ -75,7 +75,6 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     trial_dvals = tabulate_trials[1,]
     test_vals = L_test.tabulate(0, qpts)[0,]
 
-
     # mass-ish matrix later for BC
     mmat = test_vals @ np.diag(qwts) @ trial_vals[1:, :].T
     mmat_inv = vecconst(np.linalg.inv(mmat))
