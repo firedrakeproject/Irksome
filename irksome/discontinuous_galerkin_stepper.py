@@ -17,7 +17,7 @@ from firedrake.dmhooks import pop_parent, push_parent
 def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
 
     """Given a time-dependent variational form, trial and test spaces, and
-    a quadrature rule, produce UFL for the Galerkin-in-Time method.
+    a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
     :arg F: UFL form for the semidiscrete ODE/DAE
     :arg L: A :class:`FIAT.FiniteElement` for the test and trial functions in time
@@ -30,7 +30,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possible time-dependent) boundary conditions imposed
+         containing (possibly time-dependent) boundary conditions imposed
          on the system.
     :arg nullspace: A list of tuples of the form (index, VSB) where
          index is an index into the function space associated with `u`
@@ -40,7 +40,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
 
     On output, we return a tuple consisting of four parts:
 
-       - Fnew, the :class:`Form`
+       - Fnew, the :class:`Form` corresponding to the DG-in-Time discretized problem
        - UU, the :class:`Function` representing the stages to be solved for
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
@@ -106,6 +106,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     qpts = vecconst(qpts.reshape((-1,)))
     qwts = vecconst(qwts)
 
+    # Terms with time derivatives
     for i in range(num_stages):
         repl = {}
         for j in range(num_fields):
@@ -114,6 +115,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
                 repl[vbits[j][ii]] = VVbits[i][j][ii]
         F_i = replace(dtless, repl)
 
+        # now loop over quadrature points
         for q in range(len(qpts)):
             repl = {t: t + dt * qpts[q]}
             for k in range(num_fields):
@@ -184,6 +186,8 @@ class DiscGalerkinTimeStepper:
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` is the
             :class:firedrake.TestFunction`.
+    :arg order: an integer indicating the order of the DG space to use
+         (with order == 0 corresponding to DG(0)-in-time)
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
@@ -195,6 +199,11 @@ class DiscGalerkinTimeStepper:
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the method.
+    :arg basis_type: A string indicating if the standard (discontinuous)
+            Lagrange basis is to be used for the time stages or if the Bernstein
+            basis is to be used instead
+    :arg quadrature: A :class:`FIAT.QuadratureRule` indicating the quadrature
+            to be used in time, defaulting to GL with order+1 points
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
@@ -272,17 +281,6 @@ class DiscGalerkinTimeStepper:
                            nullspace=bigNSP)
         pop_parent(u0.function_space().dm, UU.function_space().dm)
 
-    def _update(self):
-        """Assuming the algebraic problem for the Galerkin problems has been
-        solved, updates the solution.  This will not typically be
-        called by an end user."""
-        u0 = self.u0
-        u0bits = u0.subfunctions
-        UUs = self.UU.subfunctions
-
-        for i, u0bit in enumerate(u0bits):
-            u0bit.assign(UUs[self.num_fields*(self.order)+i])
-
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
@@ -293,7 +291,13 @@ class DiscGalerkinTimeStepper:
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
-        self._update()
+
+        u0 = self.u0
+        u0bits = u0.subfunctions
+        UUs = self.UU.subfunctions
+
+        for i, u0bit in enumerate(u0bits):
+            u0bit.assign(UUs[self.num_fields*(self.order)+i])
 
     def solver_stats(self):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)

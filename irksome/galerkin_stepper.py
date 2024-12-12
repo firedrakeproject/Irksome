@@ -31,7 +31,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possible time-dependent) boundary conditions imposed
+         containing (possibly time-dependent) boundary conditions imposed
          on the system.
     :arg nullspace: A list of tuples of the form (index, VSB) where
          index is an index into the function space associated with `u`
@@ -41,7 +41,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
 
     On output, we return a tuple consisting of four parts:
 
-       - Fnew, the :class:`Form`
+       - Fnew, the :class:`Form` corresponding to the Galerkin-in-Time discretized problem
        - UU, the :class:`Function` representing the stages to be solved for
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
@@ -64,9 +64,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     num_stages = L_test.space_dimension()
 
     Vbig = reduce(mul, (V for _ in range(num_stages)))
-
     VV = TestFunction(Vbig)
-
     UU = Function(Vbig)  # u0 + this are coefficients of the Galerkin polynomial
 
     qpts = Q.get_points()
@@ -179,6 +177,8 @@ class GalerkinTimeStepper:
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` is the
             :class:firedrake.TestFunction`.
+    :arg order: an integer indicating the order of the DG space to use
+         (with order == 1 corresponding to CG(1)-in-time for the trial space)
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
@@ -190,6 +190,11 @@ class GalerkinTimeStepper:
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the method.
+    :arg basis_type: A string indicating if the standard (continuous)
+            Lagrange basis is to be used for the trial space or if the Bernstein
+            basis is to be used instead
+    :arg quadrature: A :class:`FIAT.QuadratureRule` indicating the quadrature
+            to be used in time, defaulting to GL with order points
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
@@ -207,7 +212,7 @@ class GalerkinTimeStepper:
     def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
                  quadrature=None,
                  solver_parameters=None, appctx=None, nullspace=None):
-        assert order >= 0
+        assert order >= 1
         self.u0 = u0
         self.orig_bcs = bcs
         self.t = t
@@ -221,7 +226,6 @@ class GalerkinTimeStepper:
         self.num_fields = len(V)
 
         ufc_line = ufc_simplex(1)
-
         if basis_type == "Lagrange":
             self.trial_el = Lagrange(ufc_line, order)
             self.test_el = DiscontinuousLagrange(ufc_line, order-1)
@@ -269,17 +273,6 @@ class GalerkinTimeStepper:
                            nullspace=bigNSP)
         pop_parent(u0.function_space().dm, UU.function_space().dm)
 
-    def _update(self):
-        """Assuming the algebraic problem for the Galerkin problems has been
-        solved, updates the solution.  This will not typically be
-        called by an end user."""
-        u0 = self.u0
-        u0bits = u0.subfunctions
-        UUs = self.UU.subfunctions
-
-        for i, u0bit in enumerate(u0bits):
-            u0bit.assign(UUs[self.num_fields*(self.order-1)+i])
-
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
@@ -290,7 +283,13 @@ class GalerkinTimeStepper:
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
-        self._update()
+
+        u0 = self.u0
+        u0bits = u0.subfunctions
+        UUs = self.UU.subfunctions
+
+        for i, u0bit in enumerate(u0bits):
+            u0bit.assign(UUs[self.num_fields*(self.order-1)+i])
 
     def solver_stats(self):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
