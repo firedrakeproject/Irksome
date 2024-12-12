@@ -72,7 +72,14 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     basis_vals = tabulate_basis[0,]
     basis_dvals = tabulate_basis[1,]
 
-    if not isinstance(L, Bernstein):
+    is_bernstein = False
+    if isinstance(L, Bernstein):
+        is_bernstein = True
+    elif isinstance(L, DiscontinuousElement):
+        if isinstance(L._element, Bernstein):
+            is_bernstein = True
+
+    if not is_bernstein:
         points = []
         for ell in L.dual.nodes:
             assert isinstance(ell, PointEvaluation)
