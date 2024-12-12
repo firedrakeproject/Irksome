@@ -8,7 +8,7 @@ from ufl.algorithms.ad import expand_derivatives
 import FIAT
 
 
-@pytest.mark.parametrize("order", [0, 1])
+@pytest.mark.parametrize("order", [0, 1, 2])
 @pytest.mark.parametrize("basis_type", ["Lagrange", ])
 def test_1d_heat_dirichletbc(order, basis_type):
     # Boundary values
