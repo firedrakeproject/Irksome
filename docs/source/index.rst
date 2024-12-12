@@ -66,7 +66,7 @@ to deploy more efficient methods:
 
    demos/demo_heat_pc.py
    demos/demo_heat_mg.py
-   demos/demo_heat_mg_galerkin.py
+   demos/demo_heat_mg_dg.py
    demos/demo_heat_rana.py
    demos/demo_dirk_parameters.py
 
@@ -76,6 +76,13 @@ We now have support for DIRKs:
    :maxdepth: 1
 
    demos/demo_heat_dirk.py
+
+and for Galerkin-in-Time:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_RTwave_galerkin.py
 
 and for explicit schemes:
 

@@ -1,5 +1,5 @@
 Solving the heat equation with monolithic multigrid and Discontinuous Galerkin-in-Time
-========================================================================
+======================================================================================
 
 This reprise of the heat equation demo uses a monolithic multigrid
 algorithm suggested by Patrick Farrell to perform time advancement,

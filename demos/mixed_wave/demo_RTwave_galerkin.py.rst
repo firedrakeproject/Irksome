@@ -1,5 +1,5 @@
-Solving the Mixed Wave Equation: Energy conservation
-====================================================
+Solving the Mixed Wave Equation: Energy conservation, Multigrid, Galerkin-in-Time
+=================================================================================
 
 Let :math:`\Omega` be the unit square with boundary :math:`\Gamma`.  We write
 the wave equation as a first-order system of PDE:
