@@ -1,9 +1,9 @@
-Solving the heat equation with monolithic multigrid and Galerkin-in-Time
+Solving the heat equation with monolithic multigrid and Discontinuous Galerkin-in-Time
 ========================================================================
 
 This reprise of the heat equation demo uses a monolithic multigrid
 algorithm suggested by Patrick Farrell to perform time advancement,
-but now applies it to the Galerkin-in-Time discretization.
+but now applies it to the Discontinuous Galerkin-in-Time discretization.
 
 We consider the heat equation on :math:`\Omega = [0,10]
 \times [0,10]`, with boundary :math:`\Gamma`: giving rise to the weak form
@@ -18,7 +18,7 @@ of :math:`f` given below
 We perform similar imports and setup as before::
 
   from firedrake import *
-  from irksome import GalerkinTimeStepper, Dt, MeshConstant
+  from irksome import DiscGalerkinTimeStepper, Dt, MeshConstant
   from ufl.algorithms.ad import expand_derivatives
 
 
@@ -95,10 +95,10 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
                   "pc_factor_mat_solver_type": "mumps"}
               }
   
-These solver parameters work just fine in the :class:`.TimeStepper`::
+These solver parameters work just fine in the :class:`.DiscGalerkinTimeStepper`::
 
-  stepper = GalerkinTimeStepper(F, 2, t, dt, u, bcs=bc,
-                        solver_parameters=mgparams)
+  stepper = DiscGalerkinTimeStepper(F, 2, t, dt, u, bcs=bc,
+                                    solver_parameters=mgparams)
 
 And we can advance the solution in time in typical fashion::
 
