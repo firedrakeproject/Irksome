@@ -78,7 +78,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
          If none is provided, we assume it is the identity, working in the
          Lagrange basis.
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possible time-dependent) boundary conditions imposed
+         containing (possibly time-dependent) boundary conditions imposed
          on the system.
     :arg bc_constraints: optionally, a dictionary mapping (some of) the boundary
          conditions in `bcs` to triples of the form (params, lower, upper) indicating

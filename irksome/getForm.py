@@ -33,7 +33,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possible time-dependent) boundary conditions imposed
+         containing (possibly time-dependent) boundary conditions imposed
          on the system.
     :arg bc_type: How to manipulate the strongly-enforced boundary
          conditions to derive the stage boundary conditions.  Should
