@@ -5,7 +5,7 @@ from FIAT.functional import PointEvaluation
 from operator import mul
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .bcs import bc2space, stage2spaces4bc
+from .bcs import stage2spaces4bc
 from .manipulation import extract_terms, strip_dt_form
 from .stage import getBits
 from .tools import MeshConstant, getNullspace, replace
@@ -167,8 +167,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
         bcblah_at_qp = np.zeros((len(qpts),), dtype="O")
         for q in range(len(qpts)):
             bcblah_at_qp[q] = qwts[q] * (
-                replace(bcarg, {t: t + qpts[q] * dt})
-                - bc2space(bc, u0) * basis_vals[0, q])
+                replace(bcarg, {t: t + qpts[q] * dt}))
         bc_func_for_stages = mmat_inv @ (basis_vals @ bcblah_at_qp)
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
