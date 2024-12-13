@@ -244,7 +244,7 @@ class DiscontinuousGalerkinTimeStepper:
         ufc_line = ufc_simplex(1)
 
         if order == 0:
-            self.el = DiscontinuousLagrange(ufc_line, 0)            
+            self.el = DiscontinuousLagrange(ufc_line, 0)
         elif basis_type == "Lagrange":
             self.el = DiscontinuousElement(Lagrange(ufc_line, order))
         elif basis_type == "Bernstein":
