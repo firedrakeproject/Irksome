@@ -185,7 +185,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     return Fnew, UU, bcsnew, getNullspace(V, Vbig, num_stages, nullspace)
 
 
-class DiscGalerkinTimeStepper:
+class DiscontinuousGalerkinTimeStepper:
     """Front-end class for advancing a time-dependent PDE via a Discontinuous Galerkin
     in time method
 
