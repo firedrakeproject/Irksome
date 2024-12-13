@@ -1,6 +1,6 @@
 from functools import reduce
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
-                  make_quadrature, ufc_simplex)
+                  Lagrange, make_quadrature, ufc_simplex)
 from FIAT.functional import PointEvaluation
 from operator import mul
 from ufl.classes import Zero
@@ -243,14 +243,12 @@ class DiscontinuousGalerkinTimeStepper:
 
         ufc_line = ufc_simplex(1)
 
-        if basis_type == "Lagrange":
-            self.el = DiscontinuousLagrange(ufc_line, order)
+        if order == 0:
+            self.el = DiscontinuousLagrange(ufc_line, 0)            
+        elif basis_type == "Lagrange":
+            self.el = DiscontinuousElement(Lagrange(ufc_line, order))
         elif basis_type == "Bernstein":
-            if order == 0:
-                self.el = DiscontinuousLagrange(ufc_line, 0)
-            else:
-                self.el = DiscontinuousElement(
-                    Bernstein(ufc_line, order))
+            self.el = DiscontinuousElement(Bernstein(ufc_line, order))
         else:
             raise NotImplementedError("Not implemented basis type")
 
