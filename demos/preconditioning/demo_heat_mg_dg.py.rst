@@ -18,7 +18,7 @@ of :math:`f` given below
 We perform similar imports and setup as before::
 
   from firedrake import *
-  from irksome import DiscGalerkinTimeStepper, Dt, MeshConstant
+  from irksome import DiscontinuousGalerkinTimeStepper, Dt, MeshConstant
   from ufl.algorithms.ad import expand_derivatives
 
 
@@ -95,9 +95,9 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
                   "pc_factor_mat_solver_type": "mumps"}
               }
   
-These solver parameters work just fine in the :class:`.DiscGalerkinTimeStepper`::
+These solver parameters work just fine in the :class:`.DiscontinuousGalerkinTimeStepper`::
 
-  stepper = DiscGalerkinTimeStepper(F, 2, t, dt, u, bcs=bc,
+  stepper = DiscontinuousGalerkinTimeStepper(F, 2, t, dt, u, bcs=bc,
                                     solver_parameters=mgparams)
 
 And we can advance the solution in time in typical fashion::

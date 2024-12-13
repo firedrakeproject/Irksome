@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, DiscGalerkinTimeStepper
+from irksome import Dt, MeshConstant, DiscontinuousGalerkinTimeStepper
 from irksome import TimeStepper, RadauIIA
 from ufl.algorithms.ad import expand_derivatives
 import FIAT
@@ -52,7 +52,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    stepper = DiscGalerkinTimeStepper(
+    stepper = DiscontinuousGalerkinTimeStepper(
         F, order, t, dt, u, bcs=bc, basis_type=basis_type,
         solver_parameters=luparams
     )
@@ -100,7 +100,7 @@ def test_1d_heat_neumannbc(order):
     ufc_line = FIAT.ufc_simplex(1)
     quadrature = FIAT.quadrature.RadauQuadratureLineRule(ufc_line, order+1)
 
-    stepper = DiscGalerkinTimeStepper(
+    stepper = DiscontinuousGalerkinTimeStepper(
         F, order, t, dt, u, quadrature=quadrature,
         solver_parameters=luparams
     )
@@ -150,7 +150,7 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     ufc_line = FIAT.ufc_simplex(1)
     quadrature = FIAT.quadrature.RadauQuadratureLineRule(ufc_line, order+1)
 
-    stepper = DiscGalerkinTimeStepper(
+    stepper = DiscontinuousGalerkinTimeStepper(
         F, order, t, dt, u, bcs=bcs, quadrature=quadrature,
         solver_parameters=luparams
     )
