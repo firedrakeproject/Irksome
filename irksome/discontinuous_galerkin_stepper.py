@@ -155,7 +155,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
             Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
 
     # Oh, honey, is it the boundary conditions?
-    minv_basis_vals = mmat_inv @ basis_vals
+    minv_test_vals = mmat_inv @ np.multiply(basis_vals, qwts)
     if bcs is None:
         bcs = []
     bcsnew = []
@@ -163,9 +163,9 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
         bcarg = as_ufl(bc._original_arg)
         bcblah_at_qp = np.zeros((len(qpts),), dtype="O")
         for q in range(len(qpts)):
-            bcblah_at_qp[q] = qwts[q] * (
-                replace(bcarg, {t: t + qpts[q] * dt}))
-        bc_func_for_stages = minv_basis_vals @ bcblah_at_qp
+            tcur = t + qpts[q] * dt
+            bcblah_at_qp[q] = replace(bcarg, {t: tcur})
+        bc_func_for_stages = minv_test_vals @ bcblah_at_qp
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))

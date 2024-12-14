@@ -128,17 +128,18 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
             Fnew += dt * qwts[q] * test_vals[i, q] * replace(F_i, repl)
 
     # Oh, honey, is it the boundary conditions?
+    minv_test_vals = mmat_inv @ np.multiply(test_vals, qwts)
     if bcs is None:
         bcs = []
     bcsnew = []
     for bc in bcs:
+        u0_sub = bc2space(bc, u0)
         bcarg = as_ufl(bc._original_arg)
         bcblah_at_qp = np.zeros((len(qpts),), dtype="O")
         for q in range(len(qpts)):
-            bcblah_at_qp[q] = qwts[q] * (
-                replace(bcarg, {t: t + qpts[q] * dt})
-                - bc2space(bc, u0) * trial_vals[0, q])
-        bc_func_for_stages = mmat_inv @ (test_vals @ bcblah_at_qp)
+            tcur = t + qpts[q] * dt
+            bcblah_at_qp[q] = replace(bcarg, {t: tcur}) - u0_sub * trial_vals[0, q]
+        bc_func_for_stages = minv_test_vals @ bcblah_at_qp
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
