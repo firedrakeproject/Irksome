@@ -1,5 +1,6 @@
 from functools import reduce
-from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
+from FIAT import (Bernstein, DiscontinuousElement,
+                  DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange,
                   make_quadrature, ufc_simplex)
 from FIAT.functional import PointEvaluation
@@ -73,31 +74,17 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     basis_vals = tabulate_basis[0,]
     basis_dvals = tabulate_basis[1,]
 
-    is_bernstein = False
-    if isinstance(L, Bernstein):
-        is_bernstein = True
-    elif isinstance(L, DiscontinuousElement):
-        if isinstance(L._element, Bernstein):
-            is_bernstein = True
-
-    if not is_bernstein:
-        points = []
-        for ell in L.dual.nodes:
-            assert isinstance(ell, PointEvaluation)
-            # Assert singleton point for each node.
-            pt, = ell.get_point_dict().keys()
-            points.append(pt[0])
-
-        # also needed as collocation points for BC...
-        c = np.asarray(points)
-        # GLL DOFs are ordered by increasing entity dimension!
-        perm = np.argsort(c)
-        c = c[perm]
-        basis_vals = basis_vals[perm]
-        basis_dvals = basis_dvals[perm]
+    element = L
+    if isinstance(element, DiscontinuousElement):
+        element = element._element
+    # sort dofs geometrically by entity location
+    edofs = element.entity_dofs()
+    perm = [*edofs[0][0], *edofs[1][0], *edofs[0][1]]
+    basis_vals = basis_vals[perm]
+    basis_dvals = basis_dvals[perm]
 
     # mass matrix later for BC
-    mmat = basis_vals @ np.diag(qwts) @ basis_vals.T
+    mmat = np.multiply(basis_vals, qwts) @ basis_vals.T
     mmat_inv = vecconst(np.linalg.inv(mmat))
 
     u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,

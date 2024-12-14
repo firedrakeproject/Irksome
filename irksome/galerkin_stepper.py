@@ -75,14 +75,14 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     trial_dvals = tabulate_trials[1,]
     test_vals = L_test.tabulate(0, qpts)[0,]
 
+    # sort dofs geometrically by entity location
     edofs = L_trial.entity_dofs()
-    if len(edofs[0]) > 0:
-        trial_perm = [*edofs[0][0], *edofs[1][0], *edofs[0][1]]
-        trial_vals = trial_vals[trial_perm]
-        trial_dvals = trial_dvals[trial_perm]
+    trial_perm = [*edofs[0][0], *edofs[1][0], *edofs[0][1]]
+    trial_vals = trial_vals[trial_perm]
+    trial_dvals = trial_dvals[trial_perm]
 
     # mass-ish matrix later for BC
-    mmat = test_vals @ np.diag(qwts) @ trial_vals[1:, :].T
+    mmat = np.multiply(test_vals, qwts) @ trial_vals[1:].T
     mmat_inv = vecconst(np.linalg.inv(mmat))
 
     u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
