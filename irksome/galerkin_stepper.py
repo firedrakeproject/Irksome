@@ -48,9 +48,9 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
        - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
          that represents the nullspace of the coupled system
     """
-    assert L_test.get_reference_element() == ufc_simplex(1)
-    assert L_trial.get_reference_element() == ufc_simplex(1)
-    assert Q.ref_el == ufc_simplex(1)
+    assert L_test.get_reference_element() == Q.ref_el
+    assert L_trial.get_reference_element() == Q.ref_el
+    assert Q.ref_el.get_spatial_dimension() == 1
     assert L_trial.get_order() == L_test.get_order() + 1
 
     v = F.arguments()[0]
@@ -71,9 +71,9 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     qwts = Q.get_weights()
 
     tabulate_trials = L_trial.tabulate(1, qpts)
-    trial_vals = tabulate_trials[0,]
-    trial_dvals = tabulate_trials[1,]
-    test_vals = L_test.tabulate(0, qpts)[0,]
+    trial_vals = tabulate_trials[(0,)]
+    trial_dvals = tabulate_trials[(1,)]
+    test_vals = L_test.tabulate(0, qpts)[(0,)]
 
     # sort dofs geometrically by entity location
     edofs = L_trial.entity_dofs()

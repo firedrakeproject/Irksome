@@ -3,7 +3,6 @@ from FIAT import (Bernstein, DiscontinuousElement,
                   DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange,
                   make_quadrature, ufc_simplex)
-from FIAT.functional import PointEvaluation
 from operator import mul
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
@@ -49,8 +48,8 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
        - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
          that represents the nullspace of the coupled system
     """
-    assert L.get_reference_element() == ufc_simplex(1)
-    assert Q.ref_el == ufc_simplex(1)
+    assert Q.ref_el.get_spatial_dimension() == 1
+    assert L.get_reference_element() == Q.ref_el
 
     v = F.arguments()[0]
     V = v.function_space()
@@ -71,8 +70,8 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     qwts = Q.get_weights()
 
     tabulate_basis = L.tabulate(1, qpts)
-    basis_vals = tabulate_basis[0,]
-    basis_dvals = tabulate_basis[1,]
+    basis_vals = tabulate_basis[(0,)]
+    basis_dvals = tabulate_basis[(1,)]
 
     element = L
     if isinstance(element, DiscontinuousElement):
@@ -156,6 +155,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
             Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
 
     # Oh, honey, is it the boundary conditions?
+    minv_basis_vals = mmat_inv @ basis_vals
     if bcs is None:
         bcs = []
     bcsnew = []
@@ -165,7 +165,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
         for q in range(len(qpts)):
             bcblah_at_qp[q] = qwts[q] * (
                 replace(bcarg, {t: t + qpts[q] * dt}))
-        bc_func_for_stages = mmat_inv @ (basis_vals @ bcblah_at_qp)
+        bc_func_for_stages = minv_basis_vals @ bcblah_at_qp
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
