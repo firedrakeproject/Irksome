@@ -9,7 +9,6 @@ from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner, split)
 from firedrake.petsc import PETSc
-from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
@@ -129,7 +128,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
                                             u0, ZZ, v, VV)
 
     MC = MeshConstant(V.mesh())
-    vecconst = np.vectorize(lambda c: MC.Constant(c))
+    vecconst = np.vectorize(MC.Constant)
 
     C = vecconst(butch.c)
     A = vecconst(butch.A)
@@ -208,7 +207,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
                 Fnew += A[i, j] * dt * replace(Ftmp, repl)
 
     elif splitting == IA:
-        Ainv = np.vectorize(lambda c: MC.Constant(c))(np.linalg.inv(butch.A))
+        Ainv = vecconst(np.linalg.inv(butch.A))
 
         # time derivative part gets inverse of Butcher matrix.
         for i in range(num_stages):
@@ -289,8 +288,9 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         unew = Function(V)
 
         Fupdate = inner(unew - u0, v) * dx
-        B = vectorize(lambda c: MC.Constant(c))(butch.b)
-        C = vectorize(lambda c: MC.Constant(c))(butch.c)
+        vecconst = np.vectorize(MC.Constant)
+        B = vecconst(butch.b)
+        C = vecconst(butch.c)
 
         for i in range(num_stages):
             repl = {t: t + C[i] * dt}

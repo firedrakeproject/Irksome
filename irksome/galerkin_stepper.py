@@ -58,7 +58,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     assert V == u0.function_space()
 
     MC = MeshConstant(V.mesh())
-    vecconst = np.vectorize(lambda c: MC.Constant(c))
+    vecconst = np.vectorize(MC.Constant)
 
     num_fields = len(V)
     num_stages = L_test.space_dimension()
