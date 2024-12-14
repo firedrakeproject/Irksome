@@ -1,6 +1,7 @@
 from functools import reduce
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
-                  Lagrange, make_quadrature, ufc_simplex)
+                  IntegratedLegendre, Lagrange,
+                  make_quadrature, ufc_simplex)
 from FIAT.functional import PointEvaluation
 from operator import mul
 from ufl.classes import Zero
@@ -206,9 +207,9 @@ class DiscontinuousGalerkinTimeStepper:
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the method.
-    :arg basis_type: A string indicating if the standard (discontinuous)
-            Lagrange basis is to be used for the time stages or if the Bernstein
-            basis is to be used instead
+    :arg basis_type: A string indicating the finite element family (either
+            `'Lagrange'` or `'Bernstein'`) or the Lagrange variant for the
+            test/trial spaces. Defaults to equispaced Lagrange elements.
     :arg quadrature: A :class:`FIAT.QuadratureRule` indicating the quadrature
             to be used in time, defaulting to GL with order+1 points
     :arg solver_parameters: A :class:`dict` of solver parameters that
@@ -234,8 +235,6 @@ class DiscontinuousGalerkinTimeStepper:
         self.t = t
         self.dt = dt
         self.order = order
-        if basis_type is None:
-            basis_type = "Lagrange"
         self.basis_type = basis_type
 
         V = u0.function_space()
@@ -245,12 +244,14 @@ class DiscontinuousGalerkinTimeStepper:
 
         if order == 0:
             self.el = DiscontinuousLagrange(ufc_line, 0)
-        elif basis_type == "Lagrange":
-            self.el = DiscontinuousElement(Lagrange(ufc_line, order))
         elif basis_type == "Bernstein":
             self.el = DiscontinuousElement(Bernstein(ufc_line, order))
+        elif basis_type == "integral":
+            self.el = DiscontinuousElement(IntegratedLegendre(ufc_line, order))
         else:
-            raise NotImplementedError("Not implemented basis type")
+            # Let recursivenodes handle the general case
+            variant = None if basis_type == "Lagrange" else basis_type
+            self.el = DiscontinuousElement(Lagrange(ufc_line, order, variant=variant))
 
         if quadrature is None:
             quadrature = make_quadrature(ufc_line, order+1)

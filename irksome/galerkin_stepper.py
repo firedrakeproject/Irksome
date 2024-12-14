@@ -1,7 +1,7 @@
 from functools import reduce
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
-                  Lagrange, make_quadrature, ufc_simplex)
-from FIAT.functional import PointEvaluation
+                  IntegratedLegendre, Lagrange, Legendre,
+                  make_quadrature, ufc_simplex)
 from operator import mul
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
@@ -75,34 +75,11 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     trial_dvals = tabulate_trials[1,]
     test_vals = L_test.tabulate(0, qpts)[0,]
 
-    if isinstance(L_trial, Lagrange):
-        points = []
-        for ell in L_trial.dual.nodes:
-            assert isinstance(ell, PointEvaluation)
-            # Assert singleton point for each node.
-            pt, = ell.get_point_dict().keys()
-            points.append(pt[0])
-
-        # also needed as collocation points for BC...
-        c_trial = np.asarray(points)
-        # GLL DOFs are ordered by increasing entity dimension!
-        trial_perm = np.argsort(c_trial)
-        c_trial = c_trial[trial_perm]
+    edofs = L_trial.entity_dofs()
+    if len(edofs[0]) > 0:
+        trial_perm = [*edofs[0][0], *edofs[1][0], *edofs[0][1]]
         trial_vals = trial_vals[trial_perm]
         trial_dvals = trial_dvals[trial_perm]
-
-        points = []
-        for ell in L_test.dual.nodes:
-            assert isinstance(ell, PointEvaluation)
-            # Assert singleton point for each node.
-            pt, = ell.get_point_dict().keys()
-            points.append(pt[0])
-
-        c_test = np.asarray(points)
-        # GLL DOFs are ordered by increasing entity dimension!
-        test_perm = np.argsort(c_test)
-        c_test = c_test[test_perm]
-        test_vals = test_vals[test_perm]
 
     # mass-ish matrix later for BC
     mmat = test_vals @ np.diag(qwts) @ trial_vals[1:, :].T
@@ -190,9 +167,9 @@ class GalerkinTimeStepper:
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the method.
-    :arg basis_type: A string indicating if the standard (continuous)
-            Lagrange basis is to be used for the trial space or if the Bernstein
-            basis is to be used instead
+    :arg basis_type: A string indicating the finite element family (either
+            `'Lagrange'` or `'Bernstein'`) or the Lagrange variant for the
+            test/trial spaces. Defaults to equispaced Lagrange elements.
     :arg quadrature: A :class:`FIAT.QuadratureRule` indicating the quadrature
             to be used in time, defaulting to GL with order points
     :arg solver_parameters: A :class:`dict` of solver parameters that
@@ -218,26 +195,27 @@ class GalerkinTimeStepper:
         self.t = t
         self.dt = dt
         self.order = order
-        if basis_type is None:
-            basis_type = "Lagrange"
         self.basis_type = basis_type
 
         V = u0.function_space()
         self.num_fields = len(V)
 
         ufc_line = ufc_simplex(1)
-        if basis_type == "Lagrange":
-            self.trial_el = Lagrange(ufc_line, order)
-            self.test_el = DiscontinuousLagrange(ufc_line, order-1)
-        elif basis_type == "Bernstein":
+        if basis_type == "Bernstein":
             self.trial_el = Bernstein(ufc_line, order)
             if order == 1:
                 self.test_el = DiscontinuousLagrange(ufc_line, 0)
             else:
                 self.test_el = DiscontinuousElement(
                     Bernstein(ufc_line, order-1))
+        elif basis_type == "integral":
+            self.trial_el = IntegratedLegendre(ufc_line, order)
+            self.test_el = Legendre(ufc_line, order-1)
         else:
-            raise NotImplementedError("Not implemented basis type")
+            # Let recursivenodes handle the general case
+            variant = None if basis_type == "Lagrange" else basis_type
+            self.trial_el = Lagrange(ufc_line, order, variant=variant)
+            self.test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
 
         if quadrature is None:
             quadrature = make_quadrature(ufc_line, order)
