@@ -9,7 +9,7 @@ from FIAT import make_quadrature, ufc_simplex
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein"])
+@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral"])
 def test_1d_heat_dirichletbc(order, basis_type):
     # Boundary values
     u_0 = Constant(2.0)

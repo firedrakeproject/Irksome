@@ -9,7 +9,7 @@ import FIAT
 
 
 @pytest.mark.parametrize("order", [0, 1, 2])
-@pytest.mark.parametrize("basis_type", ["Lagrange", ])
+@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral"])
 def test_1d_heat_dirichletbc(order, basis_type):
     # Boundary values
     u_0 = Constant(2.0)
