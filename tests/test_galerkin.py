@@ -50,7 +50,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
         DirichletBC(V, u_0, 1),
     ]
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
 
     stepper = GalerkinTimeStepper(
         F, order, t, dt, u, bcs=bc, basis_type=basis_type,
