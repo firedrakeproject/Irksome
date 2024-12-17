@@ -9,20 +9,19 @@ from ufl.corealg.multifunction import MultiFunction
 from irksome.deriv import TimeDerivative
 
 
-def getNullspace(V, Vbig, butch, nullspace):
+def getNullspace(V, Vbig, num_stages, nullspace):
     """
     Computes the nullspace for a multi-stage method.
 
     :arg V: The :class:`FunctionSpace` on which the original time-dependent PDE is posed.
     :arg Vbig: The multi-stage :class:`FunctionSpace` for the stage problem
-    :arg butch: The :class:`ButcherTableau` defining the RK method
+    :arg num_stages: The number of stages in the RK method
     :arg nullspace: The nullspace for the original problem.
 
     On output, we produce a :class:`MixedVectorSpaceBasis` defining the nullspace
     for the multistage problem.
     """
 
-    num_stages = butch.num_stages
     num_fields = len(V)
     if nullspace is None:
         nspnew = None

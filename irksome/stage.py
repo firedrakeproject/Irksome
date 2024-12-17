@@ -5,11 +5,11 @@ from operator import mul
 
 import numpy as np
 from FIAT import Bernstein, ufc_simplex
-from firedrake import (Function, NonlinearVariationalProblem,
+from firedrake import (Constant,
+                       Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner, split)
 from firedrake.petsc import PETSc
-from numpy import vectorize
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
@@ -25,20 +25,13 @@ def isiterable(x):
 
 
 def split_field(num_fields, u):
-    return np.array((u,) if num_fields == 1 else split(u), dtype="O")
+    ubits = np.array(split(u), dtype="O")
+    return ubits
 
 
 def split_stage_field(num_stages, num_fields, UU):
-    if num_fields == 1:
-        if num_stages == 1:   # single-stage method
-            UUbits = np.reshape(np.array((UU,), dtype='O'), (num_stages, num_fields))
-        else:  # multi-stage methods
-            UUbits = np.zeros((len(split(UU)),), dtype='O')
-            for (i, x) in enumerate(split(UU)):
-                UUbits[i] = np.zeros((1,), dtype='O')
-                UUbits[i][0] = x
-    else:
-        UUbits = np.reshape(np.asarray(split(UU), dtype="O"), (num_stages, num_fields))
+    UUbits = np.reshape(np.asarray(split(UU), dtype="O"),
+                        (num_stages, num_fields))
     return UUbits
 
 
@@ -78,7 +71,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
          If none is provided, we assume it is the identity, working in the
          Lagrange basis.
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possible time-dependent) boundary conditions imposed
+         containing (possibly time-dependent) boundary conditions imposed
          on the system.
     :arg bc_constraints: optionally, a dictionary mapping (some of) the boundary
          conditions in `bcs` to triples of the form (params, lower, upper) indicating
@@ -129,7 +122,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
                                             u0, ZZ, v, VV)
 
     MC = MeshConstant(V.mesh())
-    vecconst = np.vectorize(lambda c: MC.Constant(c))
+    vecconst = Constant
 
     C = vecconst(butch.c)
     A = vecconst(butch.A)
@@ -146,13 +139,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     Vander_col = Vander[1:, 0]
     Vander0 = Vander[1:, 1:]
 
-    v0u0 = np.zeros((num_stages, num_fields), dtype="O")
-    for i in range(num_stages):
-        for j in range(num_fields):
-            v0u0[i, j] = Vander_col[i] * u0bits[j]
-
-    if num_fields == 1:
-        v0u0 = np.reshape(v0u0, (-1,))
+    v0u0 = np.outer(Vander_col, u0bits)
 
     UUbits = v0u0 + Vander0 @ ZZbits
 
@@ -174,9 +161,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
             for j in range(num_fields):
                 repl[u0bits[j]] = UUbits[i][j] - u0bits[j]
                 repl[vbits[j]] = VVbits[i][j]
-
-            # Also get replacements right for indexing.
-            for j in range(num_fields):
+                # Also get replacements right for indexing.
                 for ii in np.ndindex(u0bits[j].ufl_shape):
                     repl[u0bits[j][ii]] = UUbits[i][j][ii] - u0bits[j][ii]
                     repl[vbits[j][ii]] = VVbits[i][j][ii]
@@ -208,7 +193,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
                 Fnew += A[i, j] * dt * replace(Ftmp, repl)
 
     elif splitting == IA:
-        Ainv = np.vectorize(lambda c: MC.Constant(c))(np.linalg.inv(butch.A))
+        Ainv = vecconst(np.linalg.inv(butch.A))
 
         # time derivative part gets inverse of Butcher matrix.
         for i in range(num_stages):
@@ -281,7 +266,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
             bcsnew.extend(bcnew_cur)
 
-    nspacenew = getNullspace(V, Vbig, butch, nullspace)
+    nspacenew = getNullspace(V, Vbig, num_stages, nullspace)
 
     # only form update stuff if we need it
     # which means neither stiffly accurate nor Vandermonde
@@ -289,8 +274,9 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         unew = Function(V)
 
         Fupdate = inner(unew - u0, v) * dx
-        B = vectorize(lambda c: MC.Constant(c))(butch.b)
-        C = vectorize(lambda c: MC.Constant(c))(butch.c)
+        vecconst = np.vectorize(MC.Constant)
+        B = vecconst(butch.b)
+        C = vecconst(butch.c)
 
         for i in range(num_stages):
             repl = {t: t + C[i] * dt}
