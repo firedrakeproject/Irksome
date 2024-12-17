@@ -9,9 +9,9 @@ from ufl.constantvalue import as_ufl
 from .bcs import stage2spaces4bc
 from .manipulation import extract_terms, strip_dt_form
 from .stage import getBits
-from .tools import MeshConstant, getNullspace, replace
+from .tools import getNullspace, replace
 import numpy as np
-from firedrake import TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
+from firedrake import as_vector, Constant, dot, TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
 
 
@@ -55,8 +55,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     V = v.function_space()
     assert V == u0.function_space()
 
-    MC = MeshConstant(V.mesh())
-    vecconst = np.vectorize(MC.Constant)
+    vecconst = Constant
 
     num_fields = len(V)
     num_stages = L.space_dimension()
@@ -84,7 +83,9 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
 
     # mass matrix later for BC
     mmat = np.multiply(basis_vals, qwts) @ basis_vals.T
-    mmat_inv = vecconst(np.linalg.inv(mmat))
+
+    # L2 projector
+    proj = Constant(np.linalg.solve(mmat, np.multiply(basis_vals, qwts)))
 
     u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
                                             u0, UU, v, VV)
@@ -155,7 +156,6 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
             Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
 
     # Oh, honey, is it the boundary conditions?
-    minv_test_vals = mmat_inv @ np.multiply(basis_vals, qwts)
     if bcs is None:
         bcs = []
     bcsnew = []
@@ -165,7 +165,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
         for q in range(len(qpts)):
             tcur = t + qpts[q] * dt
             bcblah_at_qp[q] = replace(bcarg, {t: tcur})
-        bc_func_for_stages = minv_test_vals @ bcblah_at_qp
+        bc_func_for_stages = dot(proj, as_vector(bcblah_at_qp))
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
