@@ -8,9 +8,9 @@ from ufl.constantvalue import as_ufl
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative
 from .stage import getBits
-from .tools import MeshConstant, getNullspace, replace
+from .tools import getNullspace, replace
 import numpy as np
-from firedrake import TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
+from firedrake import as_vector, dot, Constant, TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
 
 
@@ -57,9 +57,6 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     V = v.function_space()
     assert V == u0.function_space()
 
-    MC = MeshConstant(V.mesh())
-    vecconst = np.vectorize(MC.Constant)
-
     num_fields = len(V)
     num_stages = L_test.space_dimension()
 
@@ -83,18 +80,20 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
 
     # mass-ish matrix later for BC
     mmat = np.multiply(test_vals, qwts) @ trial_vals[1:].T
-    mmat_inv = vecconst(np.linalg.inv(mmat))
+
+    # L2 projector
+    proj = Constant(np.linalg.solve(mmat, np.multiply(test_vals, qwts)))
 
     u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
                                             u0, UU, v, VV)
 
     Fnew = Zero()
 
-    trial_vals = vecconst(trial_vals)
-    trial_dvals = vecconst(trial_dvals)
-    test_vals = vecconst(test_vals)
-    qpts = vecconst(qpts.reshape((-1,)))
-    qwts = vecconst(qwts)
+    trial_vals = Constant(trial_vals)
+    trial_dvals = Constant(trial_dvals)
+    test_vals = Constant(test_vals)
+    qpts = Constant(qpts.reshape((-1,)))
+    qwts = Constant(qwts)
 
     for i in range(num_stages):
         repl = {}
@@ -128,7 +127,6 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
             Fnew += dt * qwts[q] * test_vals[i, q] * replace(F_i, repl)
 
     # Oh, honey, is it the boundary conditions?
-    minv_test_vals = mmat_inv @ np.multiply(test_vals, qwts)
     if bcs is None:
         bcs = []
     bcsnew = []
@@ -139,7 +137,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
         for q in range(len(qpts)):
             tcur = t + qpts[q] * dt
             bcblah_at_qp[q] = replace(bcarg, {t: tcur}) - u0_sub * trial_vals[0, q]
-        bc_func_for_stages = minv_test_vals @ bcblah_at_qp
+        bc_func_for_stages = dot(proj, as_vector(bcblah_at_qp))
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
