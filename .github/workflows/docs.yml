@@ -11,7 +11,7 @@ jobs:
     name: "Build docs"
     runs-on: self-hosted
     container:
-      image: firedrakeproject/firedrake-vanilla:latest
+      image: firedrakeproject/firedrake-docdeps:latest
     steps:
       - name: Fix permissions
         run: |
@@ -23,10 +23,29 @@ jobs:
           python -m pip install -e .
           python -m pip install sphinx
           python -m pip install sphinxcontrib-bibtex
+      - name: Check documentation links
+        if: ${{ github.ref == 'refs/heads/master' }}
+        run: |
+          . /home/firedrake/firedrake/bin/activate
+          cd docs
+          make linkcheck
       - name: Build docs
         run: |
           . /home/firedrake/firedrake/bin/activate
-          make -C docs html
+          cd docs
+          make html
+          make latex
+          make latexpdf
+      - name: Copy manual to HTML tree
+        run: |
+          cd docs
+          cp build/latex/Irksome.pdf build/html/_static/manual.pdf
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          name: github-pages
+          path: /__w/Irksome/Irksome/docs/build/html
+          retention-days: 1
       - name: Deploy docs
         if: ${{ github.ref == 'refs/heads/master' }}
         uses: crazy-max/ghaction-github-pages@v2.5.0

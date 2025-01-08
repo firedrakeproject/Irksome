@@ -174,26 +174,80 @@ html_show_sphinx = False
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'Irksomedoc'
 
+author_list = ['Pablo Brubeck', 'Patrick E. Farrell', 'Robert C. Kirby', 'Scott P. MacLachlan']
+author = ', '.join(author_list)
 
 # -- Options for LaTeX output --------------------------------------------
+
+latex_additional_files = [
+    '_static/sphinxpoptitle.sty'
+]
 
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     'papersize': 'a4paper',
 
     # The font size ('10pt', '11pt' or '12pt').
-    #'pointsize': '10pt',
+    'pointsize': '11pt',
+
+    'babel': r'\usepackage[british]{babel}',
 
     # Additional stuff for the LaTeX preamble.
     'preamble': r'''\newcommand{\require}[1]{}
-\usepackage{cancel}''',
+\usepackage{cancel}
+
+% \sphinxDUC{2730}{\ding{80}}
+\sphinxDUC{27F6}{$\rightarrow$}
+\sphinxDUC{2208}{$\in$}
+\sphinxDUC{2200}{$\forall$}
+\sphinxDUC{2218}{$\circ$}
+\sphinxDUC{22C5}{$\cdot$}
+\sphinxDUC{25A3}{$\boxdot$}
+\sphinxDUC{03BB}{$\lambda$}
+\sphinxDUC{0393}{$\Gamma$}
+% Sphinx equivalent of
+% \DeclareUnicodeCharacter{}{}
+
+% Make text sans-serif
+\renewcommand{\familydefault}{\sfdefault}
+
+% The default sphinx colouring colours a lot of links that are actually dead in
+% the book version.
+\definecolor{internallinkcolor}{HTML}{c52b03}
+\definecolor{externallinkcolor}{HTML}{e55d05}
+%\hypersetup{linkcolor=internallinkcolor}
+\hypersetup{linkcolor=black}
+%\hypersetup{urlcolor=externallinkcolor}
+\hypersetup{urlcolor=black}
+\usepackage{sphinxpoptitle}
+\subtitle{}
+\edition{2024}
+'''
+f'''
+% Hacky way to add all metadata, neither tool sets all fields
+\hypersetup{{pdfinfo={{
+Title={{Irksome User Manual}},
+Subject={{Mathematics}},
+}}}}
+\pdfinfo{{
+/Author ({author})
+/Keywords (Irksome, Partial Differential Equations, PDEs, Runge-Kutta Methods, Finite Element, FEM)
+}}
+''',
+
+    'extrapackages': r'''\usepackage{mathtools}''',
+
+    'maketitle': r'\sphinxpoptitlepages',
+
+    'makeindex': r'\usepackage[columns=1]{idxlayout}\makeindex',
+
+    'maxlistdepth' : '8'
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'Irksome.tex', u'Irksome Documentation',
-     u'the Irksome team', 'manual'),
+    ('index', 'Irksome.tex', u'Irksome User Manual', r' \and \\'.join(author_list), 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -223,7 +277,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'firedrake', u'Irksome Documentation',
-     [u'the Irksome team'], 1)
+     [author], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -237,7 +291,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     ('index', 'Irksome', u'Irksome Documentation',
-     u'the Irksome team', 'Irksome', 'One line description of project.',
+     author, 'Irksome', 'One line description of project.',
      'Miscellaneous'),
 ]
 
