@@ -98,12 +98,13 @@ and for adaptive IRK methods:
    demos/demo_heat_adapt.py
 
 
-Or check out an IMEX-type method for the monodomain equations:
+Or check out two IMEX-type methods for the monodomain equations:
 
 .. toctree::
    :maxdepth: 1
 
    demos/demo_monodomain_FHN.py
+   demos/demo_monodomain_FHN_dirkimex.py
 
 Advanced demos
 --------------
