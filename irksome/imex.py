@@ -473,8 +473,8 @@ class DIRKIMEXMethod:
         ghat.assign(u0)
         chat.assign(C_hat[0])
         self.mass_solver.solve()
-        self.num_mass_nonlinear_iterations += self.mass_solver.getIterationNumber()
-        self.num_mass_linear_iterations += self.mass_solver.getLinearSolveIterations()
+        self.num_mass_nonlinear_iterations += self.mass_solver.snes.getIterationNumber()
+        self.num_mass_linear_iterations += self.mass_solver.snes.getLinearSolveIterations()
         k_hat_s[0].assign(khat)
 
         for i in range(ns):
@@ -504,8 +504,8 @@ class DIRKIMEXMethod:
             a.assign(AA[i, i])
             c.assign(CC[i])
             self.solver.solve()
-            self.num_nonlinear_iterations += self.solver.getIterationNumber()
-            self.num_linear_iterations += self.solver.getLinearSolveIterations()
+            self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
+            self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
             ks[i].assign(k)
 
             # Update the solution for next stage
@@ -516,8 +516,8 @@ class DIRKIMEXMethod:
 
             chat.assign(C_hat[i+1])
             self.mass_solver.solve()
-            self.num_mass_nonlinear_iterations += self.mass_solver.getIterationNumber()
-            self.num_mass_linear_iterations += self.mass_solver.getLinearSolveIterations()
+            self.num_mass_nonlinear_iterations += self.mass_solver.snes.getIterationNumber()
+            self.num_mass_linear_iterations += self.mass_solver.snes.getLinearSolveIterations()
             k_hat_s[i + 1].assign(khat)
 
         # Final solution update

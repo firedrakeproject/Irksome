@@ -68,7 +68,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
                  "it_solver_parameters", "prop_solver_parameters",
                  "splitting", "appctx",
                  "num_its_initial", "num_its_per_step"],
-        "dirkimex": ["stage_type", "bcs", "nullspace", "solver_parameters", "mass_parameters", "appctx"]}
+        "dirkimex": ["Fexp", "stage_type", "bcs", "nullspace", "solver_parameters", "mass_parameters", "appctx"]}
 
     valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                               "max_reject", "onscale_factor",
@@ -163,13 +163,15 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             splitting, appctx, nullspace,
             num_its_initial, num_its_per_step)
     elif stage_type == "dirkimex":
+        Fexp = kwargs.get("Fexp")
+        assert Fexp is not None
         bcs = kwargs.get("bcs")
         appctx = kwargs.get("appctx")
         solver_parameters = kwargs.get("solver_parameters")
         mass_parameters = kwargs.get("mass_parameters")
         nullspace = kwargs.get("nullspace")
         return DIRKIMEXMethod(
-            F, butcher_tableau, t, dt, u0, bcs,
+            F, Fexp, butcher_tableau, t, dt, u0, bcs,
             solver_parameters, mass_parameters, appctx, nullspace)
 
 
