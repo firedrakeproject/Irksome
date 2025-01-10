@@ -2,8 +2,58 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, TimeStepper, IMEXEuler, IMEX4
+from irksome import Dt, MeshConstant, TimeStepper, IMEXEuler, IMEX2, IMEX3, IMEX4
 from ufl.algorithms.ad import expand_derivatives
+
+
+def heat_neumannbc(butcher_tableau, order, N):
+    msh = UnitIntervalMesh(N)
+    V = FunctionSpace(msh, "CG", order)
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
+    (x,) = SpatialCoordinate(msh)
+
+    # Choose uexact so rhs is nonzero
+    uexact = cos(pi*x)*exp(-t)
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    u = Function(V)
+    u.interpolate(uexact)
+
+    v = TestFunction(V)
+    F = (
+        inner(Dt(u), v) * dx
+        + inner(grad(u), grad(v)) * dx
+    )
+    Fexp = inner(rhs, v) * dx
+
+    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+
+    stepper = TimeStepper(
+        F, butcher_tableau, t, dt, u, Fexp=Fexp,
+        solver_parameters=luparams, mass_parameters=luparams,
+        stage_type="dirkimex"
+    )
+
+    t_end = 1.0
+    while float(t) < t_end:
+        if float(t) + float(dt) > t_end:
+            dt.assign(t_end - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return (errornorm(uexact, u) / norm(uexact))
+
+
+@pytest.mark.parametrize("butcher_tableau, order",
+                         [(IMEXEuler(), 1), (IMEX2(), 2),
+                          (IMEX3(), 3), (IMEX4(), 3)])
+def test_1d_heat_neumannbc(butcher_tableau, order):
+    errs = np.array([heat_neumannbc(butcher_tableau, order, 10*2**p) for p in [3, 4]])
+    print(errs)
+    conv = np.log2(errs[0]/errs[1])
+    print(conv)
+    assert conv > order-0.2
 
 
 # Note IMEX4 is stiffly accurate, so satisfies BC checks.  IMEX2 and IMEX3 do not
