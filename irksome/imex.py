@@ -378,10 +378,6 @@ def getFormsIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
         bcarg_stage = replace(bcarg, {t: t+c*dt})
-        if bcarg_stage == 0:
-            # Homogeneous BC, just zero out stage dofs
-            bcnew.append(bc.reconstruct(g=0))
-            continue
 
         gdat = bcarg_stage - bc2space(bc, u0)
         for i in range(num_stages):
@@ -392,7 +388,7 @@ def getFormsIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
         gdat /= dt*d_val
         bcnew.append(bc.reconstruct(g=gdat))
 
-        return stage_F, (k, g, a, c), bcnew, Fhat, (khat, ghat, chat), (a_vals, ahat_vals, d_val)
+    return stage_F, (k, g, a, c), bcnew, Fhat, (khat, ghat, chat), (a_vals, ahat_vals, d_val)
 
 
 class DIRKIMEXMethod:
