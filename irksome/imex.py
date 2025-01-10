@@ -309,7 +309,7 @@ class RadauIIAIMEXMethod:
                 self.num_linear_iterations_it)
 
 
-def getFormsIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
+def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
 
@@ -416,7 +416,7 @@ class DIRKIMEXMethod:
         self.ks = [Function(V) for _ in range(self.num_stages)]
         self.k_hat_s = [Function(V) for _ in range(self.num_stages+1)]
 
-        stage_F, (k, g, a, c), bcnew, Fhat, (khat, ghat, chat), (a_vals, ahat_vals, d_val) = getFormsIMEX(
+        stage_F, (k, g, a, c), bcnew, Fhat, (khat, ghat, chat), (a_vals, ahat_vals, d_val) = getFormsDIRKIMEX(
             F, F_explicit, self.ks, self.k_hat_s, butcher_tableau, t, dt, u0, bcs=bcs)
 
         self.bcnew = bcnew
