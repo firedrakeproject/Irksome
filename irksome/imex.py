@@ -461,8 +461,6 @@ class DIRKIMEXMethod:
         A_hat = bt.A_hat
         CC = bt.c
         C_hat = bt.c_hat
-        BB = bt.b
-        B_hat = bt.b_hat
         a_vals, ahat_vals, d_val = self.bc_constants
 
         # Calculate explicit term for the first stage
@@ -512,6 +510,22 @@ class DIRKIMEXMethod:
             for ghatbit, kbit in zip(ghat.subfunctions, ks[i].subfunctions):
                 ghatbit += dtc * AA[i, i] * kbit
 
+        self._finalize_general()
+        self.num_steps += 1
+
+    # Last part of advance for the general case, where last explicit stage is calculated and used
+    def _finalize_general(self):
+        khat, ghat, chat = self.kgchat
+        ks = self.ks
+        k_hat_s = self.k_hat_s
+        u0 = self.u0
+        dtc = float(self.dt)
+        bt = self.butcher_tableau
+        ns = self.num_stages
+        C_hat = bt.c_hat
+        BB = bt.b
+        B_hat = bt.b_hat
+
         chat.assign(C_hat[ns])
         self.mass_solver.solve()
         self.num_mass_nonlinear_iterations += self.mass_solver.snes.getIterationNumber()
@@ -526,8 +540,6 @@ class DIRKIMEXMethod:
         for i in range(ns+1):
             for u0bit, k_hat_bit in zip(u0.subfunctions, k_hat_s[i].subfunctions):
                 u0bit += dtc * B_hat[i] * k_hat_bit
-
-        self.num_steps += 1
 
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations, self.num_mass_nonlinear_iterations, self.num_mass_linear_iterations
