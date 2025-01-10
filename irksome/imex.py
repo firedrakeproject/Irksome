@@ -397,7 +397,7 @@ class DIRKIMEXMethod:
 
     def __init__(self, F, F_explicit, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, mass_parameters=None, appctx=None, nullspace=None):
-        assert butcher_tableau.is_imex
+        assert butcher_tableau.is_dirk_imex
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
