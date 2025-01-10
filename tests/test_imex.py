@@ -2,12 +2,12 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, TimeStepper, IMEX4
+from irksome import Dt, MeshConstant, TimeStepper, IMEXEuler, IMEX4
 from ufl.algorithms.ad import expand_derivatives
 
 
 # Note IMEX4 is stiffly accurate, so satisfies BC checks.  IMEX2 and IMEX3 do not
-@pytest.mark.parametrize("butcher_tableau", [IMEX4()])
+@pytest.mark.parametrize("butcher_tableau", [IMEXEuler(), IMEX4()])
 def test_1d_heat_dirichletbc(butcher_tableau):
     # Boundary values
     u_0 = Constant(2.0)

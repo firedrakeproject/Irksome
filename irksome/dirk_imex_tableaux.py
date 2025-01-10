@@ -6,11 +6,11 @@ import numpy as np
 class IMEXEuler(ButcherTableau):
     def __init__(self):
         A = np.array([[1.0]])    # Implicit matrix (for implicit part)
-        A_hat = np.array([[0.0]])  # Explicit matrix (for explicit part)
+        A_hat = np.array([[1.0]])  # Explicit matrix (for explicit part)
         b = np.array([1.0])      # Implicit weights
-        b_hat = np.array([1.0])  # Explicit weights
+        b_hat = np.array([1.0, 0.0])  # Explicit weights
         c = np.array([1.0])      # Time steps for implicit part
-        c_hat = np.array([0.0])  # Time steps for explicit part
+        c_hat = np.array([0.0, 1.0])  # Time steps for explicit part
         order = 1                  # First-order method (Euler)
         embedded_order = None      # set to None
         gamma0 = None              # set to None
