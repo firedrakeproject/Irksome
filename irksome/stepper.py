@@ -147,7 +147,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             solver_parameters, appctx)
     elif stage_type == "imex":
         Fexp = kwargs.get("Fexp")
-        assert Fexp is not None
+        assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
         bcs = kwargs.get("bcs")
         appctx = kwargs.get("appctx")
         splitting = kwargs.get("splitting", AI)
@@ -164,7 +164,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             num_its_initial, num_its_per_step)
     elif stage_type == "dirkimex":
         Fexp = kwargs.get("Fexp")
-        assert Fexp is not None
+        assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
         bcs = kwargs.get("bcs")
         appctx = kwargs.get("appctx")
         solver_parameters = kwargs.get("solver_parameters")
