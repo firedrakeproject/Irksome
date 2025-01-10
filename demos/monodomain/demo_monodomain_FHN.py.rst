@@ -8,7 +8,7 @@ The basic form of the equation is:
 
    \chi \left( C_m u_t + I_{ion}(u) \right) = \nabla \cdot \sigma \nabla u
 
-where :math:`u` is the membrane potential, :math:`\sigma` is the conductivity tensor, :math:`C_m` is the specific capacitance of the cell membrane, and :math:`\chi` is the surface area to volume ration.  The term :math:`I_{ion}` is current due to ionic flows through channels in the cell membranes, and may couple to a complicated reaction network.  In our case, we take the relatively simple model due to Fitzhugh and Nagumo.  Here, we have a separate concentration variable :math:`c` satisfying the reaction equation:
+where :math:`u` is the membrane potential, :math:`\sigma` is the conductivity tensor, :math:`C_m` is the specific capacitance of the cell membrane, and :math:`\chi` is the surface area to volume ratio.  The term :math:`I_{ion}` is current due to ionic flows through channels in the cell membranes, and may couple to a complicated reaction network.  In our case, we take the relatively simple model due to Fitzhugh and Nagumo.  Here, we have a separate concentration variable :math:`c` satisfying the reaction equation:
 
 .. math::
 
@@ -58,15 +58,15 @@ Specify the physical constants and initial conditions::
   sigma = as_matrix([[sigma1, 0.0], [0.0, sigma2]])
 
   
-  InitialPotential = conditional(x < 3.5, Constant(2.0), Constant(-1.28791))
-  InitialCell = conditional(And(And(31 <= x, x < 39), And(0 <= y, y < 35)),
+  initial_potential = conditional(x < 3.5, Constant(2.0), Constant(-1.28791))
+  initial_cell = conditional(And(And(31 <= x, x < 39), And(0 <= y, y < 35)),
                             Constant(2.0), Constant(-0.5758))
 
 
   uu = Function(Z)
   vu, vc = TestFunctions(Z)
-  uu.sub(0).interpolate(InitialPotential)
-  uu.sub(1).interpolate(InitialCell)
+  uu.sub(0).interpolate(initial_potential)
+  uu.sub(1).interpolate(initial_cell)
 
   (u, c) = split(uu)
   

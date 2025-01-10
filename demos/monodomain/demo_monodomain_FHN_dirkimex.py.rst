@@ -8,7 +8,7 @@ The basic form of the equation is:
 
    \chi \left( C_m u_t + I_{ion}(u) \right) = \nabla \cdot \sigma \nabla u
 
-where :math:`u` is the membrane potential, :math:`\sigma` is the conductivity tensor, :math:`C_m` is the specific capacitance of the cell membrane, and :math:`\chi` is the surface area to volume ration.  The term :math:`I_{ion}` is current due to ionic flows through channels in the cell membranes, and may couple to a complicated reaction network.  In our case, we take the relatively simple model due to Fitzhugh and Nagumo.  Here, we have a separate concentration variable :math:`c` satisfying the reaction equation:
+where :math:`u` is the membrane potential, :math:`\sigma` is the conductivity tensor, :math:`C_m` is the specific capacitance of the cell membrane, and :math:`\chi` is the surface area to volume ratio.  The term :math:`I_{ion}` is current due to ionic flows through channels in the cell membranes, and may couple to a complicated reaction network.  In our case, we take the relatively simple model due to Fitzhugh and Nagumo.  Here, we have a separate concentration variable :math:`c` satisfying the reaction equation:
 
 .. math::
 
@@ -58,21 +58,22 @@ Specify the physical constants and initial conditions::
   sigma = as_matrix([[sigma1, 0.0], [0.0, sigma2]])
 
   
-  InitialPotential = conditional(x < 3.5, Constant(2.0), Constant(-1.28791))
-  InitialCell = conditional(And(And(31 <= x, x < 39), And(0 <= y, y < 35)),
+  initial_potential = conditional(x < 3.5, Constant(2.0), Constant(-1.28791))
+  initial_cell = conditional(And(And(31 <= x, x < 39), And(0 <= y, y < 35)),
                             Constant(2.0), Constant(-0.5758))
 
 
   uu = Function(Z)
   vu, vc = TestFunctions(Z)
-  uu.sub(0).interpolate(InitialPotential)
-  uu.sub(1).interpolate(InitialCell)
+  uu.sub(0).interpolate(initial_potential)
+  uu.sub(1).interpolate(initial_cell)
 
   (u, c) = split(uu)
   
 
-This sets up the Butcher tableau.  All of our IMEX-type methods are
-based on a RadauIIA method for the implicit part.  We use a three-stage method.::
+This sets up the Butcher tableau.  Here, we use the DIRK-IMEX methods proposed
+by Ascher, Ruuth, and Spiteri in their 1997 Applied Numerical Mathematics paper.
+For this case, We use a four-stage method.::
   
   butcher_tableau = IMEX4()
   ns = butcher_tableau.num_stages
@@ -93,7 +94,7 @@ If we wanted to use a fully implicit method, we would just take
 F = F1 - F2.   Note the minus sign, since DIRK-IMEX takes forms as F1 = F2.
 
 Now, set up solver parameters.  Since we're using a DIRK-IMEX scheme, we can
-specify only parameters for each stage::
+specify only parameters for each stage.  We use an additive Schwarz (fieldsplit) method that applies AMG to the potential block and incomplete Cholesky to the cell block independently for each stage::
   
   params = {"snes_type": "ksponly",
             "ksp_monitor": None,
