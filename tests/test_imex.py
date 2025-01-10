@@ -57,7 +57,9 @@ def test_1d_convdiff_neumannbc(butcher_tableau, order):
     assert conv > order-0.4
 
 
-# Note IMEX4 is stiffly accurate, so satisfies BC checks.  IMEX2 and IMEX3 do not
+# Note IMEX4 is stiffly accurate, so the DAE-style BC imposition leads
+# to satisfying the BCs exactly at each timestep, which we check here.
+# IMEX2 and IMEX3 do not have this property
 @pytest.mark.parametrize("butcher_tableau", [IMEXEuler(), IMEX4()])
 def test_1d_heat_dirichletbc(butcher_tableau):
     # Boundary values
