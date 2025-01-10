@@ -309,57 +309,6 @@ class RadauIIAIMEXMethod:
                 self.num_linear_iterations_it)
 
 
-class BCThingy:
-    def __init__(self):
-        pass
-
-    def __call__(self, u):
-        return u
-
-
-class BCCompOfNotMixedThingy:
-    def __init__(self, comp):
-        self.comp = comp
-
-    def __call__(self, u):
-        return u[self.comp]
-
-
-class BCMixedBitThingy:
-    def __init__(self, sub):
-        self.sub = sub
-
-    def __call__(self, u):
-        return u.sub(self.sub)
-
-
-class BCCompOfMixedBitThingy:
-    def __init__(self, sub, comp):
-        self.sub = sub
-        self.comp = comp
-
-    def __call__(self, u):
-        return u.sub(self.sub)[self.comp]
-
-
-def getThingy(V, bc):
-    num_fields = len(V)
-    Vbc = bc.function_space()
-    if num_fields == 1:
-        comp = Vbc.component
-        if comp is None:
-            return BCThingy()
-        else:
-            return BCCompOfNotMixedThingy(comp)
-    else:
-        sub = bc.function_space_index()
-        comp = Vbc.component
-        if comp is None:
-            return BCMixedBitThingy(sub)
-        else:
-            return BCCompOfMixedBitThingy(sub, comp)
-
-
 def getFormsIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
