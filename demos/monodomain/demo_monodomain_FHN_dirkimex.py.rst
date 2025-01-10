@@ -145,10 +145,13 @@ Now, we access the IMEX method via the `TimeStepper` as with other methods.  Not
           outfile1.write(uFinal, time=j * float(dt))
           outfile2.write(cFinal, time=j * float(dt))
 
+
+We can print out some solver statistics here.  We expect one implicit solve per stage per timestep, and that's what we see with the four-stage method.  For this Butcher Tableau, we can avoid computing the final explicit stage (since it's coefficient in the next stage reconstruction is zero), so we see the same number of mass solves.::
+
   nsteps, n_nonlin, n_lin, n_nonlin_mass, n_lin_mass = stepper.solver_stats()
   print(f"Time steps taken: {nsteps}")
   print(f"  {n_nonlin} nonlinear steps in implicit stage solves (should be {nsteps*ns})")
   print(f"  {n_lin} linear steps in implicit stage solves")
-  print(f"  {n_nonlin_mass} nonlinear steps in mass solves (should be {nsteps*(ns+1)})")
+  print(f"  {n_nonlin_mass} nonlinear steps in mass solves (should be {nsteps*ns})")
   print(f"  {n_lin_mass} linear steps in mass solves")
 
