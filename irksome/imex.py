@@ -444,10 +444,16 @@ class DIRKIMEXMethod:
         self.kgchat = khat, ghat, chat
         self.bc_constants = a_vals, ahat_vals, d_val
 
+        AA = butcher_tableau.A
+        A_hat = butcher_tableau.A_hat
+        BB = butcher_tableau.b
         B_hat = butcher_tableau.b_hat
 
         if B_hat[-1] == 0:
-            self._finalize = self._finalize_no_last_explicit
+            if np.allclose(AA[-1, :], BB) and np.allclose(A_hat[-1, :], B_hat[:-1]):
+                self._finalize = self._finalize_stiffly_accurate
+            else:
+                self._finalize = self._finalize_no_last_explicit
         else:
             self._finalize = self._finalize_general
 
@@ -563,6 +569,13 @@ class DIRKIMEXMethod:
         for i in range(ns):
             for u0bit, k_hat_bit in zip(u0.subfunctions, k_hat_s[i].subfunctions):
                 u0bit += dtc * B_hat[i] * k_hat_bit
+
+    # Last part of advance for the general case, where last implicit stage is new solution
+    def _finalize_stiffly_accurate(self):
+        khat, ghat, chat = self.kgchat
+        u0 = self.u0
+        for u0bit, ghatbit in zip(u0.subfunctions, ghat.subfunctions):
+            u0bit.assign(ghatbit)
 
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations, self.num_mass_nonlinear_iterations, self.num_mass_linear_iterations
