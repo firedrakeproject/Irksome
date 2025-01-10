@@ -1,9 +1,8 @@
 import FIAT
 import numpy as np
-from firedrake import (DirichletBC, Function, NonlinearVariationalProblem,
+from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction,
-                       assemble, as_ufl, dx, inner, interpolate,
-                       project, split)
+                       as_ufl, dx, inner, split)
 from firedrake.dmhooks import pop_parent, push_parent
 from ufl.classes import Zero
 
@@ -11,6 +10,7 @@ from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative
 from .stage import getBits, getFormStage
 from .tools import AI, IA, MeshConstant, replace
+from .bcs import bc2space
 
 
 def riia_explicit_coeffs(k):
@@ -360,7 +360,7 @@ def getThingy(V, bc):
             return BCCompOfMixedBitThingy(sub, comp)
 
 
-def getFormsIMEX(F, Fexp, butch, t, dt, u0, bcs=None):
+def getFormsIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
 
@@ -370,14 +370,16 @@ def getFormsIMEX(F, Fexp, butch, t, dt, u0, bcs=None):
     assert V == u0.function_space()
 
     num_fields = len(V)
-
+    num_stages = butch.num_stages
     k = Function(V)
     g = Function(V)
 
     khat = Function(V)
-    vhat = TestFunction(V)
     ghat = Function(V)
+    vhat = TestFunction(V)
 
+    # If we're on a mixed problem, we need to replace pieces of the
+    # solution.  Stores array of the splittings of the functions for each stage.
     if num_fields == 1:
         k_bits = [k]
         u0bits = [u0]
@@ -389,44 +391,59 @@ def getFormsIMEX(F, Fexp, butch, t, dt, u0, bcs=None):
         gbits = split(g)
         ghat_bits = split(g)
 
+    # Note: the Constant c is used for substitution in both the
+    # implicit variational form and BC's, and we update it for each stage in
+    # the loop over stages in the advance method.  The Constants a and chat are
+    # used similarly in the variational forms
     MC = MeshConstant(msh)
     c = MC.Constant(1.0)
     chat = MC.Constant(1.0)
     a = MC.Constant(1.0)
 
+    # Implicit replacement, solve at time t + c * dt, for k
     repl = {t: t + c * dt}
     for u0bit, kbit, gbit in zip(u0bits, k_bits, gbits):
         repl[u0bit] = gbit + dt * a * kbit
         repl[TimeDerivative(u0bit)] = kbit
     stage_F = replace(F, repl)
 
+    # Explicit replacement, solve at time t + chat * dt, for khat
     replhat = {t: t + chat * dt}
     for u0bit, ghatbit in zip(u0bits, ghat_bits):
         replhat[u0bit] = ghatbit
     Fhat = inner(khat, vhat)*dx - replace(Fexp, replhat)
 
     bcnew = []
-    gblah = []
+
+    # For the DIRK-IMEX case, we need one new BC for each old one
+    # (rather than one per stage), but we need a `Function` inside of
+    # each BC and a rule for computing that function at each time for
+    # each stage.
+
+    a_vals = np.array([MC.Constant(0) for i in range(num_stages)],
+                      dtype=object)
+    ahat_vals = np.array([MC.Constant(0) for i in range(num_stages+1)],
+                         dtype=object)
+    d_val = MC.Constant(1.0)
 
     for bc in bcs:
-        Vbc = bc.function_space()
         bcarg = as_ufl(bc._original_arg)
-        bcarg_stage = replace(bcarg, {t: t + c * dt})
-        try:
-            gdat = assemble(interpolate(bcarg, Vbc))
-            gmethod = lambda gd, gc: gd.interpolate(gc)
-        except:  # noqa: E722
-            gdat = assemble(project(bcarg, Vbc))
-            gmethod = lambda gd, gc: gd.project(gc)
+        bcarg_stage = replace(bcarg, {t: t+c*dt})
+        if bcarg_stage == 0:
+            # Homogeneous BC, just zero out stage dofs
+            bcnew.append(bc.reconstruct(g=0))
+            continue
 
-        new_bc = DirichletBC(Vbc, gdat, bc.sub_domain)
-        bcnew.append(new_bc)
+        gdat = bcarg_stage - bc2space(bc, u0)
+        for i in range(num_stages):
+            gdat -= dt*a_vals[i]*bc2space(bc, ks[i])
+        for i in range(num_stages+1):
+            gdat -= dt*ahat_vals[i]*bc2space(bc, khats[i])
 
-        dat4bc = getThingy(V, bc)
-        gdat2 = Function(gdat.function_space())
-        gblah.append((gdat, gdat2, bcarg_stage, gmethod, dat4bc))
+        gdat /= dt*d_val
+        bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k, g, a, c), bcnew, gblah, Fhat, (khat, ghat, chat)
+        return stage_F, (k, g, a, c), bcnew, Fhat, (khat, ghat, chat), (a_vals, ahat_vals, d_val)
 
 
 class DIRKIMEXMethod:
@@ -435,29 +452,32 @@ class DIRKIMEXMethod:
 
     def __init__(self, F, F_explicit, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, mass_parameters=None, appctx=None, nullspace=None):
-        assert butcher_tableau.is_explicit_implicit
+        assert butcher_tableau.is_imex
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
+        self.num_mass_nonlinear_iterations = 0
+        self.num_mass_linear_iterations = 0
 
         self.butcher_tableau = butcher_tableau
+        self.num_stages = butcher_tableau.num_stages
+
         self.V = V = u0.function_space()
         self.u0 = u0
         self.t = t
         self.dt = dt
         self.num_fields = len(u0.function_space())
-        self.num_stages = butcher_tableau.num_stages
         self.ks = [Function(V) for _ in range(self.num_stages)]
         self.k_hat_s = [Function(V) for _ in range(self.num_stages+1)]
 
-        stage_F, (k, g, a, c), bcnew, gblah, Fhat, (khat, ghat, chat) = getFormsIMEX(
-            F, F_explicit, butcher_tableau, t, dt, u0, bcs=bcs)
+        stage_F, (k, g, a, c), bcnew, Fhat, (khat, ghat, chat), (a_vals, ahat_vals, d_val) = getFormsIMEX(
+            F, F_explicit, self.ks, self.k_hat_s, butcher_tableau, t, dt, u0, bcs=bcs)
 
         self.bcnew = bcnew
-        self.gblah = gblah
 
         appctx_irksome = {"F": F,
+                          "F_explicit": F_explicit,
                           "butcher_tableau": butcher_tableau,
                           "t": t,
                           "dt": dt,
@@ -481,6 +501,7 @@ class DIRKIMEXMethod:
 
         self.kgac = k, g, a, c
         self.kgchat = khat, ghat, chat
+        self.bc_constants = a_vals, ahat_vals, d_val
 
     def advance(self):
         k, g, a, c = self.kgac
@@ -490,55 +511,52 @@ class DIRKIMEXMethod:
         u0 = self.u0
         dtc = float(self.dt)
         bt = self.butcher_tableau
+        ns = self.num_stages
         AA = bt.A
         A_hat = bt.A_hat
         CC = bt.c
         C_hat = bt.c_hat
         BB = bt.b
         B_hat = bt.b_hat
+        a_vals, ahat_vals, d_val = self.bc_constants
 
         # Calculate explicit term for the first stage
         ghat.assign(u0)
         chat.assign(C_hat[0])
         self.mass_solver.solve()
+        self.num_mass_nonlinear_iterations += self.mass_solver.getIterationNumber()
+        self.num_mass_linear_iterations += self.mass_solver.getLinearSolveIterations()
         k_hat_s[0].assign(khat)
 
-        for i in range(self.num_stages):
-            # Set implicit coefficients
-            a.assign(AA[i, i])
-            c.assign(CC[i])
-
+        for i in range(ns):
             g.assign(u0)
-
             # Update g with contributions from previous stages
             for j in range(i):
                 ksplit = ks[j].subfunctions
                 for gbit, kbit in zip(g.subfunctions, ksplit):
                     gbit += dtc * AA[i, j] * kbit
-
             for j in range(i+1):
                 k_hat_split = k_hat_s[j].subfunctions
                 for gbit, k_hat_bit in zip(g.subfunctions, k_hat_split):
                     gbit += dtc * A_hat[i, j] * k_hat_bit
 
             # Solve for current stage
-            for (bc, (gdat, gdat2, gcur, gmethod, dat4bc)) in zip(self.bcnew, self.gblah):
-                gmethod(gdat, gcur)
-                gmethod(gdat2, dat4bc(u0))
-                gdat -= gdat2
-
-                for j in range(i):
-                    gmethod(gdat2, dat4bc(ks[j]))
-                    gdat -= dtc * AA[i, j] * gdat2
-
-                for j in range(i+1):
-                    gmethod(gdat2, dat4bc(k_hat_s[j]))
-                    gdat -= dtc * A_hat[i, j] * gdat2
-
-                gdat /= dtc * AA[i, i]
+            for j in range(i):
+                a_vals[j].assign(AA[i, j])
+            for j in range(i, ns):
+                a_vals[j].assign(0)
+            for j in range(i+1):
+                ahat_vals[j].assign(A_hat[i, j])
+            for j in range(i+1, ns+1):
+                ahat_vals[j].assign(0)
+            d_val.assign(AA[i, i])
 
             # Solve the nonlinear problem at stage i
+            a.assign(AA[i, i])
+            c.assign(CC[i])
             self.solver.solve()
+            self.num_nonlinear_iterations += self.solver.getIterationNumber()
+            self.num_linear_iterations += self.solver.getLinearSolveIterations()
             ks[i].assign(k)
 
             # Update the solution for next stage
@@ -546,21 +564,23 @@ class DIRKIMEXMethod:
                 ghatbit.assign(gbit)
             for ghatbit, kbit in zip(ghat.subfunctions, ks[i].subfunctions):
                 ghatbit += dtc * AA[i, i] * kbit
-            chat.assign(C_hat[i+1])
 
+            chat.assign(C_hat[i+1])
             self.mass_solver.solve()
+            self.num_mass_nonlinear_iterations += self.mass_solver.getIterationNumber()
+            self.num_mass_linear_iterations += self.mass_solver.getLinearSolveIterations()
             k_hat_s[i + 1].assign(khat)
 
         # Final solution update
-        for i in range(self.num_stages):
+        for i in range(ns):
             for u0bit, kbit in zip(u0.subfunctions, ks[i].subfunctions):
                 u0bit += dtc * BB[i] * kbit
 
-        for i in range(self.num_stages+1):
+        for i in range(ns+1):
             for u0bit, k_hat_bit in zip(u0.subfunctions, k_hat_s[i].subfunctions):
                 u0bit += dtc * B_hat[i] * k_hat_bit
 
         self.num_steps += 1
 
     def solver_stats(self):
-        return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
+        return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations, self.num_mass_nonlinear_iterations, self.num_mass_linear_iterations

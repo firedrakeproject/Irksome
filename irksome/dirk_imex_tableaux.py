@@ -18,7 +18,7 @@ class IMEXEuler(ButcherTableau):
         self.A_hat = A_hat
         self.b_hat = b_hat
         self.c_hat = c_hat
-        self.is_explicit_implicit = True  # Mark this as an IMEX scheme
+        self.is_imex = True  # Mark this as an IMEX scheme
 
 
 # IMEX Butcher tableau for s = 2
@@ -46,7 +46,7 @@ class IMEX2(ButcherTableau):
         self.A_hat = A_hat
         self.b_hat = b_hat
         self.c_hat = c_hat
-        self.is_explicit_implicit = True  # Mark this as an IMEX scheme
+        self.is_imex = True  # Mark this as an IMEX scheme
 
 
 # IMEX Butcher tableau for s = 3
@@ -69,7 +69,7 @@ class IMEX3(ButcherTableau):
         self.A_hat = A_hat
         self.b_hat = b_hat
         self.c_hat = c_hat
-        self.is_explicit_implicit = True  # Mark this as an IMEX scheme
+        self.is_imex = True  # Mark this as an IMEX scheme
 
 
 # IMEX Butcher tableau for s = 4
@@ -97,4 +97,4 @@ class IMEX4(ButcherTableau):
         self.A_hat = A_hat
         self.b_hat = b_hat
         self.c_hat = c_hat
-        self.is_explicit_implicit = True  # Mark this as an IMEX scheme
+        self.is_imex = True  # Mark this as an IMEX scheme
