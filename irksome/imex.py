@@ -448,6 +448,13 @@ class DIRKIMEXMethod:
         self.kgchat = khat, ghat, chat
         self.bc_constants = a_vals, ahat_vals, d_val
 
+        B_hat = butcher_tableau.b_hat
+
+        if B_hat[-1] == 0:
+            self._finalize = self._finalize_no_last_explicit
+        else:
+            self._finalize = self._finalize_general
+
     def advance(self):
         k, g, a, c = self.kgac
         khat, ghat, chat = self.kgchat
@@ -510,7 +517,7 @@ class DIRKIMEXMethod:
             for ghatbit, kbit in zip(ghat.subfunctions, ks[i].subfunctions):
                 ghatbit += dtc * AA[i, i] * kbit
 
-        self._finalize_general()
+        self._finalize()
         self.num_steps += 1
 
     # Last part of advance for the general case, where last explicit stage is calculated and used
@@ -538,6 +545,26 @@ class DIRKIMEXMethod:
                 u0bit += dtc * BB[i] * kbit
 
         for i in range(ns+1):
+            for u0bit, k_hat_bit in zip(u0.subfunctions, k_hat_s[i].subfunctions):
+                u0bit += dtc * B_hat[i] * k_hat_bit
+
+    # Last part of advance for the general case, where last explicit stage is not used
+    def _finalize_no_last_explicit(self):
+        ks = self.ks
+        k_hat_s = self.k_hat_s
+        u0 = self.u0
+        dtc = float(self.dt)
+        bt = self.butcher_tableau
+        ns = self.num_stages
+        BB = bt.b
+        B_hat = bt.b_hat
+
+        # Final solution update
+        for i in range(ns):
+            for u0bit, kbit in zip(u0.subfunctions, ks[i].subfunctions):
+                u0bit += dtc * BB[i] * kbit
+
+        for i in range(ns):
             for u0bit, k_hat_bit in zip(u0.subfunctions, k_hat_s[i].subfunctions):
                 u0bit += dtc * B_hat[i] * k_hat_bit
 
