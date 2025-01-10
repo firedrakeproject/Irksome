@@ -467,13 +467,15 @@ class DIRKIMEXMethod:
 
         # Calculate explicit term for the first stage
         ghat.assign(u0)
-        chat.assign(C_hat[0])
-        self.mass_solver.solve()
-        self.num_mass_nonlinear_iterations += self.mass_solver.snes.getIterationNumber()
-        self.num_mass_linear_iterations += self.mass_solver.snes.getLinearSolveIterations()
-        k_hat_s[0].assign(khat)
 
         for i in range(ns):
+
+            chat.assign(C_hat[i])
+            self.mass_solver.solve()
+            self.num_mass_nonlinear_iterations += self.mass_solver.snes.getIterationNumber()
+            self.num_mass_linear_iterations += self.mass_solver.snes.getLinearSolveIterations()
+            k_hat_s[i].assign(khat)
+
             g.assign(u0)
             # Update g with contributions from previous stages
             for j in range(i):
@@ -510,11 +512,11 @@ class DIRKIMEXMethod:
             for ghatbit, kbit in zip(ghat.subfunctions, ks[i].subfunctions):
                 ghatbit += dtc * AA[i, i] * kbit
 
-            chat.assign(C_hat[i+1])
-            self.mass_solver.solve()
-            self.num_mass_nonlinear_iterations += self.mass_solver.snes.getIterationNumber()
-            self.num_mass_linear_iterations += self.mass_solver.snes.getLinearSolveIterations()
-            k_hat_s[i + 1].assign(khat)
+        chat.assign(C_hat[ns])
+        self.mass_solver.solve()
+        self.num_mass_nonlinear_iterations += self.mass_solver.snes.getIterationNumber()
+        self.num_mass_linear_iterations += self.mass_solver.snes.getLinearSolveIterations()
+        k_hat_s[ns].assign(khat)
 
         # Final solution update
         for i in range(ns):
