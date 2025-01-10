@@ -66,6 +66,7 @@ to deploy more efficient methods:
 
    demos/demo_heat_pc.py
    demos/demo_heat_mg.py
+   demos/demo_heat_mg_dg.py
    demos/demo_heat_rana.py
    demos/demo_dirk_parameters.py
 
@@ -75,6 +76,13 @@ We now have support for DIRKs:
    :maxdepth: 1
 
    demos/demo_heat_dirk.py
+
+and for Galerkin-in-Time:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_RTwave_galerkin.py
 
 and for explicit schemes:
 
@@ -108,12 +116,19 @@ Or check out an IMEX-type method for the monodomain equations:
 Advanced demos
 --------------
 
-There's also an example solving a Sobolev-type equation
+There's also an example solving a Sobolev-type equation with symplectic RK methods:
 
 .. toctree::
    :maxdepth: 1
 
    demos/demo_bbm.py
+
+and with a Galerkin-in-Time approach:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_bbm_galerkin.py
 
 Finally, if you feel you must bypass the :py:class:`.TimeStepper`
 abstraction, we have some examples how to interact with Irksome at a

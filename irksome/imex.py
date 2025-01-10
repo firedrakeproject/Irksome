@@ -1,13 +1,13 @@
 import FIAT
 import numpy as np
-from firedrake import (Function, NonlinearVariationalProblem,
+from firedrake import (Constant, Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction)
 from firedrake.dmhooks import pop_parent, push_parent
 from ufl.classes import Zero
 
 from .ButcherTableaux import RadauIIA
 from .stage import getBits, getFormStage
-from .tools import AI, IA, MeshConstant, replace
+from .tools import AI, IA, replace
 
 
 def riia_explicit_coeffs(k):
@@ -15,19 +15,18 @@ def riia_explicit_coeffs(k):
     of a RadauIIA-IMEX method."""
     U = FIAT.ufc_simplex(1)
     L = FIAT.GaussRadau(U, k - 1)
-    Q = FIAT.make_quadrature(L.ref_el, 2*k)
-    c = np.asarray([list(ell.pt_dict.keys())[0][0]
-                    for ell in L.dual.nodes])
 
     Q = FIAT.make_quadrature(L.ref_el, 2*k)
     qpts = Q.get_points()
     qwts = Q.get_weights()
 
     A = np.zeros((k, k))
-    for i in range(k):
-        qpts_i = 1 + qpts * c[i]
-        qwts_i = qwts * c[i]
-        Lvals_i = L.tabulate(0, qpts_i)[0, ]
+    for i, ell in enumerate(L.dual.nodes):
+        pt, = ell.pt_dict
+        ci, = pt
+        qpts_i = 1 + qpts * ci
+        qwts_i = qwts * ci
+        Lvals_i = L.tabulate(0, qpts_i)[(0,)]
         A[i, :] = Lvals_i @ qwts_i
 
     return A
@@ -39,18 +38,15 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     which really just differ by which constants are in them."""
     v = Fexp.arguments()[0]
     V = v.function_space()
-    msh = V.mesh()
     Vbig = UU.function_space()
     VV = TestFunction(Vbig)
 
     num_stages = butch.num_stages
     num_fields = len(V)
-    MC = MeshConstant(msh)
-    vc = np.vectorize(lambda c: MC.Constant(c))
     Aexp = riia_explicit_coeffs(num_stages)
-    Aprop = vc(Aexp)
-    Ait = vc(butch.A)
-    C = vc(butch.c)
+    Aprop = Constant(Aexp)
+    Ait = Constant(butch.A)
+    C = Constant(butch.c)
 
     u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
                                             u0, UU, v, VV)
@@ -100,7 +96,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
             Fit += dt * replace(Fexp, repl)
 
         # dense contribution to propagator
-        Ablah = vc(np.linalg.solve(butch.A, Aexp))
+        Ablah = Constant(np.linalg.solve(butch.A, Aexp))
 
         for i in range(num_stages):
             # replace test function
