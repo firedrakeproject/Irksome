@@ -118,8 +118,8 @@ The DIRK-IMEX schemes also require a mass-matrix solver.  Here, we just use AMG 
                  "ksp_rtol": 1.e-8,
 		 "ksp_monitor": None,
 		 "mat_type": "aij",
-		 "ksp_type": "fgmres",
-		 "pc_type": "gamg",
+		 "ksp_type": "cg",
+		 "pc_type": "icc",
 		}
 
 Now, we access the IMEX method via the `TimeStepper` as with other methods.  Note that we specify somewhat different kwargs, needing to specify the implicit and explicit parts separately as well as separate solver options for the implicit and mass solvers.::
