@@ -1,5 +1,5 @@
-Solving monodomain equations with Fitzhugh-Nagumo reaction and a DIRK- IMEX method
-==================================================================================
+Solving monodomain equations with Fitzhugh-Nagumo reaction and a DIRK-IMEX method
+=================================================================================
 
 We're solving monodomain (reaction-diffusion) with a particular reaction term.
 The basic form of the equation is:
@@ -112,7 +112,7 @@ specify only parameters for each stage.  We use an additive Schwarz (fieldsplit)
 	    }}
 
 
-The DIRK-IMEX schemes also require a mass-matrix solver.  Here, we just use AMG on the coupled system, which works fine.::
+The DIRK-IMEX schemes also require a mass-matrix solver.  Here, we just use an incomplete Cholesky preconditioner for CG on the coupled system, which works fine.::
 
   mass_params = {"snes_type": "ksponly",
                  "ksp_rtol": 1.e-8,
