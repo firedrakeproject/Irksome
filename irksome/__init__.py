@@ -8,10 +8,7 @@ from .ButcherTableaux import QinZhang       # noqa: F401
 from .ButcherTableaux import RadauIIA       # noqa: F401
 from .pep_explicit_rk import PEPRK          # noqa: F401
 from .deriv import Dt                       # noqa: F401
-from .dirk_imex_tableaux import IMEXEuler   # noqa: F401
-from .dirk_imex_tableaux import IMEX2       # noqa: F401
-from .dirk_imex_tableaux import IMEX3       # noqa: F401
-from .dirk_imex_tableaux import IMEX4       # noqa: F401
+from .dirk_imex_tableaux import DIRK_IMEX   # noqa: F401
 from .dirk_stepper import DIRKTimeStepper   # noqa: F401
 from .getForm import getForm                # noqa: F401
 from .imex import RadauIIAIMEXMethod        # noqa: F401

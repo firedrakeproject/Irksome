@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, TimeStepper, IMEXEuler, IMEX2, IMEX3, IMEX4
+from irksome import Dt, MeshConstant, TimeStepper, DIRK_IMEX
 from ufl.algorithms.ad import expand_derivatives
 
 
@@ -46,22 +46,25 @@ def convdiff_neumannbc(butcher_tableau, order, N):
     return (errornorm(uexact, u) / norm(uexact))
 
 
-@pytest.mark.parametrize("butcher_tableau, order",
-                         [(IMEXEuler(), 1), (IMEX2(), 2),
-                          (IMEX3(), 3), (IMEX4(), 3)])
-def test_1d_convdiff_neumannbc(butcher_tableau, order):
-    errs = np.array([convdiff_neumannbc(butcher_tableau, order, 10*2**p) for p in [3, 4]])
+@pytest.mark.parametrize("imp_stages, exp_stages, order",
+                         [(1, 1, 1), (2, 3, 2),
+                          (3, 4, 3), (4, 4, 3)])
+def test_1d_convdiff_neumannbc(imp_stages, exp_stages, order):
+    bt = DIRK_IMEX(imp_stages, exp_stages, order)
+    errs = np.array([convdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
     print(errs)
     conv = np.log2(errs[0]/errs[1])
     print(conv)
     assert conv > order-0.4
 
 
-# Note IMEX4 is stiffly accurate, so the DAE-style BC imposition leads
-# to satisfying the BCs exactly at each timestep, which we check here.
-# IMEX2 and IMEX3 do not have this property
-@pytest.mark.parametrize("butcher_tableau", [IMEXEuler(), IMEX4()])
-def test_1d_heat_dirichletbc(butcher_tableau):
+# Note that DIRK_IMEX(1,1,1) and DIRK_IMEX(4,4,2) are stiffly
+# accurate, so the DAE-style BC imposition leads to satisfying the BCs
+# exactly at each timestep, which we check here.  The 2- and 3-stage
+# methods are not.
+@pytest.mark.parametrize("imp_stages, exp_stages, order",
+                         [(1, 1, 1), (4, 4, 3)])
+def test_1d_heat_dirichletbc(imp_stages, exp_stages, order):
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -104,6 +107,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
+    butcher_tableau = DIRK_IMEX(imp_stages, exp_stages, order)
     stepper = TimeStepper(
         F, butcher_tableau, t, dt, u, Fexp=Fexp, bcs=bc,
         solver_parameters=luparams, mass_parameters=luparams,
