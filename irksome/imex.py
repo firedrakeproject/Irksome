@@ -389,7 +389,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
 
 class DIRKIMEXMethod:
     """Front-end class for advancing a time-dependent PDE via a diagonally-implicit
-    Runge-Kutta method formulated in terms of stage derivatives."""
+    Runge-Kutta IMEX method formulated in terms of stage derivatives."""
 
     def __init__(self, F, F_explicit, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, mass_parameters=None, appctx=None, nullspace=None):
