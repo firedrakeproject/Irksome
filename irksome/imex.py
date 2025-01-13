@@ -356,7 +356,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     replhat = {t: t + chat * dt}
     for u0bit, ghatbit in zip(u0bits, ghat_bits):
         replhat[u0bit] = ghatbit
-    Fhat = inner(khat, vhat)*dx - replace(Fexp, replhat)
+    Fhat = inner(khat, vhat)*dx + replace(Fexp, replhat)
 
     bcnew = []
 
@@ -388,8 +388,13 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
 
 
 class DIRKIMEXMethod:
-    """Front-end class for advancing a time-dependent PDE via a diagonally-implicit
-    Runge-Kutta IMEX method formulated in terms of stage derivatives."""
+    """Front-end class for advancing a time-dependent PDE via a
+    diagonally-implicit Runge-Kutta IMEX method formulated in terms of
+    stage derivatives.  This implementation assumes a weak form
+    written as F + F_explicit = 0, where both F and F_explicit are UFL
+    Forms, with terms in F to be handled implicitly and those in
+    F_explicit to be handled explicitly
+    """
 
     def __init__(self, F, F_explicit, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, mass_parameters=None, appctx=None, nullspace=None):

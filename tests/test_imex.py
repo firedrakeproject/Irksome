@@ -16,7 +16,7 @@ def convdiff_neumannbc(butcher_tableau, order, N):
 
     # Choose uexact so rhs is nonzero
     uexact = cos(pi*x)*exp(-t)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) - uexact.dx(0)
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + uexact.dx(0)
     u = Function(V)
     u.interpolate(uexact)
 
@@ -98,7 +98,7 @@ def test_1d_heat_dirichletbc(imp_stages, exp_stages, order):
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
     )
-    Fexp = inner(rhs, v) * dx
+    Fexp = -inner(rhs, v) * dx
 
     bc = [
         DirichletBC(V, u_1, 2),

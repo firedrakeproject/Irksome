@@ -88,10 +88,10 @@ The part to be handled implicitly is taken to contain the time derivatives as we
 
 This is the part to be handled explicitly.::
 	  
-  F2 = - inner((chi/eps) * (-u + (u**3 / 3) + c), vu)*dx
+  F2 = inner((chi/eps) * (-u + (u**3 / 3) + c), vu)*dx
 
 If we wanted to use a fully implicit method, we would just take
-F = F1 - F2.   Note the minus sign, since DIRK-IMEX takes forms as F1 = F2.
+F = F1 + F2.
 
 Now, set up solver parameters.  Since we're using a DIRK-IMEX scheme, we can
 specify only parameters for each stage.  We use an additive Schwarz (fieldsplit) method that applies AMG to the potential block and incomplete Cholesky to the cell block independently for each stage::
