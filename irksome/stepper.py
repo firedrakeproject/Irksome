@@ -9,7 +9,7 @@ from .bcs import EmbeddedBCData, bc2space
 from .dirk_stepper import DIRKTimeStepper
 from .explicit_stepper import ExplicitTimeStepper
 from .getForm import AI, getForm
-from .imex import RadauIIAIMEXMethod
+from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
 from .manipulation import extract_terms
 from .stage import StageValueTimeStepper
 
@@ -67,7 +67,8 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         "imex": ["Fexp", "stage_type", "bcs", "nullspace",
                  "it_solver_parameters", "prop_solver_parameters",
                  "splitting", "appctx",
-                 "num_its_initial", "num_its_per_step"]}
+                 "num_its_initial", "num_its_per_step"],
+        "dirkimex": ["Fexp", "stage_type", "bcs", "nullspace", "solver_parameters", "mass_parameters", "appctx"]}
 
     valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                               "max_reject", "onscale_factor",
@@ -146,7 +147,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             solver_parameters, appctx)
     elif stage_type == "imex":
         Fexp = kwargs.get("Fexp")
-        assert Fexp is not None
+        assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
         bcs = kwargs.get("bcs")
         appctx = kwargs.get("appctx")
         splitting = kwargs.get("splitting", AI)
@@ -161,6 +162,17 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             it_solver_parameters, prop_solver_parameters,
             splitting, appctx, nullspace,
             num_its_initial, num_its_per_step)
+    elif stage_type == "dirkimex":
+        Fexp = kwargs.get("Fexp")
+        assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
+        bcs = kwargs.get("bcs")
+        appctx = kwargs.get("appctx")
+        solver_parameters = kwargs.get("solver_parameters")
+        mass_parameters = kwargs.get("mass_parameters")
+        nullspace = kwargs.get("nullspace")
+        return DIRKIMEXMethod(
+            F, Fexp, butcher_tableau, t, dt, u0, bcs,
+            solver_parameters, mass_parameters, appctx, nullspace)
 
 
 class StageDerivativeTimeStepper:
