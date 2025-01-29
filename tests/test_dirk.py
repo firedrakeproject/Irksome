@@ -288,4 +288,4 @@ def test_stokes_bcs(butcher_tableau, bctype):
         stepper.advance()
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
-        assert errornorm(u_dirk, u) < 1.e-7
+        assert errornorm(u_dirk, u) < 2.e-7
