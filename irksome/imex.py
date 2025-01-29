@@ -493,11 +493,11 @@ class DIRKIMEXMethod:
             for j in range(i):
                 ksplit = ks[j].subfunctions
                 for gbit, kbit in zip(g.subfunctions, ksplit):
-                    gbit += dtc * AA[i, j] * kbit
+                    gbit += dtc * float(AA[i, j]) * kbit
             for j in range(i+1):
                 k_hat_split = k_hat_s[j].subfunctions
                 for gbit, k_hat_bit in zip(g.subfunctions, k_hat_split):
-                    gbit += dtc * A_hat[i, j] * k_hat_bit
+                    gbit += dtc * float(A_hat[i, j]) * k_hat_bit
 
             # Solve for current stage
             for j in range(i):
@@ -522,7 +522,7 @@ class DIRKIMEXMethod:
             for ghatbit, gbit in zip(ghat.subfunctions, g.subfunctions):
                 ghatbit.assign(gbit)
             for ghatbit, kbit in zip(ghat.subfunctions, ks[i].subfunctions):
-                ghatbit += dtc * AA[i, i] * kbit
+                ghatbit += dtc * float(AA[i, i]) * kbit
 
         self._finalize()
         self.num_steps += 1
@@ -549,11 +549,11 @@ class DIRKIMEXMethod:
         # Final solution update
         for i in range(ns):
             for u0bit, kbit in zip(u0.subfunctions, ks[i].subfunctions):
-                u0bit += dtc * BB[i] * kbit
+                u0bit += dtc * float(BB[i]) * kbit
 
         for i in range(ns+1):
             for u0bit, k_hat_bit in zip(u0.subfunctions, k_hat_s[i].subfunctions):
-                u0bit += dtc * B_hat[i] * k_hat_bit
+                u0bit += dtc * float(B_hat[i]) * k_hat_bit
 
     # Last part of advance for the general case, where last explicit stage is not used
     def _finalize_no_last_explicit(self):

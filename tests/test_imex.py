@@ -124,3 +124,54 @@ def test_1d_heat_dirichletbc(imp_stages, exp_stages, order):
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
+
+
+def vecconvdiff_neumannbc(butcher_tableau, order, N):
+    msh = UnitIntervalMesh(N)
+    V = VectorFunctionSpace(msh, "CG", order, dim=2)
+    MC = MeshConstant(msh)
+    dt = MC.Constant(0.1 / N)
+    t = MC.Constant(0.0)
+    (x,) = SpatialCoordinate(msh)
+
+    # Choose uexact so rhs is nonzero
+    uexact = as_vector([cos(pi*x)*exp(-t), cos(2*pi*x)*exp(-2*t)])
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + uexact.dx(0)
+    u = Function(V)
+    u.interpolate(uexact)
+
+    v = TestFunction(V)
+    F = (
+        inner(Dt(u), v) * dx
+        + inner(grad(u), grad(v)) * dx
+        - inner(rhs, v) * dx
+    )
+    Fexp = inner(u.dx(0), v)*dx
+
+    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+
+    stepper = TimeStepper(
+        F, butcher_tableau, t, dt, u, Fexp=Fexp,
+        solver_parameters=luparams, mass_parameters=luparams,
+        stage_type="dirkimex"
+    )
+
+    t_end = 0.1
+    while float(t) < t_end:
+        if float(t) + float(dt) > t_end:
+            dt.assign(t_end - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return (errornorm(uexact, u) / norm(uexact))
+
+
+@pytest.mark.parametrize("imp_stages, exp_stages, order",
+                         [(1, 1, 1), (2, 3, 2)])
+def test_1d_vecconvdiff_neumannbc(imp_stages, exp_stages, order):
+    bt = DIRK_IMEX(imp_stages, exp_stages, order)
+    errs = np.array([vecconvdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
+    print(errs)
+    conv = np.log2(errs[0]/errs[1])
+    print(conv)
+    assert conv > order-0.4
