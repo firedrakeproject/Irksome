@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, TimeStepper, DIRK_IMEX
+from irksome import Dt, MeshConstant, TimeStepper, ARS_DIRK_IMEX, SSPK_DIRK_IMEX
 from ufl.algorithms.ad import expand_derivatives
 
 
@@ -47,10 +47,11 @@ def convdiff_neumannbc(butcher_tableau, order, N):
 
 
 @pytest.mark.parametrize("imp_stages, exp_stages, order",
-                         [(1, 1, 1), (2, 3, 2),
+                         [(1, 1, 1), (1, 2, 1), (1, 2, 2),
+                          (2, 2, 2), (2, 3, 2), (2, 3, 3),
                           (3, 4, 3), (4, 4, 3)])
-def test_1d_convdiff_neumannbc(imp_stages, exp_stages, order):
-    bt = DIRK_IMEX(imp_stages, exp_stages, order)
+def test_1d_ars_convdiff_neumannbc(imp_stages, exp_stages, order):
+    bt = ARS_DIRK_IMEX(imp_stages, exp_stages, order)
     errs = np.array([convdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
     print(errs)
     conv = np.log2(errs[0]/errs[1])
@@ -58,13 +59,19 @@ def test_1d_convdiff_neumannbc(imp_stages, exp_stages, order):
     assert conv > order-0.4
 
 
-# Note that DIRK_IMEX(1,1,1) and DIRK_IMEX(4,4,2) are stiffly
-# accurate, so the DAE-style BC imposition leads to satisfying the BCs
-# exactly at each timestep, which we check here.  The 2- and 3-stage
-# methods are not.
-@pytest.mark.parametrize("imp_stages, exp_stages, order",
-                         [(1, 1, 1), (4, 4, 3)])
-def test_1d_heat_dirichletbc(imp_stages, exp_stages, order):
+@pytest.mark.parametrize("ssp_order, imp_stages, exp_stages, order",
+                         [(2, 2, 2, 2), (2, 3, 2, 2),
+                          (2, 3, 3, 2), (3, 3, 3, 2)])
+def test_1d_sspk_convdiff_neumannbc(ssp_order, imp_stages, exp_stages, order):
+    bt = SSPK_DIRK_IMEX(ssp_order, imp_stages, exp_stages, order)
+    errs = np.array([convdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
+    print(errs)
+    conv = np.log2(errs[0]/errs[1])
+    print(conv)
+    assert conv > order-0.4
+
+
+def heat_dirichletbc(butcher_tableau):
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -107,7 +114,6 @@ def test_1d_heat_dirichletbc(imp_stages, exp_stages, order):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    butcher_tableau = DIRK_IMEX(imp_stages, exp_stages, order)
     stepper = TimeStepper(
         F, butcher_tableau, t, dt, u, Fexp=Fexp, bcs=bc,
         solver_parameters=luparams, mass_parameters=luparams,
@@ -116,6 +122,7 @@ def test_1d_heat_dirichletbc(imp_stages, exp_stages, order):
 
     t_end = 2.0
     while float(t) < t_end:
+        print("Current time: ", float(t))
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
         stepper.advance()
@@ -124,6 +131,16 @@ def test_1d_heat_dirichletbc(imp_stages, exp_stages, order):
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
+
+
+# Note that ARS_DIRK_IMEX(1,1,1), ARS_DIRK_IMEX(2, 2, 2), and ARS_DIRK_IMEX(4,4,2)
+# are stiffly accurate, so the DAE-style BC imposition leads to satisfying the BCs
+# exactly at each timestep, which we check here.  The other ARS methods are not.
+@pytest.mark.parametrize("imp_stages, exp_stages, order",
+                         [(1, 1, 1), (2, 2, 2), (4, 4, 3)])
+def test_1d_ars_heat_dirichletbc(imp_stages, exp_stages, order):
+    butcher_tableau = ARS_DIRK_IMEX(imp_stages, exp_stages, order)
+    heat_dirichletbc(butcher_tableau)
 
 
 def vecconvdiff_neumannbc(butcher_tableau, order, N):
@@ -168,8 +185,20 @@ def vecconvdiff_neumannbc(butcher_tableau, order, N):
 
 @pytest.mark.parametrize("imp_stages, exp_stages, order",
                          [(1, 1, 1), (2, 3, 2)])
-def test_1d_vecconvdiff_neumannbc(imp_stages, exp_stages, order):
-    bt = DIRK_IMEX(imp_stages, exp_stages, order)
+def test_1d_ars_vecconvdiff_neumannbc(imp_stages, exp_stages, order):
+    bt = ARS_DIRK_IMEX(imp_stages, exp_stages, order)
+    errs = np.array([vecconvdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
+    print(errs)
+    conv = np.log2(errs[0]/errs[1])
+    print(conv)
+    assert conv > order-0.4
+
+
+@pytest.mark.parametrize("ssp_order, imp_stages, exp_stages, order",
+                         [(2, 2, 2, 2), (2, 3, 2, 2),
+                          (2, 3, 3, 2), (3, 3, 3, 2)])
+def test_1d_sspk_vecconvdiff_neumannbc(ssp_order, imp_stages, exp_stages, order):
+    bt = SSPK_DIRK_IMEX(ssp_order, imp_stages, exp_stages, order)
     errs = np.array([vecconvdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
     print(errs)
     conv = np.log2(errs[0]/errs[1])
