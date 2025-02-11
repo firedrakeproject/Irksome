@@ -1,71 +1,97 @@
 from .ButcherTableaux import ButcherTableau
+from .ars_dirk_imex_tableaux import ars_dict
+from .sspk_dirk_imex_tableau import sspk_dict
 import numpy as np
-
-# For the implicit scheme, the full Butcher Table is given as A, b, c.
-
-# For the explicit scheme, the full b_hat and c_hat are given, but (to
-# avoid a lot of offset-by-ones in the code we store only the
-# lower-left ns x ns block of A_hat
-
-# IMEX Butcher tableau for 1 stage
-imex111A = np.array([[1.0]])
-imex111A_hat = np.array([[1.0]])
-imex111b = np.array([1.0])
-imex111b_hat = np.array([1.0, 0.0])
-imex111c = np.array([1.0])
-imex111c_hat = np.array([0.0, 1.0])
-
-
-# IMEX Butcher tableau for s = 2
-gamma = (2 - np.sqrt(2)) / 2
-delta = -2 * np.sqrt(2) / 3
-imex232A = np.array([[gamma, 0], [1 - gamma, gamma]])
-imex232A_hat = np.array([[gamma, 0], [delta, 1 - delta]])
-imex232b = np.array([1 - gamma, gamma])
-imex232b_hat = np.array([0, 1 - gamma, gamma])
-imex232c = np.array([gamma, 1.0])
-imex232c_hat = np.array([0, gamma, 1.0])
-
-# IMEX Butcher tableau for 3 stages
-imex343A = np.array([[0.4358665215, 0, 0], [0.2820667392, 0.4358665215, 0], [1.208496649, -0.644363171, 0.4358665215]])
-imex343A_hat = np.array([[0.4358665215, 0, 0], [0.3212788860, 0.3966543747, 0], [-0.105858296, 0.5529291479, 0.5529291479]])
-imex343b = np.array([1.208496649, -0.644363171, 0.4358665215])
-imex343b_hat = np.array([0, 1.208496649, -0.644363171, 0.4358665215])
-imex343c = np.array([0.4358665215, 0.7179332608, 1])
-imex343c_hat = np.array([0, 0.4358665215, 0.7179332608, 1.0])
-
-
-# IMEX Butcher tableau for 4 stages
-imex443A = np.array([[1/2, 0, 0, 0],
-                     [1/6, 1/2, 0, 0],
-                     [-1/2, 1/2, 1/2, 0],
-                     [3/2, -3/2, 1/2, 1/2]])
-imex443A_hat = np.array([[1/2, 0, 0, 0],
-                         [11/18, 1/18, 0, 0],
-                         [5/6, -5/6, 1/2, 0],
-                         [1/4, 7/4, 3/4, -7/4]])
-imex443b = np.array([3/2, -3/2, 1/2, 1/2])
-imex443b_hat = np.array([1/4, 7/4, 3/4, -7/4, 0])
-imex443c = np.array([1/2, 2/3, 1/2, 1])
-imex443c_hat = np.array([0, 1/2, 2/3, 1/2, 1])
-
-dirk_imex_dict = {
-    (1, 1, 1): (imex111A, imex111b, imex111c, imex111A_hat, imex111b_hat, imex111c_hat),
-    (2, 3, 2): (imex232A, imex232b, imex232c, imex232A_hat, imex232b_hat, imex232c_hat),
-    (3, 4, 3): (imex343A, imex343b, imex343c, imex343A_hat, imex343b_hat, imex343c_hat),
-    (4, 4, 3): (imex443A, imex443b, imex443c, imex443A_hat, imex443b_hat, imex443c_hat)
-}
 
 
 class DIRK_IMEX(ButcherTableau):
-    def __init__(self, ns_imp, ns_exp, order):
-        try:
-            A, b, c, A_hat, b_hat, c_hat = dirk_imex_dict[ns_imp, ns_exp, order]
-        except KeyError:
-            raise NotImplementedError("No DIRK-IMEX method for that combination of implicit and explicit stages and order")
-        self.order = order
-        super(DIRK_IMEX, self).__init__(A, b, None, c, order, None, None)
-        self.A_hat = A_hat
+    """Top-level class representing a pair of Butcher tableau encoding an implicit-explicit
+    additive Runge-Kutta method. Since the explicit Butcher matrix is strictly lower triangular,
+    only the lower-left (ns - 1)x(ns - 1) block is given. However, the full b_hat and c_hat are
+    given. It has members
+
+    :arg A: a 2d array containing the implicit Butcher matrix
+    :arg b: a 1d array giving weights assigned to each implicit stage when
+            computing the solution at time n+1.
+    :arg c: a 1d array containing weights at which time-dependent
+            implicit terms are evaluated.
+    :arg A_hat: a 2d array containing the explicit Butcher matrix (lower-left block only)
+    :arg b_hat: a 1d array giving weights assigned to each explicit stage when
+            computing the solution at time n+1.
+    :arg c_hat: a 1d array containing weights at which time-dependent
+            explicit terms are evaluated.
+    :arg order: the (integer) formal order of accuracy of the method
+    """
+
+    def __init__(self, A: np.ndarray, b: np.ndarray, c: np.ndarray, A_hat: np.ndarray,
+                 b_hat: np.ndarray, c_hat: np.ndarray, order: int = None):
+
+        # Number of stages
+        ns = A.shape[0]
+        assert ns == A.shape[1], "A must be square"
+        assert A_hat.shape == (ns - 1, ns - 1), "A_hat must have one fewer row and column than A"
+        assert ns == len(b) == len(b_hat), \
+            "b and b_hat must have the same length as the number of stages"
+        assert ns == len(c) == len(c_hat), \
+            "c and c_hat must have the same length as the number of stages"
+
+        super().__init__(A, b, None, c, order, None, None)
+        self.A_hat = self._pad_matrix(A_hat, "ll")
         self.b_hat = b_hat
         self.c_hat = c_hat
         self.is_dirk_imex = True  # Mark this as a DIRK-IMEX scheme
+
+    @staticmethod
+    def _pad_matrix(mat: np.ndarray, loc: str):
+        """Zero pads a matrix"""
+        n = mat.shape[0]
+        assert n == mat.shape[1], "Matrix must be square"
+        padded = np.zeros((n+1, n+1), dtype=mat.dtype)
+
+        if loc == "ll":
+            # Lower left corner
+            padded[1:, :-1] = mat
+        elif loc == "lr":
+            # Lower right corner
+            padded[1:, 1:] = mat
+        else:
+            raise ValueError("Location must be ll (lower left) or lr (lower right)")
+
+        return padded
+
+
+class ARS_DIRK_IMEX(DIRK_IMEX):
+    """Class to generate IMEX tableaux based on Ascher, Ruuth, and Spiteri (ARS). It has members
+
+    :arg ns_imp: number of implicit stages
+    :arg ns_exp: number of explicit stages
+    :arg order: the (integer) former order of accuracy of the method
+    """
+    def __init__(self, ns_imp, ns_exp, order):
+        try:
+            A, b, c, A_hat, b_hat, c_hat = ars_dict[ns_imp, ns_exp, order]
+        except KeyError:
+            raise NotImplementedError("No ARS DIRK-IMEX method for that combination of implicit and explicit stages and order")
+
+        # Expand A, b, c with assumed zeros in ARS tableaux
+        A = self._pad_matrix(A, "lr")
+        b = np.append(np.zeros(1), b)
+        c = np.append(np.zeros(1), c)
+
+        super(ARS_DIRK_IMEX, self).__init__(A, b, c, A_hat, b_hat, c_hat, order)
+
+
+class SSPK_DIRK_IMEX(DIRK_IMEX):
+    """Class to generate IMEX tableaux based on Pareschi and Russo. It has members
+
+    :arg ssp_order: order of ssp scheme
+    :arg ns_imp: number of implicit stages
+    :arg ns_exp: number of explicit stages
+    :arg order: the (integer) formal order of accuracy of the method"""
+    def __init__(self, ssp_order, ns_imp, ns_exp, order):
+        try:
+            A, b, c, A_hat, b_hat, c_hat = sspk_dict[ssp_order, ns_imp, ns_exp, order]
+        except KeyError:
+            raise NotImplementedError("No SSPk DIRK-IMEX method for that combination of SSP order, implicit and explicit stages, and IMEX order")
+
+        super(SSPK_DIRK_IMEX, self).__init__(A, b, c, A_hat, b_hat, c_hat, order)

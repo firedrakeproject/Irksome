@@ -30,7 +30,7 @@ We start with standard Firedrake/Irksome imports::
   from firedrake import (And, Constant, File, Function, FunctionSpace,
                          RectangleMesh, SpatialCoordinate, TestFunctions,
                          as_matrix, conditional, dx, grad, inner, split)
-  from irksome import Dt, MeshConstant, DIRK_IMEX, TimeStepper
+  from irksome import Dt, MeshConstant, TimeStepper, ARS_DIRK_IMEX
 
 And we set up the mesh and function space.::
   
@@ -75,7 +75,7 @@ This sets up the Butcher tableau.  Here, we use the DIRK-IMEX methods proposed
 by Ascher, Ruuth, and Spiteri in their 1997 Applied Numerical Mathematics paper.
 For this case, We use a four-stage method.::
   
-  butcher_tableau = DIRK_IMEX(4, 4, 3)
+  butcher_tableau = ARS_DIRK_IMEX(4, 4, 3)
   ns = butcher_tableau.num_stages
 
 To access an IMEX method, we need to separately specify the implicit and explicit parts of the operator.

@@ -367,7 +367,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
 
     a_vals = np.array([MC.Constant(0) for i in range(num_stages)],
                       dtype=object)
-    ahat_vals = np.array([MC.Constant(0) for i in range(num_stages+1)],
+    ahat_vals = np.array([MC.Constant(0) for i in range(num_stages)],
                          dtype=object)
     d_val = MC.Constant(1.0)
 
@@ -377,9 +377,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
 
         gdat = bcarg_stage - bc2space(bc, u0)
         for i in range(num_stages):
-            gdat -= dt*a_vals[i]*bc2space(bc, ks[i])
-        for i in range(num_stages+1):
-            gdat -= dt*ahat_vals[i]*bc2space(bc, khats[i])
+            gdat -= dt*(a_vals[i]*bc2space(bc, ks[i]) + ahat_vals[i]*bc2space(bc, khats[i]))
 
         gdat /= dt*d_val
         bcnew.append(bc.reconstruct(g=gdat))
@@ -415,7 +413,7 @@ class DIRKIMEXMethod:
         self.dt = dt
         self.num_fields = len(u0.function_space())
         self.ks = [Function(V) for _ in range(self.num_stages)]
-        self.k_hat_s = [Function(V) for _ in range(self.num_stages+1)]
+        self.k_hat_s = [Function(V) for _ in range(self.num_stages)]
 
         stage_F, (k, g, a, c), bcnew, Fhat, (khat, ghat, chat), (a_vals, ahat_vals, d_val) = getFormsDIRKIMEX(
             F, F_explicit, self.ks, self.k_hat_s, butcher_tableau, t, dt, u0, bcs=bcs)
@@ -454,8 +452,13 @@ class DIRKIMEXMethod:
         BB = butcher_tableau.b
         B_hat = butcher_tableau.b_hat
 
+        if np.abs(AA[0, 0]) <= 1e-15:
+            self._initialize = self._initialize_explicit
+        else:
+            self._initialize = self._initialize_implicit
+
         if B_hat[-1] == 0:
-            if np.allclose(AA[-1, :], BB) and np.allclose(A_hat[-1, :], B_hat[:-1]):
+            if np.allclose(AA[-1, :], BB) and np.allclose(A_hat[-1, :], B_hat):
                 self._finalize = self._finalize_stiffly_accurate
             else:
                 self._finalize = self._finalize_no_last_explicit
@@ -477,36 +480,33 @@ class DIRKIMEXMethod:
         C_hat = bt.c_hat
         a_vals, ahat_vals, d_val = self.bc_constants
 
-        # Calculate explicit term for the first stage
-        ghat.assign(u0)
+        # Calculating the first stage outside the loop allows boundary conditions to be enforced at
+        # the end of each stage
+        self._initialize()
 
-        for i in range(ns):
+        for i in range(1, ns):
 
-            chat.assign(C_hat[i])
+            # Solve explicit part for previous iteration
+            chat.assign(C_hat[i-1])
             self.mass_solver.solve()
             self.num_mass_nonlinear_iterations += self.mass_solver.snes.getIterationNumber()
             self.num_mass_linear_iterations += self.mass_solver.snes.getLinearSolveIterations()
-            k_hat_s[i].assign(khat)
+            k_hat_s[i-1].assign(khat)
 
             g.assign(u0)
             # Update g with contributions from previous stages
             for j in range(i):
                 ksplit = ks[j].subfunctions
-                for gbit, kbit in zip(g.subfunctions, ksplit):
-                    gbit += dtc * float(AA[i, j]) * kbit
-            for j in range(i+1):
                 k_hat_split = k_hat_s[j].subfunctions
-                for gbit, k_hat_bit in zip(g.subfunctions, k_hat_split):
-                    gbit += dtc * float(A_hat[i, j]) * k_hat_bit
+                for gbit, kbit, k_hat_bit in zip(g.subfunctions, ksplit, k_hat_split):
+                    gbit += dtc * (float(AA[i, j]) * kbit + float(A_hat[i, j]) * k_hat_bit)
 
             # Solve for current stage
             for j in range(i):
                 a_vals[j].assign(AA[i, j])
+                ahat_vals[j].assign(A_hat[i, j])
             for j in range(i, ns):
                 a_vals[j].assign(0)
-            for j in range(i+1):
-                ahat_vals[j].assign(A_hat[i, j])
-            for j in range(i+1, ns+1):
                 ahat_vals[j].assign(0)
             d_val.assign(AA[i, i])
 
@@ -519,13 +519,51 @@ class DIRKIMEXMethod:
             ks[i].assign(k)
 
             # Update the solution for next stage
-            for ghatbit, gbit in zip(ghat.subfunctions, g.subfunctions):
+            for ghatbit, gbit, kbit in zip(ghat.subfunctions, g.subfunctions, ks[i].subfunctions):
                 ghatbit.assign(gbit)
-            for ghatbit, kbit in zip(ghat.subfunctions, ks[i].subfunctions):
                 ghatbit += dtc * float(AA[i, i]) * kbit
 
         self._finalize()
         self.num_steps += 1
+
+    # No implicit first step, like in ARS schemes
+    def _initialize_explicit(self):
+        khat, ghat, chat = self.kgchat
+        u0 = self.u0
+        ghat.assign(u0)
+
+    # Implicit first stage in general case
+    def _initialize_implicit(self):
+        k, g, a, c = self.kgac
+        khat, ghat, chat = self.kgchat
+        ks = self.ks
+        u0 = self.u0
+        dtc = float(self.dt)
+        bt = self.butcher_tableau
+        ns = self.num_stages
+        AA = bt.A
+        CC = bt.c
+        a_vals, ahat_vals, d_val = self.bc_constants
+
+        g.assign(u0)
+
+        # Solve for first stage
+        for j in range(ns):
+            a_vals[j].assign(0)
+            ahat_vals[j].assign(0)
+        d_val.assign(AA[0, 0])
+
+        a.assign(AA[0, 0])
+        c.assign(CC[0])
+        self.solver.solve()
+        self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
+        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
+        ks[0].assign(k)
+
+        # Update the solution for second stage
+        for ghatbit, gbit, kbit in zip(ghat.subfunctions, g.subfunctions, ks[0].subfunctions):
+            ghatbit.assign(gbit)
+            ghatbit += dtc * float(AA[0, 0]) * kbit
 
     # Last part of advance for the general case, where last explicit stage is calculated and used
     def _finalize_general(self):
@@ -540,22 +578,19 @@ class DIRKIMEXMethod:
         BB = bt.b
         B_hat = bt.b_hat
 
-        chat.assign(C_hat[ns])
+        chat.assign(C_hat[ns-1])
         self.mass_solver.solve()
         self.num_mass_nonlinear_iterations += self.mass_solver.snes.getIterationNumber()
         self.num_mass_linear_iterations += self.mass_solver.snes.getLinearSolveIterations()
-        k_hat_s[ns].assign(khat)
+        k_hat_s[ns-1].assign(khat)
 
         # Final solution update
         for i in range(ns):
-            for u0bit, kbit in zip(u0.subfunctions, ks[i].subfunctions):
-                u0bit += dtc * float(BB[i]) * kbit
+            for u0bit, kbit, k_hat_bit in zip(u0.subfunctions, ks[i].subfunctions,
+                                              k_hat_s[i].subfunctions):
+                u0bit += dtc * (float(BB[i]) * kbit + float(B_hat[i]) * k_hat_bit)
 
-        for i in range(ns+1):
-            for u0bit, k_hat_bit in zip(u0.subfunctions, k_hat_s[i].subfunctions):
-                u0bit += dtc * float(B_hat[i]) * k_hat_bit
-
-    # Last part of advance for the general case, where last explicit stage is not used
+    # Last part of advance for the case where last explicit stage is not used
     def _finalize_no_last_explicit(self):
         ks = self.ks
         k_hat_s = self.k_hat_s
@@ -568,14 +603,11 @@ class DIRKIMEXMethod:
 
         # Final solution update
         for i in range(ns):
-            for u0bit, kbit in zip(u0.subfunctions, ks[i].subfunctions):
-                u0bit += dtc * BB[i] * kbit
+            for u0bit, kbit, k_hat_bit in zip(u0.subfunctions, ks[i].subfunctions,
+                                              k_hat_s[i].subfunctions):
+                u0bit += dtc * (BB[i] * kbit + B_hat[i] * k_hat_bit)
 
-        for i in range(ns):
-            for u0bit, k_hat_bit in zip(u0.subfunctions, k_hat_s[i].subfunctions):
-                u0bit += dtc * B_hat[i] * k_hat_bit
-
-    # Last part of advance for the general case, where last implicit stage is new solution
+    # Last part of advance for the case where last implicit stage is new solution
     def _finalize_stiffly_accurate(self):
         khat, ghat, chat = self.kgchat
         u0 = self.u0
