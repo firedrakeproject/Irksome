@@ -133,7 +133,7 @@ def heat_dirichletbc(butcher_tableau):
         assert isclose(u.at(x1), u_1)
 
 
-# Note that ARS_DIRK_IMEX(1,1,1), ARS_DIRK_IMEX(2, 2, 2), and ARS_DIRK_IMEX(4,4,2)
+# Note that ARS_DIRK_IMEX(1,1,1), ARS_DIRK_IMEX(2, 2, 2), and ARS_DIRK_IMEX(4,4,3)
 # are stiffly accurate, so the DAE-style BC imposition leads to satisfying the BCs
 # exactly at each timestep, which we check here.  The other ARS methods are not.
 @pytest.mark.parametrize("imp_stages, exp_stages, order",
