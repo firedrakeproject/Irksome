@@ -41,7 +41,7 @@ jobs:
           cd docs
           cp build/latex/Irksome.pdf build/html/_static/manual.pdf
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           name: github-pages
           path: /__w/Irksome/Irksome/docs/build/html
