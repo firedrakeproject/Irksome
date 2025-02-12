@@ -48,7 +48,7 @@ jobs:
           retention-days: 1
       - name: Deploy docs
         if: ${{ github.ref == 'refs/heads/master' }}
-        uses: crazy-max/ghaction-github-pages@v2.5.0
+        uses: crazy-max/ghaction-github-pages@v4
         with:
           target_branch: gh-pages
           build_dir: ./docs/build/html
