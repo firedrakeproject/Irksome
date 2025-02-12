@@ -46,24 +46,17 @@ def convdiff_neumannbc(butcher_tableau, order, N):
     return (errornorm(uexact, u) / norm(uexact))
 
 
-@pytest.mark.parametrize("imp_stages, exp_stages, order",
-                         [(1, 1, 1), (1, 2, 1), (1, 2, 2),
-                          (2, 2, 2), (2, 3, 2), (2, 3, 3),
-                          (3, 4, 3), (4, 4, 3)])
-def test_1d_ars_convdiff_neumannbc(imp_stages, exp_stages, order):
-    bt = ARS_DIRK_IMEX(imp_stages, exp_stages, order)
-    errs = np.array([convdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
-    print(errs)
-    conv = np.log2(errs[0]/errs[1])
-    print(conv)
-    assert conv > order-0.4
-
-
-@pytest.mark.parametrize("ssp_order, imp_stages, exp_stages, order",
-                         [(2, 2, 2, 2), (2, 3, 2, 2),
-                          (2, 3, 3, 2), (3, 3, 3, 2)])
-def test_1d_sspk_convdiff_neumannbc(ssp_order, imp_stages, exp_stages, order):
-    bt = SSPK_DIRK_IMEX(ssp_order, imp_stages, exp_stages, order)
+@pytest.mark.parametrize("bt", [ARS_DIRK_IMEX(1, 1, 1), ARS_DIRK_IMEX(1, 2, 1),
+                                ARS_DIRK_IMEX(1, 2, 2), ARS_DIRK_IMEX(2, 2, 2),
+                                ARS_DIRK_IMEX(2, 3, 2), ARS_DIRK_IMEX(2, 3, 3),
+                                ARS_DIRK_IMEX(3, 4, 3), ARS_DIRK_IMEX(4, 4, 3),
+                                SSPK_DIRK_IMEX(2, 2, 2, 2), SSPK_DIRK_IMEX(2, 3, 2, 2),
+                                SSPK_DIRK_IMEX(2, 3, 3, 2), SSPK_DIRK_IMEX(3, 3, 3, 2)],
+                         ids=["ARS(1,1,1)", "ARS(1,2,1)", "ARS(1,2,2)", "ARS(2,2,2)",
+                              "ARS(2,3,2)", "ARS(2,3,3)", "ARS(3,4,3)", "ARS(4,4,3)",
+                              "SSP2(2,2,2)", "SSP2(3,2,2)", "SSP2(3,3,2)", "SSP3(3,3,2)"])
+def test_1d_convdiff_neumannbc(bt):
+    order = bt.order
     errs = np.array([convdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
     print(errs)
     conv = np.log2(errs[0]/errs[1])
@@ -136,11 +129,11 @@ def heat_dirichletbc(butcher_tableau):
 # Note that ARS_DIRK_IMEX(1,1,1), ARS_DIRK_IMEX(2, 2, 2), and ARS_DIRK_IMEX(4,4,3)
 # are stiffly accurate, so the DAE-style BC imposition leads to satisfying the BCs
 # exactly at each timestep, which we check here.  The other ARS methods are not.
-@pytest.mark.parametrize("imp_stages, exp_stages, order",
-                         [(1, 1, 1), (2, 2, 2), (4, 4, 3)])
-def test_1d_ars_heat_dirichletbc(imp_stages, exp_stages, order):
-    butcher_tableau = ARS_DIRK_IMEX(imp_stages, exp_stages, order)
-    heat_dirichletbc(butcher_tableau)
+@pytest.mark.parametrize("bt", [ARS_DIRK_IMEX(1, 1, 1), ARS_DIRK_IMEX(2, 2, 2),
+                                ARS_DIRK_IMEX(4, 4, 3)],
+                         ids=["ARS(1,1,1)", "ARS(2,2,2)", "ARS(4,4,3)"])
+def test_1d_heat_dirichletbc(bt):
+    heat_dirichletbc(bt)
 
 
 def vecconvdiff_neumannbc(butcher_tableau, order, N):
@@ -183,22 +176,14 @@ def vecconvdiff_neumannbc(butcher_tableau, order, N):
     return (errornorm(uexact, u) / norm(uexact))
 
 
-@pytest.mark.parametrize("imp_stages, exp_stages, order",
-                         [(1, 1, 1), (2, 3, 2)])
-def test_1d_ars_vecconvdiff_neumannbc(imp_stages, exp_stages, order):
-    bt = ARS_DIRK_IMEX(imp_stages, exp_stages, order)
-    errs = np.array([vecconvdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
-    print(errs)
-    conv = np.log2(errs[0]/errs[1])
-    print(conv)
-    assert conv > order-0.4
-
-
-@pytest.mark.parametrize("ssp_order, imp_stages, exp_stages, order",
-                         [(2, 2, 2, 2), (2, 3, 2, 2),
-                          (2, 3, 3, 2), (3, 3, 3, 2)])
-def test_1d_sspk_vecconvdiff_neumannbc(ssp_order, imp_stages, exp_stages, order):
-    bt = SSPK_DIRK_IMEX(ssp_order, imp_stages, exp_stages, order)
+@pytest.mark.parametrize("bt", [ARS_DIRK_IMEX(1, 1, 1), ARS_DIRK_IMEX(2, 3, 2),
+                                SSPK_DIRK_IMEX(2, 2, 2, 2), SSPK_DIRK_IMEX(2, 3, 2, 2),
+                                SSPK_DIRK_IMEX(2, 3, 3, 2), SSPK_DIRK_IMEX(3, 3, 3, 2)],
+                         ids=["ARS(1,1,1)", "ARS(2,3,2)",
+                              "SSP2(2,2,2)", "SSP2(3,2,2)",
+                              "SSP2(3,3,2)", "SSP3(3,3,2)"])
+def test_1d_vecconvdiff_neumannbc(bt):
+    order = bt.order
     errs = np.array([vecconvdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
     print(errs)
     conv = np.log2(errs[0]/errs[1])

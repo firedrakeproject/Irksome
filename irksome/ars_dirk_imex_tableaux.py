@@ -1,5 +1,7 @@
 import numpy as np
 
+from .dirk_imex_tableaux import DIRK_IMEX
+
 # Butcher tableau based on Ascher, Ruuth, and Spiteri Applied Numerical Mathematics 1997 (ARS)
 
 # ARS tableau assume a zero first column of the implicit A matrix, so only the lower right s x s
@@ -86,3 +88,24 @@ ars_dict = {
     (3, 4, 3): (ars343A, ars343b, ars343c, ars343A_hat, ars343b_hat, ars343c_hat),
     (4, 4, 3): (ars443A, ars443b, ars443c, ars443A_hat, ars443b_hat, ars443c_hat)
 }
+
+
+class ARS_DIRK_IMEX(DIRK_IMEX):
+    """Class to generate IMEX tableaux based on Ascher, Ruuth, and Spiteri (ARS). It has members
+
+    :arg ns_imp: number of implicit stages
+    :arg ns_exp: number of explicit stages
+    :arg order: the (integer) former order of accuracy of the method
+    """
+    def __init__(self, ns_imp, ns_exp, order):
+        try:
+            A, b, c, A_hat, b_hat, c_hat = ars_dict[ns_imp, ns_exp, order]
+        except KeyError:
+            raise NotImplementedError("No ARS DIRK-IMEX method for that combination of implicit and explicit stages and order")
+
+        # Expand A, b, c with assumed zeros in ARS tableaux
+        A = self._pad_matrix(A, "lr")
+        b = np.append(np.zeros(1), b)
+        c = np.append(np.zeros(1), c)
+
+        super(ARS_DIRK_IMEX, self).__init__(A, b, c, A_hat, b_hat, c_hat, order)

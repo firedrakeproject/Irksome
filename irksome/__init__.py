@@ -9,8 +9,9 @@ from .ButcherTableaux import RadauIIA       # noqa: F401
 from .pep_explicit_rk import PEPRK          # noqa: F401
 from .deriv import Dt                       # noqa: F401
 from .dirk_imex_tableaux import DIRK_IMEX   # noqa: F401
-from .dirk_imex_tableaux import ARS_DIRK_IMEX  # noqa: F401
-from .dirk_imex_tableaux import SSPK_DIRK_IMEX # noqa: F401
+from .ars_dirk_imex_tableaux import ARS_DIRK_IMEX  # noqa: F401
+from .sspk_tableau import SSPK_DIRK_IMEX  # noqa: F401
+from .sspk_tableau import SSPButcherTableau  # noqa: F401
 from .dirk_stepper import DIRKTimeStepper   # noqa: F401
 from .getForm import getForm                # noqa: F401
 from .imex import RadauIIAIMEXMethod        # noqa: F401

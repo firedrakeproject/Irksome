@@ -1,6 +1,4 @@
 from .ButcherTableaux import ButcherTableau
-from .ars_dirk_imex_tableaux import ars_dict
-from .sspk_dirk_imex_tableau import sspk_dict
 import numpy as np
 
 
@@ -58,40 +56,3 @@ class DIRK_IMEX(ButcherTableau):
             raise ValueError("Location must be ll (lower left) or lr (lower right)")
 
         return padded
-
-
-class ARS_DIRK_IMEX(DIRK_IMEX):
-    """Class to generate IMEX tableaux based on Ascher, Ruuth, and Spiteri (ARS). It has members
-
-    :arg ns_imp: number of implicit stages
-    :arg ns_exp: number of explicit stages
-    :arg order: the (integer) former order of accuracy of the method
-    """
-    def __init__(self, ns_imp, ns_exp, order):
-        try:
-            A, b, c, A_hat, b_hat, c_hat = ars_dict[ns_imp, ns_exp, order]
-        except KeyError:
-            raise NotImplementedError("No ARS DIRK-IMEX method for that combination of implicit and explicit stages and order")
-
-        # Expand A, b, c with assumed zeros in ARS tableaux
-        A = self._pad_matrix(A, "lr")
-        b = np.append(np.zeros(1), b)
-        c = np.append(np.zeros(1), c)
-
-        super(ARS_DIRK_IMEX, self).__init__(A, b, c, A_hat, b_hat, c_hat, order)
-
-
-class SSPK_DIRK_IMEX(DIRK_IMEX):
-    """Class to generate IMEX tableaux based on Pareschi and Russo. It has members
-
-    :arg ssp_order: order of ssp scheme
-    :arg ns_imp: number of implicit stages
-    :arg ns_exp: number of explicit stages
-    :arg order: the (integer) formal order of accuracy of the method"""
-    def __init__(self, ssp_order, ns_imp, ns_exp, order):
-        try:
-            A, b, c, A_hat, b_hat, c_hat = sspk_dict[ssp_order, ns_imp, ns_exp, order]
-        except KeyError:
-            raise NotImplementedError("No SSPk DIRK-IMEX method for that combination of SSP order, implicit and explicit stages, and IMEX order")
-
-        super(SSPK_DIRK_IMEX, self).__init__(A, b, c, A_hat, b_hat, c_hat, order)
