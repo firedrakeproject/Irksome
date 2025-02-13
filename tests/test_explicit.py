@@ -2,10 +2,14 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import PEPRK, Dt, MeshConstant, TimeStepper
+from irksome import PEPRK, Dt, MeshConstant, TimeStepper, SSPButcherTableau
 from ufl.algorithms.ad import expand_derivatives
 
 peprks = [PEPRK(*x) for x in ((4, 2, 5), (5, 2, 6))]
+ssprks = [SSPButcherTableau(2, 2), SSPButcherTableau(2, 3), SSPButcherTableau(3, 3)]
+
+bt_list = peprks + ssprks
+id_list = ["PEP(4,2,5)", "PEP(5,2,6)", "SSP(2,2)", "SSP(2,3)", "SSP(3,3)"]
 
 
 # Note that this test is constructed with dt small enough relative to
@@ -13,7 +17,7 @@ peprks = [PEPRK(*x) for x in ((4, 2, 5), (5, 2, 6))]
 # support for explicit schemes, we also caution users that there are
 # no checks in the code that the method you are trying to run is
 # actually sensible!
-@pytest.mark.parametrize("butcher_tableau", peprks)
+@pytest.mark.parametrize("butcher_tableau", bt_list, ids=id_list)
 def test_1d_heat_dirichletbc(butcher_tableau):
     # Boundary values
     u_0 = Constant(2.0)
