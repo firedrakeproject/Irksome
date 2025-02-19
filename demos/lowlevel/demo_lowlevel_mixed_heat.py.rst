@@ -85,7 +85,7 @@ Advancing the solution in time is a bit more complicated now::
 
 Finally, we check the accuracy of the solution::
 
-  sigma, u = sigu.split()
+  sigma, u = sigu.subfunctions
   print("U error      : ", errornorm(uexact, u) / norm(uexact))
   print("Sig error    : ", errornorm(sigexact, sigma) / norm(sigexact))
   print("Div Sig error: ",

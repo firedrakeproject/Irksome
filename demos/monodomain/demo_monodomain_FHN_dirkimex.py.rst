@@ -130,7 +130,7 @@ Now, we access the IMEX method via the `TimeStepper` as with other methods.  Not
                         mass_parameters=mass_params,
 		        Fexp=F2)
 
-  uFinal, cFinal = uu.split()
+  uFinal, cFinal = uu.subfunctions
   outfile1 = File("FHN_results/FHN_2d_u.pvd")
   outfile2 = File("FHN_results/FHN_2d_c.pvd")
   outfile1.write(uFinal, time=0)

@@ -86,7 +86,7 @@ for it in standard Firedrake fashion::
 We'll need to split the stage variable so that we can update the
 solution after solving for the stages at each time step::
 
-  ks = k.split()
+  ks = k.subfunctions
 
 And here is our time-stepping loop.  Note that unlike in the higher-level
 interface examples, we have to manually update the solution::
