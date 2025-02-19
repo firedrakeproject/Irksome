@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.getForm &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.png" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/getForm">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.getForm</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">reduce</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">operator</span><span class="w"> </span><span class="kn">import</span> <span class="n">mul</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">TestFunction</span><span class="p">,</span> <span class="n">split</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl</span><span class="w"> </span><span class="kn">import</span> <span class="n">diff</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.algorithms</span><span class="w"> </span><span class="kn">import</span> <span class="n">expand_derivatives</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.classes</span><span class="w"> </span><span class="kn">import</span> <span class="n">Zero</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.constantvalue</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_ufl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstantOrZero</span><span class="p">,</span> <span class="n">MeshConstant</span><span class="p">,</span> <span class="n">replace</span><span class="p">,</span> <span class="n">getNullspace</span><span class="p">,</span> <span class="n">AI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.deriv</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeDerivative</span>  <span class="c1"># , apply_time_derivatives</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.bcs</span><span class="w"> </span><span class="kn">import</span> <span class="n">BCStageData</span><span class="p">,</span> <span class="n">bc2space</span><span class="p">,</span> <span class="n">stage2spaces4bc</span>
+
+
+<div class="viewcode-block" id="getForm">
+<a class="viewcode-back" href="../../irksome.html#irksome.getForm.getForm">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">getForm</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">butch</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bc_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">splitting</span><span class="o">=</span><span class="n">AI</span><span class="p">,</span>
+            <span class="n">nullspace</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Given a time-dependent variational form and a</span>
+<span class="sd">    :class:`ButcherTableau`, produce UFL for the s-stage RK method.</span>
+
+<span class="sd">    :arg F: UFL form for the semidiscrete ODE/DAE</span>
+<span class="sd">    :arg butch: the :class:`ButcherTableau` for the RK method being used to</span>
+<span class="sd">         advance in time.</span>
+<span class="sd">    :arg t: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time.</span>
+<span class="sd">    :arg dt: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time step.</span>
+<span class="sd">         The user may adjust this value between time steps.</span>
+<span class="sd">    :arg splitting: a callable that maps the (floating point) Butcher matrix</span>
+<span class="sd">         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used</span>
+<span class="sd">         to vary between the classical RK formulation and Butcher&#39;s reformulation</span>
+<span class="sd">         that leads to a denser mass matrix with block-diagonal stiffness.</span>
+<span class="sd">         Some choices of function will assume that `butch.A` is invertible.</span>
+<span class="sd">    :arg u0: a :class:`Function` referring to the state of</span>
+<span class="sd">         the PDE system at time `t`</span>
+<span class="sd">    :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)</span>
+<span class="sd">         containing (possibly time-dependent) boundary conditions imposed</span>
+<span class="sd">         on the system.</span>
+<span class="sd">    :arg bc_type: How to manipulate the strongly-enforced boundary</span>
+<span class="sd">         conditions to derive the stage boundary conditions.  Should</span>
+<span class="sd">         be a string, either &quot;DAE&quot;, which implements BCs as</span>
+<span class="sd">         constraints in the style of a differential-algebraic</span>
+<span class="sd">         equation, or &quot;ODE&quot;, which takes the time derivative of the</span>
+<span class="sd">         boundary data and evaluates this for the stage values</span>
+<span class="sd">    :arg nullspace: A list of tuples of the form (index, VSB) where</span>
+<span class="sd">         index is an index into the function space associated with `u`</span>
+<span class="sd">         and VSB is a :class: `firedrake.VectorSpaceBasis` instance to</span>
+<span class="sd">         be passed to a `firedrake.MixedVectorSpaceBasis` over the</span>
+<span class="sd">         larger space associated with the Runge-Kutta method</span>
+
+<span class="sd">    On output, we return a tuple consisting of four parts:</span>
+
+<span class="sd">       - Fnew, the :class:`Form`</span>
+<span class="sd">       - k, the :class:`firedrake.Function` holding all the stages.</span>
+<span class="sd">         It lives in a :class:`firedrake.FunctionSpace` corresponding to the</span>
+<span class="sd">         s-way tensor product of the space on which the semidiscrete</span>
+<span class="sd">         form lives.</span>
+<span class="sd">       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed</span>
+<span class="sd">         on the stages,</span>
+<span class="sd">       - &#39;nspnew&#39;, the :class:`firedrake.MixedVectorSpaceBasis` object</span>
+<span class="sd">         that represents the nullspace of the coupled system</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">bc_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bc_type</span> <span class="o">=</span> <span class="s2">&quot;DAE&quot;</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">arguments</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+    <span class="n">msh</span> <span class="o">=</span> <span class="n">V</span><span class="o">.</span><span class="n">mesh</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">V</span> <span class="o">==</span> <span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+
+    <span class="n">MC</span> <span class="o">=</span> <span class="n">MeshConstant</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="n">ci</span><span class="p">)</span> <span class="k">for</span> <span class="n">ci</span> <span class="ow">in</span> <span class="n">butch</span><span class="o">.</span><span class="n">c</span><span class="p">],</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+
+    <span class="n">bA1</span><span class="p">,</span> <span class="n">bA2</span> <span class="o">=</span> <span class="n">splitting</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">A</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">bA1inv</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">bA1</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+        <span class="n">bA1inv</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">bA2inv</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">bA2</span><span class="p">)</span>
+        <span class="n">A2inv</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">ConstantOrZero</span><span class="p">(</span><span class="n">aa</span><span class="p">,</span> <span class="n">MC</span><span class="p">)</span> <span class="k">for</span> <span class="n">aa</span> <span class="ow">in</span> <span class="n">arow</span><span class="p">]</span> <span class="k">for</span> <span class="n">arow</span> <span class="ow">in</span> <span class="n">bA2inv</span><span class="p">],</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;We require A = A1 A2 with A2 invertible&quot;</span><span class="p">)</span>
+
+    <span class="n">A1</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">ConstantOrZero</span><span class="p">(</span><span class="n">aa</span><span class="p">,</span> <span class="n">MC</span><span class="p">)</span> <span class="k">for</span> <span class="n">aa</span> <span class="ow">in</span> <span class="n">arow</span><span class="p">]</span> <span class="k">for</span> <span class="n">arow</span> <span class="ow">in</span> <span class="n">bA1</span><span class="p">],</span>
+                     <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bA1inv</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">A1inv</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">ConstantOrZero</span><span class="p">(</span><span class="n">aa</span><span class="p">,</span> <span class="n">MC</span><span class="p">)</span> <span class="k">for</span> <span class="n">aa</span> <span class="ow">in</span> <span class="n">arow</span><span class="p">]</span> <span class="k">for</span> <span class="n">arow</span> <span class="ow">in</span> <span class="n">bA1inv</span><span class="p">],</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">A1inv</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">num_stages</span> <span class="o">=</span> <span class="n">butch</span><span class="o">.</span><span class="n">num_stages</span>
+    <span class="n">num_fields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+
+    <span class="n">Vbig</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="p">(</span><span class="n">V</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)))</span>
+
+    <span class="n">vnew</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">Vbig</span><span class="p">)</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">Vbig</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">u0bits</span> <span class="o">=</span> <span class="p">[</span><span class="n">u0</span><span class="p">]</span>
+        <span class="n">vbits</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">num_stages</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">vbigbits</span> <span class="o">=</span> <span class="p">[</span><span class="n">vnew</span><span class="p">]</span>
+            <span class="n">wbits</span> <span class="o">=</span> <span class="p">[</span><span class="n">w</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">vbigbits</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">vnew</span><span class="p">)</span>
+            <span class="n">wbits</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">u0bits</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">u0</span><span class="p">)</span>
+        <span class="n">vbits</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="n">vbigbits</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">vnew</span><span class="p">)</span>
+        <span class="n">wbits</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+
+    <span class="n">wbits_np</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">num_fields</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_fields</span><span class="p">):</span>
+            <span class="n">wbits_np</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">wbits</span><span class="p">[</span><span class="n">i</span><span class="o">*</span><span class="n">num_fields</span><span class="o">+</span><span class="n">j</span><span class="p">]</span>
+
+    <span class="n">A1w</span> <span class="o">=</span> <span class="n">A1</span> <span class="o">@</span> <span class="n">wbits_np</span>
+    <span class="n">A2invw</span> <span class="o">=</span> <span class="n">A2inv</span> <span class="o">@</span> <span class="n">wbits_np</span>
+
+    <span class="n">Fnew</span> <span class="o">=</span> <span class="n">Zero</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+        <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">}</span>
+        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="p">(</span><span class="n">ubit</span><span class="p">,</span> <span class="n">vbit</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">u0bits</span><span class="p">,</span> <span class="n">vbits</span><span class="p">)):</span>
+            <span class="n">repl</span><span class="p">[</span><span class="n">ubit</span><span class="p">]</span> <span class="o">=</span> <span class="n">ubit</span> <span class="o">+</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">A1w</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span>
+            <span class="n">repl</span><span class="p">[</span><span class="n">vbit</span><span class="p">]</span> <span class="o">=</span> <span class="n">vbigbits</span><span class="p">[</span><span class="n">num_fields</span> <span class="o">*</span> <span class="n">i</span> <span class="o">+</span> <span class="n">j</span><span class="p">]</span>
+            <span class="n">repl</span><span class="p">[</span><span class="n">TimeDerivative</span><span class="p">(</span><span class="n">ubit</span><span class="p">)]</span> <span class="o">=</span> <span class="n">A2invw</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ubit</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">A1w</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])):</span>
+                    <span class="n">repl</span><span class="p">[</span><span class="n">TimeDerivative</span><span class="p">(</span><span class="n">ubit</span><span class="p">[</span><span class="n">kk</span><span class="p">])]</span> <span class="o">=</span> <span class="n">A2invw</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">][</span><span class="n">kk</span><span class="p">]</span>
+                    <span class="n">repl</span><span class="p">[</span><span class="n">ubit</span><span class="p">[</span><span class="n">kk</span><span class="p">]]</span> <span class="o">=</span> <span class="n">repl</span><span class="p">[</span><span class="n">ubit</span><span class="p">][</span><span class="n">kk</span><span class="p">]</span>
+                    <span class="n">repl</span><span class="p">[</span><span class="n">vbit</span><span class="p">[</span><span class="n">kk</span><span class="p">]]</span> <span class="o">=</span> <span class="n">repl</span><span class="p">[</span><span class="n">vbit</span><span class="p">][</span><span class="n">kk</span><span class="p">]</span>
+        <span class="n">Fnew</span> <span class="o">+=</span> <span class="n">replace</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+    <span class="n">bcnew</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">bcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bcs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">bc_type</span> <span class="o">==</span> <span class="s2">&quot;ODE&quot;</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">splitting</span> <span class="o">==</span> <span class="n">AI</span><span class="p">,</span> <span class="s2">&quot;ODE-type BC aren&#39;t implemented for this splitting strategy&quot;</span>
+        <span class="n">u0_mult_np</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">butch</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">c</span><span class="p">),</span> <span class="n">where</span><span class="o">=</span><span class="n">butch</span><span class="o">.</span><span class="n">c</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">u0_mult</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">mi</span> <span class="ow">in</span> <span class="n">u0_mult_np</span><span class="p">],</span>
+                              <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">bc2gcur</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+            <span class="n">gorig</span> <span class="o">=</span> <span class="n">as_ufl</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">_original_arg</span><span class="p">)</span>
+            <span class="n">gfoo</span> <span class="o">=</span> <span class="n">expand_derivatives</span><span class="p">(</span><span class="n">diff</span><span class="p">(</span><span class="n">gorig</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="n">gfoo</span><span class="p">,</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">})</span> <span class="o">+</span> <span class="n">u0_mult</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">gorig</span>
+
+    <span class="k">elif</span> <span class="n">bc_type</span> <span class="o">==</span> <span class="s2">&quot;DAE&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">bA1inv</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Cannot have DAE BCs for this Butcher Tableau/splitting&quot;</span><span class="p">)</span>
+
+        <span class="n">u0_mult_np</span> <span class="o">=</span> <span class="n">A1inv</span> <span class="o">@</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+        <span class="n">u0_mult</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">ConstantOrZero</span><span class="p">(</span><span class="n">mi</span><span class="p">,</span> <span class="n">MC</span><span class="p">)</span><span class="o">/</span><span class="n">dt</span> <span class="k">for</span> <span class="n">mi</span> <span class="ow">in</span> <span class="n">u0_mult_np</span><span class="p">],</span>
+                              <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">bc2gcur</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+            <span class="n">gorig</span> <span class="o">=</span> <span class="n">as_ufl</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">_original_arg</span><span class="p">)</span>
+            <span class="n">gcur</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+                <span class="n">gcur</span> <span class="o">+=</span> <span class="n">ConstantOrZero</span><span class="p">(</span><span class="n">bA1inv</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">MC</span><span class="p">)</span> <span class="o">/</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">replace</span><span class="p">(</span><span class="n">gorig</span><span class="p">,</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">*</span><span class="n">dt</span><span class="p">})</span>
+            <span class="k">return</span> <span class="n">gcur</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unrecognised bc_type: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">bc_type</span><span class="p">)</span>
+
+    <span class="c1"># This logic uses information set up in the previous section to</span>
+    <span class="c1"># set up the new BCs for either method</span>
+    <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="n">bcs</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">Vsp</span> <span class="o">=</span> <span class="n">bc2space</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+            <span class="n">Vbigi</span> <span class="o">=</span> <span class="n">stage2spaces4bc</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="n">Vbig</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">gcur</span> <span class="o">=</span> <span class="n">bc2gcur</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">gdat</span> <span class="o">=</span> <span class="n">BCStageData</span><span class="p">(</span><span class="n">Vsp</span><span class="p">,</span> <span class="n">gcur</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">u0_mult</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
+            <span class="n">bcnew</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">reconstruct</span><span class="p">(</span><span class="n">V</span><span class="o">=</span><span class="n">Vbigi</span><span class="p">,</span> <span class="n">g</span><span class="o">=</span><span class="n">gdat</span><span class="p">))</span>
+
+    <span class="n">nspnew</span> <span class="o">=</span> <span class="n">getNullspace</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">Vbig</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">,</span> <span class="n">nullspace</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">Fnew</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">bcnew</span><span class="p">,</span> <span class="n">nspnew</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
