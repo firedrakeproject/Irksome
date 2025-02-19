@@ -60,7 +60,7 @@ and solver::
   prob = NonlinearVariationalProblem(Fnew, k, bcs=bcnew)
   solver = NonlinearVariationalSolver(prob, solver_parameters=luparams, nullspace=nspnew)
 
-  ks = k.split()
+  ks = k.subfunctions
 
 Now, our time-stepping loop shows how to manually update the per-stage
 boundary conditions at each time step::
