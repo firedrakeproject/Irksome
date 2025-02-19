@@ -2,8 +2,8 @@ from functools import reduce
 from operator import mul
 
 import numpy
-from firedrake import Function, TestFunction, split
-from ufl import diff
+from firedrake import Constant, Function, TestFunction, split
+from ufl import as_tensor, diff, dot
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
@@ -68,8 +68,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
 
     MC = MeshConstant(msh)
 
-    c = numpy.array([MC.Constant(ci) for ci in butch.c],
-                    dtype=object)
+    c = Constant(butch.c)
 
     bA1, bA2 = splitting(butch.A)
 
@@ -79,8 +78,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bA1inv = None
     try:
         bA2inv = numpy.linalg.inv(bA2)
-        A2inv = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA2inv],
-                            dtype=object)
+        # Switching from this to the Constant-on-outside below breaks 197 of the tests
+        # because Constant @ numpy array is not supported.  Seems like a rabbit hole.
+        # A2inv = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA2inv],
+        #                     dtype=object)
+        A2inv = Constant(bA2inv)
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
 
@@ -120,7 +122,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     for i in range(num_stages):
         for j in range(num_fields):
             wbits_np[i, j] = wbits[i*num_fields+j]
-
+            
     A1w = A1 @ wbits_np
     A2invw = A2inv @ wbits_np
 
