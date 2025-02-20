@@ -7,7 +7,7 @@ from ufl import as_tensor, diff, dot
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import ConstantOrZero, MeshConstant, replace, getNullspace, AI
+from .tools import replace, getNullspace, AI
 from .deriv import TimeDerivative  # , apply_time_derivatives
 from .bcs import BCStageData, bc2space, stage2spaces4bc
 
@@ -63,10 +63,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bc_type = "DAE"
     v = F.arguments()[0]
     V = v.function_space()
-    msh = V.mesh()
     assert V == u0.function_space()
-
-    MC = MeshConstant(msh)
 
     c = Constant(butch.c)
 
@@ -86,11 +83,9 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
 
-    A1 = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA1],
-                     dtype=object)
+    A1 = Constant(bA1)
     if bA1inv is not None:
-        A1inv = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA1inv],
-                            dtype=object)
+        A1inv = Constant(bA1inv)
     else:
         A1inv = None
 
@@ -122,21 +117,24 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     for i in range(num_stages):
         for j in range(num_fields):
             wbits_np[i, j] = wbits[i*num_fields+j]
-            
-    A1w = A1 @ wbits_np
-    A2invw = A2inv @ wbits_np
 
     Fnew = Zero()
 
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
         for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
-            repl[ubit] = ubit + dt * A1w[i, j]
+            # We need A1w[i, j] where A1w = dot(A1, as_tensor(wbits_np)).
+            # UFL cannot create as_tensor(wbits_np) as each column has different shape
+            # but we can instead create each entry A1w[i, j].
+            A1wij = dot(A1[i, :], as_tensor(wbits_np[:, j]))
+            A2invwij = dot(A2inv[i, :], as_tensor(wbits_np[:, j]))
+
+            repl[ubit] = ubit + dt * A1wij
             repl[vbit] = vbigbits[num_fields * i + j]
-            repl[TimeDerivative(ubit)] = A2invw[i, j]
+            repl[TimeDerivative(ubit)] = A2invwij
             if (len(ubit.ufl_shape) == 1):
-                for kk in range(len(A1w[i, j])):
-                    repl[TimeDerivative(ubit[kk])] = A2invw[i, j][kk]
+                for kk in range(len(A1wij)):
+                    repl[TimeDerivative(ubit[kk])] = A2invwij[kk]
                     repl[ubit[kk]] = repl[ubit][kk]
                     repl[vbit[kk]] = repl[vbit][kk]
         Fnew += replace(F, repl)
@@ -147,9 +145,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bcs = []
     if bc_type == "ODE":
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
-        u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
-        u0_mult = numpy.array([MC.Constant(0) for mi in u0_mult_np],
-                              dtype=object)
+        u0_mult = Zero(butch.c.shape)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
@@ -160,15 +156,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         if bA1inv is None:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
-        u0_mult_np = A1inv @ numpy.ones_like(butch.c)
-        u0_mult = numpy.array([ConstantOrZero(mi, MC)/dt for mi in u0_mult_np],
-                              dtype=object)
+        u0_mult = dot(A1inv, as_tensor(numpy.ones_like(butch.c))) / dt
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
-            gcur = 0
-            for j in range(num_stages):
-                gcur += ConstantOrZero(bA1inv[i, j], MC) / dt * replace(gorig, {t: t + c[j]*dt})
+            gcur = (1/dt)*sum(A1inv[i, j] * replace(gorig, {t: t + c[j]*dt}) for j in range(num_stages))
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
