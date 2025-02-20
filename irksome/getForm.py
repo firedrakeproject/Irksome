@@ -2,12 +2,12 @@ from functools import reduce
 from operator import mul
 
 import numpy
-from firedrake import Function, TestFunction, split
-from ufl import diff
+from firedrake import Constant, Function, TestFunction, split
+from ufl import as_tensor, diff, dot
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import ConstantOrZero, MeshConstant, replace, getNullspace, AI
+from .tools import ConstantOrZero, replace, getNullspace, AI
 from .deriv import TimeDerivative  # , apply_time_derivatives
 from .bcs import BCStageData, bc2space, stage2spaces4bc
 
@@ -63,13 +63,9 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bc_type = "DAE"
     v = F.arguments()[0]
     V = v.function_space()
-    msh = V.mesh()
     assert V == u0.function_space()
 
-    MC = MeshConstant(msh)
-
-    c = numpy.array([MC.Constant(ci) for ci in butch.c],
-                    dtype=object)
+    c = Constant(butch.c)
 
     bA1, bA2 = splitting(butch.A)
 
@@ -79,64 +75,64 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bA1inv = None
     try:
         bA2inv = numpy.linalg.inv(bA2)
-        A2inv = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA2inv],
-                            dtype=object)
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
 
-    A1 = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA1],
-                     dtype=object)
     if bA1inv is not None:
-        A1inv = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA1inv],
-                            dtype=object)
+        A1inv = Constant(bA1inv)
     else:
         A1inv = None
 
     num_stages = butch.num_stages
-    num_fields = len(V)
-
     Vbig = reduce(mul, (V for _ in range(num_stages)))
 
-    vnew = TestFunction(Vbig)
+    ubits = split(u0) if len(V) else ()
+    vbits = split(v) if len(V) else ()
+
+    def get_bit(expr, j):
+        start = sum(numpy.prod(ubits[i].ufl_shape, dtype=int) for i in range(j))
+        end = start + numpy.prod(ubits[j].ufl_shape, dtype=int)
+        subexpr = numpy.reshape(expr, (-1,))[start:end]
+        return as_tensor(numpy.reshape(subexpr, ubits[j].ufl_shape))
+
     w = Function(Vbig)
-
-    if len(V) == 1:
-        u0bits = [u0]
-        vbits = [v]
-        if num_stages == 1:
-            vbigbits = [vnew]
-            wbits = [w]
-        else:
-            vbigbits = split(vnew)
-            wbits = split(w)
-    else:
-        u0bits = split(u0)
-        vbits = split(v)
-        vbigbits = split(vnew)
-        wbits = split(w)
-
-    wbits_np = numpy.zeros((num_stages, num_fields), dtype=object)
-
-    for i in range(num_stages):
-        for j in range(num_fields):
-            wbits_np[i, j] = wbits[i*num_fields+j]
-
-    A1w = A1 @ wbits_np
-    A2invw = A2inv @ wbits_np
+    vnew = TestFunction(Vbig)
+    vflat = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
+    wflat = numpy.reshape(w, (num_stages, *u0.ufl_shape))
 
     Fnew = Zero()
 
+    dtu = TimeDerivative(u0)
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
-        for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
-            repl[ubit] = ubit + dt * A1w[i, j]
-            repl[vbit] = vbigbits[num_fields * i + j]
-            repl[TimeDerivative(ubit)] = A2invw[i, j]
-            if (len(ubit.ufl_shape) == 1):
-                for kk in range(len(A1w[i, j])):
-                    repl[TimeDerivative(ubit[kk])] = A2invw[i, j][kk]
-                    repl[ubit[kk]] = repl[ubit][kk]
+
+        A1 = numpy.asarray(list(map(ConstantOrZero, bA1[i])))
+        A2inv = numpy.asarray(list(map(ConstantOrZero, bA2inv[i])))
+
+        # Replace entire mixed function
+        repl[v] = as_tensor(vflat[i])
+        repl[u0] = u0 + dt * as_tensor(A1 @ wflat)
+        repl[dtu] = as_tensor(A2inv @ wflat)
+
+        if u0.ufl_shape:
+            for kk in numpy.ndindex(u0.ufl_shape):
+                # Replace each scalar component
+                repl[v[kk]] = repl[v][kk]
+                repl[u0[kk]] = repl[u0][kk]
+                repl[TimeDerivative(u0[kk])] = repl[dtu][kk]
+
+        for j, (ubit, vbit) in enumerate(zip(ubits, vbits)):
+            # Replace each field
+            repl[vbit] = get_bit(repl[v], j)
+            repl[ubit] = get_bit(repl[u0], j)
+            repl[TimeDerivative(ubit)] = get_bit(repl[dtu], j)
+            if ubit.ufl_shape:
+                for kk in numpy.ndindex(ubit.ufl_shape):
+                    # Replace each scalar component from each field
                     repl[vbit[kk]] = repl[vbit][kk]
+                    repl[ubit[kk]] = repl[ubit][kk]
+                    repl[TimeDerivative(ubit[kk])] = repl[TimeDerivative(ubit)][kk]
+
         Fnew += replace(F, repl)
 
     bcnew = []
@@ -145,9 +141,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bcs = []
     if bc_type == "ODE":
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
-        u0_mult_np = numpy.divide(1.0, butch.c, out=numpy.zeros_like(butch.c), where=butch.c != 0)
-        u0_mult = numpy.array([MC.Constant(0) for mi in u0_mult_np],
-                              dtype=object)
+        u0_mult = Zero(butch.c.shape)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
@@ -158,15 +152,11 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         if bA1inv is None:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
-        u0_mult_np = A1inv @ numpy.ones_like(butch.c)
-        u0_mult = numpy.array([ConstantOrZero(mi, MC)/dt for mi in u0_mult_np],
-                              dtype=object)
+        u0_mult = dot(A1inv, as_tensor(numpy.ones_like(butch.c))) / dt
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
-            gcur = 0
-            for j in range(num_stages):
-                gcur += ConstantOrZero(bA1inv[i, j], MC) / dt * replace(gorig, {t: t + c[j]*dt})
+            gcur = (1/dt)*sum(A1inv[i, j] * replace(gorig, {t: t + c[j]*dt}) for j in range(num_stages))
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)

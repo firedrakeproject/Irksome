@@ -1,5 +1,5 @@
 import numpy
-from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, split
+from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, split, Constant
 from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.classes import CoefficientDerivative, Zero
@@ -119,5 +119,6 @@ class MeshConstant(object):
         return Function(self.V).assign(val)
 
 
-def ConstantOrZero(x, MC):
-    return Zero() if abs(complex(x)) < 1.e-10 else MC.Constant(x)
+def ConstantOrZero(x, MC=None):
+    const = MC.Constant if MC else Constant
+    return Zero() if abs(complex(x)) < 1.e-10 else const(x)
