@@ -4,6 +4,7 @@ from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import split
 from ufl.constantvalue import as_ufl
+from ufl.algorithms.analysis import extract_type
 
 from .deriv import TimeDerivative
 from .tools import replace, MeshConstant
@@ -35,6 +36,10 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
         u0bits = split(u0)
         gbits = split(g)
 
+    # Tracks which subfunctions have derivatives and need to be evolved
+    has_deriv = numpy.array([], dtype=int)
+    no_deriv = numpy.array([], dtype=int)
+
     # Note: the Constant c is used for substitution in both the
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constant a is
@@ -43,10 +48,21 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     c = MC.Constant(1.0)
     a = MC.Constant(1.0)
 
+    deriv_list = extract_type(F, TimeDerivative)
+
     repl = {t: t+c*dt}
-    for u0bit, kbit, gbit in zip(u0bits, k_bits, gbits):
-        repl[u0bit] = gbit + dt * a * kbit
-        repl[TimeDerivative(u0bit)] = kbit
+    for i, (u0bit, kbit, gbit) in enumerate(zip(u0bits, k_bits, gbits)):
+        if TimeDerivative(u0bit) in deriv_list:
+            repl[u0bit] = gbit + dt * a * kbit
+            repl[TimeDerivative(u0bit)] = kbit
+            has_deriv = numpy.append(has_deriv, i)
+        else:
+            repl[u0bit] = kbit
+            no_deriv = numpy.append(no_deriv, i)
+
+    if has_deriv.size == 0:
+        raise TypeError("Form must have at least one TimeDerivative")
+
     stage_F = replace(F, repl)
 
     bcnew = []
@@ -74,7 +90,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
 
         bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k, g, a, c), bcnew, (a_vals, d_val)
+    return stage_F, (k, g, a, c), bcnew, (a_vals, d_val), (has_deriv, no_deriv)
 
 
 class DIRKTimeStepper:
@@ -126,8 +142,8 @@ class DIRKTimeStepper:
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
 
-        stage_F, (k, g, a, c), bcnew, (a_vals, d_val) = getFormDIRK(
-            F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
+        stage_F, (k, g, a, c), bcnew, (a_vals, d_val), (has_deriv, no_deriv) \
+        = getFormDIRK(F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
 
         self.bcnew = bcnew
 
@@ -151,6 +167,7 @@ class DIRKTimeStepper:
 
         self.kgac = k, g, a, c
         self.bc_constants = a_vals, d_val
+        self.derivs = (has_deriv, no_deriv)
 
     def update_bc_constants(self, i, c):
         AAb = self.AAb
@@ -166,6 +183,7 @@ class DIRKTimeStepper:
 
     def advance(self):
         k, g, a, c = self.kgac
+        has_deriv, no_deriv = self.derivs
         ks = self.ks
         u0 = self.u0
         dtc = float(self.dt)
@@ -179,7 +197,9 @@ class DIRKTimeStepper:
             g.assign(u0)
             for j in range(i):
                 ksplit = ks[j].subfunctions
-                for (gbit, kbit) in zip(gsplit, ksplit):
+                for ind in has_deriv:
+                    gbit = gsplit[ind]
+                    kbit = ksplit[ind]
                     gbit += dtc * float(AA[i, j]) * kbit
 
             # update BC constants for the variational problem
@@ -200,9 +220,17 @@ class DIRKTimeStepper:
             self.num_linear_iterations += mysnes.getLinearSolveIterations()
             ks[i].assign(k)
 
+            # Directly assign auxiliary variable at end of each stage
+            for ind_ in no_deriv:
+                u0bit = u0.subfunctions[ind_]
+                kbit = ks[-1].subfunctions[ind_]
+                u0bit.assign(kbit)
+
         # update the solution with now-computed stage values.
         for i in range(self.num_stages):
-            for (u0bit, kbit) in zip(u0.subfunctions, ks[i].subfunctions):
+            for ind in has_deriv:
+                u0bit = u0.subfunctions[ind]
+                kbit = ks[i].subfunctions[ind]
                 u0bit += dtc * float(BB[i]) * kbit
 
         self.num_steps += 1
