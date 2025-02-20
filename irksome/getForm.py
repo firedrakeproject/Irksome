@@ -112,31 +112,32 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         vbigbits = split(vnew)
         wbits = split(w)
 
-    wbits_np = numpy.zeros((num_stages, num_fields), dtype=object)
-
-    for i in range(num_stages):
-        for j in range(num_fields):
-            wbits_np[i, j] = wbits[i*num_fields+j]
+    # We need A1w[i, j] where A1w = dot(A1, as_tensor(wbits)).
+    # UFL cannot create as_tensor(wbits) as each column has different shape
+    # but we can instead create each column A1w[:, j].
+    A1w = []
+    A2invw = []
+    for j in range(num_fields):
+        wj = as_tensor([wbits[i*num_fields+j] for i in range(num_stages)])
+        A1w.append(dot(A1, wj))
+        A2invw.append(dot(A2inv, wj))
 
     Fnew = Zero()
-
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
-        for j, (ubit, vbit) in enumerate(zip(u0bits, vbits)):
-            # We need A1w[i, j] where A1w = dot(A1, as_tensor(wbits_np)).
-            # UFL cannot create as_tensor(wbits_np) as each column has different shape
-            # but we can instead create each entry A1w[i, j].
-            A1wij = dot(A1[i, :], as_tensor(wbits_np[:, j]))
-            A2invwij = dot(A2inv[i, :], as_tensor(wbits_np[:, j]))
 
-            repl[ubit] = ubit + dt * A1wij
-            repl[vbit] = vbigbits[num_fields * i + j]
-            repl[TimeDerivative(ubit)] = A2invwij
-            if (len(ubit.ufl_shape) == 1):
-                for kk in range(len(A1wij)):
-                    repl[TimeDerivative(ubit[kk])] = A2invwij[kk]
-                    repl[ubit[kk]] = repl[ubit][kk]
+        for j, (ubit, vbit, A1wj, A2invwj) in enumerate(zip(u0bits, vbits, A1w, A2invw)):
+            dtubit = TimeDerivative(ubit)
+            ii = (i,) + (slice(None), ) * len(ubit.ufl_shape)
+            repl[vbit] = vbigbits[i * num_fields + j]
+            repl[ubit] = ubit + dt * A1wj[ii]
+            repl[dtubit] = A2invwj[ii]
+            if ubit.ufl_shape:
+                for kk in numpy.ndindex(ubit.ufl_shape):
                     repl[vbit[kk]] = repl[vbit][kk]
+                    repl[ubit[kk]] = repl[ubit][kk]
+                    repl[dtubit[kk]] = repl[dtubit][kk]
+
         Fnew += replace(F, repl)
 
     bcnew = []
