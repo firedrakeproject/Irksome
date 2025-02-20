@@ -75,68 +75,65 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bA1inv = None
     try:
         bA2inv = numpy.linalg.inv(bA2)
-        # Switching from this to the Constant-on-outside below breaks 197 of the tests
-        # because Constant @ numpy array is not supported.  Seems like a rabbit hole.
-        # A2inv = numpy.array([[ConstantOrZero(aa, MC) for aa in arow] for arow in bA2inv],
-        #                     dtype=object)
-        A2inv = Constant(bA2inv)
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
 
     A1 = Constant(bA1)
+    A2inv = Constant(bA2inv)
+
     if bA1inv is not None:
         A1inv = Constant(bA1inv)
     else:
         A1inv = None
 
     num_stages = butch.num_stages
-    num_fields = len(V)
-
     Vbig = reduce(mul, (V for _ in range(num_stages)))
 
-    vnew = TestFunction(Vbig)
+    ubits = split(u0) if len(V) else ()
+    vbits = split(v) if len(V) else ()
+
+    def get_bit(expr, j):
+        start = sum(numpy.prod(ubits[i].ufl_shape, dtype=int) for i in range(j))
+        end = start + numpy.prod(ubits[j].ufl_shape, dtype=int)
+        subexpr = numpy.reshape(expr, (-1,))[start:end]
+        return as_tensor(numpy.reshape(subexpr, ubits[j].ufl_shape))
+
     w = Function(Vbig)
+    vnew = TestFunction(Vbig)
+    vflat = as_tensor(numpy.reshape(vnew, (num_stages, -1)))
+    wflat = as_tensor(numpy.reshape(w, (num_stages, -1)))
 
-    if len(V) == 1:
-        u0bits = [u0]
-        vbits = [v]
-        if num_stages == 1:
-            vbigbits = [vnew]
-            wbits = [w]
-        else:
-            vbigbits = split(vnew)
-            wbits = split(w)
-    else:
-        u0bits = split(u0)
-        vbits = split(v)
-        vbigbits = split(vnew)
-        wbits = split(w)
-
-    # We need A1w[i, j] where A1w = dot(A1, as_tensor(wbits)).
-    # UFL cannot create as_tensor(wbits) as each column has different shape
-    # but we can instead create each column A1w[:, j].
-    A1w = []
-    A2invw = []
-    for j in range(num_fields):
-        wj = as_tensor([wbits[i*num_fields+j] for i in range(num_stages)])
-        A1w.append(dot(A1, wj))
-        A2invw.append(dot(A2inv, wj))
+    A1w = dot(A1, wflat)
+    A2invw = dot(A2inv, wflat)
 
     Fnew = Zero()
+
+    dtu = TimeDerivative(u0)
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
 
-        for j, (ubit, vbit, A1wj, A2invwj) in enumerate(zip(u0bits, vbits, A1w, A2invw)):
-            dtubit = TimeDerivative(ubit)
-            ii = (i,) + (slice(None), ) * len(ubit.ufl_shape)
-            repl[vbit] = vbigbits[i * num_fields + j]
-            repl[ubit] = ubit + dt * A1wj[ii]
-            repl[dtubit] = A2invwj[ii]
+        # Replace entire mixed function
+        repl[v] = as_tensor(numpy.reshape(vflat[i, :], u0.ufl_shape))
+        repl[u0] = u0 + dt * as_tensor(numpy.reshape(A1w[i, :], u0.ufl_shape))
+        repl[dtu] = as_tensor(numpy.reshape(A2invw[i, :], u0.ufl_shape))
+        if u0.ufl_shape:
+            for kk in numpy.ndindex(u0.ufl_shape):
+                # Replace each scalar component
+                repl[v[kk]] = repl[v][kk]
+                repl[u0[kk]] = repl[u0][kk]
+                repl[TimeDerivative(u0[kk])] = repl[dtu][kk]
+
+        for j, (ubit, vbit) in enumerate(zip(ubits, vbits)):
+            # Replace each field
+            repl[vbit] = get_bit(repl[v], j)
+            repl[ubit] = get_bit(repl[u0], j)
+            repl[TimeDerivative(ubit)] = get_bit(repl[dtu], j)
             if ubit.ufl_shape:
                 for kk in numpy.ndindex(ubit.ufl_shape):
+                    # Replace each scalar component from each field
                     repl[vbit[kk]] = repl[vbit][kk]
                     repl[ubit[kk]] = repl[ubit][kk]
-                    repl[dtubit[kk]] = repl[dtubit][kk]
+                    repl[TimeDerivative(ubit[kk])] = repl[TimeDerivative(ubit)][kk]
 
         Fnew += replace(F, repl)
 
