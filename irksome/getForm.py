@@ -7,7 +7,7 @@ from ufl import as_tensor, diff, dot
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import replace, getNullspace, AI
+from .tools import ConstantOrZero, replace, getNullspace, AI
 from .deriv import TimeDerivative  # , apply_time_derivatives
 from .bcs import BCStageData, bc2space, stage2spaces4bc
 
@@ -78,9 +78,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
 
-    A1 = Constant(bA1)
-    A2inv = Constant(bA2inv)
-
     if bA1inv is not None:
         A1inv = Constant(bA1inv)
     else:
@@ -100,11 +97,8 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
 
     w = Function(Vbig)
     vnew = TestFunction(Vbig)
-    vflat = as_tensor(numpy.reshape(vnew, (num_stages, -1)))
-    wflat = as_tensor(numpy.reshape(w, (num_stages, -1)))
-
-    A1w = dot(A1, wflat)
-    A2invw = dot(A2inv, wflat)
+    vflat = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
+    wflat = numpy.reshape(w, (num_stages, *u0.ufl_shape))
 
     Fnew = Zero()
 
@@ -112,10 +106,14 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     for i in range(num_stages):
         repl = {t: t + c[i] * dt}
 
+        A1 = numpy.asarray(list(map(ConstantOrZero, bA1[i])))
+        A2inv = numpy.asarray(list(map(ConstantOrZero, bA2inv[i])))
+
         # Replace entire mixed function
-        repl[v] = as_tensor(numpy.reshape(vflat[i, :], u0.ufl_shape))
-        repl[u0] = u0 + dt * as_tensor(numpy.reshape(A1w[i, :], u0.ufl_shape))
-        repl[dtu] = as_tensor(numpy.reshape(A2invw[i, :], u0.ufl_shape))
+        repl[v] = as_tensor(vflat[i])
+        repl[u0] = u0 + dt * as_tensor(A1 @ wflat)
+        repl[dtu] = as_tensor(A2inv @ wflat)
+
         if u0.ufl_shape:
             for kk in numpy.ndindex(u0.ufl_shape):
                 # Replace each scalar component
