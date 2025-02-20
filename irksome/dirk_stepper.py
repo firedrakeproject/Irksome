@@ -143,7 +143,7 @@ class DIRKTimeStepper:
         # stage values we've computed earlier in the time step...
 
         stage_F, (k, g, a, c), bcnew, (a_vals, d_val), (has_deriv, no_deriv) \
-        = getFormDIRK(F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
+            = getFormDIRK(F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
 
         self.bcnew = bcnew
 
