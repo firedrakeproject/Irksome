@@ -92,9 +92,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     ZZ = Function(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    # u0bits, vbits, VVbits, ZZbits = getBits(num_stages, num_fields,
-    #                                         u0, ZZ, v, VV)
-
     v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
     z_np = np.reshape(ZZ, (num_stages, *u0.ufl_shape))
 
