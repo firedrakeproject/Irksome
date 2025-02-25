@@ -7,7 +7,7 @@ from ufl import as_tensor, diff, dot
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import replace, getNullspace, AI, numpy_to_ufl
+from .tools import replace, getNullspace, AI, ConstantOrZero
 from .deriv import TimeDerivative  # , apply_time_derivatives
 from .bcs import BCStageData, bc2space, stage2spaces4bc
 
@@ -88,32 +88,32 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
 
     w = Function(Vbig)
     vnew = TestFunction(Vbig)
-    vflat = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
-    wflat = numpy.reshape(w, (num_stages, *u0.ufl_shape))
+    v_np = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
+    w_np = numpy.reshape(w, (num_stages, *u0.ufl_shape))
 
-    A1 = numpy_to_ufl(bA1)
-    A2inv = numpy_to_ufl(bA2inv)
+    vecconst = numpy.vectorize(ConstantOrZero)
+    A1 = vecconst(bA1)
+    A2inv = vecconst(bA2inv)
 
-    A1w = dot(A1, as_tensor(wflat))
-    A2invw = dot(A2inv, as_tensor(wflat))
+    A1w = A1 @ w_np
+    A2invw = A2inv @ w_np
 
     Fnew = Zero()
     dtu = TimeDerivative(u0)
     for i in range(num_stages):
-        ii = (i,) + (slice(None),) * (len(A1w.ufl_shape)-1)
         repl = {t: t + c[i] * dt}
 
         # Replace entire mixed function
-        repl[v] = as_tensor(vflat[i])
-        repl[u0] = u0 + dt * A1w[ii]
-        repl[dtu] = A2invw[ii]
+        repl[v] = as_tensor(v_np[i])
+        repl[u0] = u0 + dt * as_tensor(A1w[i])
+        repl[dtu] = as_tensor(A2invw[i])
 
         if u0.ufl_shape:
-            for kk in numpy.ndindex(u0.ufl_shape):
+            for j in numpy.ndindex(u0.ufl_shape):
                 # Replace each scalar component
-                repl[v[kk]] = repl[v][kk]
-                repl[u0[kk]] = repl[u0][kk]
-                repl[TimeDerivative(u0[kk])] = repl[dtu][kk]
+                repl[v[j]] = repl[v][j]
+                repl[u0[j]] = repl[u0][j]
+                repl[TimeDerivative(u0[j])] = repl[dtu][j]
 
         Fnew += replace(F, repl)
 
