@@ -4,7 +4,7 @@ from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction,
                        as_ufl, dx, inner)
 from firedrake.dmhooks import pop_parent, push_parent
-from ufl import as_tensor, Zero
+from ufl.classes import Zero
 
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative
@@ -68,7 +68,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
             # replace the solution with stage values
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt,
-                        u0: as_tensor(u_np[j])}
+                        u0: u_np[j]}
 
                 # and sum the contribution
                 replF = component_replace(Ftmp, repl)
@@ -226,6 +226,7 @@ class RadauIIAIMEXMethod:
 
         num_fields = len(self.u0.function_space())
         u0split = u0.subfunctions
+
         for i, u0bit in enumerate(u0split):
             for s in range(self.num_stages):
                 ii = s * num_fields + i
