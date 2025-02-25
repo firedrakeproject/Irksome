@@ -15,7 +15,7 @@ from ufl.constantvalue import as_ufl
 from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
-from .tools import (AI, IA, ConstantOrZero, getNullspace, is_ode, replace)
+from .tools import (AI, IA, ConstantOrZero, getNullspace, is_ode, replace, component_replace)
 
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None,
@@ -115,7 +115,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
     v0u0 = np.reshape(np.outer(Vander_col, u0), (num_stages, *u0.ufl_shape))
 
-    U_np = v0u0 + Vander0 @ z_np
+    u_np = v0u0 + Vander0 @ z_np
 
     split_form = extract_terms(F)
 
@@ -132,60 +132,45 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     if splitting is None or splitting == AI:
         # time derivative part
         for i in range(num_stages):
-            repl = {t: t+C[i]*dt}
-            repl[u0] = as_tensor(U_np[i] - u0)
-            repl[v] = as_tensor(v_np[i])
-            for k in np.ndindex(u0.ufl_shape):
-                repl[u0[k]] = repl[u0][k]
-                repl[v[k]] = repl[v][k]
+            repl = {t: t+C[i]*dt,
+                    u0: as_tensor(u_np[i]) - u0,
+                    v: v_np[i]}
 
-            Fnew += replace(dtless, repl)
+            Fnew += component_replace(dtless, repl)
 
         # Now for the non-time derivative parts
         for i in range(num_stages):
             # replace test function
             repl = {v: as_tensor(v_np[i])}
 
-            for k in np.ndindex(u0.ufl_shape):
-                repl[v[k]] = repl[v][k]
-
-            Ftmp = replace(split_form.remainder, repl)
+            Ftmp = component_replace(split_form.remainder, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt,
-                        u0: as_tensor(U_np[j])}
-                for k in np.ndindex(u0.ufl_shape):
-                    repl[u0[k]] = repl[u0][k]
+                        u0: u_np[j]}
 
                 # and sum the contribution
-                Fnew += A[i, j] * dt * replace(Ftmp, repl)
+                Fnew += A[i, j] * dt * component_replace(Ftmp, repl)
 
     elif splitting == IA:
         Ainv = vecconst(np.linalg.inv(butch.A))
 
         # time derivative part gets inverse of Butcher matrix.
         for i in range(num_stages):
-            repl = {}
-
-            for k in np.ndindex(u0.ufl_shape):
-                repl[v[k]] = v_np[i][k]
-
-            Ftmp = replace(dtless, repl)
+            repl = {v: v_np[i]}
+            Ftmp = component_replace(dtless, repl)
 
             for j in range(num_stages):
-                repl = {t: t + C[j] * dt}
+                repl = {t: t + C[j] * dt,
+                        u0: as_tensor(u_np[j]) - u0}
 
-                for k in np.ndindex(u0.ufl_shape):
-                    repl[u0[k]] = U_np[j][k] - u0[k]
-
-                Fnew += Ainv[i, j] * replace(Ftmp, repl)
+                Fnew += Ainv[i, j] * component_replace(Ftmp, repl)
         # rest of the operator: just diagonal!
         for i in range(num_stages):
-            repl = {t: t+C[i]*dt}
-            for k in np.ndindex(u0.ufl_shape):
-                repl[u0[k]] = U_np[i][k]
-                repl[v[k]] = v_np[i][k]
+            repl = {t: t+C[i]*dt,
+                    u0: u_np[i],
+                    v: v_np[i]}
 
             Fnew += dt * replace(split_form.remainder, repl)
     else:
@@ -237,11 +222,10 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         B = vecconst(butch.b)
 
         for i in range(num_stages):
-            repl = {t: t + C[i] * dt}
-            for k in np.ndindex(u0.ufl_shape):
-                repl[u0[k]] = U_np[i][k]
+            repl = {t: t + C[i] * dt,
+                    u0: u_np[i]}
 
-            eFFi = replace(split_form.remainder, repl)
+            eFFi = component_replace(split_form.remainder, repl)
 
             Fupdate += dt * B[i] * eFFi
 
