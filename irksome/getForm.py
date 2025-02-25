@@ -2,7 +2,7 @@ from functools import reduce
 from operator import mul
 
 import numpy
-from firedrake import Constant, Function, TestFunction, split
+from firedrake import Constant, Function, TestFunction
 from ufl import as_tensor, diff, dot
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
@@ -86,15 +86,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     num_stages = butch.num_stages
     Vbig = reduce(mul, (V for _ in range(num_stages)))
 
-    ubits = split(u0) if len(V) else ()
-    vbits = split(v) if len(V) else ()
-
-    def get_bit(expr, j):
-        start = sum(numpy.prod(ubits[i].ufl_shape, dtype=int) for i in range(j))
-        end = start + numpy.prod(ubits[j].ufl_shape, dtype=int)
-        subexpr = numpy.reshape(expr, (-1,))[start:end]
-        return as_tensor(numpy.reshape(subexpr, ubits[j].ufl_shape))
-
     w = Function(Vbig)
     vnew = TestFunction(Vbig)
     vflat = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
@@ -123,18 +114,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
                 repl[v[kk]] = repl[v][kk]
                 repl[u0[kk]] = repl[u0][kk]
                 repl[TimeDerivative(u0[kk])] = repl[dtu][kk]
-
-        for j, (ubit, vbit) in enumerate(zip(ubits, vbits)):
-            # Replace each field
-            repl[vbit] = get_bit(repl[v], j)
-            repl[ubit] = get_bit(repl[u0], j)
-            repl[TimeDerivative(ubit)] = get_bit(repl[dtu], j)
-            if ubit.ufl_shape:
-                for kk in numpy.ndindex(ubit.ufl_shape):
-                    # Replace each scalar component from each field
-                    repl[vbit[kk]] = repl[vbit][kk]
-                    repl[ubit[kk]] = repl[ubit][kk]
-                    repl[TimeDerivative(ubit[kk])] = repl[TimeDerivative(ubit)][kk]
 
         Fnew += replace(F, repl)
 

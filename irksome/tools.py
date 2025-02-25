@@ -1,5 +1,5 @@
 import numpy
-from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, split, Constant
+from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
 from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.classes import CoefficientDerivative, Zero
@@ -107,7 +107,7 @@ def is_ode(f, u):
     blah = extract_type(f, TimeDerivative)
 
     Dtbits = set(b.ufl_operands[0] for b in blah)
-    ubits = set(split(u))
+    ubits = set(u[i] for i in numpy.ndindex(u.ufl_shape))
     return Dtbits == ubits
 
 

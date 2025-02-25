@@ -1,5 +1,5 @@
 from math import isclose
-
+import numpy
 import pytest
 from firedrake import *
 from irksome import WSODIRK, Alexander, Dt, MeshConstant, TimeStepper
@@ -257,7 +257,7 @@ def test_stokes_bcs(butcher_tableau, bctype):
          - inner(q, div(u))*dx
          - inner(u_rhs, v)*dx
          - inner(p_rhs, q)*dx)
-    Fdirk = replace(F, {u: u_dirk, p: p_dirk})
+    Fdirk = replace(F, {z[i]: z_dirk[i] for i in numpy.ndindex(z.ufl_shape)})
 
     nsp = [(1, VectorSpaceBasis(constant=True))]
     nsp_dirk = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True)])
