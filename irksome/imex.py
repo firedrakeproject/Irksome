@@ -334,7 +334,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
         k_bits = np.array(split(k), dtype=object)
         u0bits = split(u0)
         gbits = split(g)
-        ghat_bits = split(g)
+        ghat_bits = split(ghat)
 
     # Note: the Constant c is used for substitution in both the
     # implicit variational form and BC's, and we update it for each stage in
