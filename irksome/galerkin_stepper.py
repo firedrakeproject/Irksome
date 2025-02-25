@@ -7,8 +7,7 @@ from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative
-from .stage import getBits
-from .tools import getNullspace, replace
+from .tools import getNullspace, component_replace, replace
 import numpy as np
 from firedrake import as_vector, dot, Constant, TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
@@ -57,12 +56,14 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     V = v.function_space()
     assert V == u0.function_space()
 
-    num_fields = len(V)
     num_stages = L_test.space_dimension()
 
     Vbig = reduce(mul, (V for _ in range(num_stages)))
     VV = TestFunction(Vbig)
     UU = Function(Vbig)  # u0 + this are coefficients of the Galerkin polynomial
+
+    u_np = np.reshape(UU, (num_stages, *u0.ufl_shape))
+    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -84,9 +85,6 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     # L2 projector
     proj = Constant(np.linalg.solve(mmat, np.multiply(test_vals, qwts)))
 
-    u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
-                                            u0, UU, v, VV)
-
     Fnew = Zero()
 
     trial_vals = Constant(trial_vals)
@@ -96,35 +94,24 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     qwts = Constant(qwts)
 
     for i in range(num_stages):
-        repl = {}
-        for j in range(num_fields):
-            repl[vbits[j]] = VVbits[i][j]
-            for ii in np.ndindex(vbits[j].ufl_shape):
-                repl[vbits[j][ii]] = VVbits[i][j][ii]
-        F_i = replace(F, repl)
+        repl = {v: v_np[i]}
+        F_i = component_replace(F, repl)
 
         # now loop over quadrature points
         for q in range(len(qpts)):
             repl = {t: t + dt * qpts[q]}
-            for k in range(num_fields):
-                tosub = u0bits[k] * trial_vals[0, q]
-                d_tosub = u0bits[k] * trial_dvals[0, q]
-                for ell in range(num_stages):
-                    tosub += UUbits[ell][k] * trial_vals[1 + ell, q]
-                    d_tosub += UUbits[ell][k] * trial_dvals[1 + ell, q]
 
-                repl[u0bits[k]] = tosub
-                repl[TimeDerivative(u0bits[k])] = d_tosub / dt
+            tosub = u0 * trial_vals[0, q]
+            d_tosub = u0 * trial_dvals[0, q]
 
-                for ii in np.ndindex(u0bits[k].ufl_shape):
-                    tosub = u0bits[k][ii] * trial_vals[0, q]
-                    d_tosub = u0bits[k][ii] * trial_dvals[0, q]
-                    for ell in range(num_stages):
-                        tosub += UUbits[ell][k][ii] * trial_vals[1 + ell, q]
-                        d_tosub += UUbits[ell][k][ii] * trial_dvals[1 + ell, q]
-                    repl[u0bits[k][ii]] = tosub
-                    repl[TimeDerivative(u0bits[k][ii])] = d_tosub / dt
-            Fnew += dt * qwts[q] * test_vals[i, q] * replace(F_i, repl)
+            for ell in range(num_stages):
+                tosub += u_np[ell] * trial_vals[1 + ell, q]
+                d_tosub += u_np[ell] * trial_dvals[1 + ell, q]
+
+            repl[u0] = tosub
+            repl[TimeDerivative(u0)] = d_tosub / dt
+
+            Fnew += dt * qwts[q] * test_vals[i, q] * component_replace(F_i, repl)
 
     # Oh, honey, is it the boundary conditions?
     if bcs is None:
