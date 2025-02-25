@@ -9,6 +9,7 @@ from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner, split)
 from firedrake.petsc import PETSc
+from ufl import as_tensor
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 
@@ -156,28 +157,30 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         # time derivative part
         for i in range(num_stages):
             repl = {t: t+C[i]*dt}
+            repl[u0] = as_tensor(U_np[i] - u0)
+            repl[v] = as_tensor(v_np[i])
             for k in np.ndindex(u0.ufl_shape):
-                repl[u0[k]] = U_np[i][k] - u0[k]
-                repl[v[k]] = v_np[i][k]
+                repl[u0[k]] = repl[u0][k]
+                repl[v[k]] = repl[v][k]
 
             Fnew += replace(dtless, repl)
 
         # Now for the non-time derivative parts
         for i in range(num_stages):
             # replace test function
-            repl = {}
+            repl = {v: as_tensor(v_np[i])}
 
             for k in np.ndindex(u0.ufl_shape):
-                repl[v[k]] = v_np[i][k]
+                repl[v[k]] = repl[v][k]#v_np[i][k]
 
             Ftmp = replace(split_form.remainder, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
-                repl = {t: t + C[j] * dt}
-
+                repl = {t: t + C[j] * dt,
+                        u0: as_tensor(U_np[j]) }
                 for k in np.ndindex(u0.ufl_shape):
-                    repl[u0[k]] = U_np[j][k]
+                    repl[u0[k]] = repl[u0][k]
 
                 # and sum the contribution
                 Fnew += A[i, j] * dt * replace(Ftmp, repl)

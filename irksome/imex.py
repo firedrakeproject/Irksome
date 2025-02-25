@@ -8,8 +8,8 @@ from ufl.classes import Zero
 
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative
-from .stage import getBits, getFormStage
-from .tools import AI, IA, MeshConstant, replace
+from .stage import getFormStage
+from .tools import AI, ConstantOrZero, IA, MeshConstant, replace
 from .bcs import bc2space
 
 
@@ -45,14 +45,17 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     VV = TestFunction(Vbig)
 
     num_stages = butch.num_stages
-    num_fields = len(V)
-    Aexp = riia_explicit_coeffs(num_stages)
-    Aprop = Constant(Aexp)
-    Ait = Constant(butch.A)
-    C = Constant(butch.c)
 
-    u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
-                                            u0, UU, v, VV)
+    Aexp = riia_explicit_coeffs(num_stages)
+
+    vecconst = np.vectorize(ConstantOrZero)
+    
+    Aprop = vecconst(Aexp)
+    Ait = vecconst(butch.A)
+    C = vecconst(butch.c)
+
+    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
+    u_np = np.reshape(UU, (num_stages, *u0.ufl_shape))
 
     Fit = Zero()
     Fprop = Zero()
@@ -62,10 +65,8 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
             # replace test function
             repl = {}
 
-            for k in range(num_fields):
-                repl[vbits[k]] = VVbits[i][k]
-                for ii in np.ndindex(vbits[k].ufl_shape):
-                    repl[vbits[k][ii]] = VVbits[i][k][ii]
+            for k in np.ndindex(u0.ufl_shape):
+                repl[v[k]] = v_np[i][k]
 
             Ftmp = replace(Fexp, repl)
 
@@ -73,10 +74,8 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt}
 
-                for k in range(num_fields):
-                    repl[u0bits[k]] = UUbits[j][k]
-                    for ii in np.ndindex(u0bits[k].ufl_shape):
-                        repl[u0bits[k][ii]] = UUbits[j][k][ii]
+                for k in np.ndindex(u0.ufl_shape):
+                    repl[u0[k]] = u_np[j][k]
 
                 # and sum the contribution
                 replF = replace(Ftmp, repl)
@@ -86,29 +85,21 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
         # diagonal contribution to iterator
         for i in range(num_stages):
             repl = {t: t+C[i]*dt}
-            for j in range(num_fields):
-                repl[u0bits[j]] = UUbits[i][j]
-                repl[vbits[j]] = VVbits[i][j]
-
-            # Also get replacements right for indexing.
-            for j in range(num_fields):
-                for ii in np.ndindex(u0bits[j].ufl_shape):
-                    repl[u0bits[j][ii]] = UUbits[i][j][ii]
-                    repl[vbits[j][ii]] = VVbits[i][j][ii]
+            for k in np.ndindex(u0.ufl_shape):
+                repl[u0[k]] = u_np[i][k]
+                repl[v[k]] = v_np[i][k]
 
             Fit += dt * replace(Fexp, repl)
 
         # dense contribution to propagator
-        Ablah = Constant(np.linalg.solve(butch.A, Aexp))
+        AinvAexp = vecconst(np.linalg.solve(butch.A, Aexp))
 
         for i in range(num_stages):
             # replace test function
             repl = {}
 
-            for k in range(num_fields):
-                repl[vbits[k]] = VVbits[i][k]
-                for ii in np.ndindex(vbits[k].ufl_shape):
-                    repl[vbits[k][ii]] = VVbits[i][k][ii]
+            for k in np.ndindex(u0.ufl_shape):
+                repl[v[k]] = v_np[i][k]
 
             Ftmp = replace(Fexp, repl)
 
@@ -116,13 +107,11 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt}
 
-                for k in range(num_fields):
-                    repl[u0bits[k]] = UUbits[j][k]
-                    for ii in np.ndindex(u0bits[k].ufl_shape):
-                        repl[u0bits[k][ii]] = UUbits[j][k][ii]
+                for k in np.ndindex(u0.ufl_shape):
+                    repl[u0[k]] = u_np[j][k]
 
                 # and sum the contribution
-                Fprop += Ablah[i, j] * dt * replace(Ftmp, repl)
+                Fprop += AinvAexp[i, j] * dt * replace(Ftmp, repl)
     else:
         raise NotImplementedError(
             "Must specify splitting to either IA or AI")
@@ -323,19 +312,6 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     ghat = Function(V)
     vhat = TestFunction(V)
 
-    # If we're on a mixed problem, we need to replace pieces of the
-    # solution.  Stores array of the splittings of the functions for each stage.
-    if num_fields == 1:
-        k_bits = [k]
-        u0bits = [u0]
-        gbits = [g]
-        ghat_bits = [ghat]
-    else:
-        k_bits = np.array(split(k), dtype=object)
-        u0bits = split(u0)
-        gbits = split(g)
-        ghat_bits = split(g)
-
     # Note: the Constant c is used for substitution in both the
     # implicit variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constants a and chat are
@@ -347,15 +323,21 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
 
     # Implicit replacement, solve at time t + c * dt, for k
     repl = {t: t + c * dt}
-    for u0bit, kbit, gbit in zip(u0bits, k_bits, gbits):
-        repl[u0bit] = gbit + dt * a * kbit
-        repl[TimeDerivative(u0bit)] = kbit
+
+    repl[u0] = g + dt * a * k
+    repl[TimeDerivative(u0)] = k
+    for i in np.ndindex(u0.ufl_shape):
+        repl[u0[i]] = repl[u0][i]
+        repl[TimeDerivative(u0[i])] = k[i]
+
     stage_F = replace(F, repl)
 
     # Explicit replacement, solve at time t + chat * dt, for khat
     replhat = {t: t + chat * dt}
-    for u0bit, ghatbit in zip(u0bits, ghat_bits):
-        replhat[u0bit] = ghatbit
+    replhat[u0] = ghat
+    for i in np.ndindex(u0.ufl_shape):
+        replhat[u0[i]] = replhat[u0][i]
+
     Fhat = inner(khat, vhat)*dx + replace(Fexp, replhat)
 
     bcnew = []
