@@ -7,7 +7,7 @@ from ufl import as_tensor, diff, dot
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import replace, getNullspace, AI, ConstantOrZero
+from .tools import component_replace, replace, getNullspace, AI, ConstantOrZero
 from .deriv import TimeDerivative  # , apply_time_derivatives
 from .bcs import BCStageData, bc2space, stage2spaces4bc
 
@@ -100,22 +100,14 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
 
     Fnew = Zero()
     dtu = TimeDerivative(u0)
+
     for i in range(num_stages):
-        repl = {t: t + c[i] * dt}
+        repl = {t: t + c[i] * dt,
+                v: v_np[i],
+                u0: u0 + dt * as_tensor(A1w[i]),
+                dtu: A2invw[i]}
 
-        # Replace entire mixed function
-        repl[v] = as_tensor(v_np[i])
-        repl[u0] = u0 + dt * as_tensor(A1w[i])
-        repl[dtu] = as_tensor(A2invw[i])
-
-        if u0.ufl_shape:
-            for j in numpy.ndindex(u0.ufl_shape):
-                # Replace each scalar component
-                repl[v[j]] = repl[v][j]
-                repl[u0[j]] = repl[u0][j]
-                repl[TimeDerivative(u0[j])] = repl[dtu][j]
-
-        Fnew += replace(F, repl)
+        Fnew += component_replace(F, repl)
 
     bcnew = []
 

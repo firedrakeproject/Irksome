@@ -9,7 +9,7 @@ from ufl.classes import Zero
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative
 from .stage import getFormStage
-from .tools import AI, ConstantOrZero, IA, MeshConstant, replace
+from .tools import AI, ConstantOrZero, IA, MeshConstant, component_replace
 from .bcs import bc2space
 
 
@@ -49,7 +49,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     Aexp = riia_explicit_coeffs(num_stages)
 
     vecconst = np.vectorize(ConstantOrZero)
-    
+
     Aprop = vecconst(Aexp)
     Ait = vecconst(butch.A)
     C = vecconst(butch.c)
@@ -63,57 +63,42 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     if splitting == AI:
         for i in range(num_stages):
             # replace test function
-            repl = {}
-
-            repl[v] = as_tensor(v_np[i])
-            for k in np.ndindex(u0.ufl_shape):
-                repl[v[k]] = repl[v][k]
-
-            Ftmp = replace(Fexp, repl)
+            repl = {v: v_np[i]}
+            Ftmp = component_replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt,
                         u0: as_tensor(u_np[j])}
 
-                for k in np.ndindex(u0.ufl_shape):
-                    repl[u0[k]] = repl[u0][k]
-
                 # and sum the contribution
-                replF = replace(Ftmp, repl)
+                replF = component_replace(Ftmp, repl)
                 Fit += Ait[i, j] * dt * replF
                 Fprop += Aprop[i, j] * dt * replF
     elif splitting == IA:
         # diagonal contribution to iterator
         for i in range(num_stages):
-            repl = {t: t+C[i]*dt}
-            for k in np.ndindex(u0.ufl_shape):
-                repl[u0[k]] = u_np[i][k]
-                repl[v[k]] = v_np[i][k]
+            repl = {t: t+C[i]*dt,
+                    u0: u_np[i],
+                    v: v_np[i]}
 
-            Fit += dt * replace(Fexp, repl)
+            Fit += dt * component_replace(Fexp, repl)
 
         # dense contribution to propagator
         AinvAexp = vecconst(np.linalg.solve(butch.A, Aexp))
 
         for i in range(num_stages):
             # replace test function
-            repl = {}
-
-            for k in np.ndindex(u0.ufl_shape):
-                repl[v[k]] = v_np[i][k]
-
-            Ftmp = replace(Fexp, repl)
+            repl = {v: v_np[i]}
+            Ftmp = component_replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
-                repl = {t: t + C[j] * dt}
-
-                for k in np.ndindex(u0.ufl_shape):
-                    repl[u0[k]] = u_np[j][k]
+                repl = {t: t + C[j] * dt,
+                        u0: u_np[j]}
 
                 # and sum the contribution
-                Fprop += AinvAexp[i, j] * dt * replace(Ftmp, repl)
+                Fprop += AinvAexp[i, j] * dt * component_replace(Ftmp, repl)
     else:
         raise NotImplementedError(
             "Must specify splitting to either IA or AI")
@@ -324,23 +309,16 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     a = MC.Constant(1.0)
 
     # Implicit replacement, solve at time t + c * dt, for k
-    repl = {t: t + c * dt}
-
-    repl[u0] = g + dt * a * k
-    repl[TimeDerivative(u0)] = k
-    for i in np.ndindex(u0.ufl_shape):
-        repl[u0[i]] = repl[u0][i]
-        repl[TimeDerivative(u0[i])] = k[i]
-
-    stage_F = replace(F, repl)
+    repl = {t: t + c * dt,
+            u0: g + dt * a * k,
+            TimeDerivative(u0): k}
+    stage_F = component_replace(F, repl)
 
     # Explicit replacement, solve at time t + chat * dt, for khat
-    replhat = {t: t + chat * dt}
-    replhat[u0] = ghat
-    for i in np.ndindex(u0.ufl_shape):
-        replhat[u0[i]] = replhat[u0][i]
+    replhat = {t: t + chat * dt,
+               u0: ghat}
 
-    Fhat = inner(khat, vhat)*dx + replace(Fexp, replhat)
+    Fhat = inner(khat, vhat)*dx + component_replace(Fexp, replhat)
 
     bcnew = []
 
