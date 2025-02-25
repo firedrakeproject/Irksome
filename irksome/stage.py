@@ -19,29 +19,6 @@ from .manipulation import extract_terms, strip_dt_form
 from .tools import (AI, IA, ConstantOrZero, getNullspace, is_ode, replace)
 
 
-def isiterable(x):
-    return hasattr(x, "__iter__") or isinstance(x, Iterable)
-
-
-def split_field(num_fields, u):
-    ubits = np.array(split(u), dtype="O")
-    return ubits
-
-
-def split_stage_field(num_stages, num_fields, UU):
-    UUbits = np.reshape(np.asarray(split(UU), dtype="O"),
-                        (num_stages, num_fields))
-    return UUbits
-
-
-def getBits(num_stages, num_fields, u0, UU, v, VV):
-    u0bits, vbits = (split_field(num_fields, x) for x in (u0, v))
-    UUbits, VVbits = (split_stage_field(num_stages, num_fields, x)
-                      for x in (UU, VV))
-
-    return u0bits, vbits, VVbits, UUbits
-
-
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None,
                  bc_constraints=None, nullspace=None):
     """Given a time-dependent variational form and a
