@@ -5,8 +5,7 @@ from operator import mul
 
 import numpy as np
 from FIAT import Bernstein, ufc_simplex
-from firedrake import (Constant,
-                       Function, NonlinearVariationalProblem,
+from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner, split)
 from firedrake.petsc import PETSc
@@ -16,8 +15,7 @@ from ufl.constantvalue import as_ufl
 from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
-from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
-                    replace)
+from .tools import (AI, IA, ConstantOrZero, getNullspace, is_ode, replace)
 
 
 def isiterable(x):
@@ -106,7 +104,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     assert V == u0.function_space()
 
     num_stages = butch.num_stages
-    num_fields = len(V)
 
     # default to no basis transformation, identity matrix
     if vandermonde is None:
@@ -118,18 +115,18 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     ZZ = Function(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    u0bits, vbits, VVbits, ZZbits = getBits(num_stages, num_fields,
-                                            u0, ZZ, v, VV)
+    # u0bits, vbits, VVbits, ZZbits = getBits(num_stages, num_fields,
+    #                                         u0, ZZ, v, VV)
 
-    MC = MeshConstant(V.mesh())
-    vecconst = Constant
+    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
+    z_np = np.reshape(ZZ, (num_stages, *u0.ufl_shape))
+
+    vecconst = np.vectorize(ConstantOrZero)
 
     C = vecconst(butch.c)
     A = vecconst(butch.A)
-
-    veccorz = np.vectorize(lambda c: ConstantOrZero(c, MC))
-    Vander = veccorz(vandermonde)
-    Vander_inv = veccorz(np.linalg.inv(vandermonde))
+    Vander = vecconst(vandermonde)
+    Vander_inv = vecconst(np.linalg.inv(vandermonde))
 
     # convert from Bernstein to Lagrange representation
     # the Bernstein coefficients are [u0; ZZ], and the Lagrange
@@ -139,9 +136,9 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     Vander_col = Vander[1:, 0]
     Vander0 = Vander[1:, 1:]
 
-    v0u0 = np.outer(Vander_col, u0bits)
+    v0u0 = np.reshape(np.outer(Vander_col, u0), (num_stages, *u0.ufl_shape))
 
-    UUbits = v0u0 + Vander0 @ ZZbits
+    U_np = v0u0 + Vander0 @ z_np
 
     split_form = extract_terms(F)
 
@@ -156,15 +153,12 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     dtless = strip_dt_form(split_form.time)
 
     if splitting is None or splitting == AI:
+        # time derivative part
         for i in range(num_stages):
             repl = {t: t+C[i]*dt}
-            for j in range(num_fields):
-                repl[u0bits[j]] = UUbits[i][j] - u0bits[j]
-                repl[vbits[j]] = VVbits[i][j]
-                # Also get replacements right for indexing.
-                for ii in np.ndindex(u0bits[j].ufl_shape):
-                    repl[u0bits[j][ii]] = UUbits[i][j][ii] - u0bits[j][ii]
-                    repl[vbits[j][ii]] = VVbits[i][j][ii]
+            for k in np.ndindex(u0.ufl_shape):
+                repl[u0[k]] = U_np[i][k] - u0[k]
+                repl[v[k]] = v_np[i][k]
 
             Fnew += replace(dtless, repl)
 
@@ -173,10 +167,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
             # replace test function
             repl = {}
 
-            for k in range(num_fields):
-                repl[vbits[k]] = VVbits[i][k]
-                for ii in np.ndindex(vbits[k].ufl_shape):
-                    repl[vbits[k][ii]] = VVbits[i][k][ii]
+            for k in np.ndindex(u0.ufl_shape):
+                repl[v[k]] = v_np[i][k]
 
             Ftmp = replace(split_form.remainder, repl)
 
@@ -184,10 +176,8 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt}
 
-                for k in range(num_fields):
-                    repl[u0bits[k]] = UUbits[j][k]
-                    for ii in np.ndindex(u0bits[k].ufl_shape):
-                        repl[u0bits[k][ii]] = UUbits[j][k][ii]
+                for k in np.ndindex(u0.ufl_shape):
+                    repl[u0[k]] = U_np[j][k]
 
                 # and sum the contribution
                 Fnew += A[i, j] * dt * replace(Ftmp, repl)
@@ -199,33 +189,24 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         for i in range(num_stages):
             repl = {}
 
-            for k in range(num_fields):
-                repl[vbits[k]] = VVbits[i][k]
-                for ii in np.ndindex(vbits[k].ufl_shape):
-                    repl[vbits[k][ii]] = VVbits[i][k][ii]
+            for k in np.ndindex(u0.ufl_shape):
+                repl[v[k]] = v_np[i][k]
 
             Ftmp = replace(dtless, repl)
 
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt}
 
-                for k in range(num_fields):
-                    repl[u0bits[k]] = (UUbits[j][k]-u0bits[k])
-                    for ii in np.ndindex(u0bits[k].ufl_shape):
-                        repl[u0bits[k][ii]] = UUbits[j][k][ii] - u0bits[k][ii]
+                for k in np.ndindex(u0.ufl_shape):
+                    repl[u0[k]] = U_np[j][k] - u0[k]
+
                 Fnew += Ainv[i, j] * replace(Ftmp, repl)
         # rest of the operator: just diagonal!
         for i in range(num_stages):
             repl = {t: t+C[i]*dt}
-            for j in range(num_fields):
-                repl[u0bits[j]] = UUbits[i][j]
-                repl[vbits[j]] = VVbits[i][j]
-
-            # Also get replacements right for indexing.
-            for j in range(num_fields):
-                for ii in np.ndindex(u0bits[j].ufl_shape):
-                    repl[u0bits[j][ii]] = UUbits[i][j][ii]
-                    repl[vbits[j][ii]] = VVbits[i][j][ii]
+            for k in np.ndindex(u0.ufl_shape):
+                repl[u0[k]] = U_np[i][k]
+                repl[v[k]] = v_np[i][k]
 
             Fnew += dt * replace(split_form.remainder, repl)
     else:
@@ -274,16 +255,12 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         unew = Function(V)
 
         Fupdate = inner(unew - u0, v) * dx
-        vecconst = np.vectorize(MC.Constant)
         B = vecconst(butch.b)
-        C = vecconst(butch.c)
 
         for i in range(num_stages):
             repl = {t: t + C[i] * dt}
-            for k in range(num_fields):
-                repl[u0bits[k]] = UUbits[i][k]
-                for ii in np.ndindex(u0bits[k].ufl_shape):
-                    repl[u0bits[k][ii]] = UUbits[i][k][ii]
+            for k in np.ndindex(u0.ufl_shape):
+                repl[u0[k]] = U_np[i][k]
 
             eFFi = replace(split_form.remainder, repl)
 
