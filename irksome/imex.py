@@ -1,15 +1,15 @@
 import FIAT
 import numpy as np
-from firedrake import (Constant, Function, NonlinearVariationalProblem,
+from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction,
-                       as_ufl, dx, inner, split)
+                       as_ufl, dx, inner)
 from firedrake.dmhooks import pop_parent, push_parent
-from ufl.classes import Zero
+from ufl import as_tensor, Zero
 
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative
 from .stage import getFormStage
-from .tools import AI, ConstantOrZero, IA, MeshConstant, component_replace
+from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, component_replace
 from .bcs import bc2space
 
 
@@ -40,7 +40,6 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     method.  Returns the forms for both the iterator and propagator,
     which really just differ by which constants are in them."""
     v = Fexp.arguments()[0]
-    V = v.function_space()
     Vbig = UU.function_space()
     VV = TestFunction(Vbig)
 
@@ -290,7 +289,6 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     msh = V.mesh()
     assert V == u0.function_space()
 
-    num_fields = len(V)
     num_stages = butch.num_stages
     k = Function(V)
     g = Function(V)

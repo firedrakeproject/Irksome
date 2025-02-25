@@ -171,14 +171,14 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
             repl = {v: as_tensor(v_np[i])}
 
             for k in np.ndindex(u0.ufl_shape):
-                repl[v[k]] = repl[v][k]#v_np[i][k]
+                repl[v[k]] = repl[v][k]
 
             Ftmp = replace(split_form.remainder, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt,
-                        u0: as_tensor(U_np[j]) }
+                        u0: as_tensor(U_np[j])}
                 for k in np.ndindex(u0.ufl_shape):
                     repl[u0[k]] = repl[u0][k]
 
