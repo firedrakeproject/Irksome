@@ -3,8 +3,10 @@ from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, split, Con
 from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.classes import CoefficientDerivative, Zero
-from ufl.constantvalue import as_ufl
+from ufl.constantvalue import as_ufl, Identity
 from ufl.corealg.multifunction import MultiFunction
+from ufl.operators import diag
+from ufl.tensors import as_tensor
 
 from irksome.deriv import TimeDerivative
 
@@ -122,3 +124,15 @@ class MeshConstant(object):
 def ConstantOrZero(x, MC=None):
     const = MC.Constant if MC else Constant
     return Zero() if abs(complex(x)) < 1.e-10 else const(x)
+
+
+def numpy_to_ufl(x):
+    shape = x.shape
+    if len(shape) == 2 and shape[0] == shape[1] and numpy.allclose(x, numpy.eye(*shape)):
+        return Identity(shape[0])
+    elif numpy.allclose(x, numpy.diag(x.diagonal())):
+        return diag(Constant(x.diagonal()))
+    elif numpy.allclose(x, numpy.tril(x)) or numpy.allclose(x, numpy.triu(x)):
+        return as_tensor(numpy.vectorize(ConstantOrZero)(x))
+    else:
+        return Constant(x)

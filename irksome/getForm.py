@@ -7,7 +7,7 @@ from ufl import as_tensor, diff, dot
 from ufl.algorithms import expand_derivatives
 from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
-from .tools import ConstantOrZero, replace, getNullspace, AI
+from .tools import replace, getNullspace, AI, numpy_to_ufl
 from .deriv import TimeDerivative  # , apply_time_derivatives
 from .bcs import BCStageData, bc2space, stage2spaces4bc
 
@@ -100,19 +100,22 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     vflat = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
     wflat = numpy.reshape(w, (num_stages, *u0.ufl_shape))
 
-    Fnew = Zero()
+    A1 = numpy_to_ufl(bA1)
+    A2inv = numpy_to_ufl(bA2inv)
 
+    A1w = dot(A1, as_tensor(wflat))
+    A2invw = dot(A2inv, as_tensor(wflat))
+
+    Fnew = Zero()
     dtu = TimeDerivative(u0)
     for i in range(num_stages):
+        ii = (i,) + (slice(None),) * (len(A1w.ufl_shape)-1)
         repl = {t: t + c[i] * dt}
-
-        A1 = numpy.asarray(list(map(ConstantOrZero, bA1[i])))
-        A2inv = numpy.asarray(list(map(ConstantOrZero, bA2inv[i])))
 
         # Replace entire mixed function
         repl[v] = as_tensor(vflat[i])
-        repl[u0] = u0 + dt * as_tensor(A1 @ wflat)
-        repl[dtu] = as_tensor(A2inv @ wflat)
+        repl[u0] = u0 + dt * A1w[ii]
+        repl[dtu] = A2invw[ii]
 
         if u0.ufl_shape:
             for kk in numpy.ndindex(u0.ufl_shape):
