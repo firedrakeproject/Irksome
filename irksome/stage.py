@@ -1,5 +1,4 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
-from collections.abc import Iterable
 from functools import reduce
 from operator import mul
 
@@ -7,7 +6,7 @@ import numpy as np
 from FIAT import Bernstein, ufc_simplex
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
-                       inner, split)
+                       inner)
 from firedrake.petsc import PETSc
 from ufl import as_tensor
 from ufl.classes import Zero
