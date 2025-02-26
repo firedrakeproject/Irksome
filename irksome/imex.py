@@ -8,7 +8,7 @@ from ufl import zero
 
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative
-from .stage import getFormStage
+from .stage_value import getFormStage
 from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, component_replace
 from .bcs import bc2space
 

@@ -8,10 +8,10 @@ from firedrake.dmhooks import pop_parent, push_parent
 from .bcs import EmbeddedBCData, bc2space
 from .dirk_stepper import DIRKTimeStepper
 from .explicit_stepper import ExplicitTimeStepper
-from .getForm import AI, getForm
+from .stage_derivative import AI, getForm
 from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
 from .manipulation import extract_terms
-from .stage import StageValueTimeStepper
+from .stage_value import StageValueTimeStepper
 
 
 def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):

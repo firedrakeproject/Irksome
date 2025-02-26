@@ -5,8 +5,8 @@ import numpy
 from firedrake import AuxiliaryOperatorPC, derivative
 from ufl import replace
 
-from irksome import getForm
-from irksome.stage import getFormStage
+from irksome.stage_derivative import getForm
+from irksome.stage_value import getFormStage
 
 
 # Oddly, we can't turn pivoting off in scipy?
