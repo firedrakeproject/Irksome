@@ -257,7 +257,7 @@ def test_stokes_bcs(butcher_tableau, bctype):
          - inner(q, div(u))*dx
          - inner(u_rhs, v)*dx
          - inner(p_rhs, q)*dx)
-    Fdirk = replace(F, {z[i]: z_dirk[i] for i in numpy.ndindex(z.ufl_shape)})
+    Fdirk = replace(F, {z: z_dirk})
 
     nsp = [(1, VectorSpaceBasis(constant=True))]
     nsp_dirk = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True)])
