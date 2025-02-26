@@ -6,38 +6,55 @@ on:
       - master
   pull_request:
 
-jobs:
+concurrency:
+  # Cancels jobs running if new commits are pushed
+  group: >
+    ${{ github.workflow }}-
+    ${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
+jobs:
   test:
     runs-on: [self-hosted, Linux]
     container:
-      image: docker://firedrakeproject/firedrake-vanilla:2025-01
-
+      image: firedrakeproject/firedrake-vanilla-default:latest
     steps:
-      # Firedrake's Dockerfile sets USER to firedrake instead of using the default user, so we need to update file permissions for this image to work on GH Actions.
-      # See https://help.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners#docker-container-filesystem
-      # (copied from https://help.github.com/en/actions/migrating-to-github-actions/migrating-from-circleci-to-github-actions)
-      - name: Setup file system permissions
-        run: sudo chmod -R 777 $GITHUB_WORKSPACE /github /__w/_temp
+      - name: Fix HOME
+        # For unknown reasons GitHub actions overwrite HOME to /github/home
+        # which will break everything unless fixed
+        # (https://github.com/actions/runner/issues/863)
+        run: echo "HOME=/home/firedrake" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@v2
-
-      - name: Python info
-        shell: bash -l {0}
+      - name: Pre-cleanup
         run: |
-          source /home/firedrake/firedrake/bin/activate
-          which python
-          python -c "import sys; print('\n'.join(sys.path))"
-          python -c "from firedrake import *"
+          : # Wipe everything away in the current directory
+          find . -delete
+          firedrake-clean
+
+      - uses: actions/checkout@v4
+        with:
+          # Download Irksome into a subdirectory not called 'irksome' to make sure
+          # that the package installs correctly. Otherwise 'import irksome' may
+          # work even if the installation failed because it is a subdirectory.
+          path: irksome-repo
+
+      - name: Create virtual environment
+        # pass '--system-site-packages' so Firedrake can be found
+        run: python3 -m venv --system-site-packages venv-irksome
 
       - name: Install Irksome
-        shell: bash -l {0}
         run: |
-          source /home/firedrake/firedrake/bin/activate
-          python -m pip install -e .
+          . venv-irksome/bin/activate
+          pip install ./irksome-repo
+          pip list
 
-      - name: Tests
-        shell: bash -l {0}
+      - name: Run tests
         run: |
-          source /home/firedrake/firedrake/bin/activate
+          . venv-irksome/bin/activate
           make test THREADS=12
+
+      - name: Post-cleanup
+        if: always()
+        run: |
+          find . -delete
+          firedrake-clean
