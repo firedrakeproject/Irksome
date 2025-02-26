@@ -226,7 +226,6 @@ class RadauIIAIMEXMethod:
 
         num_fields = len(self.u0.function_space())
         u0split = u0.subfunctions
-
         for i, u0bit in enumerate(u0split):
             for s in range(self.num_stages):
                 ii = s * num_fields + i

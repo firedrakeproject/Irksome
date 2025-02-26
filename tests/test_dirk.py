@@ -1,5 +1,4 @@
 from math import isclose
-import numpy
 import pytest
 from firedrake import *
 from irksome import WSODIRK, Alexander, Dt, MeshConstant, TimeStepper
