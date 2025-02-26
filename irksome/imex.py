@@ -334,7 +334,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
         k_bits = np.array(split(k), dtype=object)
         u0bits = split(u0)
         gbits = split(g)
-        ghat_bits = split(g)
+        ghat_bits = split(ghat)
 
     # Note: the Constant c is used for substitution in both the
     # implicit variational form and BC's, and we update it for each stage in
@@ -374,6 +374,10 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
         bcarg_stage = replace(bcarg, {t: t+c*dt})
+        if bcarg_stage == 0:
+            # Homogeneous BC, just zero out stage dofs
+            bcnew.append(bc.reconstruct(g=0))
+            continue
 
         gdat = bcarg_stage - bc2space(bc, u0)
         for i in range(num_stages):
