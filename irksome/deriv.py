@@ -3,6 +3,7 @@ from ufl.core.ufl_type import ufl_type
 from ufl.corealg.multifunction import MultiFunction
 from ufl.algorithms.map_integrands import map_integrand_dags, map_expr_dag
 from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
+from ufl.tensors import ListTensor
 
 
 @ufl_type(num_ops=1,
@@ -16,6 +17,8 @@ class TimeDerivative(Derivative):
     __slots__ = ()
 
     def __new__(cls, f):
+        if isinstance(f, ListTensor):
+            return ListTensor(*map(TimeDerivative, f.ufl_operands))
         return Derivative.__new__(cls)
 
     def __init__(self, f):

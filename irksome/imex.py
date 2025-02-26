@@ -1,15 +1,15 @@
 import FIAT
 import numpy as np
-from firedrake import (Constant, Function, NonlinearVariationalProblem,
+from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction,
-                       as_ufl, dx, inner, split)
+                       as_ufl, dx, inner)
 from firedrake.dmhooks import pop_parent, push_parent
-from ufl.classes import Zero
+from ufl import zero
 
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative
-from .stage import getBits, getFormStage
-from .tools import AI, IA, MeshConstant, replace
+from .stage import getFormStage
+from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, component_replace
 from .bcs import bc2space
 
 
@@ -40,89 +40,64 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     method.  Returns the forms for both the iterator and propagator,
     which really just differ by which constants are in them."""
     v = Fexp.arguments()[0]
-    V = v.function_space()
     Vbig = UU.function_space()
     VV = TestFunction(Vbig)
 
     num_stages = butch.num_stages
-    num_fields = len(V)
+
     Aexp = riia_explicit_coeffs(num_stages)
-    Aprop = Constant(Aexp)
-    Ait = Constant(butch.A)
-    C = Constant(butch.c)
 
-    u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
-                                            u0, UU, v, VV)
+    vecconst = np.vectorize(ConstantOrZero)
 
-    Fit = Zero()
-    Fprop = Zero()
+    Aprop = vecconst(Aexp)
+    Ait = vecconst(butch.A)
+    C = vecconst(butch.c)
+
+    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
+    u_np = np.reshape(UU, (num_stages, *u0.ufl_shape))
+
+    Fit = zero()
+    Fprop = zero()
 
     if splitting == AI:
         for i in range(num_stages):
             # replace test function
-            repl = {}
-
-            for k in range(num_fields):
-                repl[vbits[k]] = VVbits[i][k]
-                for ii in np.ndindex(vbits[k].ufl_shape):
-                    repl[vbits[k][ii]] = VVbits[i][k][ii]
-
-            Ftmp = replace(Fexp, repl)
+            repl = {v: v_np[i]}
+            Ftmp = component_replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
-                repl = {t: t + C[j] * dt}
-
-                for k in range(num_fields):
-                    repl[u0bits[k]] = UUbits[j][k]
-                    for ii in np.ndindex(u0bits[k].ufl_shape):
-                        repl[u0bits[k][ii]] = UUbits[j][k][ii]
+                repl = {t: t + C[j] * dt,
+                        u0: u_np[j]}
 
                 # and sum the contribution
-                replF = replace(Ftmp, repl)
+                replF = component_replace(Ftmp, repl)
                 Fit += Ait[i, j] * dt * replF
                 Fprop += Aprop[i, j] * dt * replF
     elif splitting == IA:
         # diagonal contribution to iterator
         for i in range(num_stages):
-            repl = {t: t+C[i]*dt}
-            for j in range(num_fields):
-                repl[u0bits[j]] = UUbits[i][j]
-                repl[vbits[j]] = VVbits[i][j]
+            repl = {t: t+C[i]*dt,
+                    u0: u_np[i],
+                    v: v_np[i]}
 
-            # Also get replacements right for indexing.
-            for j in range(num_fields):
-                for ii in np.ndindex(u0bits[j].ufl_shape):
-                    repl[u0bits[j][ii]] = UUbits[i][j][ii]
-                    repl[vbits[j][ii]] = VVbits[i][j][ii]
-
-            Fit += dt * replace(Fexp, repl)
+            Fit += dt * component_replace(Fexp, repl)
 
         # dense contribution to propagator
-        Ablah = Constant(np.linalg.solve(butch.A, Aexp))
+        AinvAexp = vecconst(np.linalg.solve(butch.A, Aexp))
 
         for i in range(num_stages):
             # replace test function
-            repl = {}
-
-            for k in range(num_fields):
-                repl[vbits[k]] = VVbits[i][k]
-                for ii in np.ndindex(vbits[k].ufl_shape):
-                    repl[vbits[k][ii]] = VVbits[i][k][ii]
-
-            Ftmp = replace(Fexp, repl)
+            repl = {v: v_np[i]}
+            Ftmp = component_replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
-                repl = {t: t + C[j] * dt}
-
-                for k in range(num_fields):
-                    repl[u0bits[k]] = UUbits[j][k]
-                    for ii in np.ndindex(u0bits[k].ufl_shape):
-                        repl[u0bits[k][ii]] = UUbits[j][k][ii]
+                repl = {t: t + C[j] * dt,
+                        u0: u_np[j]}
 
                 # and sum the contribution
-                Fprop += Ablah[i, j] * dt * replace(Ftmp, repl)
+                Fprop += AinvAexp[i, j] * dt * component_replace(Ftmp, repl)
     else:
         raise NotImplementedError(
             "Must specify splitting to either IA or AI")
@@ -314,7 +289,6 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     msh = V.mesh()
     assert V == u0.function_space()
 
-    num_fields = len(V)
     num_stages = butch.num_stages
     k = Function(V)
     g = Function(V)
@@ -322,19 +296,6 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     khat = Function(V)
     ghat = Function(V)
     vhat = TestFunction(V)
-
-    # If we're on a mixed problem, we need to replace pieces of the
-    # solution.  Stores array of the splittings of the functions for each stage.
-    if num_fields == 1:
-        k_bits = [k]
-        u0bits = [u0]
-        gbits = [g]
-        ghat_bits = [ghat]
-    else:
-        k_bits = np.array(split(k), dtype=object)
-        u0bits = split(u0)
-        gbits = split(g)
-        ghat_bits = split(g)
 
     # Note: the Constant c is used for substitution in both the
     # implicit variational form and BC's, and we update it for each stage in
@@ -346,17 +307,16 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     a = MC.Constant(1.0)
 
     # Implicit replacement, solve at time t + c * dt, for k
-    repl = {t: t + c * dt}
-    for u0bit, kbit, gbit in zip(u0bits, k_bits, gbits):
-        repl[u0bit] = gbit + dt * a * kbit
-        repl[TimeDerivative(u0bit)] = kbit
-    stage_F = replace(F, repl)
+    repl = {t: t + c * dt,
+            u0: g + dt * a * k,
+            TimeDerivative(u0): k}
+    stage_F = component_replace(F, repl)
 
     # Explicit replacement, solve at time t + chat * dt, for khat
-    replhat = {t: t + chat * dt}
-    for u0bit, ghatbit in zip(u0bits, ghat_bits):
-        replhat[u0bit] = ghatbit
-    Fhat = inner(khat, vhat)*dx + replace(Fexp, replhat)
+    replhat = {t: t + chat * dt,
+               u0: ghat}
+
+    Fhat = inner(khat, vhat)*dx + component_replace(Fexp, replhat)
 
     bcnew = []
 

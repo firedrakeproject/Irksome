@@ -4,12 +4,11 @@ from FIAT import (Bernstein, DiscontinuousElement,
                   IntegratedLegendre, Lagrange,
                   make_quadrature, ufc_simplex)
 from operator import mul
-from ufl.classes import Zero
+from ufl import zero
 from ufl.constantvalue import as_ufl
 from .bcs import stage2spaces4bc
 from .manipulation import extract_terms, strip_dt_form
-from .stage import getBits
-from .tools import getNullspace, replace
+from .tools import getNullspace, component_replace, replace
 import numpy as np
 from firedrake import as_vector, Constant, dot, TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
@@ -57,7 +56,6 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
 
     vecconst = Constant
 
-    num_fields = len(V)
     num_stages = L.space_dimension()
 
     Vbig = reduce(mul, (V for _ in range(num_stages)))
@@ -87,13 +85,13 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     # L2 projector
     proj = Constant(np.linalg.solve(mmat, np.multiply(basis_vals, qwts)))
 
-    u0bits, vbits, VVbits, UUbits = getBits(num_stages, num_fields,
-                                            u0, UU, v, VV)
+    u_np = np.reshape(UU, (num_stages, *u0.ufl_shape))
+    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
 
     split_form = extract_terms(F)
     dtless = strip_dt_form(split_form.time)
 
-    Fnew = Zero()
+    Fnew = zero()
 
     basis_vals = vecconst(basis_vals)
     basis_dvals = vecconst(basis_dvals)
@@ -103,57 +101,33 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
 
     # Terms with time derivatives
     for i in range(num_stages):
-        repl = {}
-        for j in range(num_fields):
-            repl[vbits[j]] = VVbits[i][j]
-            for ii in np.ndindex(vbits[j].ufl_shape):
-                repl[vbits[j][ii]] = VVbits[i][j][ii]
-        F_i = replace(dtless, repl)
+        repl = {v: v_np[i]}
+        F_i = component_replace(dtless, repl)
 
         # now loop over quadrature points
         for q in range(len(qpts)):
-            repl = {t: t + dt * qpts[q]}
-            for k in range(num_fields):
-                d_tosub = sum(basis_dvals[ell, q] * UUbits[ell][k] for ell in range(num_stages)) / dt
-                repl[u0bits[k]] = d_tosub
+            repl = {t: t + dt * qpts[q],
+                    u0: (1/dt) * (u_np @ basis_dvals[:, q])}
 
-                for ii in np.ndindex(u0bits[k].ufl_shape):
-                    d_tosub = sum(basis_dvals[ell, q] * UUbits[ell][k][ii]
-                                  for ell in range(num_stages)) / dt
-                    repl[u0bits[k][ii]] = d_tosub
-            Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
+            Fnew += dt * qwts[q] * basis_vals[i, q] * component_replace(F_i, repl)
 
     # jump terms
-    repl = {}
-    for k in range(num_fields):
-        repl[u0bits[k]] = UUbits[0][k] - u0bits[k]
-        repl[vbits[k]] = VVbits[0][k]
-        for ii in np.ndindex(u0bits[k].ufl_shape):
-            repl[u0bits[k][ii]] = UUbits[0][k][ii] - u0bits[k][ii]
-            repl[vbits[k][ii]] = VVbits[0][k][ii]
-    Fnew += replace(dtless, repl)
+    repl = {u0: u_np[0] - u0,
+            v: v_np[0]}
+
+    Fnew += component_replace(dtless, repl)
 
     # handle the rest of the terms
     for i in range(num_stages):
-        repl = {}
-        for j in range(num_fields):
-            repl[vbits[j]] = VVbits[i][j]
-            for ii in np.ndindex(vbits[j].ufl_shape):
-                repl[vbits[j][ii]] = VVbits[i][j][ii]
-        F_i = replace(split_form.remainder, repl)
+        repl = {v: v_np[i]}
+        F_i = component_replace(split_form.remainder, repl)
 
         # now loop over quadrature points
         for q in range(len(qpts)):
-            repl = {t: t + dt * qpts[q]}
-            for k in range(num_fields):
-                tosub = sum(basis_vals[ell, q] * UUbits[ell][k] for ell in range(num_stages))
-                repl[u0bits[k]] = tosub
+            repl = {t: t + dt * qpts[q],
+                    u0: u_np @ basis_vals[:, q]}
 
-                for ii in np.ndindex(u0bits[k].ufl_shape):
-                    tosub = sum(basis_vals[ell, q] * UUbits[ell][k][ii]
-                                for ell in range(num_stages))
-                    repl[u0bits[k][ii]] = tosub
-            Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
+            Fnew += dt * qwts[q] * basis_vals[i, q] * component_replace(F_i, repl)
 
     # Oh, honey, is it the boundary conditions?
     if bcs is None:

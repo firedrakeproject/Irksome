@@ -2,11 +2,10 @@ import numpy
 from firedrake import Function
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import split
 from ufl.constantvalue import as_ufl
 
 from .deriv import TimeDerivative
-from .tools import replace, MeshConstant
+from .tools import component_replace, replace, MeshConstant
 from .bcs import bc2space
 
 
@@ -19,21 +18,9 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     msh = V.mesh()
     assert V == u0.function_space()
 
-    num_fields = len(V)
     num_stages = butch.num_stages
     k = Function(V)
     g = Function(V)
-
-    # If we're on a mixed problem, we need to replace pieces of the
-    # solution.  Stores an array of the splittings of the k for each stage.
-    if num_fields == 1:
-        k_bits = [k]
-        u0bits = [u0]
-        gbits = [g]
-    else:
-        k_bits = numpy.array(split(k), dtype=object)
-        u0bits = split(u0)
-        gbits = split(g)
 
     # Note: the Constant c is used for substitution in both the
     # variational form and BC's, and we update it for each stage in
@@ -43,11 +30,10 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     c = MC.Constant(1.0)
     a = MC.Constant(1.0)
 
-    repl = {t: t+c*dt}
-    for u0bit, kbit, gbit in zip(u0bits, k_bits, gbits):
-        repl[u0bit] = gbit + dt * a * kbit
-        repl[TimeDerivative(u0bit)] = kbit
-    stage_F = replace(F, repl)
+    repl = {t: t+c*dt,
+            u0: g + dt * a * k,
+            TimeDerivative(u0): k}
+    stage_F = component_replace(F, repl)
 
     bcnew = []
 
