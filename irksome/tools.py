@@ -103,8 +103,7 @@ def component_replace(e, mapping):
     # Replace, reccurring on components
     cmapping = {}
     for key, value in mapping.items():
-        value = as_tensor(value)
-        cmapping[key] = value
+        cmapping[key] = as_tensor(value)
         if key.ufl_shape:
             for j in numpy.ndindex(key.ufl_shape):
                 cmapping[get_component(key, j)] = value[j]

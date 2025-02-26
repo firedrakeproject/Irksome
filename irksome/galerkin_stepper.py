@@ -3,11 +3,11 @@ from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange, Legendre,
                   make_quadrature, ufc_simplex)
 from operator import mul
-from ufl.classes import Zero
+from ufl import zero
 from ufl.constantvalue import as_ufl
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative
-from .tools import getNullspace, component_replace, replace
+from .tools import getNullspace, ConstantOrZero, component_replace, replace
 import numpy as np
 from firedrake import as_vector, dot, Constant, TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
 from firedrake.dmhooks import pop_parent, push_parent
@@ -85,13 +85,14 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     # L2 projector
     proj = Constant(np.linalg.solve(mmat, np.multiply(test_vals, qwts)))
 
-    Fnew = Zero()
+    Fnew = zero()
 
-    trial_vals = Constant(trial_vals)
-    trial_dvals = Constant(trial_dvals)
-    test_vals = Constant(test_vals)
-    qpts = Constant(qpts.reshape((-1,)))
-    qwts = Constant(qwts)
+    vecconst = np.vectorize(ConstantOrZero)
+    trial_vals = vecconst(trial_vals)
+    trial_dvals = vecconst(trial_dvals)
+    test_vals = vecconst(test_vals)
+    qpts = vecconst(qpts.reshape((-1,)))
+    qwts = vecconst(qwts)
 
     for i in range(num_stages):
         repl = {v: v_np[i]}
@@ -99,17 +100,15 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
 
         # now loop over quadrature points
         for q in range(len(qpts)):
-            repl = {t: t + dt * qpts[q]}
-
             tosub = u0 * trial_vals[0, q]
+            tosub += sum(u_np[j] * trial_vals[1+j, q] for j in range(num_stages))
+
             d_tosub = u0 * trial_dvals[0, q]
+            d_tosub += sum(u_np[j] * trial_dvals[1+j, q] for j in range(num_stages))
 
-            for ell in range(num_stages):
-                tosub += u_np[ell] * trial_vals[1 + ell, q]
-                d_tosub += u_np[ell] * trial_dvals[1 + ell, q]
-
-            repl[u0] = tosub
-            repl[TimeDerivative(u0)] = d_tosub / dt
+            repl = {t: t + dt * qpts[q],
+                    u0: tosub,
+                    TimeDerivative(u0): d_tosub / dt}
 
             Fnew += dt * qwts[q] * test_vals[i, q] * component_replace(F_i, repl)
 

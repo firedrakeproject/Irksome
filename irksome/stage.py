@@ -8,8 +8,7 @@ from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
 from firedrake.petsc import PETSc
-from ufl import as_tensor
-from ufl.classes import Zero
+from ufl import zero
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
@@ -116,7 +115,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
     split_form = extract_terms(F)
 
-    Fnew = Zero()
+    Fnew = zero()
 
     # first, process terms with a time derivative.  I'm
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
@@ -130,7 +129,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         # time derivative part
         for i in range(num_stages):
             repl = {t: t+C[i]*dt,
-                    u0: as_tensor(u_np[i]) - u0,
+                    u0: u_np[i] - u0,
                     v: v_np[i]}
 
             Fnew += component_replace(dtless, repl)
@@ -138,8 +137,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         # Now for the non-time derivative parts
         for i in range(num_stages):
             # replace test function
-            repl = {v: as_tensor(v_np[i])}
-
+            repl = {v: v_np[i]}
             Ftmp = component_replace(split_form.remainder, repl)
 
             # replace the solution with stage values
@@ -160,7 +158,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt,
-                        u0: as_tensor(u_np[j]) - u0}
+                        u0: u_np[j] - u0}
 
                 Fnew += Ainv[i, j] * component_replace(Ftmp, repl)
         # rest of the operator: just diagonal!

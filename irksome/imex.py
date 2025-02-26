@@ -4,7 +4,7 @@ from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction,
                        as_ufl, dx, inner)
 from firedrake.dmhooks import pop_parent, push_parent
-from ufl.classes import Zero
+from ufl import zero
 
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative
@@ -56,8 +56,8 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
     u_np = np.reshape(UU, (num_stages, *u0.ufl_shape))
 
-    Fit = Zero()
-    Fprop = Zero()
+    Fit = zero()
+    Fprop = zero()
 
     if splitting == AI:
         for i in range(num_stages):

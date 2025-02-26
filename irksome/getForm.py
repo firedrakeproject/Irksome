@@ -3,9 +3,8 @@ from operator import mul
 
 import numpy
 from firedrake import Constant, Function, TestFunction
-from ufl import as_tensor, diff, dot
+from ufl import as_tensor, diff, dot, zero
 from ufl.algorithms import expand_derivatives
-from ufl.classes import Zero
 from ufl.constantvalue import as_ufl
 from .tools import component_replace, replace, getNullspace, AI, ConstantOrZero
 from .deriv import TimeDerivative  # , apply_time_derivatives
@@ -98,13 +97,13 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
     A1w = A1 @ w_np
     A2invw = A2inv @ w_np
 
-    Fnew = Zero()
+    Fnew = zero()
     dtu = TimeDerivative(u0)
 
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: v_np[i],
-                u0: u0 + dt * as_tensor(A1w[i]),
+                u0: u0 + dt * A1w[i],
                 dtu: A2invw[i]}
 
         Fnew += component_replace(F, repl)
@@ -115,7 +114,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         bcs = []
     if bc_type == "ODE":
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
-        u0_mult = Zero(butch.c.shape)
+        u0_mult = zero(butch.c.shape)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)

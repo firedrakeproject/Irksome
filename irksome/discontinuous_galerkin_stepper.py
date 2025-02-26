@@ -4,7 +4,7 @@ from FIAT import (Bernstein, DiscontinuousElement,
                   IntegratedLegendre, Lagrange,
                   make_quadrature, ufc_simplex)
 from operator import mul
-from ufl import as_tensor, zero
+from ufl import zero
 from ufl.constantvalue import as_ufl
 from .bcs import stage2spaces4bc
 from .manipulation import extract_terms, strip_dt_form
@@ -106,15 +106,13 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
 
         # now loop over quadrature points
         for q in range(len(qpts)):
-            repl = {t: t + dt * qpts[q]}
+            repl = {t: t + dt * qpts[q],
+                    u0: (1/dt) * (u_np @ basis_dvals[:, q])}
 
-            d_tosub = sum(basis_dvals[ell, q] * u_np[ell] for ell in range(num_stages)) / dt
-            repl[u0] = d_tosub
-
-            Fnew += dt * qwts[q] * basis_vals[i, q] * replace(F_i, repl)
+            Fnew += dt * qwts[q] * basis_vals[i, q] * component_replace(F_i, repl)
 
     # jump terms
-    repl = {u0: as_tensor(u_np[0]) - u0,
+    repl = {u0: u_np[0] - u0,
             v: v_np[0]}
 
     Fnew += component_replace(dtless, repl)
@@ -122,15 +120,12 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
     # handle the rest of the terms
     for i in range(num_stages):
         repl = {v: v_np[i]}
-
         F_i = component_replace(split_form.remainder, repl)
 
         # now loop over quadrature points
         for q in range(len(qpts)):
-            repl = {t: t + dt * qpts[q]}
-
-            tosub = sum(basis_vals[ell, q] * u_np[ell] for ell in range(num_stages))
-            repl[u0] = tosub
+            repl = {t: t + dt * qpts[q],
+                    u0: u_np @ basis_vals[:, q]}
 
             Fnew += dt * qwts[q] * basis_vals[i, q] * component_replace(F_i, repl)
 
