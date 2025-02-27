@@ -232,6 +232,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.butcher_tableau = butcher_tableau
         self.num_stages = len(butcher_tableau.b)
         self.num_fields = len(u0.function_space())
+        self.bc_constraints = bc_constraints
         degree = self.num_stages
 
         if basis_type is None:
@@ -246,15 +247,14 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.vandermonde = vandermonde
 
         UU = self.get_stages()
-        Fbig, bigBCs = getFormStage(
-            F, butcher_tableau, t, dt, u0, UU, bcs, vandermonde=vandermonde,
-            splitting=splitting)
+        self.stages = UU
+
+        Fbig, bigBCs = self.get_form_and_bcs(self.stages)
 
         nsp = getNullspace(u0.function_space(),
                            UU.function_space(),
                            self.num_stages, nullspace)
 
-        self.stages = UU
         self.bigBCs = bigBCs
 
         self.prob = NonlinearVariationalProblem(Fbig, UU, bigBCs)
@@ -372,3 +372,13 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
 
         self._update()
+
+    def get_form_and_bcs(self, stages, butcher_tableau=None):
+        if butcher_tableau is None:
+            butcher_tableau = self.butcher_tableau
+        return getFormStage(self.F, butcher_tableau,
+                            self.t, self.dt, self.u0,
+                            stages, bcs=self.orig_bcs,
+                            splitting=self.splitting,
+                            vandermonde=self.vandermonde,
+                            bc_constraints=self.bc_constraints)
