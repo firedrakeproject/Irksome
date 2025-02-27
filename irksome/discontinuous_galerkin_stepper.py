@@ -1,20 +1,18 @@
-from functools import reduce
 from FIAT import (Bernstein, DiscontinuousElement,
                   DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange,
                   make_quadrature, ufc_simplex)
-from operator import mul
 from ufl import zero
 from ufl.constantvalue import as_ufl
+from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .manipulation import extract_terms, strip_dt_form
-from .tools import getNullspace, component_replace, replace
+from .tools import component_replace, replace
 import numpy as np
-from firedrake import as_vector, Constant, dot, TestFunction, Function, NonlinearVariationalProblem as NLVP, NonlinearVariationalSolver as NLVS
-from firedrake.dmhooks import pop_parent, push_parent
+from firedrake import as_vector, Constant, dot, TestFunction
 
 
-def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None):
+def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
 
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
@@ -58,10 +56,10 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None):
 
     num_stages = L.space_dimension()
 
-    Vbig = reduce(mul, (V for _ in range(num_stages)))
+    Vbig = stages.function_space()
 
     VV = TestFunction(Vbig)
-    UU = Function(Vbig)
+    UU = stages
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -144,10 +142,10 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
 
-    return Fnew, UU, bcsnew
+    return Fnew, bcsnew
 
 
-class DiscontinuousGalerkinTimeStepper:
+class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
     """Front-end class for advancing a time-dependent PDE via a Discontinuous Galerkin
     in time method
 
@@ -191,10 +189,6 @@ class DiscontinuousGalerkinTimeStepper:
                  quadrature=None,
                  solver_parameters=None, appctx=None, nullspace=None):
         assert order >= 0
-        self.u0 = u0
-        self.orig_bcs = bcs
-        self.t = t
-        self.dt = dt
         self.order = order
         self.basis_type = basis_type
 
@@ -219,56 +213,17 @@ class DiscontinuousGalerkinTimeStepper:
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order+1
 
-        self.num_steps = 0
-        self.num_nonlinear_iterations = 0
-        self.num_linear_iterations = 0
+        num_stages = order+1
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs,
+                         solver_parameters=solver_parameters,
+                         appctx=appctx, nullspace=nullspace)
 
-        bigF, UU, bigBCs = \
-            getFormDiscGalerkin(F, self.el,
-                                quadrature, t, dt, u0, bcs)
+    def get_form_and_bcs(self, stages):
+        return getFormDiscGalerkin(self.F, self.el,
+                                   self.quadrature, self.t, self.dt, self.u0, stages,
+                                   self.orig_bcs)
 
-        bigNSP = getNullspace(V, UU.function_space(),
-                              order+1, nullspace)
-
-        self.UU = UU
-        self.bigBCs = bigBCs
-        problem = NLVP(bigF, UU, bigBCs)
-        appctx_irksome = {"F": F,
-                          "t": t,
-                          "dt": dt,
-                          "u0": u0,
-                          "bcs": bcs,
-                          "nullspace": nullspace}
-        if appctx is None:
-            appctx = appctx_irksome
-        else:
-            appctx = {**appctx, **appctx_irksome}
-
-        push_parent(u0.function_space().dm, UU.function_space().dm)
-        self.solver = NLVS(problem,
-                           appctx=appctx,
-                           solver_parameters=solver_parameters,
-                           nullspace=bigNSP)
-        pop_parent(u0.function_space().dm, UU.function_space().dm)
-
-    def advance(self):
-        """Advances the system from time `t` to time `t + dt`.
-        Note: overwrites the value `u0`."""
-        push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
-        self.solver.solve()
-        pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
-
-        self.num_steps += 1
-        self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
-        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
-
-        u0 = self.u0
-        u0bits = u0.subfunctions
-        UUs = self.UU.subfunctions
-
+    def _update(self):
         # only correct if we are nodal w.r.t. right end.
-        for i, u0bit in enumerate(u0bits):
-            u0bit.assign(UUs[self.num_fields*(self.order)+i])
-
-    def solver_stats(self):
-        return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
+        for i, u0bit in enumerate(self.u0.subfunctions):
+            u0bit.assign(self.stages.subfunctions[self.num_fields*(self.order)+i])
