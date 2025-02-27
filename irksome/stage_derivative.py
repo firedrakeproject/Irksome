@@ -1,6 +1,3 @@
-from functools import reduce
-from operator import mul
-
 import numpy
 from firedrake import Constant, Function, TestFunction
 from firedrake import NonlinearVariationalProblem as NLVP
@@ -16,6 +13,7 @@ from .tools import component_replace, replace, getNullspace, AI, ConstantOrZero
 from .deriv import TimeDerivative  # , apply_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, bc2space, stage2spaces4bc
 from .manipulation import extract_terms
+from .base_time_stepper import StageCoupledTimeStepper
 
 
 def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
@@ -146,7 +144,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     return Fnew, bcnew
 
 
-class StageDerivativeTimeStepper:
+class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     """Front-end class for advancing a time-dependent PDE via a Runge-Kutta
     method formulated in terms of stage derivatives.
 
@@ -191,20 +189,15 @@ class StageDerivativeTimeStepper:
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
                  appctx=None, nullspace=None, bc_type="DAE"):
-        self.u0 = u0
-        self.V = u0.function_space()
-        self.F = F
-        self.orig_bcs = bcs
-        self.bc_type = bc_type
-        self.splitting = splitting
-        self.t = t
-        self.dt = dt
+
+        super().__init__(F, t, dt, u0, bcs=bcs,
+                         solver_parameters=solver_parameters,
+                         appctx=appctx, nullspace=nullspace,
+                         splitting=splitting, bc_type=bc_type)
+
+        self.butcher_tableau = butcher_tableau
         self.num_fields = len(self.V)
         self.num_stages = len(butcher_tableau.b)
-        self.butcher_tableau = butcher_tableau
-        self.num_steps = 0
-        self.num_nonlinear_iterations = 0
-        self.num_linear_iterations = 0
 
         stages = self.get_stages()
         bigF, bigBCs = self.get_form_and_bcs(stages)
@@ -216,23 +209,10 @@ class StageDerivativeTimeStepper:
         self.stages = stages
         self.bigBCs = bigBCs
         problem = NLVP(bigF, stages, bigBCs)
-        appctx_irksome = {"F": F,
-                          "butcher_tableau": butcher_tableau,
-                          "t": t,
-                          "dt": dt,
-                          "u0": u0,
-                          "bcs": bcs,
-                          "bc_type": bc_type,
-                          "splitting": splitting,
-                          "nullspace": nullspace}
-        if appctx is None:
-            appctx = appctx_irksome
-        else:
-            appctx = {**appctx, **appctx_irksome}
 
         push_parent(u0.function_space().dm, stages.function_space().dm)
         self.solver = NLVS(problem,
-                           appctx=appctx,
+                           appctx=self.appctx,
                            solver_parameters=solver_parameters,
                            nullspace=bigNSP)
         pop_parent(u0.function_space().dm, stages.function_space().dm)
@@ -297,14 +277,6 @@ class StageDerivativeTimeStepper:
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
         self._update()
-
-    def solver_stats(self):
-        return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
-
-    def get_stages(self):
-        num_stages = self.butcher_tableau.num_stages
-        Vbig = reduce(mul, (self.V for _ in range(num_stages)))
-        return Function(Vbig)
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:

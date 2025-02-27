@@ -61,7 +61,6 @@ class RanaBase(AuxiliaryOperatorPC):
         stage_type = appctx.get("stage_type", None)
         bc_type = appctx.get("bc_type", None)
         splitting = appctx.get("splitting", None)
-        nullspace = appctx.get("nullspace", None)
 
         # Make a modified Butcher tableau, probably with some kind
         # of sparser structure (e.g. LD part of LDU factorization)
@@ -79,9 +78,9 @@ class RanaBase(AuxiliaryOperatorPC):
                 getForm(F, butcher_new, t, dt, u0, w, bcs,
                         bc_type, splitting)
         elif stage_type == "value":
-            Fnew, _, w, bcnew = \
-                getFormStage(F, butcher_new, u0, t, dt, bcs,
-                             splitting, nullspace)
+            Fnew, bcnew = \
+                getFormStage(F, butcher_new, t, dt, u0, w, bcs,
+                             splitting)
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
         test_old = Fnew.arguments()[0]
@@ -122,7 +121,6 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         stage_type = appctx.get("stage_type", None)
         bc_type = appctx.get("bc_type", None)
         splitting = appctx.get("splitting", None)
-        nullspace = appctx.get("nullspace", None)
         v0 = oldF.arguments()[0]
 
         F, bcs = self.getNewForm(pc, u0, v0)
@@ -138,8 +136,8 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
                         bc_type, splitting)
         elif stage_type == "value":
             Fnew, _, w, bcnew = \
-                getFormStage(F, butcher_tableau, u0, t, dt, bcs,
-                             splitting, nullspace)
+                getFormStage(F, butcher_tableau, t, dt, u0, w, bcs,
+                             splitting)
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
         test_old = Fnew.arguments()[0]

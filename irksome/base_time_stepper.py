@@ -1,4 +1,7 @@
 from abc import abstractmethod
+from functools import reduce
+from operator import mul
+from firedrake import Function
 
 
 class BaseTimeStepper:
@@ -8,8 +11,9 @@ class BaseTimeStepper:
         self.t = t
         self.dt = dt
         self.u0 = u0
-        self.bcs = bcs
+        self.orig_bcs = bcs
         self.nullspace = nullspace
+        self.V = u0.function_space()
 
         appctx_base = {
             "F": F,
@@ -42,6 +46,12 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
+        self.splitting = splitting
+        self.bc_type = bc_type
+
+        self.num_steps = 0
+        self.num_nonlinear_iterations = 0
+        self.num_linear_iterations = 0
 
     def advance(self):
         self.solver.solve()
@@ -50,5 +60,13 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     # allow butcher tableau as input for preconditioners to create
     # an alternate operator
     @abstractmethod
-    def getForm(self, butch=None):
+    def get_form_and_bcs(self, stages, butcher_tableau=None):
         pass
+
+    def solver_stats(self):
+        return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
+
+    def get_stages(self):
+        num_stages = self.butcher_tableau.num_stages
+        Vbig = reduce(mul, (self.V for _ in range(num_stages)))
+        return Function(Vbig)

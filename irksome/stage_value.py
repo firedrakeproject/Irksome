@@ -1,6 +1,5 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
-from functools import reduce
-from operator import mul
+from functools import cached_property
 
 import numpy as np
 from FIAT import Bernstein, ufc_simplex
@@ -15,9 +14,28 @@ from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
 from .tools import (AI, IA, ConstantOrZero, getNullspace, is_ode, replace, component_replace)
+from .base_time_stepper import StageCoupledTimeStepper
+
+vecconst = np.vectorize(ConstantOrZero)
 
 
-def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None,
+def to_value(u0, stages, vandermonde):
+    num_stages = vandermonde.shape[0]-1
+    Vander = vecconst(vandermonde)
+    Vander_col = Vander[1:, 0]
+    Vander0 = Vander[1:, 1:]
+
+    # convert from Bernstein to Lagrange representation
+    # the Bernstein coefficients are [u0; ZZ], and the Lagrange
+    # are [u0; UU] since the value at the left-endpoint is unchanged.
+    # Since u0 is not part of the unknown vector of stages, we disassemble
+    # the Vandermonde matrix (first row is [1, 0, ...])
+    v0u0 = np.reshape(np.outer(Vander_col, u0), (num_stages, *u0.ufl_shape))
+    u_np = v0u0 + Vander0 @ np.reshape(stages, (num_stages, *u0.ufl_shape))
+    return u_np, Vander
+
+
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None,
                  bc_constraints=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
@@ -25,13 +43,15 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     :arg F: UFL form for the semidiscrete ODE/DAE
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
          advance in time.
-    :arg u0: a :class:`Function` referring to the state of
-         the PDE system at time `t`
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time step.
          The user may adjust this value between time steps.
+    :arg u0: a :class:`Function` referring to the state of
+         the PDE system at time `t`
+    :arg stages: a :class:`Function` referring to the stages of the time-discrete
+         system at time `t`
     :arg splitting: a callable that maps the (floating point) Butcher matrix
          a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
          to vary between the classical RK formulation and Butcher's reformulation
@@ -86,32 +106,17 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         vandermonde = np.eye(num_stages + 1)
 
     # s-way product space for the stage variables
-    Vbig = reduce(mul, (V for _ in range(num_stages)))
+    Vbig = stages.function_space()
     VV = TestFunction(Vbig)
-    ZZ = Function(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
     v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
-    z_np = np.reshape(ZZ, (num_stages, *u0.ufl_shape))
+    u_np, Vander = to_value(u0, stages, vandermonde)
 
-    vecconst = np.vectorize(ConstantOrZero)
+    Vander_inv = vecconst(np.linalg.inv(vandermonde))
 
     C = vecconst(butch.c)
     A = vecconst(butch.A)
-    Vander = vecconst(vandermonde)
-    Vander_inv = vecconst(np.linalg.inv(vandermonde))
-
-    # convert from Bernstein to Lagrange representation
-    # the Bernstein coefficients are [u0; ZZ], and the Lagrange
-    # are [u0; UU] since the value at the left-endpoint is unchanged.
-    # Since u0 is not part of the unknown vector of stages, we disassemble
-    # the Vandermonde matrix (first row is [1, 0, ...])
-    Vander_col = Vander[1:, 0]
-    Vander0 = Vander[1:, 1:]
-
-    v0u0 = np.reshape(np.outer(Vander_col, u0), (num_stages, *u0.ufl_shape))
-
-    u_np = v0u0 + Vander0 @ z_np
 
     split_form = extract_terms(F)
 
@@ -188,13 +193,13 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         if bc in bc_constraints:
             bcparams, bclower, bcupper = bc_constraints[bc]
             gcur = replace(bcarg, {t: t+C[i] * dt})
-            gcur = gcur - Vander_col[i] * bcarg
+            gcur = gcur - Vander[1+i, 0] * bcarg
         else:
             gdats_cur = np.zeros((num_stages,), dtype="O")
             for i in range(num_stages):
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
                 gcur = replace(bcarg, {t: t+C[i]*dt})
-                gcur = gcur - Vander_col[i] * bcarg
+                gcur = gcur - Vander[1+i, 0] * bcarg
                 gdats_cur[i] = gcur
 
             zdats_cur = Vander_inv[1:, 1:] @ gdats_cur
@@ -205,38 +210,10 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
                 bcnew_cur.append(bc.reconstruct(V=Vbigi, g=zdats_cur[i]))
 
             bcsnew.extend(bcnew_cur)
-
-    # only form update stuff if we need it
-    # which means neither stiffly accurate nor Vandermonde
-    if not butch.is_stiffly_accurate:
-        unew = Function(V)
-
-        Fupdate = inner(unew - u0, v) * dx
-        B = vecconst(butch.b)
-
-        for i in range(num_stages):
-            repl = {t: t + C[i] * dt,
-                    u0: u_np[i]}
-
-            eFFi = component_replace(split_form.remainder, repl)
-
-            Fupdate += dt * B[i] * eFFi
-
-        # And the BC's for the update -- just the original BC at t+dt
-        update_bcs = []
-        for bc in bcs:
-            bcarg = as_ufl(bc._original_arg)
-            gcur = replace(bcarg, {t: t+dt})
-            update_bcs.append(bc.reconstruct(g=gcur))
-
-        update_stuff = (unew, Fupdate, update_bcs)
-    else:
-        update_stuff = None
-
-    return Fnew, update_stuff, ZZ, bcsnew
+    return Fnew, bcsnew
 
 
-class StageValueTimeStepper:
+class StageValueTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
                  bc_constraints=None,
@@ -245,29 +222,30 @@ class StageValueTimeStepper:
 
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
         assert is_ode(F, u0) or butcher_tableau.is_stiffly_accurate
+        super().__init__(F, t, dt, u0, bcs=bcs,
+                         solver_parameters=solver_parameters,
+                         appctx=appctx, nullspace=nullspace,
+                         splitting=splitting)
 
-        self.u0 = u0
-        self.t = t
-        self.dt = dt
-        num_stages = self.num_stages = len(butcher_tableau.b)
-        self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
-        self.num_steps = 0
-        self.num_nonlinear_iterations = 0
-        self.num_linear_iterations = 0
+        self.num_stages = len(butcher_tableau.b)
+        self.num_fields = len(u0.function_space())
+        degree = self.num_stages
 
         if basis_type is None:
             vandermonde = None
         elif basis_type == "Bernstein":
             assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
-            bern = Bernstein(ufc_simplex(1), num_stages)
+            bern = Bernstein(ufc_simplex(1), degree)
             cc = np.reshape(np.append(0, butcher_tableau.c), (-1, 1))
             vandermonde = bern.tabulate(0, np.reshape(cc, (-1, 1)))[(0, )].T
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")
+        self.vandermonde = vandermonde
 
-        Fbig, update_stuff, UU, bigBCs = getFormStage(
-            F, butcher_tableau, u0, t, dt, bcs, vandermonde=vandermonde,
+        UU = self.get_stages()
+        Fbig, bigBCs = getFormStage(
+            F, butcher_tableau, t, dt, u0, UU, bcs, vandermonde=vandermonde,
             splitting=splitting)
 
         nsp = getNullspace(u0.function_space(),
@@ -276,25 +254,11 @@ class StageValueTimeStepper:
 
         self.UU = UU
         self.bigBCs = bigBCs
-        self.update_stuff = update_stuff
 
         self.prob = NonlinearVariationalProblem(Fbig, UU, bigBCs)
 
-        appctx_irksome = {"F": F,
-                          "butcher_tableau": butcher_tableau,
-                          "t": t,
-                          "dt": dt,
-                          "u0": u0,
-                          "bcs": bcs,
-                          "splitting": splitting,
-                          "nullspace": nullspace}
-        if appctx is None:
-            appctx = appctx_irksome
-        else:
-            appctx = {**appctx, **appctx_irksome}
-
         self.solver = NonlinearVariationalSolver(
-            self.prob, appctx=appctx, nullspace=nsp,
+            self.prob, appctx=self.appctx, nullspace=nsp,
             solver_parameters=solver_parameters)
 
         if (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
@@ -320,6 +284,35 @@ class StageValueTimeStepper:
 
         for i, u0bit in enumerate(u0bits):
             u0bit.assign(UUs[self.num_fields*(self.num_stages-1)+i])
+
+    @cached_property
+    def update_stuff(self):
+        # only form update stuff if we need it
+        # which means neither stiffly accurate nor Vandermonde
+        unew = Function(self.V)
+        v, = self.F.arguments()
+        Fupdate = inner(unew - self.u0, v) * dx
+
+        C = vecconst(self.butcher_tableau.c)
+        B = vecconst(self.butcher_tableau.b)
+        t = self.t
+        dt = self.dt
+        u0 = self.u0
+        split_form = extract_terms(self.F)
+        u_np, _ = to_value(self.u0, self.vandermonde)
+
+        for i in range(self.num_stages):
+            repl = {t: t + C[i] * dt,
+                    u0: u_np[i]}
+            Fupdate += dt * B[i] * component_replace(split_form.remainder, repl)
+
+        # And the BC's for the update -- just the original BC at t+dt
+        update_bcs = []
+        for bc in self.orig_bcs:
+            bcarg = as_ufl(bc._original_arg)
+            gcur = replace(bcarg, {t: t + dt})
+            update_bcs.append(bc.reconstruct(g=gcur))
+        return unew, Fupdate, update_bcs
 
     def _update_general(self):
         unew, Fupdate, update_bcs = self.update_stuff
