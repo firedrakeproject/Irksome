@@ -263,6 +263,7 @@ class DiscontinuousGalerkinTimeStepper:
         u0bits = u0.subfunctions
         UUs = self.UU.subfunctions
 
+        # only correct if we are nodal w.r.t. right end.
         for i, u0bit in enumerate(u0bits):
             u0bit.assign(UUs[self.num_fields*(self.order)+i])
 
