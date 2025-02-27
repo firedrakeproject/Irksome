@@ -4,8 +4,6 @@ from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm
 
-from firedrake.dmhooks import pop_parent, push_parent
-
 from ufl import as_tensor, diff, dot, zero
 from ufl.algorithms import expand_derivatives
 from ufl.constantvalue import as_ufl
@@ -250,18 +248,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         u0bits = u0.subfunctions
         for i, u0bit in enumerate(u0bits):
             u0bit += dtc * ws[nf*(ns-1)+i]
-
-    def advance(self):
-        """Advances the system from time `t` to time `t + dt`.
-        Note: overwrites the value `u0`."""
-        push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
-        self.solver.solve()
-        pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
-
-        self.num_steps += 1
-        self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
-        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
-        self._update()
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:

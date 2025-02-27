@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationalSolver
+from firedrake.dmhooks import pop_parent, push_parent
 from .tools import AI, get_stage_space, getNullspace
 
 
@@ -76,12 +77,23 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         self.prob = NonlinearVariationalProblem(Fbig, stages, bigBCs)
 
+        push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
         self.solver = NonlinearVariationalSolver(
             self.prob, appctx=self.appctx, nullspace=nsp,
             solver_parameters=solver_parameters)
+        pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
 
     def advance(self):
+        """Advances the system from time `t` to time `t + dt`.
+        Note: overwrites the value `u0`."""
+
+        push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
         self.solver.solve()
+        pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
+
+        self.num_steps += 1
+        self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
+        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
         self._update()
 
     # allow butcher tableau as input for preconditioners to create
