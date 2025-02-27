@@ -148,3 +148,6 @@ class MeshConstant(object):
 def ConstantOrZero(x, MC=None):
     const = MC.Constant if MC else Constant
     return Zero() if abs(complex(x)) < 1.e-10 else const(x)
+
+
+vecconst = numpy.vectorize(ConstantOrZero)
