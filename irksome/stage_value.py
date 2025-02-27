@@ -1,7 +1,7 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
 from functools import cached_property
 
-import numpy as np
+import numpy
 from FIAT import Bernstein, ufc_simplex
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
@@ -15,25 +15,22 @@ from .manipulation import extract_terms, strip_dt_form
 from .tools import (AI, IA, ConstantOrZero, is_ode, replace, component_replace)
 from .base_time_stepper import StageCoupledTimeStepper
 
-vecconst = np.vectorize(ConstantOrZero)
+vecconst = numpy.vectorize(ConstantOrZero)
 
 
 def to_value(u0, stages, vandermonde):
+    """convert from Bernstein to Lagrange representation
 
-    num_stages = len(stages.function_space()) // len(u0.function_space())
-    Vander = vecconst(vandermonde)
-
-    Vander_col = Vander[1:, 0]
-    Vander0 = Vander[1:, 1:]
-
-    # convert from Bernstein to Lagrange representation
-    # the Bernstein coefficients are [u0; ZZ], and the Lagrange
-    # are [u0; UU] since the value at the left-endpoint is unchanged.
-    # Since u0 is not part of the unknown vector of stages, we disassemble
-    # the Vandermonde matrix (first row is [1, 0, ...])
-    v0u0 = np.reshape(np.outer(Vander_col, u0), (num_stages, *u0.ufl_shape))
-    u_np = v0u0 + Vander0 @ np.reshape(stages, (num_stages, *u0.ufl_shape))
-    return u_np, Vander
+    the Bernstein coefficients are [u0; ZZ], and the Lagrange
+    are [u0; UU] since the value at the left-endpoint is unchanged.
+    Since u0 is not part of the unknown vector of stages, we disassemble
+    the Vandermonde matrix (first row is [1, 0, ...]).
+    """
+    v0 = vandermonde[1:, 0]
+    Vs = vandermonde[1:, 1:]
+    v0u0 = numpy.reshape(numpy.outer(v0, u0), (-1, *u0.ufl_shape))
+    u_np = v0u0 + Vs @ numpy.reshape(stages, (-1, *u0.ufl_shape))
+    return u_np
 
 
 def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None,
@@ -102,26 +99,26 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
 
     num_stages = butch.num_stages
 
-    # default to no basis transformation, identity matrix
-    if vandermonde is None:
-        vandermonde = np.eye(num_stages + 1)
-
     # s-way product space for the stage variables
     Vbig = stages.function_space()
-    VV = TestFunction(Vbig)
+    test = TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
-    u_np, Vander = to_value(u0, stages, vandermonde)
+    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
+    u_np = to_value(u0, stages, vandermonde)
 
-    Vander_inv = vecconst(np.linalg.inv(vandermonde))
+    Vander_inv = vecconst(numpy.linalg.inv(vandermonde.astype(float)))
 
     C = vecconst(butch.c)
-    A = vecconst(butch.A)
-
-    split_form = extract_terms(F)
-
-    Fnew = zero()
+    bA1, bA2 = splitting(butch.A)
+    try:
+        bA2inv = numpy.linalg.inv(bA2)
+    except numpy.linalg.LinAlgError:
+        raise NotImplementedError("We require A = A1 A2 with A2 invertible")
+    A1 = vecconst(bA1)
+    A2inv = vecconst(bA2inv)
+    A1Tv = A1.T @ v_np
+    A2invTv = A2inv.T @ v_np
 
     # first, process terms with a time derivative.  I'm
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
@@ -129,53 +126,28 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
     # but we have to carefully handle the cases where g indexes into
     # pieces of u
-    dtless = strip_dt_form(split_form.time)
+    split_form = extract_terms(F)
+    F_dtless = strip_dt_form(split_form.time)
+    F_remainder = split_form.remainder
 
-    if splitting is None or splitting == AI:
-        # time derivative part
-        for i in range(num_stages):
-            repl = {t: t+C[i]*dt,
-                    u0: u_np[i] - u0,
-                    v: v_np[i]}
+    Fnew = zero()
+    # time derivative part
+    for i in range(num_stages):
+        repl = {t: t + C[i] * dt,
+                u0: u_np[i] - u0,
+                v: A2invTv[i]}
 
-            Fnew += component_replace(dtless, repl)
+        Fnew += component_replace(F_dtless, repl)
 
-        # Now for the non-time derivative parts
-        for i in range(num_stages):
-            # replace test function
-            repl = {v: v_np[i]}
-            Ftmp = component_replace(split_form.remainder, repl)
+    # time derivative part gets tested against Butcher matrix.
+    for j in range(num_stages):
+        # replace the solution with stage values
+        repl = {t: t + C[j] * dt,
+                u0: u_np[j],
+                v: A1Tv[j]}
 
-            # replace the solution with stage values
-            for j in range(num_stages):
-                repl = {t: t + C[j] * dt,
-                        u0: u_np[j]}
-
-                # and sum the contribution
-                Fnew += A[i, j] * dt * component_replace(Ftmp, repl)
-
-    elif splitting == IA:
-        Ainv = vecconst(np.linalg.inv(butch.A))
-
-        # time derivative part gets inverse of Butcher matrix.
-        for i in range(num_stages):
-            repl = {v: v_np[i]}
-            Ftmp = component_replace(dtless, repl)
-
-            for j in range(num_stages):
-                repl = {t: t + C[j] * dt,
-                        u0: u_np[j] - u0}
-
-                Fnew += Ainv[i, j] * component_replace(Ftmp, repl)
-        # rest of the operator: just diagonal!
-        for i in range(num_stages):
-            repl = {t: t+C[i]*dt,
-                    u0: u_np[i],
-                    v: v_np[i]}
-
-            Fnew += dt * replace(split_form.remainder, repl)
-    else:
-        raise NotImplementedError("Can't handle that splitting type")
+        # and sum the contribution
+        Fnew += dt * component_replace(F_remainder, repl)
 
     if bcs is None:
         bcs = []
@@ -194,13 +166,13 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
         if bc in bc_constraints:
             bcparams, bclower, bcupper = bc_constraints[bc]
             gcur = replace(bcarg, {t: t+C[i] * dt})
-            gcur = gcur - Vander[1+i, 0] * bcarg
+            gcur = gcur - vandermonde[1+i, 0] * bcarg
         else:
-            gdats_cur = np.zeros((num_stages,), dtype="O")
+            gdats_cur = numpy.zeros((num_stages,), dtype="O")
             for i in range(num_stages):
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
                 gcur = replace(bcarg, {t: t+C[i]*dt})
-                gcur = gcur - Vander[1+i, 0] * bcarg
+                gcur = gcur - vandermonde[1+i, 0] * bcarg
                 gdats_cur[i] = gcur
 
             zdats_cur = Vander_inv[1:, 1:] @ gdats_cur
@@ -230,15 +202,15 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         degree = butcher_tableau.num_stages
 
         if basis_type is None:
-            vandermonde = np.eye(degree+1)
+            vandermonde = numpy.eye(degree+1)
         elif basis_type == "Bernstein":
             assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
             bern = Bernstein(ufc_simplex(1), degree)
-            cc = np.reshape(np.append(0, butcher_tableau.c), (-1, 1))
-            vandermonde = bern.tabulate(0, np.reshape(cc, (-1, 1)))[(0, )].T
+            cc = numpy.reshape(numpy.append(0, butcher_tableau.c), (-1, 1))
+            vandermonde = bern.tabulate(0, numpy.reshape(cc, (-1, 1)))[(0, )].T
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")
-        self.vandermonde = vandermonde
+        self.vandermonde = vecconst(vandermonde)
 
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
@@ -281,7 +253,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         dt = self.dt
         u0 = self.u0
         split_form = extract_terms(self.F)
-        u_np, _ = to_value(self.u0, self.stages, self.vandermonde)
+        u_np = to_value(self.u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
