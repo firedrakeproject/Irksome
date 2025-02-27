@@ -7,7 +7,7 @@ from firedrake import assemble, dx, inner, norm
 from ufl import as_tensor, diff, dot, zero
 from ufl.algorithms import expand_derivatives
 from ufl.constantvalue import as_ufl
-from .tools import component_replace, replace, AI, ConstantOrZero
+from .tools import component_replace, replace, AI, vecconst
 from .deriv import TimeDerivative  # , apply_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, bc2space, stage2spaces4bc
 from .manipulation import extract_terms
@@ -85,7 +85,6 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     v_np = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
     w_np = numpy.reshape(w, (num_stages, *u0.ufl_shape))
 
-    vecconst = numpy.vectorize(ConstantOrZero)
     A1 = vecconst(bA1)
     A2inv = vecconst(bA2inv)
 
@@ -200,54 +199,26 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         self.num_fields = len(self.V)
         self.num_stages = len(butcher_tableau.b)
 
-        if self.num_stages == 1 and self.num_fields == 1:
-            self.ws = (self.stages,)
-        else:
-            self.ws = self.stages.subfunctions
-
         A1, A2 = splitting(butcher_tableau.A)
         try:
-            self.updateb = numpy.linalg.solve(A2.T, butcher_tableau.b)
+            self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b))
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
-        boo = numpy.zeros(self.updateb.shape, dtype=self.updateb.dtype)
-        boo[-1] = 1
-        if numpy.allclose(self.updateb, boo):
-            self._update = self._update_A2Tmb
-        else:
-            self._update = self._update_general
 
-    def _update_general(self):
+    def _update(self):
         """Assuming the algebraic problem for the RK stages has been
         solved, updates the solution.  This will not typically be
         called by an end user."""
         b = self.updateb
-        dtc = float(self.dt)
+        dtc = self.dt
         u0 = self.u0
         ns = self.num_stages
         nf = self.num_fields
 
-        ws = self.ws
-        u0bits = u0.subfunctions
-        for s in range(ns):
-            for i, u0bit in enumerate(u0bits):
-                u0bit += dtc * float(b[s]) * ws[nf*s+i]
-
-    def _update_A2Tmb(self):
-        """Assuming the algebraic problem for the RK stages has been
-        solved, updates the solution.  This will not typically be
-        called by an end user.  This handles the common but highly
-        specialized case of `w = Ak` or `A = I A` splitting where
-        A2^{-T} b = e_{num_stages}"""
-        dtc = float(self.dt)
-        u0 = self.u0
-        ns = self.num_stages
-        nf = self.num_fields
-
-        ws = self.ws
+        # Note: this now cates the optimized/stiffly accurate case as b[s] == Zero() will get dropped
         u0bits = u0.subfunctions
         for i, u0bit in enumerate(u0bits):
-            u0bit += dtc * ws[nf*(ns-1)+i]
+            u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dtc) for s in range(ns))
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
@@ -354,7 +325,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             v = F.arguments()[0]
             V = v.function_space()
             num_fields = len(V)
-            ws = self.ws
+            ws = self.stages.subfunctions
 
             for bc in bcs:
                 gVsp = bc2space(bc, V)
@@ -369,7 +340,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         methods.  Typically will not be called by the end user."""
         dtc = float(self.dt)
         delb = self.delb
-        ws = self.ws
+        ws = self.stages.subfunctions
         nf = self.num_fields
         ns = self.num_stages
         u0 = self.u0
