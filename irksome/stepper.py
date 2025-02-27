@@ -53,7 +53,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         "deriv": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
                   "bc_type", "splitting", "adaptive_parameters"],
         "value": ["stage_type", "basis_type", "bc_constraints", "bcs", "nullspace", "solver_parameters",
-                  "update_solver_parameters", "appctx", "splitting"],
+                  "update_solver_parameters", "appctx", "splitting", "bounds"],
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
         "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
         "imex": ["Fexp", "stage_type", "bcs", "nullspace",

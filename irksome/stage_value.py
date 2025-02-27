@@ -6,7 +6,6 @@ from FIAT import Bernstein, ufc_simplex
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
-from firedrake.petsc import PETSc
 from ufl import zero
 from ufl.constantvalue import as_ufl
 
@@ -220,7 +219,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                  solver_parameters=None, update_solver_parameters=None,
                  bc_constraints=None,
                  splitting=AI, basis_type=None,
-                 nullspace=None, appctx=None):
+                 nullspace=None, appctx=None, bounds=None):
 
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
         assert is_ode(F, u0) or butcher_tableau.is_stiffly_accurate
@@ -244,7 +243,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace,
-                         splitting=splitting, butcher_tableau=butcher_tableau)
+                         splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds)
 
         self.num_fields = len(u0.function_space())
 
@@ -259,10 +258,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             self._update = self._update_general
         else:
             self._update = self._update_stiff_acc
-
-        # stash these for later in case we do bounds constraints
-        self.stage_lower_bound = Function(self.stages.function_space())
-        self.stage_upper_bound = Function(self.stages.function_space())
 
     def _update_stiff_acc(self):
         u0 = self.u0
@@ -307,56 +302,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         unewbits = unew.subfunctions
         for u0bit, unewbit in zip(self.u0.subfunctions, unewbits):
             u0bit.assign(unewbit)
-
-    def advance(self, bounds=None):
-        if bounds is None:
-            stage_bounds = None
-        else:
-            bounds_type, lower, upper = bounds
-            slb = self.stage_lower_bound
-            sub = self.stage_upper_bound
-            if bounds_type == "stage":
-                if lower is None:
-                    slb.assign(PETSc.NINFINITY)
-                else:
-                    for i in range(self.num_stages):
-                        for j, lower_bit in enumerate(lower.subfunctions):
-                            slb.subfunctions[i*self.num_fields+j].assign(lower_bit)
-                if upper is None:
-                    sub.assign(PETSc.INFINITY)
-                else:
-                    for i in range(self.num_stages):
-                        for j, upper_bit in enumerate(upper.subfunctions):
-                            sub.subfunctions[i*self.num_fields+j].assign(upper_bit)
-            elif bounds_type == "last_stage":
-                if lower is None:
-                    slb.assign(PETSc.NINFINITY)
-                else:
-                    for i in range(self.num_stages-1):
-                        for j in range(self.num_fields):
-                            slb.subfunctions[i*self.num_fields+j].assign(PETSc.NINFINITY)
-                    for j, lower_bit in enumerate(lower.subfunctions):
-                        slb.subfunctions[-(self.num_fields-j)].assign(lower_bit)
-                if upper is None:
-                    sub.assign(PETSc.INFINITY)
-                else:
-                    for i in range(self.num_stages-1):
-                        for j in range(self.num_fields):
-                            sub.subfunctions[i*self.num_fields+j].assign(PETSc.INFINITY)
-                    for j, upper_bit in enumerate(upper.subfunctions):
-                        sub.subfunctions[-(self.num_fields-j)].assign(upper_bit)
-            else:
-                raise ValueError("Unknown bounds type")
-
-            stage_bounds = (slb, sub)
-
-        self.solver.solve(bounds=stage_bounds)
-
-        self.num_steps += 1
-        self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
-        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
-
-        self._update()
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
