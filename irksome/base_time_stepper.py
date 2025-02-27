@@ -2,6 +2,7 @@ from abc import abstractmethod
 from functools import reduce
 from operator import mul
 from firedrake import Function
+from .tools import AI
 
 
 class BaseTimeStepper:
@@ -11,6 +12,8 @@ class BaseTimeStepper:
         self.t = t
         self.dt = dt
         self.u0 = u0
+        if bcs is None:
+            bcs = ()
         self.orig_bcs = bcs
         self.nullspace = nullspace
         self.V = u0.function_space()
@@ -42,11 +45,17 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     def __init__(self, F, t, dt, u0,
                  bcs=None, solver_parameters=None,
                  appctx=None, nullspace=None,
-                 splitting=None, bc_type="DAE"):
+                 splitting=None, bc_type="DAE",
+                 butcher_tableau=None):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
+        if butcher_tableau:
+            self.appctx["butcher_tableau"] = butcher_tableau
+        if splitting is None:
+            splitting = AI
         self.splitting = splitting
+        self.appctx["splitting"] = splitting
         self.bc_type = bc_type
 
         self.num_steps = 0

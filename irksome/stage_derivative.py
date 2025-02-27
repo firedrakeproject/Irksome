@@ -193,7 +193,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         super().__init__(F, t, dt, u0, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace,
-                         splitting=splitting, bc_type=bc_type)
+                         splitting=splitting, bc_type=bc_type,
+                         butcher_tableau=butcher_tableau)
 
         self.butcher_tableau = butcher_tableau
         self.num_fields = len(self.V)

@@ -20,8 +20,10 @@ vecconst = np.vectorize(ConstantOrZero)
 
 
 def to_value(u0, stages, vandermonde):
-    num_stages = vandermonde.shape[0]-1
+
+    num_stages = len(stages.function_space()) // len(u0.function_space())
     Vander = vecconst(vandermonde)
+
     Vander_col = Vander[1:, 0]
     Vander0 = Vander[1:, 1:]
 
@@ -225,7 +227,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         super().__init__(F, t, dt, u0, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace,
-                         splitting=splitting)
+                         splitting=splitting, butcher_tableau=butcher_tableau)
 
         self.butcher_tableau = butcher_tableau
         self.num_stages = len(butcher_tableau.b)
@@ -233,7 +235,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         degree = self.num_stages
 
         if basis_type is None:
-            vandermonde = None
+            vandermonde = np.eye(degree+1)
         elif basis_type == "Bernstein":
             assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
             bern = Bernstein(ufc_simplex(1), degree)
@@ -252,7 +254,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                            UU.function_space(),
                            self.num_stages, nullspace)
 
-        self.UU = UU
+        self.stages = UU
         self.bigBCs = bigBCs
 
         self.prob = NonlinearVariationalProblem(Fbig, UU, bigBCs)
@@ -280,7 +282,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def _update_stiff_acc(self):
         u0 = self.u0
         u0bits = u0.subfunctions
-        UUs = self.UU.subfunctions
+        UUs = self.stages.subfunctions
 
         for i, u0bit in enumerate(u0bits):
             u0bit.assign(UUs[self.num_fields*(self.num_stages-1)+i])
@@ -299,7 +301,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         dt = self.dt
         u0 = self.u0
         split_form = extract_terms(self.F)
-        u_np, _ = to_value(self.u0, self.vandermonde)
+        u_np, _ = to_value(self.u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
@@ -370,6 +372,3 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
 
         self._update()
-
-    def solver_stats(self):
-        return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
