@@ -12,6 +12,7 @@ Imports::
   from ufl.algorithms.ad import expand_derivatives
 
   from irksome import GaussLegendre, getForm, Dt, MeshConstant
+  from irksome.tools import get_stage_space
   
   butcher_tableau = GaussLegendre(2)
   N = 64
@@ -36,15 +37,18 @@ Imports::
 
   bc = DirichletBC(V, uexact, "on_boundary")
 
-As with the homogeneous BC case, we use the `getForm` method to
-process the semidiscrete problem::
+Get the function space for the stage-coupled problem and a function to hold the stages we're computing::
 
-  Fnew, k, bcnew, nspnew = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
+  Vbig = get_stage_space(V, butcher_tableau.num_stages)
+  k = Function(Vbig)
 
+Get the variational form and bcs for the stage-coupled variational problem::
+
+  Fnew, bcnew = getForm(F, butcher_tableau, t, dt, u, k, bcs=bc)
+  
 Recall that `getForm` produces:
 
 * ``Fnew`` is the UFL variational form for the fully discrete method.
-* ``k`` is a new :class:`~firedrake.function.Function` of stages on the s-way product of the space on which the problem was originally posed
 * ``bcnew`` is a list of new :class:`~firedrake.bcs.DirichletBC` that need to
   be enforced on the variational problem for the stages
 
@@ -58,7 +62,7 @@ and solver::
               "pc_type": "lu"}
 
   prob = NonlinearVariationalProblem(Fnew, k, bcs=bcnew)
-  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams, nullspace=nspnew)
+  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams)
 
   ks = k.subfunctions
 
