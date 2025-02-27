@@ -3,6 +3,7 @@ import copy
 
 import numpy
 from firedrake import AuxiliaryOperatorPC, derivative
+from firedrake.dmhooks import get_appctx
 from ufl import replace
 
 from irksome.stage_derivative import getForm
@@ -68,11 +69,14 @@ class RanaBase(AuxiliaryOperatorPC):
         butcher_new = copy.deepcopy(butcher_tableau)
         butcher_new.A = Atilde
 
-        # which getForm do I need to get?
+        # get stages
+        ctx = get_appctx(pc.getDM())
+        w = ctx._x
 
+        # which getForm do I need to get?
         if stage_type in ("deriv", None):
-            Fnew, w, bcnew = \
-                getForm(F, butcher_new, t, dt, u0, bcs,
+            Fnew, bcnew = \
+                getForm(F, butcher_new, t, dt, u0, w, bcs,
                         bc_type, splitting)
         elif stage_type == "value":
             Fnew, _, w, bcnew = \
@@ -124,9 +128,13 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         F, bcs = self.getNewForm(pc, u0, v0)
         # which getForm do I need to get?
 
+        # get stages
+        ctx = get_appctx(pc.getDM())
+        w = ctx._x
+
         if stage_type in ("deriv", None):
-            Fnew, w, bcnew = \
-                getForm(F, butcher_tableau, t, dt, u0, bcs,
+            Fnew, bcnew = \
+                getForm(F, butcher_tableau, t, dt, u0, w, bcs,
                         bc_type, splitting)
         elif stage_type == "value":
             Fnew, _, w, bcnew = \

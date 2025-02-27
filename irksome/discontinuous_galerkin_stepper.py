@@ -229,7 +229,7 @@ class DiscontinuousGalerkinTimeStepper:
 
         bigNSP = getNullspace(V, UU.function_space(),
                               order+1, nullspace)
-        
+
         self.UU = UU
         self.bigBCs = bigBCs
         problem = NLVP(bigF, UU, bigBCs)

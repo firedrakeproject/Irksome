@@ -188,7 +188,7 @@ class RadauIIAIMEXMethod:
         nsp = getNullspace(u0.function_space(),
                            UU.function_space(),
                            self.num_stages, nullspace)
-        
+
         self.UU = UU
         self.UU_old = UU_old = Function(UU.function_space())
         self.UU_old_split = UU_old.subfunctions

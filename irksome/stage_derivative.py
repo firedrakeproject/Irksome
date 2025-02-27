@@ -84,7 +84,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     num_stages = butch.num_stages
     w = stages
     Vbig = stages.function_space()
-    
+
     vnew = TestFunction(Vbig)
     v_np = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
     w_np = numpy.reshape(w, (num_stages, *u0.ufl_shape))
@@ -305,14 +305,13 @@ class StageDerivativeTimeStepper:
         num_stages = self.butcher_tableau.num_stages
         Vbig = reduce(mul, (self.V for _ in range(num_stages)))
         return Function(Vbig)
-    
+
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
             butcher_tableau = self.butcher_tableau
         return getForm(self.F, butcher_tableau, self.t, self.dt,
                        self.u0, stages, self.orig_bcs, self.bc_type,
                        self.splitting)
-        
 
 
 class AdaptiveTimeStepper(StageDerivativeTimeStepper):

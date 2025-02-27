@@ -274,7 +274,6 @@ class StageValueTimeStepper:
                            UU.function_space(),
                            self.num_stages, nullspace)
 
-        
         self.UU = UU
         self.bigBCs = bigBCs
         self.update_stuff = update_stuff

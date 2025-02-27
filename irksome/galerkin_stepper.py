@@ -212,7 +212,7 @@ class GalerkinTimeStepper:
 
         bigNSP = getNullspace(V, UU.function_space(),
                               order, nullspace)
-        
+
         self.UU = UU
         self.bigBCs = bigBCs
         problem = NLVP(bigF, UU, bigBCs)

@@ -40,9 +40,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                  appctx=None, nullspace=None,
                  splitting=None, bc_type="DAE"):
 
-        super().__init__(F, butcher_tableau, t, dt, u0,
+        super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
-
 
     def advance(self):
         self.solver.solve()
@@ -53,5 +52,3 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     @abstractmethod
     def getForm(self, butch=None):
         pass
-
-
