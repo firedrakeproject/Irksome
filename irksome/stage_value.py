@@ -13,7 +13,7 @@ from ufl.constantvalue import as_ufl
 from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
-from .tools import (AI, IA, ConstantOrZero, getNullspace, is_ode, replace, component_replace)
+from .tools import (AI, IA, ConstantOrZero, is_ode, replace, component_replace)
 from .base_time_stepper import StageCoupledTimeStepper
 
 vecconst = np.vectorize(ConstantOrZero)
@@ -224,16 +224,11 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
         assert is_ode(F, u0) or butcher_tableau.is_stiffly_accurate
-        super().__init__(F, t, dt, u0, bcs=bcs,
-                         solver_parameters=solver_parameters,
-                         appctx=appctx, nullspace=nullspace,
-                         splitting=splitting, butcher_tableau=butcher_tableau)
 
         self.butcher_tableau = butcher_tableau
-        self.num_stages = len(butcher_tableau.b)
-        self.num_fields = len(u0.function_space())
         self.bc_constraints = bc_constraints
-        degree = self.num_stages
+
+        degree = butcher_tableau.num_stages
 
         if basis_type is None:
             vandermonde = np.eye(degree+1)
@@ -246,22 +241,12 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             raise ValueError("Unknown or unimplemented basis transformation type")
         self.vandermonde = vandermonde
 
-        UU = self.get_stages()
-        self.stages = UU
+        super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
+                         solver_parameters=solver_parameters,
+                         appctx=appctx, nullspace=nullspace,
+                         splitting=splitting, butcher_tableau=butcher_tableau)
 
-        Fbig, bigBCs = self.get_form_and_bcs(self.stages)
-
-        nsp = getNullspace(u0.function_space(),
-                           UU.function_space(),
-                           self.num_stages, nullspace)
-
-        self.bigBCs = bigBCs
-
-        self.prob = NonlinearVariationalProblem(Fbig, UU, bigBCs)
-
-        self.solver = NonlinearVariationalSolver(
-            self.prob, appctx=self.appctx, nullspace=nsp,
-            solver_parameters=solver_parameters)
+        self.num_fields = len(u0.function_space())
 
         if (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
             unew, Fupdate, update_bcs = self.update_stuff
@@ -276,8 +261,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             self._update = self._update_stiff_acc
 
         # stash these for later in case we do bounds constraints
-        self.stage_lower_bound = Function(UU.function_space())
-        self.stage_upper_bound = Function(UU.function_space())
+        self.stage_lower_bound = Function(self.stages.function_space())
+        self.stage_upper_bound = Function(self.stages.function_space())
 
     def _update_stiff_acc(self):
         u0 = self.u0

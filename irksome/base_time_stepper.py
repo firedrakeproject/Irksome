@@ -1,6 +1,6 @@
 from abc import abstractmethod
-from firedrake import Function
-from .tools import AI, get_stage_space
+from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationalSolver
+from .tools import AI, get_stage_space, getNullspace
 
 
 class BaseTimeStepper:
@@ -40,7 +40,7 @@ class BaseTimeStepper:
 
 # Stage derivative + stage value + (maybe?) RadauIIAIMEX
 class StageCoupledTimeStepper(BaseTimeStepper):
-    def __init__(self, F, t, dt, u0,
+    def __init__(self, F, t, dt, u0, num_stages,
                  bcs=None, solver_parameters=None,
                  appctx=None, nullspace=None,
                  splitting=None, bc_type="DAE",
@@ -48,7 +48,10 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
+
+        self.num_stages = num_stages
         if butcher_tableau:
+            assert num_stages == butcher_tableau.num_stages
             self.appctx["butcher_tableau"] = butcher_tableau
         if splitting is None:
             splitting = AI
@@ -59,6 +62,23 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
+
+        stages = self.get_stages()
+        self.stages = stages
+
+        Fbig, bigBCs = self.get_form_and_bcs(self.stages)
+
+        nsp = getNullspace(u0.function_space(),
+                           stages.function_space(),
+                           self.num_stages, nullspace)
+
+        self.bigBCs = bigBCs
+
+        self.prob = NonlinearVariationalProblem(Fbig, stages, bigBCs)
+
+        self.solver = NonlinearVariationalSolver(
+            self.prob, appctx=self.appctx, nullspace=nsp,
+            solver_parameters=solver_parameters)
 
     def advance(self):
         self.solver.solve()
@@ -74,6 +94,5 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
 
     def get_stages(self):
-        num_stages = self.butcher_tableau.num_stages
-        Vbig = get_stage_space(self.V, num_stages)
+        Vbig = get_stage_space(self.V, self.num_stages)
         return Function(Vbig)

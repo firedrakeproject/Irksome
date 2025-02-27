@@ -9,7 +9,7 @@ from firedrake.dmhooks import pop_parent, push_parent
 from ufl import as_tensor, diff, dot, zero
 from ufl.algorithms import expand_derivatives
 from ufl.constantvalue import as_ufl
-from .tools import component_replace, replace, getNullspace, AI, ConstantOrZero
+from .tools import component_replace, replace, AI, ConstantOrZero
 from .deriv import TimeDerivative  # , apply_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, bc2space, stage2spaces4bc
 from .manipulation import extract_terms
@@ -190,38 +190,22 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                  solver_parameters=None, splitting=AI,
                  appctx=None, nullspace=None, bc_type="DAE"):
 
-        super().__init__(F, t, dt, u0, bcs=bcs,
+        self.butcher_tableau = butcher_tableau
+
+        super().__init__(F, t, dt, u0,
+                         butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace,
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau)
 
-        self.butcher_tableau = butcher_tableau
         self.num_fields = len(self.V)
         self.num_stages = len(butcher_tableau.b)
 
-        stages = self.get_stages()
-        bigF, bigBCs = self.get_form_and_bcs(stages)
-
-        bigNSP = getNullspace(u0.function_space(),
-                              stages.function_space(),
-                              self.num_stages, nullspace)
-
-        self.stages = stages
-        self.bigBCs = bigBCs
-        problem = NLVP(bigF, stages, bigBCs)
-
-        push_parent(u0.function_space().dm, stages.function_space().dm)
-        self.solver = NLVS(problem,
-                           appctx=self.appctx,
-                           solver_parameters=solver_parameters,
-                           nullspace=bigNSP)
-        pop_parent(u0.function_space().dm, stages.function_space().dm)
-
         if self.num_stages == 1 and self.num_fields == 1:
-            self.ws = (stages,)
+            self.ws = (self.stages,)
         else:
-            self.ws = stages.subfunctions
+            self.ws = self.stages.subfunctions
 
         A1, A2 = splitting(butcher_tableau.A)
         try:
