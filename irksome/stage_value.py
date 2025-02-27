@@ -18,7 +18,7 @@ from .tools import (AI, IA, ConstantOrZero, getNullspace, is_ode, replace, compo
 
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None,
-                 bc_constraints=None, nullspace=None):
+                 bc_constraints=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -206,8 +206,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
 
             bcsnew.extend(bcnew_cur)
 
-    nspacenew = getNullspace(V, Vbig, num_stages, nullspace)
-
     # only form update stuff if we need it
     # which means neither stiffly accurate nor Vandermonde
     if not butch.is_stiffly_accurate:
@@ -235,7 +233,7 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     else:
         update_stuff = None
 
-    return (Fnew, update_stuff, ZZ, bcsnew, nspacenew)
+    return Fnew, update_stuff, ZZ, bcsnew
 
 
 class StageValueTimeStepper:
@@ -268,10 +266,15 @@ class StageValueTimeStepper:
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")
 
-        Fbig, update_stuff, UU, bigBCs, nsp = getFormStage(
+        Fbig, update_stuff, UU, bigBCs = getFormStage(
             F, butcher_tableau, u0, t, dt, bcs, vandermonde=vandermonde,
             splitting=splitting)
 
+        nsp = getNullspace(u0.function_space(),
+                           UU.function_space(),
+                           self.num_stages, nullspace)
+
+        
         self.UU = UU
         self.bigBCs = bigBCs
         self.update_stuff = update_stuff

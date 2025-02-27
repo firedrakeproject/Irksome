@@ -56,7 +56,7 @@ Continuing::
 
 Now, we use the :func:`.getForm` function, which processes the semidiscrete problem::
 
-  Fnew, k, bcnew, nspnew = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
+  Fnew, k, bcnew = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
 
 This returns several things:
 
@@ -81,7 +81,7 @@ We can set up a new nonlinear variational problem and create a solver
 for it in standard Firedrake fashion::
 
   prob = NonlinearVariationalProblem(Fnew, k, bcs=bcnew)
-  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams, nullspace=nspnew)
+  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams)
 
 We'll need to split the stage variable so that we can update the
 solution after solving for the stages at each time step::

@@ -13,7 +13,7 @@ from firedrake import as_vector, dot, Constant, TestFunction, Function, Nonlinea
 from firedrake.dmhooks import pop_parent, push_parent
 
 
-def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
+def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None):
 
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
@@ -32,11 +32,6 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-         index is an index into the function space associated with `u`
-         and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
-         be passed to a `firedrake.MixedVectorSpaceBasis` over the
-         larger space associated with the Runge-Kutta method
 
     On output, we return a tuple consisting of four parts:
 
@@ -128,7 +123,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, bcs=None, nullspace=None):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
 
-    return Fnew, UU, bcsnew, getNullspace(V, Vbig, num_stages, nullspace)
+    return Fnew, UU, bcsnew
 
 
 class GalerkinTimeStepper:
@@ -211,10 +206,13 @@ class GalerkinTimeStepper:
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
-        bigF, UU, bigBCs, bigNSP = \
+        bigF, UU, bigBCs = \
             getFormGalerkin(F, self.trial_el, self.test_el,
-                            quadrature, t, dt, u0, bcs, nullspace)
+                            quadrature, t, dt, u0, bcs)
 
+        bigNSP = getNullspace(V, UU.function_space(),
+                              order, nullspace)
+        
         self.UU = UU
         self.bigBCs = bigBCs
         problem = NLVP(bigF, UU, bigBCs)

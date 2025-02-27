@@ -18,8 +18,7 @@ from .bcs import EmbeddedBCData, BCStageData, bc2space, stage2spaces4bc
 from .manipulation import extract_terms
 
 
-def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
-            nullspace=None):
+def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -47,11 +46,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
          constraints in the style of a differential-algebraic
          equation, or "ODE", which takes the time derivative of the
          boundary data and evaluates this for the stage values
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-         index is an index into the function space associated with `u`
-         and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
-         be passed to a `firedrake.MixedVectorSpaceBasis` over the
-         larger space associated with the Runge-Kutta method
 
     On output, we return a tuple consisting of four parts:
 
@@ -62,8 +56,6 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
          form lives.
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages,
-       - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
-         that represents the nullspace of the coupled system
     """
     if bc_type is None:
         bc_type = "DAE"
@@ -90,9 +82,9 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
         A1inv = None
 
     num_stages = butch.num_stages
-    Vbig = reduce(mul, (V for _ in range(num_stages)))
-
-    w = Function(Vbig)
+    w = stages
+    Vbig = stages.function_space()
+    
     vnew = TestFunction(Vbig)
     v_np = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
     w_np = numpy.reshape(w, (num_stages, *u0.ufl_shape))
@@ -151,9 +143,7 @@ def getForm(F, butch, t, dt, u0, bcs=None, bc_type=None, splitting=AI,
             gdat = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
             bcnew.append(bc.reconstruct(V=Vbigi, g=gdat))
 
-    nspnew = getNullspace(V, Vbig, num_stages, nullspace)
-
-    return Fnew, w, bcnew, nspnew
+    return Fnew, bcnew
 
 
 class StageDerivativeTimeStepper:
@@ -202,19 +192,26 @@ class StageDerivativeTimeStepper:
                  solver_parameters=None, splitting=AI,
                  appctx=None, nullspace=None, bc_type="DAE"):
         self.u0 = u0
+        self.V = u0.function_space()
         self.F = F
         self.orig_bcs = bcs
+        self.bc_type = bc_type
+        self.splitting = splitting
         self.t = t
         self.dt = dt
-        self.num_fields = len(u0.function_space())
+        self.num_fields = len(self.V)
         self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
-        bigF, stages, bigBCs, bigNSP = \
-            getForm(F, butcher_tableau, t, dt, u0, bcs, bc_type, splitting, nullspace)
+        stages = self.get_stages()
+        bigF, bigBCs = self.get_form_and_bcs(stages)
+
+        bigNSP = getNullspace(u0.function_space(),
+                              stages.function_space(),
+                              self.num_stages, nullspace)
 
         self.stages = stages
         self.bigBCs = bigBCs
@@ -303,6 +300,19 @@ class StageDerivativeTimeStepper:
 
     def solver_stats(self):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
+
+    def get_stages(self):
+        num_stages = self.butcher_tableau.num_stages
+        Vbig = reduce(mul, (self.V for _ in range(num_stages)))
+        return Function(Vbig)
+    
+    def get_form_and_bcs(self, stages, butcher_tableau=None):
+        if butcher_tableau is None:
+            butcher_tableau = self.butcher_tableau
+        return getForm(self.F, butcher_tableau, self.t, self.dt,
+                       self.u0, stages, self.orig_bcs, self.bc_type,
+                       self.splitting)
+        
 
 
 class AdaptiveTimeStepper(StageDerivativeTimeStepper):

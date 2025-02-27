@@ -9,7 +9,7 @@ from ufl import zero
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative
 from .stage_value import getFormStage
-from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, component_replace
+from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, component_replace, getNullspace
 from .bcs import bc2space
 
 
@@ -181,10 +181,14 @@ class RadauIIAIMEXMethod:
 
         # Since this assumes stiff accuracy, we drop
         # the update information on the floor.
-        Fbig, _, UU, bigBCs, nsp = getFormStage(
+        Fbig, _, UU, bigBCs = getFormStage(
             F, butcher_tableau, u0, t, dt, bcs,
-            splitting=splitting, nullspace=nullspace)
+            splitting=splitting)
 
+        nsp = getNullspace(u0.function_space(),
+                           UU.function_space(),
+                           self.num_stages, nullspace)
+        
         self.UU = UU
         self.UU_old = UU_old = Function(UU.function_space())
         self.UU_old_split = UU_old.subfunctions

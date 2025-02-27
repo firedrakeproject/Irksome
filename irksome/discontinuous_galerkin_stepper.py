@@ -14,7 +14,7 @@ from firedrake import as_vector, Constant, dot, TestFunction, Function, Nonlinea
 from firedrake.dmhooks import pop_parent, push_parent
 
 
-def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
+def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None):
 
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
@@ -144,7 +144,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, bcs=None, nullspace=None):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
 
-    return Fnew, UU, bcsnew, getNullspace(V, Vbig, num_stages, nullspace)
+    return Fnew, UU, bcsnew
 
 
 class DiscontinuousGalerkinTimeStepper:
@@ -223,10 +223,13 @@ class DiscontinuousGalerkinTimeStepper:
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
-        bigF, UU, bigBCs, bigNSP = \
+        bigF, UU, bigBCs = \
             getFormDiscGalerkin(F, self.el,
-                                quadrature, t, dt, u0, bcs, nullspace)
+                                quadrature, t, dt, u0, bcs)
 
+        bigNSP = getNullspace(V, UU.function_space(),
+                              order+1, nullspace)
+        
         self.UU = UU
         self.bigBCs = bigBCs
         problem = NLVP(bigF, UU, bigBCs)
