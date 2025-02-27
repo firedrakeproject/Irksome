@@ -1,8 +1,6 @@
 from abc import abstractmethod
-from functools import reduce
-from operator import mul
 from firedrake import Function
-from .tools import AI
+from .tools import AI, get_stage_space
 
 
 class BaseTimeStepper:
@@ -77,5 +75,5 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
     def get_stages(self):
         num_stages = self.butcher_tableau.num_stages
-        Vbig = reduce(mul, (self.V for _ in range(num_stages)))
+        Vbig = get_stage_space(self.V, num_stages)
         return Function(Vbig)
