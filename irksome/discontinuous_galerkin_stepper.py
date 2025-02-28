@@ -2,7 +2,6 @@ from FIAT import (Bernstein, DiscontinuousElement,
                   DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange,
                   make_quadrature, ufc_simplex)
-from ufl import zero
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
@@ -87,45 +86,36 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
 
     split_form = extract_terms(F)
-    dtless = strip_dt_form(split_form.time)
-
-    Fnew = zero()
+    F_dtless = strip_dt_form(split_form.time)
+    F_remainder = split_form.remainder
 
     basis_vals = vecconst(basis_vals)
     basis_dvals = vecconst(basis_dvals)
-
     qpts = vecconst(qpts.reshape((-1,)))
     qwts = vecconst(qwts)
 
-    # Terms with time derivatives
-    for i in range(num_stages):
-        repl = {v: v_np[i]}
-        F_i = component_replace(dtless, repl)
-
-        # now loop over quadrature points
-        for q in range(len(qpts)):
-            repl = {t: t + dt * qpts[q],
-                    u0: (1/dt) * (u_np @ basis_dvals[:, q])}
-
-            Fnew += dt * qwts[q] * basis_vals[i, q] * component_replace(F_i, repl)
-
-    # jump terms
+    # Jump terms
     repl = {u0: u_np[0] - u0,
             v: v_np[0]}
+    Fnew = component_replace(F_dtless, repl)
 
-    Fnew += component_replace(dtless, repl)
+    # Terms with time derivatives
+    for q in range(len(qpts)):
+        vsub = v_np @ basis_vals[:, q]
+        u0sub = u_np @ basis_dvals[:, q]
+        repl = {t: t + dt * qpts[q],
+                v: vsub * (dt * qwts[q]),
+                u0: u0sub * (1/dt)}
+        Fnew += component_replace(F_dtless, repl)
 
-    # handle the rest of the terms
-    for i in range(num_stages):
-        repl = {v: v_np[i]}
-        F_i = component_replace(split_form.remainder, repl)
-
-        # now loop over quadrature points
-        for q in range(len(qpts)):
-            repl = {t: t + dt * qpts[q],
-                    u0: u_np @ basis_vals[:, q]}
-
-            Fnew += dt * qwts[q] * basis_vals[i, q] * component_replace(F_i, repl)
+    # Handle the rest of the terms
+    for q in range(len(qpts)):
+        vsub = v_np @ basis_vals[:, q]
+        u0sub = u_np @ basis_vals[:, q]
+        repl = {t: t + dt * qpts[q],
+                v: vsub * (dt * qwts[q]),
+                u0: u0sub}
+        Fnew += component_replace(F_remainder, repl)
 
     # Oh, honey, is it the boundary conditions?
     if bcs is None:
