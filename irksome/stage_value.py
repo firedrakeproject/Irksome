@@ -44,8 +44,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
          The user may adjust this value between time steps.
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
-    :arg stages: a :class:`Function` referring to the stages of the time-discrete
-         system at time `t`
+    :arg stages: a :class:`Function` representing the stages to be solved for.
     :arg splitting: a callable that maps the (floating point) Butcher matrix
          a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
          to vary between the classical RK formulation and Butcher's reformulation

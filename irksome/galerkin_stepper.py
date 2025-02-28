@@ -8,7 +8,7 @@ from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative
 from .tools import component_replace, replace, vecconst
 import numpy as np
-from firedrake import as_vector, dot, Constant, TestFunction
+from firedrake import TestFunction
 
 
 def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
@@ -27,6 +27,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
          The user may adjust this value between time steps.
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
+    :arg stages: a :class:`Function` representing the stages to be solved for.
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
@@ -34,7 +35,6 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
     On output, we return a tuple consisting of four parts:
 
        - Fnew, the :class:`Form` corresponding to the Galerkin-in-Time discretized problem
-       - UU, the :class:`Function` representing the stages to be solved for
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
        - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
@@ -50,56 +50,47 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
     assert V == u0.function_space()
 
     num_stages = L_test.space_dimension()
-
     Vbig = stages.function_space()
-    VV = TestFunction(Vbig)
-    UU = stages
-
-    u_np = np.reshape(UU, (num_stages, *u0.ufl_shape))
-    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
-
+    test = TestFunction(Vbig)
     qpts = Q.get_points()
     qwts = Q.get_weights()
-
-    tabulate_trials = L_trial.tabulate(1, qpts)
-    trial_vals = tabulate_trials[(0,)]
-    trial_dvals = tabulate_trials[(1,)]
-    test_vals = L_test.tabulate(0, qpts)[(0,)]
 
     # sort dofs geometrically by entity location
     edofs = L_trial.entity_dofs()
     trial_perm = [*edofs[0][0], *edofs[1][0], *edofs[0][1]]
-    trial_vals = trial_vals[trial_perm]
-    trial_dvals = trial_dvals[trial_perm]
+    tabulate_trials = L_trial.tabulate(1, qpts)
+    trial_vals = tabulate_trials[(0,)][trial_perm]
+    trial_dvals = tabulate_trials[(1,)][trial_perm]
+    test_vals = L_test.tabulate(0, qpts)[(0,)]
+    test_vals_w = np.multiply(test_vals, qwts)
 
     # mass-ish matrix later for BC
-    mmat = np.multiply(test_vals, qwts) @ trial_vals[1:].T
-
+    mmat = test_vals_w @ trial_vals[1:].T
     # L2 projector
-    proj = Constant(np.linalg.solve(mmat, np.multiply(test_vals, qwts)))
+    proj = vecconst(np.linalg.solve(mmat, test_vals_w))
 
-    dtu0 = TimeDerivative(u0)
     trial_vals = vecconst(trial_vals)
     trial_dvals = vecconst(trial_dvals)
-    test_vals = vecconst(test_vals)
+    test_vals_w = vecconst(test_vals_w)
     qpts = vecconst(qpts.reshape((-1,)))
-    qwts = vecconst(qwts)
+
+    # set up the pieces we need to work with to do our substitutions
+    v_np = np.reshape(test, (num_stages, *u0.ufl_shape))
+    w_np = np.reshape(stages, (num_stages, *u0.ufl_shape))
+    u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
+    vsub = test_vals_w.T @ v_np
+    usub = trial_vals.T @ u_np
+    dtu0sub = trial_dvals.T @ u_np
+
+    dtu0 = TimeDerivative(u0)
 
     # now loop over quadrature points
     Fnew = zero()
     for q in range(len(qpts)):
-        vsub = sum(v_np[j] * test_vals[j, q] for j in range(num_stages))
-
-        u0sub = u0 * trial_vals[0, q]
-        u0sub += sum(u_np[j] * trial_vals[1+j, q] for j in range(num_stages))
-
-        dtu0sub = u0 * trial_dvals[0, q]
-        dtu0sub += sum(u_np[j] * trial_dvals[1+j, q] for j in range(num_stages))
-
-        repl = {t: t + dt * qpts[q],
-                v: vsub * (qwts[q] * dt),
-                u0: u0sub,
-                dtu0: dtu0sub / dt}
+        repl = {t: t + qpts[q] * dt,
+                v: vsub[q] * dt,
+                u0: usub[q],
+                dtu0: dtu0sub[q] / dt}
         Fnew += component_replace(F, repl)
 
     # Oh, honey, is it the boundary conditions?
@@ -113,7 +104,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
         for q in range(len(qpts)):
             tcur = t + qpts[q] * dt
             bcblah_at_qp[q] = replace(bcarg, {t: tcur}) - u0_sub * trial_vals[0, q]
-        bc_func_for_stages = dot(proj, as_vector(bcblah_at_qp))
+        bc_func_for_stages = proj @ bcblah_at_qp
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))

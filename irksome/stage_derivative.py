@@ -33,6 +33,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
          Some choices of function will assume that `butch.A` is invertible.
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
+    :arg stages: a :class:`Function` representing the stages to be solved for.
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
@@ -176,7 +177,13 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                  solver_parameters=None, splitting=AI,
                  appctx=None, nullspace=None, bc_type="DAE"):
 
+        self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
+        A1, A2 = splitting(butcher_tableau.A)
+        try:
+            self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b))
+        except numpy.linalg.LinAlgError:
+            raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
 
         super().__init__(F, t, dt, u0,
                          butcher_tableau.num_stages, bcs=bcs,
@@ -184,14 +191,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx, nullspace=nullspace,
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau)
-
-        self.num_fields = len(self.V)
-        A1, A2 = splitting(butcher_tableau.A)
-        try:
-            self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b))
-        except numpy.linalg.LinAlgError:
-            raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
-
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
         solved, updates the solution.  This will not typically be

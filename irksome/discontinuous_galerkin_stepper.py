@@ -6,9 +6,9 @@ from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .manipulation import extract_terms, strip_dt_form
-from .tools import component_replace, replace
+from .tools import component_replace, replace, vecconst
 import numpy as np
-from firedrake import as_vector, Constant, dot, TestFunction
+from firedrake import TestFunction
 
 
 def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
@@ -26,6 +26,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
          The user may adjust this value between time steps.
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
+    :arg stages: a :class:`Function` representing the stages to be solved for.
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
@@ -38,7 +39,6 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     On output, we return a tuple consisting of four parts:
 
        - Fnew, the :class:`Form` corresponding to the DG-in-Time discretized problem
-       - UU, the :class:`Function` representing the stages to be solved for
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
        - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
@@ -51,15 +51,9 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     V = v.function_space()
     assert V == u0.function_space()
 
-    vecconst = Constant
-
     num_stages = L.space_dimension()
-
     Vbig = stages.function_space()
-
-    VV = TestFunction(Vbig)
-    UU = stages
-
+    test = TestFunction(Vbig)
     qpts = Q.get_points()
     qwts = Q.get_weights()
 
@@ -75,24 +69,28 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     perm = [*edofs[0][0], *edofs[1][0], *edofs[0][1]]
     basis_vals = basis_vals[perm]
     basis_dvals = basis_dvals[perm]
+    basis_vals_w = np.multiply(basis_vals, qwts)
 
     # mass matrix later for BC
-    mmat = np.multiply(basis_vals, qwts) @ basis_vals.T
-
+    mmat = basis_vals_w @ basis_vals.T
     # L2 projector
-    proj = Constant(np.linalg.solve(mmat, np.multiply(basis_vals, qwts)))
+    proj = vecconst(np.linalg.solve(mmat, basis_vals_w))
 
-    u_np = np.reshape(UU, (num_stages, *u0.ufl_shape))
-    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
+    trial_vals = vecconst(basis_vals)
+    trial_dvals = vecconst(basis_dvals)
+    test_vals_w = vecconst(basis_vals_w)
+    qpts = vecconst(qpts.reshape((-1,)))
 
     split_form = extract_terms(F)
     F_dtless = strip_dt_form(split_form.time)
     F_remainder = split_form.remainder
 
-    basis_vals = vecconst(basis_vals)
-    basis_dvals = vecconst(basis_dvals)
-    qpts = vecconst(qpts.reshape((-1,)))
-    qwts = vecconst(qwts)
+    # set up the pieces we need to work with to do our substitutions
+    v_np = np.reshape(test, (num_stages, *u0.ufl_shape))
+    u_np = np.reshape(stages, (num_stages, *u0.ufl_shape))
+    vsub = test_vals_w.T @ v_np
+    usub = trial_vals.T @ u_np
+    dtu0sub = trial_dvals.T @ u_np
 
     # Jump terms
     repl = {u0: u_np[0] - u0,
@@ -101,20 +99,16 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
 
     # Terms with time derivatives
     for q in range(len(qpts)):
-        vsub = v_np @ basis_vals[:, q]
-        u0sub = u_np @ basis_dvals[:, q]
-        repl = {t: t + dt * qpts[q],
-                v: vsub * (dt * qwts[q]),
-                u0: u0sub * (1/dt)}
+        repl = {t: t + qpts[q] * dt,
+                v: vsub[q] * dt,
+                u0: dtu0sub[q] / dt}
         Fnew += component_replace(F_dtless, repl)
 
     # Handle the rest of the terms
     for q in range(len(qpts)):
-        vsub = v_np @ basis_vals[:, q]
-        u0sub = u_np @ basis_vals[:, q]
-        repl = {t: t + dt * qpts[q],
-                v: vsub * (dt * qwts[q]),
-                u0: u0sub}
+        repl = {t: t + qpts[q] * dt,
+                v: vsub[q] * dt,
+                u0: usub[q]}
         Fnew += component_replace(F_remainder, repl)
 
     # Oh, honey, is it the boundary conditions?
@@ -127,7 +121,7 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
         for q in range(len(qpts)):
             tcur = t + qpts[q] * dt
             bcblah_at_qp[q] = replace(bcarg, {t: tcur})
-        bc_func_for_stages = dot(proj, as_vector(bcblah_at_qp))
+        bc_func_for_stages = proj @ bcblah_at_qp
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
