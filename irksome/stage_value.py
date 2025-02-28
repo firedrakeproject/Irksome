@@ -22,8 +22,10 @@ def to_value(u0, stages, vandermonde):
     Since u0 is not part of the unknown vector of stages, we disassemble
     the Vandermonde matrix (first row is [1, 0, ...]).
     """
-    u0_np = numpy.reshape(u0, (-1, *u0.ufl_shape))
     ZZ_np = numpy.reshape(stages, (-1, *u0.ufl_shape))
+    if vandermonde is None:
+        return ZZ_np
+    u0_np = numpy.reshape(u0, (-1, *u0.ufl_shape))
     u_np = numpy.concatenate((u0_np, ZZ_np))
     return vandermonde[1:] @ u_np
 
@@ -44,6 +46,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
+         It lives in a :class:`firedrake.FunctionSpace` corresponding to the
+         s-way tensor product of the space on which the semidiscrete
+         form lives.
     :arg splitting: a callable that maps the (floating point) Butcher matrix
          a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
          to vary between the classical RK formulation and Butcher's reformulation
@@ -73,18 +78,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
 
     On output, we return a tuple consisting of several parts:
 
-       - Fnew, the :class:`Form`
-       - possibly a 4-tuple containing information needed to solve a mass matrix to update
-         the solution (this is empty for RadauIIA methods for which there is a trivial
-         update function.
-       - UU, the :class:`firedrake.Function` holding all the stage time values.
-         It lives in a :class:`firedrake.FunctionSpace` corresponding to the
-         s-way tensor product of the space on which the semidiscrete
-         form lives.
+       - `Fnew`, the :class:`Form`
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages,
-       - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
-         that represents the nullspace of the coupled system
     """
     v = F.arguments()[0]
     V = v.function_space()
@@ -140,7 +136,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
         bc_constraints = {}
     bcsnew = []
 
-    Vander_inv = vecconst(numpy.linalg.inv(vandermonde.astype(float)))
+    if vandermonde is not None:
+        Vander_inv = vecconst(numpy.linalg.inv(vandermonde.astype(float)))
+
     # For each BC, we need a new BC for each stage
     # so we need to figure out how the function is indexed (mixed + vec)
     # and then set it to have the value of the original argument at
@@ -154,12 +152,10 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
             gcur = gcur - vandermonde[1+i, 0] * bcarg
             # FIXME gcur is unused
         else:
-            Vg_np = numpy.zeros((num_stages,), dtype="O")
-            for i in range(num_stages):
-                Vg_np[i] = (replace(bcarg, {t: t + c[i] * dt})
-                            - vandermonde[1+i, 0] * bcarg)
-
-            g_np = Vander_inv[1:, 1:] @ Vg_np
+            g_np = numpy.array([replace(bcarg, {t: t + ci * dt}) for ci in c])
+            if vandermonde is not None:
+                g_np -= vandermonde[1:, 0] * bcarg
+                g_np = Vander_inv[1:, 1:] @ g_np
 
             bcnew_cur = []
             for i in range(num_stages):
@@ -187,7 +183,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         degree = butcher_tableau.num_stages
 
         if basis_type is None:
-            vandermonde = numpy.eye(degree+1)
+            vandermonde = None
         elif basis_type == "Bernstein":
             assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
             bern = Bernstein(ufc_simplex(1), degree)
@@ -195,7 +191,10 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             vandermonde = bern.tabulate(0, pts)[(0, )].T
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")
-        self.vandermonde = vecconst(vandermonde)
+
+        if vandermonde is not None:
+            vandermonde = vecconst(vandermonde)
+        self.vandermonde = vandermonde
 
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
