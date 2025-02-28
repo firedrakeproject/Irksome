@@ -1,10 +1,10 @@
 import numpy
-from firedrake import Constant, Function, TestFunction
+from firedrake import Function, TestFunction
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm
 
-from ufl import as_tensor, diff, dot, zero
+from ufl import diff, zero
 from ufl.algorithms import expand_derivatives
 from ufl.constantvalue import as_ufl
 from .tools import component_replace, replace, AI, vecconst
@@ -105,16 +105,16 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     elif bc_type == "DAE":
         try:
             bA1inv = numpy.linalg.inv(bA1)
-            A1inv = Constant(bA1inv)
+            A1inv = vecconst(bA1inv)
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
-        u0_mult = dot(A1inv, as_tensor(numpy.ones_like(butch.c))) / dt
+        u0_mult = (A1inv @ numpy.ones_like(butch.c)) / dt
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
-            g_np = numpy.array(replace(gorig, {t: t + cj*dt}) for cj in c)
-            gcur = (1/dt) * (A1inv[i] @ g_np)
+            gcur = (1/dt) * sum(replace(gorig, {t: t + c[j]*dt}) * A1inv[i, j]
+                                for j in range(butch.num_stages))
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
@@ -124,9 +124,9 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     for bc in bcs:
         for i in range(num_stages):
             Vsp = bc2space(bc, V)
-            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             gcur = bc2gcur(bc, i)
             gdat = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
+            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcnew.append(bc.reconstruct(V=Vbigi, g=gdat))
 
     return Fnew, bcnew
