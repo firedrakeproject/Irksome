@@ -3,11 +3,13 @@ from firedrake import (DirichletBC, Function, TestFunction,
                        NonlinearVariationalProblem,
                        NonlinearVariationalSolver,
                        replace, inner, dx)
+from ufl import as_ufl
 
 
 def get_sub(u, indices):
     for i in indices:
-        u = u.sub(i)
+        if i is not None:
+            u = u.sub(i)
     return u
 
 
@@ -17,55 +19,39 @@ def bc2space(bc, V):
 
 def stage2spaces4bc(bc, V, Vbig, i):
     """used to figure out how to apply Dirichlet BC to each stage"""
-    num_fields = len(V)
-    sub = 0 if num_fields == 1 else bc.function_space_index()
-    comp = bc.function_space().component
-
-    Vbigi = Vbig[sub+num_fields*i]
-    if comp is not None:  # check for sub-piece of vector-valued
-        Vbigi = Vbigi.sub(comp)
-
+    sub = 0 if len(V) == 1 else bc.function_space_index()
+    comp = (bc.function_space().component,)
+    Vbigi = get_sub(Vbig[sub + len(V)*i], comp)
     return Vbigi
 
 
 def BCStageData(V, gcur, u0, u0_mult, i, t, dt):
-    if V.component is None:  # V is not a bit of a VFS
-        if V.index is None:  # not part of MFS, either
-            indices = ()
-        else:  # part of MFS
-            indices = (V.index,)
-    else:  # bottommost space is bit of VFS
-        if V.parent.index is None:  # but not part of a MFS
-            indices = (V.component,)
-        else:   # V is a bit of a VFS inside an MFS
-            indices = (V.parent.index, V.component)
-
-    if gcur == 0:  # special case DirichletBC(V, 0, ...), do nothing
-        gdat = gcur
+    if gcur == 0:
+        # special case DirichletBC(V, 0, ...), do nothing
+        return gcur
+    if V.component is None:
+        indices = (V.index,)
     else:
-        gdat = gcur - u0_mult[i] * get_sub(u0, indices)
+        indices = (V.parent.index, V.component)
+    gdat = gcur - u0_mult[i] * get_sub(u0, indices)
     return gdat
 
 
 def EmbeddedBCData(bc, t, dt, num_fields, butcher_tableau, ws, u0):
     gorig = bc._original_arg
-    if gorig == 0:  # special case DirichletBC(V, 0, ...), do nothing
-        gdat = gorig
-    else:
-        gcur = replace(gorig, {t: t+dt})
-        sub = 0 if num_fields == 1 else bc.function_space_index()
-        comp = bc.function_space().component
-        num_stages = butcher_tableau.num_stages
-        btilde = butcher_tableau.btilde
-        if comp is None:  # check for sub-piece of vector-valued
-            for j in range(num_stages):
-                gcur -= dt*btilde[j]*ws[num_fields*j+sub]
-        else:
-            for j in range(num_stages):
-                gcur -= dt*btilde[j]*ws[num_fields*j+sub].sub(comp)
+    if gorig == 0:
+        # special case DirichletBC(V, 0, ...), do nothing
+        return gorig
 
-        gdat = gcur - bc2space(bc, u0)
-    return gdat
+    V = u0.function_space()
+    sub = 0 if len(V) == 1 else bc.function_space_index()
+    comp = (bc.function_space().component,)
+    btilde = butcher_tableau.btilde
+
+    g = replace(as_ufl(gorig), {t: t + dt}) - bc2space(bc, u0)
+    g -= sum(get_sub(ws[sub + len(V)*j], comp) * (btilde[j] * dt)
+             for j in range(butcher_tableau.num_stages))
+    return g
 
 
 class BoundsConstrainedBC(DirichletBC):
