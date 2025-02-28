@@ -11,7 +11,7 @@ jobs:
   test:
     runs-on: [self-hosted, Linux]
     container:
-      image: docker://firedrakeproject/firedrake-vanilla:latest
+      image: docker://firedrakeproject/firedrake-vanilla:2025-01
 
     steps:
       # Firedrake's Dockerfile sets USER to firedrake instead of using the default user, so we need to update file permissions for this image to work on GH Actions.
