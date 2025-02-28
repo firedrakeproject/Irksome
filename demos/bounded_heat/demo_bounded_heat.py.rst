@@ -164,10 +164,16 @@ method. The keyword ``basis_type`` then allows us to change the basis of the col
 polynomial to the Bernstein basis. Having done this, we must specify a solver which is able to handle bounds 
 constraints. In this example we solve a variational inequality using ``vinewtonrsls`` by passing ``vi_params`` 
 as ``solver_parameters`` to the :class:`.TimeStepper`.
+
+We set the bounds as follows (reusing those defined in the initial condition): ::
+
+    bounds = ('stage', lb, ub)
+
 We also ensure that projecting the boundary condition data satisfies bounds constraints through the
 `bc_constraints` keyword: ::
 
-    kwargs_c = {"stage_type": "value",
+    kwargs_c = {"bounds": bounds,
+                "stage_type": "value",
                 "basis_type": 'Bernstein',
 		"bc_constraints": {bc: (vi_params, lb, ub)},
                 "solver_parameters": vi_params
@@ -180,9 +186,6 @@ Bernstein coefficients of the collocation polynomial we obtain uniform-in-time b
 basis is used, the bounds constraints are guaranteed at the Runge-Kutta stages and the discrete times, but not necessarily 
 between them.
 
-We set the bounds as follows (reusing those defined in the initial condition): ::
-
-    bounds = ('stage', lb, ub)
 
 When using a stage-value formulation, passing ``bounds`` to the :class:`TimeStepper` through the :meth:`~.TimeStepper.advance` method 
 will enforce the bounds constraints at the discrete stages and time levels (this results in uniformly enforced constraints when using 
@@ -204,7 +207,7 @@ If an approximate solution violates the lower bound, we append a tuple to indica
             dt.assign(float(Tf) - float(t))
 
         stepper.advance()
-        stepper_c.advance(bounds=bounds)
+        stepper_c.advance()
 
         t.assign(float(t) + float(dt))
         timestep = timestep + 1

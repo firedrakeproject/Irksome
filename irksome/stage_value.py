@@ -1,6 +1,4 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
-from functools import cached_property
-
 import numpy
 from FIAT import Bernstein, ufc_simplex
 from firedrake import (Function, NonlinearVariationalProblem,
@@ -12,10 +10,8 @@ from ufl.constantvalue import as_ufl
 from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
-from .tools import (AI, IA, ConstantOrZero, is_ode, replace, component_replace)
+from .tools import AI, is_ode, replace, component_replace, vecconst
 from .base_time_stepper import StageCoupledTimeStepper
-
-vecconst = numpy.vectorize(ConstantOrZero)
 
 
 def to_value(u0, stages, vandermonde):
@@ -139,15 +135,14 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
 
         Fnew += component_replace(F_dtless, repl)
 
-    # time derivative part gets tested against Butcher matrix.
-    for j in range(num_stages):
+    # Now for the non-time derivative parts
+    for i in range(num_stages):
         # replace the solution with stage values
-        repl = {t: t + C[j] * dt,
-                u0: u_np[j],
-                v: A1Tv[j]}
+        repl = {t: t + C[i] * dt,
+                u0: u_np[i],
+                v: dt * A1Tv[i]}
 
-        # and sum the contribution
-        Fnew += dt * component_replace(F_remainder, repl)
+        Fnew += component_replace(F_remainder, repl)
 
     if bcs is None:
         bcs = []
@@ -220,13 +215,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.num_fields = len(u0.function_space())
 
         if (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
-            unew, Fupdate, update_bcs = self.update_stuff
-            self.update_problem = NonlinearVariationalProblem(
-                Fupdate, unew, update_bcs)
-
-            self.update_solver = NonlinearVariationalSolver(
-                self.update_problem,
-                solver_parameters=update_solver_parameters)
+            self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
             self._update = self._update_general
         else:
             self._update = self._update_stiff_acc
@@ -239,8 +228,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         for i, u0bit in enumerate(u0bits):
             u0bit.assign(UUs[self.num_fields*(self.num_stages-1)+i])
 
-    @cached_property
-    def update_stuff(self):
+    def get_update_solver(self, update_solver_parameters):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
         unew = Function(self.V)
@@ -266,14 +254,19 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             bcarg = as_ufl(bc._original_arg)
             gcur = replace(bcarg, {t: t + dt})
             update_bcs.append(bc.reconstruct(g=gcur))
-        return unew, Fupdate, update_bcs
+
+        update_problem = NonlinearVariationalProblem(
+            Fupdate, unew, update_bcs)
+
+        update_solver = NonlinearVariationalSolver(
+            update_problem,
+            solver_parameters=update_solver_parameters)
+
+        return unew, update_solver
 
     def _update_general(self):
-        unew, Fupdate, update_bcs = self.update_stuff
         self.update_solver.solve()
-        unewbits = unew.subfunctions
-        for u0bit, unewbit in zip(self.u0.subfunctions, unewbits):
-            u0bit.assign(unewbit)
+        self.u0.assign(self.unew)
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
