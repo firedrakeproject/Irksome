@@ -113,7 +113,8 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
-            gcur = (1/dt)*sum(A1inv[i, j] * replace(gorig, {t: t + c[j]*dt}) for j in range(num_stages))
+            g_np = numpy.array(replace(gorig, {t: t + cj*dt}) for cj in c)
+            gcur = (1/dt) * (A1inv[i] @ g_np)
             return gcur
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
