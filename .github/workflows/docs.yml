@@ -11,7 +11,7 @@ jobs:
     name: "Build docs"
     runs-on: self-hosted
     container:
-      image: firedrakeproject/firedrake-docdeps:latest
+      image: docker://firedrakeproject/firedrake-docdeps:2025-01
     steps:
       - name: Fix permissions
         run: |
