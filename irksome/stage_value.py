@@ -90,22 +90,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     """
     v = F.arguments()[0]
     V = v.function_space()
-
     assert V == u0.function_space()
 
-    num_stages = butch.num_stages
-
-    # s-way product space for the stage variables
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
-
-    # set up the pieces we need to work with to do our substitutions
-    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
-    u_np = to_value(u0, stages, vandermonde)
-
-    Vander_inv = vecconst(numpy.linalg.inv(vandermonde.astype(float)))
-
-    C = vecconst(butch.c)
+    c = vecconst(butch.c)
     bA1, bA2 = splitting(butch.A)
     try:
         bA2inv = numpy.linalg.inv(bA2)
@@ -113,6 +100,15 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
     A1 = vecconst(bA1)
     A2inv = vecconst(bA2inv)
+
+    # s-way product space for the stage variables
+    num_stages = butch.num_stages
+    Vbig = stages.function_space()
+    test = TestFunction(Vbig)
+
+    # set up the pieces we need to work with to do our substitutions
+    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
+    w_np = to_value(u0, stages, vandermonde)
     A1Tv = A1.T @ v_np
     A2invTv = A2inv.T @ v_np
 
@@ -120,8 +116,6 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    # but we have to carefully handle the cases where g indexes into
-    # pieces of u
     split_form = extract_terms(F)
     F_dtless = strip_dt_form(split_form.time)
     F_remainder = split_form.remainder
@@ -129,19 +123,17 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     Fnew = zero()
     # time derivative part
     for i in range(num_stages):
-        repl = {t: t + C[i] * dt,
-                u0: u_np[i] - u0,
+        repl = {t: t + c[i] * dt,
+                u0: w_np[i] - u0,
                 v: A2invTv[i]}
-
         Fnew += component_replace(F_dtless, repl)
 
     # Now for the non-time derivative parts
     for i in range(num_stages):
         # replace the solution with stage values
-        repl = {t: t + C[i] * dt,
-                u0: u_np[i],
+        repl = {t: t + c[i] * dt,
+                u0: w_np[i],
                 v: dt * A1Tv[i]}
-
         Fnew += component_replace(F_remainder, repl)
 
     if bcs is None:
@@ -150,32 +142,33 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
         bc_constraints = {}
     bcsnew = []
 
+    Vander_inv = vecconst(numpy.linalg.inv(vandermonde.astype(float)))
     # For each BC, we need a new BC for each stage
     # so we need to figure out how the function is indexed (mixed + vec)
     # and then set it to have the value of the original argument at
     # time t+C[i]*dt.
-
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
 
         if bc in bc_constraints:
             bcparams, bclower, bcupper = bc_constraints[bc]
-            gcur = replace(bcarg, {t: t+C[i] * dt})
+            gcur = replace(bcarg, {t: t + c[i] * dt})
             gcur = gcur - vandermonde[1+i, 0] * bcarg
+            # FIXME gcur is unused
         else:
-            gdats_cur = numpy.zeros((num_stages,), dtype="O")
+            Vg_np = numpy.zeros((num_stages,), dtype="O")
             for i in range(num_stages):
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                gcur = replace(bcarg, {t: t+C[i]*dt})
+                gcur = replace(bcarg, {t: t + c[i] * dt})
                 gcur = gcur - vandermonde[1+i, 0] * bcarg
-                gdats_cur[i] = gcur
+                Vg_np[i] = gcur
 
-            zdats_cur = Vander_inv[1:, 1:] @ gdats_cur
+            g_np = Vander_inv[1:, 1:] @ Vg_np
 
             bcnew_cur = []
             for i in range(num_stages):
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                bcnew_cur.append(bc.reconstruct(V=Vbigi, g=zdats_cur[i]))
+                bcnew_cur.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
 
             bcsnew.extend(bcnew_cur)
     return Fnew, bcsnew
@@ -191,6 +184,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
         assert is_ode(F, u0) or butcher_tableau.is_stiffly_accurate
 
+        self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
         self.bc_constraints = bc_constraints
 
@@ -212,8 +206,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx, nullspace=nullspace,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds)
 
-        self.num_fields = len(u0.function_space())
-
         if (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
             self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
             self._update = self._update_general
@@ -221,17 +213,13 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             self._update = self._update_stiff_acc
 
     def _update_stiff_acc(self):
-        u0 = self.u0
-        u0bits = u0.subfunctions
-        UUs = self.stages.subfunctions
-
-        for i, u0bit in enumerate(u0bits):
-            u0bit.assign(UUs[self.num_fields*(self.num_stages-1)+i])
+        for i, u0bit in enumerate(self.u0.subfunctions):
+            u0bit.assign(self.stages.subfunctions[self.num_fields*(self.num_stages-1)+i])
 
     def get_update_solver(self, update_solver_parameters):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
-        unew = Function(self.V)
+        unew = Function(self.u0.function_space())
         v, = self.F.arguments()
         Fupdate = inner(unew - self.u0, v) * dx
 

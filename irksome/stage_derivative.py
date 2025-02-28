@@ -59,47 +59,33 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     V = v.function_space()
     assert V == u0.function_space()
 
-    c = Constant(butch.c)
-
+    c = vecconst(butch.c)
     bA1, bA2 = splitting(butch.A)
-
-    try:
-        bA1inv = numpy.linalg.inv(bA1)
-    except numpy.linalg.LinAlgError:
-        bA1inv = None
     try:
         bA2inv = numpy.linalg.inv(bA2)
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
-
-    if bA1inv is not None:
-        A1inv = Constant(bA1inv)
-    else:
-        A1inv = None
-
-    num_stages = butch.num_stages
-    w = stages
-    Vbig = stages.function_space()
-
-    vnew = TestFunction(Vbig)
-    v_np = numpy.reshape(vnew, (num_stages, *u0.ufl_shape))
-    w_np = numpy.reshape(w, (num_stages, *u0.ufl_shape))
-
     A1 = vecconst(bA1)
     A2inv = vecconst(bA2inv)
 
+    # s-way product space for the stage variables
+    num_stages = butch.num_stages
+    Vbig = stages.function_space()
+    test = TestFunction(Vbig)
+
+    # set up the pieces we need to work with to do our substitutions
+    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
+    w_np = numpy.reshape(stages, (num_stages, *u0.ufl_shape))
     A1w = A1 @ w_np
     A2invw = A2inv @ w_np
 
-    Fnew = zero()
     dtu = TimeDerivative(u0)
-
+    Fnew = zero()
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: v_np[i],
                 u0: u0 + dt * A1w[i],
                 dtu: A2invw[i]}
-
         Fnew += component_replace(F, repl)
 
     bcnew = []
@@ -116,7 +102,10 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
             return replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
 
     elif bc_type == "DAE":
-        if bA1inv is None:
+        try:
+            bA1inv = numpy.linalg.inv(bA1)
+            A1inv = Constant(bA1inv)
+        except numpy.linalg.LinAlgError:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
         u0_mult = dot(A1inv, as_tensor(numpy.ones_like(butch.c))) / dt
@@ -197,8 +186,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          butcher_tableau=butcher_tableau)
 
         self.num_fields = len(self.V)
-        self.num_stages = len(butcher_tableau.b)
-
         A1, A2 = splitting(butcher_tableau.A)
         try:
             self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b))
@@ -210,15 +197,13 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         solved, updates the solution.  This will not typically be
         called by an end user."""
         b = self.updateb
-        dtc = self.dt
-        u0 = self.u0
+        dt = self.dt
         ns = self.num_stages
         nf = self.num_fields
 
         # Note: this now cates the optimized/stiffly accurate case as b[s] == Zero() will get dropped
-        u0bits = u0.subfunctions
-        for i, u0bit in enumerate(u0bits):
-            u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dtc) for s in range(ns))
+        for i, u0bit in enumerate(self.u0.subfunctions):
+            u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
