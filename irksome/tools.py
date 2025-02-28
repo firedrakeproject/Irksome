@@ -1,10 +1,11 @@
 import numpy
-from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, split
+from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
 from ufl.algorithms.analysis import extract_type, has_exact_type
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.classes import CoefficientDerivative, Zero
 from ufl.constantvalue import as_ufl
 from ufl.corealg.multifunction import MultiFunction
+from ufl.tensors import as_tensor
 
 from irksome.deriv import TimeDerivative
 
@@ -90,6 +91,25 @@ def replace(e, mapping):
     return map_integrand_dags(MyReplacer(mapping2), e)
 
 
+def get_component(expr, index):
+    if isinstance(expr, TimeDerivative):
+        expr, = expr.ufl_operands
+        return TimeDerivative(expr[index])
+    else:
+        return expr[index]
+
+
+def component_replace(e, mapping):
+    # Replace, reccurring on components
+    cmapping = {}
+    for key, value in mapping.items():
+        cmapping[key] = as_tensor(value)
+        if key.ufl_shape:
+            for j in numpy.ndindex(key.ufl_shape):
+                cmapping[get_component(key, j)] = value[j]
+    return replace(e, cmapping)
+
+
 # Utility functions that help us refactor
 def AI(A):
     return (A, numpy.eye(*A.shape, dtype=A.dtype))
@@ -105,7 +125,7 @@ def is_ode(f, u):
     blah = extract_type(f, TimeDerivative)
 
     Dtbits = set(b.ufl_operands[0] for b in blah)
-    ubits = set(split(u))
+    ubits = set(u[i] for i in numpy.ndindex(u.ufl_shape))
     return Dtbits == ubits
 
 
@@ -119,5 +139,6 @@ class MeshConstant(object):
         return Function(self.V).assign(val)
 
 
-def ConstantOrZero(x, MC):
-    return Zero() if abs(complex(x)) < 1.e-10 else MC.Constant(x)
+def ConstantOrZero(x, MC=None):
+    const = MC.Constant if MC else Constant
+    return Zero() if abs(complex(x)) < 1.e-10 else const(x)

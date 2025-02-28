@@ -1,46 +1,20 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
-from collections.abc import Iterable
 from functools import reduce
 from operator import mul
 
 import numpy as np
 from FIAT import Bernstein, ufc_simplex
-from firedrake import (Constant,
-                       Function, NonlinearVariationalProblem,
+from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
-                       inner, split)
+                       inner)
 from firedrake.petsc import PETSc
-from ufl.classes import Zero
+from ufl import zero
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .manipulation import extract_terms, strip_dt_form
-from .tools import (AI, IA, ConstantOrZero, MeshConstant, getNullspace, is_ode,
-                    replace)
-
-
-def isiterable(x):
-    return hasattr(x, "__iter__") or isinstance(x, Iterable)
-
-
-def split_field(num_fields, u):
-    ubits = np.array(split(u), dtype="O")
-    return ubits
-
-
-def split_stage_field(num_stages, num_fields, UU):
-    UUbits = np.reshape(np.asarray(split(UU), dtype="O"),
-                        (num_stages, num_fields))
-    return UUbits
-
-
-def getBits(num_stages, num_fields, u0, UU, v, VV):
-    u0bits, vbits = (split_field(num_fields, x) for x in (u0, v))
-    UUbits, VVbits = (split_stage_field(num_stages, num_fields, x)
-                      for x in (UU, VV))
-
-    return u0bits, vbits, VVbits, UUbits
+from .tools import (AI, IA, ConstantOrZero, getNullspace, is_ode, replace, component_replace)
 
 
 def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None,
@@ -106,7 +80,6 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     assert V == u0.function_space()
 
     num_stages = butch.num_stages
-    num_fields = len(V)
 
     # default to no basis transformation, identity matrix
     if vandermonde is None:
@@ -118,18 +91,15 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     ZZ = Function(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    u0bits, vbits, VVbits, ZZbits = getBits(num_stages, num_fields,
-                                            u0, ZZ, v, VV)
+    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
+    z_np = np.reshape(ZZ, (num_stages, *u0.ufl_shape))
 
-    MC = MeshConstant(V.mesh())
-    vecconst = Constant
+    vecconst = np.vectorize(ConstantOrZero)
 
     C = vecconst(butch.c)
     A = vecconst(butch.A)
-
-    veccorz = np.vectorize(lambda c: ConstantOrZero(c, MC))
-    Vander = veccorz(vandermonde)
-    Vander_inv = veccorz(np.linalg.inv(vandermonde))
+    Vander = vecconst(vandermonde)
+    Vander_inv = vecconst(np.linalg.inv(vandermonde))
 
     # convert from Bernstein to Lagrange representation
     # the Bernstein coefficients are [u0; ZZ], and the Lagrange
@@ -139,13 +109,13 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     Vander_col = Vander[1:, 0]
     Vander0 = Vander[1:, 1:]
 
-    v0u0 = np.outer(Vander_col, u0bits)
+    v0u0 = np.reshape(np.outer(Vander_col, u0), (num_stages, *u0.ufl_shape))
 
-    UUbits = v0u0 + Vander0 @ ZZbits
+    u_np = v0u0 + Vander0 @ z_np
 
     split_form = extract_terms(F)
 
-    Fnew = Zero()
+    Fnew = zero()
 
     # first, process terms with a time derivative.  I'm
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
@@ -156,76 +126,46 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
     dtless = strip_dt_form(split_form.time)
 
     if splitting is None or splitting == AI:
+        # time derivative part
         for i in range(num_stages):
-            repl = {t: t+C[i]*dt}
-            for j in range(num_fields):
-                repl[u0bits[j]] = UUbits[i][j] - u0bits[j]
-                repl[vbits[j]] = VVbits[i][j]
-                # Also get replacements right for indexing.
-                for ii in np.ndindex(u0bits[j].ufl_shape):
-                    repl[u0bits[j][ii]] = UUbits[i][j][ii] - u0bits[j][ii]
-                    repl[vbits[j][ii]] = VVbits[i][j][ii]
+            repl = {t: t+C[i]*dt,
+                    u0: u_np[i] - u0,
+                    v: v_np[i]}
 
-            Fnew += replace(dtless, repl)
+            Fnew += component_replace(dtless, repl)
 
         # Now for the non-time derivative parts
         for i in range(num_stages):
             # replace test function
-            repl = {}
-
-            for k in range(num_fields):
-                repl[vbits[k]] = VVbits[i][k]
-                for ii in np.ndindex(vbits[k].ufl_shape):
-                    repl[vbits[k][ii]] = VVbits[i][k][ii]
-
-            Ftmp = replace(split_form.remainder, repl)
+            repl = {v: v_np[i]}
+            Ftmp = component_replace(split_form.remainder, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
-                repl = {t: t + C[j] * dt}
-
-                for k in range(num_fields):
-                    repl[u0bits[k]] = UUbits[j][k]
-                    for ii in np.ndindex(u0bits[k].ufl_shape):
-                        repl[u0bits[k][ii]] = UUbits[j][k][ii]
+                repl = {t: t + C[j] * dt,
+                        u0: u_np[j]}
 
                 # and sum the contribution
-                Fnew += A[i, j] * dt * replace(Ftmp, repl)
+                Fnew += A[i, j] * dt * component_replace(Ftmp, repl)
 
     elif splitting == IA:
         Ainv = vecconst(np.linalg.inv(butch.A))
 
         # time derivative part gets inverse of Butcher matrix.
         for i in range(num_stages):
-            repl = {}
-
-            for k in range(num_fields):
-                repl[vbits[k]] = VVbits[i][k]
-                for ii in np.ndindex(vbits[k].ufl_shape):
-                    repl[vbits[k][ii]] = VVbits[i][k][ii]
-
-            Ftmp = replace(dtless, repl)
+            repl = {v: v_np[i]}
+            Ftmp = component_replace(dtless, repl)
 
             for j in range(num_stages):
-                repl = {t: t + C[j] * dt}
+                repl = {t: t + C[j] * dt,
+                        u0: u_np[j] - u0}
 
-                for k in range(num_fields):
-                    repl[u0bits[k]] = (UUbits[j][k]-u0bits[k])
-                    for ii in np.ndindex(u0bits[k].ufl_shape):
-                        repl[u0bits[k][ii]] = UUbits[j][k][ii] - u0bits[k][ii]
-                Fnew += Ainv[i, j] * replace(Ftmp, repl)
+                Fnew += Ainv[i, j] * component_replace(Ftmp, repl)
         # rest of the operator: just diagonal!
         for i in range(num_stages):
-            repl = {t: t+C[i]*dt}
-            for j in range(num_fields):
-                repl[u0bits[j]] = UUbits[i][j]
-                repl[vbits[j]] = VVbits[i][j]
-
-            # Also get replacements right for indexing.
-            for j in range(num_fields):
-                for ii in np.ndindex(u0bits[j].ufl_shape):
-                    repl[u0bits[j][ii]] = UUbits[i][j][ii]
-                    repl[vbits[j][ii]] = VVbits[i][j][ii]
+            repl = {t: t+C[i]*dt,
+                    u0: u_np[i],
+                    v: v_np[i]}
 
             Fnew += dt * replace(split_form.remainder, repl)
     else:
@@ -274,18 +214,13 @@ def getFormStage(F, butch, u0, t, dt, bcs=None, splitting=None, vandermonde=None
         unew = Function(V)
 
         Fupdate = inner(unew - u0, v) * dx
-        vecconst = np.vectorize(MC.Constant)
         B = vecconst(butch.b)
-        C = vecconst(butch.c)
 
         for i in range(num_stages):
-            repl = {t: t + C[i] * dt}
-            for k in range(num_fields):
-                repl[u0bits[k]] = UUbits[i][k]
-                for ii in np.ndindex(u0bits[k].ufl_shape):
-                    repl[u0bits[k][ii]] = UUbits[i][k][ii]
+            repl = {t: t + C[i] * dt,
+                    u0: u_np[i]}
 
-            eFFi = replace(split_form.remainder, repl)
+            eFFi = component_replace(split_form.remainder, repl)
 
             Fupdate += dt * B[i] * eFFi
 
