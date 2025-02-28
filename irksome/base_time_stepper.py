@@ -134,7 +134,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                 slb = Function(Vbig, val=MixedDat(flatten(dats)))
             if upper is not None:
                 dats = [upper.dat] * (self.num_stages)
-                slb = Function(Vbig, val=MixedDat(flatten(dats)))
+                sub = Function(Vbig, val=MixedDat(flatten(dats)))
 
         elif bounds_type == "last_stage":
             V = self.u0.function_space()
