@@ -6,7 +6,7 @@ from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative
-from .tools import ConstantOrZero, component_replace, replace
+from .tools import component_replace, replace, vecconst
 import numpy as np
 from firedrake import as_vector, dot, Constant, TestFunction
 
@@ -78,32 +78,29 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
     # L2 projector
     proj = Constant(np.linalg.solve(mmat, np.multiply(test_vals, qwts)))
 
-    Fnew = zero()
-
-    vecconst = np.vectorize(ConstantOrZero)
+    dtu0 = TimeDerivative(u0)
     trial_vals = vecconst(trial_vals)
     trial_dvals = vecconst(trial_dvals)
     test_vals = vecconst(test_vals)
     qpts = vecconst(qpts.reshape((-1,)))
     qwts = vecconst(qwts)
 
-    for i in range(num_stages):
-        repl = {v: v_np[i]}
-        F_i = component_replace(F, repl)
+    # now loop over quadrature points
+    Fnew = zero()
+    for q in range(len(qpts)):
+        vsub = sum(v_np[j] * test_vals[j, q] for j in range(num_stages))
 
-        # now loop over quadrature points
-        for q in range(len(qpts)):
-            tosub = u0 * trial_vals[0, q]
-            tosub += sum(u_np[j] * trial_vals[1+j, q] for j in range(num_stages))
+        u0sub = u0 * trial_vals[0, q]
+        u0sub += sum(u_np[j] * trial_vals[1+j, q] for j in range(num_stages))
 
-            d_tosub = u0 * trial_dvals[0, q]
-            d_tosub += sum(u_np[j] * trial_dvals[1+j, q] for j in range(num_stages))
+        dtu0sub = u0 * trial_dvals[0, q]
+        dtu0sub += sum(u_np[j] * trial_dvals[1+j, q] for j in range(num_stages))
 
-            repl = {t: t + dt * qpts[q],
-                    u0: tosub,
-                    TimeDerivative(u0): d_tosub / dt}
-
-            Fnew += dt * qwts[q] * test_vals[i, q] * component_replace(F_i, repl)
+        repl = {t: t + dt * qpts[q],
+                v: vsub * (qwts[q] * dt),
+                u0: u0sub,
+                dtu0: dtu0sub / dt}
+        Fnew += component_replace(F, repl)
 
     # Oh, honey, is it the boundary conditions?
     if bcs is None:
