@@ -85,7 +85,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: v_np[i],
-                u0: u0 + dt * A1w[i],
+                u0: u0 + A1w[i] * dt,
                 dtu: A2invw[i]}
         Fnew += component_replace(F, repl)
 
@@ -191,6 +191,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx, nullspace=nullspace,
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau)
+
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
         solved, updates the solution.  This will not typically be

@@ -116,15 +116,12 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
         bcs = []
     bcsnew = []
     for bc in bcs:
-        bcarg = as_ufl(bc._original_arg)
-        bcblah_at_qp = np.zeros((len(qpts),), dtype="O")
-        for q in range(len(qpts)):
-            tcur = t + qpts[q] * dt
-            bcblah_at_qp[q] = replace(bcarg, {t: tcur})
-        bc_func_for_stages = proj @ bcblah_at_qp
+        g0 = as_ufl(bc._original_arg)
+        Vg_np = np.array([replace(g0, {t: t + c*dt}) for c in qpts])
+        g_np = proj @ Vg_np
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=bc_func_for_stages[i]))
+            bcsnew.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
 
     return Fnew, bcsnew
 

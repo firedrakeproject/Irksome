@@ -22,11 +22,10 @@ def to_value(u0, stages, vandermonde):
     Since u0 is not part of the unknown vector of stages, we disassemble
     the Vandermonde matrix (first row is [1, 0, ...]).
     """
-    v0 = vandermonde[1:, 0]
-    Vs = vandermonde[1:, 1:]
-    v0u0 = numpy.reshape(numpy.outer(v0, u0), (-1, *u0.ufl_shape))
-    u_np = v0u0 + Vs @ numpy.reshape(stages, (-1, *u0.ufl_shape))
-    return u_np
+    u0_np = numpy.reshape(u0, (-1, *u0.ufl_shape))
+    ZZ_np = numpy.reshape(stages, (-1, *u0.ufl_shape))
+    u_np = numpy.concatenate((u0_np, ZZ_np))
+    return vandermonde[1:] @ u_np
 
 
 def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None,
@@ -120,19 +119,19 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     F_remainder = split_form.remainder
 
     Fnew = zero()
-    # time derivative part
+    # Terms with time derivatives
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
-                u0: w_np[i] - u0,
-                v: A2invTv[i]}
+                v: A2invTv[i],
+                u0: w_np[i] - u0}
         Fnew += component_replace(F_dtless, repl)
 
-    # Now for the non-time derivative parts
+    # Handle the rest of the terms
     for i in range(num_stages):
         # replace the solution with stage values
         repl = {t: t + c[i] * dt,
-                u0: w_np[i],
-                v: dt * A1Tv[i]}
+                v: A1Tv[i] * dt,
+                u0: w_np[i]}
         Fnew += component_replace(F_remainder, repl)
 
     if bcs is None:
@@ -157,10 +156,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
         else:
             Vg_np = numpy.zeros((num_stages,), dtype="O")
             for i in range(num_stages):
-                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                gcur = replace(bcarg, {t: t + c[i] * dt})
-                gcur = gcur - vandermonde[1+i, 0] * bcarg
-                Vg_np[i] = gcur
+                Vg_np[i] = (replace(bcarg, {t: t + c[i] * dt})
+                            - vandermonde[1+i, 0] * bcarg)
 
             g_np = Vander_inv[1:, 1:] @ Vg_np
 
@@ -194,8 +191,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         elif basis_type == "Bernstein":
             assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
             bern = Bernstein(ufc_simplex(1), degree)
-            cc = numpy.reshape(numpy.append(0, butcher_tableau.c), (-1, 1))
-            vandermonde = bern.tabulate(0, numpy.reshape(cc, (-1, 1)))[(0, )].T
+            pts = numpy.reshape(numpy.append(0, butcher_tableau.c), (-1, 1))
+            vandermonde = bern.tabulate(0, pts)[(0, )].T
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")
         self.vandermonde = vecconst(vandermonde)
