@@ -19,39 +19,38 @@ def bc2space(bc, V):
 
 def stage2spaces4bc(bc, V, Vbig, i):
     """used to figure out how to apply Dirichlet BC to each stage"""
-    sub = 0 if len(V) == 1 else bc.function_space_index()
-    comp = (bc.function_space().component,)
-    Vbigi = get_sub(Vbig[sub + len(V)*i], comp)
-    return Vbigi
+    field = 0 if len(V) == 1 else bc.function_space_index()
+    indices = (field + len(V)*i, bc.function_space().component)
+    return get_sub(Vbig, indices)
 
 
-def BCStageData(V, gcur, u0, u0_mult, i, t, dt):
-    if gcur == 0:
-        # special case DirichletBC(V, 0, ...), do nothing
-        return gcur
-    if V.component is None:
-        indices = (V.index,)
-    else:
-        indices = (V.parent.index, V.component)
-    gdat = gcur - u0_mult[i] * get_sub(u0, indices)
-    return gdat
+def BCStageData(bc, gcur, u0, stages, i):
+    if bc._original_arg == 0:
+        gcur = 0
+    V = u0.function_space()
+    Vbig = stages.function_space()
+    field = 0 if len(V) == 1 else bc.function_space_index()
+    indices = (field + len(V)*i, bc.function_space().component)
+    Vbigi = get_sub(Vbig, indices)
+    return bc.reconstruct(V=Vbigi, g=gcur)
 
 
-def EmbeddedBCData(bc, t, dt, num_fields, butcher_tableau, ws, u0):
+def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
+    Vbc = bc2space(bc, u0.function_space())
     gorig = bc._original_arg
     if gorig == 0:
-        # special case DirichletBC(V, 0, ...), do nothing
-        return gorig
+        g = gorig
+    else:
+        V = u0.function_space()
+        field = 0 if len(V) == 1 else bc.function_space_index()
+        comp = (bc.function_space().component,)
+        ws = stages.subfunctions[field::len(V)]
+        btilde = butcher_tableau.btilde
+        num_stages = butcher_tableau.num_stages
 
-    V = u0.function_space()
-    sub = 0 if len(V) == 1 else bc.function_space_index()
-    comp = (bc.function_space().component,)
-    btilde = butcher_tableau.btilde
-
-    g = replace(as_ufl(gorig), {t: t + dt}) - bc2space(bc, u0)
-    g -= sum(get_sub(ws[sub + len(V)*j], comp) * (btilde[j] * dt)
-             for j in range(butcher_tableau.num_stages))
-    return g
+        g = replace(as_ufl(gorig), {t: t + dt}) - gorig
+        g -= sum(get_sub(ws[j], comp) * (btilde[j] * dt) for j in range(num_stages))
+    return bc.reconstruct(V=Vbc, g=g)
 
 
 class BoundsConstrainedBC(DirichletBC):
