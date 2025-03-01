@@ -20,8 +20,8 @@ def bc2space(bc, V):
 def stage2spaces4bc(bc, V, Vbig, i):
     """used to figure out how to apply Dirichlet BC to each stage"""
     field = 0 if len(V) == 1 else bc.function_space_index()
-    indices = (field + len(V)*i, bc.function_space().component)
-    return get_sub(Vbig, indices)
+    comp = (bc.function_space().component,)
+    return get_sub(Vbig[field + len(V)*i], comp)
 
 
 def BCStageData(bc, gcur, u0, stages, i):
@@ -29,9 +29,7 @@ def BCStageData(bc, gcur, u0, stages, i):
         gcur = 0
     V = u0.function_space()
     Vbig = stages.function_space()
-    field = 0 if len(V) == 1 else bc.function_space_index()
-    indices = (field + len(V)*i, bc.function_space().component)
-    Vbigi = get_sub(Vbig, indices)
+    Vbigi = stage2spaces4bc(bc, V, Vbig, i)
     return bc.reconstruct(V=Vbigi, g=gcur)
 
 
