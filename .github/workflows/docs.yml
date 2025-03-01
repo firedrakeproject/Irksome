@@ -18,7 +18,7 @@ jobs:
     name: Build docs
     runs-on: [self-hosted, Linux]
     container:
-      image: docker://firedrakeproject/firedrake-docdeps:2025-01
+      image: firedrakeproject/firedrake-docdeps:latest
     steps:
       - uses: actions/checkout@v4
         with:
