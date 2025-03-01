@@ -26,7 +26,6 @@ jobs:
 
       - name: Install Irksome
         run: |
-          . /home/firedrake/firedrake/bin/activate
           : # Pass '--system-site-packages' so already installed packages can be found
           python3 -m venv --system-site-packages venv-irksome
           . venv-irksome/bin/activate
