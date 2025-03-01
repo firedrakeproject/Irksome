@@ -25,33 +25,28 @@ def stage2spaces4bc(bc, V, Vbig, i):
     return Vbigi
 
 
-def BCStageData(V, gcur, u0, u0_mult, i, t, dt):
-    if gcur == 0:
-        # special case DirichletBC(V, 0, ...), do nothing
-        return gcur
-    if V.component is None:
-        indices = (V.index,)
-    else:
-        indices = (V.parent.index, V.component)
-    gdat = gcur - u0_mult[i] * get_sub(u0, indices)
-    return gdat
+def BCStageData(bc, gcur, u0, stages, i):
+    V = bc2space(bc, u0.function_space())
+    Vbig = stages.function_space()
+    Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+    return bc.reconstruct(V=Vbigi, g=gcur)
 
 
-def EmbeddedBCData(bc, t, dt, num_fields, butcher_tableau, ws, u0):
+def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
+    Vbc = bc2space(bc, u0.function_space())
     gorig = bc._original_arg
     if gorig == 0:
-        # special case DirichletBC(V, 0, ...), do nothing
-        return gorig
+        g = gorig
+    else:
+        V = u0.function_space()
+        field = bc.function_space_index()
+        comp = (bc.function_space().component,)
+        ws = stages.subfunctions[field::len(V)]
+        btilde = butcher_tableau.btilde
 
-    V = u0.function_space()
-    sub = 0 if len(V) == 1 else bc.function_space_index()
-    comp = (bc.function_space().component,)
-    btilde = butcher_tableau.btilde
-
-    g = replace(as_ufl(gorig), {t: t + dt}) - bc2space(bc, u0)
-    g -= sum(get_sub(ws[sub + len(V)*j], comp) * (btilde[j] * dt)
-             for j in range(butcher_tableau.num_stages))
-    return g
+        g = replace(as_ufl(gorig), {t: t + dt}) - bc2space(bc, u0)
+        g -= sum(get_sub(wj, comp) * (bj * dt) for wj, bj in zip(ws, btilde))
+    return bc.reconstruct(V=Vbc, g=g)
 
 
 class BoundsConstrainedBC(DirichletBC):

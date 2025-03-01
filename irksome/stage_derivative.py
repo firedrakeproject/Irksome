@@ -9,7 +9,7 @@ from ufl.algorithms import expand_derivatives
 from ufl.constantvalue import as_ufl
 from .tools import component_replace, replace, AI, vecconst
 from .deriv import TimeDerivative  # , apply_time_derivatives
-from .bcs import EmbeddedBCData, BCStageData, bc2space, stage2spaces4bc
+from .bcs import EmbeddedBCData, BCStageData
 from .manipulation import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -95,12 +95,11 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
         bcs = []
     if bc_type == "ODE":
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
-        u0_mult = zero(butch.c.shape)
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_derivatives(diff(gorig, t))
-            return replace(gfoo, {t: t + c[i] * dt}) + u0_mult[i]*gorig
+            return replace(gfoo, {t: t + c[i] * dt})
 
     elif bc_type == "DAE":
         try:
@@ -109,11 +108,9 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
-        u0_mult = (A1inv @ numpy.ones_like(butch.c)) / dt
-
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
-            gcur = (1/dt) * sum(replace(gorig, {t: t + c[j]*dt}) * A1inv[i, j]
+            gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - gorig) * A1inv[i, j]
                                 for j in range(butch.num_stages))
             return gcur
     else:
@@ -123,11 +120,8 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     # set up the new BCs for either method
     for bc in bcs:
         for i in range(num_stages):
-            Vsp = bc2space(bc, V)
             gcur = bc2gcur(bc, i)
-            gdat = BCStageData(Vsp, gcur, u0, u0_mult, i, t, dt)
-            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcnew.append(bc.reconstruct(V=Vbigi, g=gdat))
+            bcnew.append(BCStageData(bc, gcur, u0, stages, i))
 
     return Fnew, bcnew
 
@@ -281,7 +275,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                                                   bc_type=bc_type, splitting=splitting, nullspace=nullspace)
 
         from firedrake.petsc import PETSc
-        self.print = lambda x: PETSc.Sys.Print(x)
+        self.print = PETSc.Sys.Print
 
         self.dt_min = dtmin
         self.dt_max = dtmax
@@ -308,15 +302,8 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         embbc = []
         if self.gamma0 != 0:
             # Grab spaces for BCs
-            v = F.arguments()[0]
-            V = v.function_space()
-            num_fields = len(V)
-            ws = self.stages.subfunctions
-
-            for bc in bcs:
-                gVsp = bc2space(bc, V)
-                gdat = EmbeddedBCData(bc, self.t, self.dt, num_fields, butcher_tableau, ws, self.u0)
-                embbc.append(bc.reconstruct(V=gVsp, g=gdat))
+            embbc = [EmbeddedBCData(bc, butcher_tableau, self.t, self.dt, self.u0, self.stages)
+                     for bc in bcs]
         self.embbc = embbc
 
     def _estimate_error(self):
