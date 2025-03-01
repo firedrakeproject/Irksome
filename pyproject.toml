@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "IRKsome"
+version = "0.0.1"
+authors = [
+  {name = "Pablo Brubeck"},
+  {name = "Patrick E. Farrell"},
+  {name = "Robert C. Kirby", email = "Robert_Kirby@baylor.edu"},
+  {name = "Scott P. MacLachlan"},
+]
+description = "A library for fully implicit Runge-Kutta methods in Firedrake"
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+  "Programming Language :: Python",
+]
+
+[project.urls]
+Homepage = "https://www.firedrakeproject.org/Irksome"
+Repository = "https://github.com/firedrakeproject/Irksome.git"
+
+[project.optional-dependencies]
+ci = [
+  "flake8",
+  "pytest",
+  "vtk",  # needed for demos
+]
+docs = ["sphinx", "sphinxcontrib-bibtex"]
+
+
+[tool.setuptools.packages.find]
+include = ["irksome*"]
+
+[tool.pytest.ini_options]
+xfail_strict = true
