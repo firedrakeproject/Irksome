@@ -3,10 +3,11 @@ import copy
 
 import numpy
 from firedrake import AuxiliaryOperatorPC, derivative
+from firedrake.dmhooks import get_appctx
 from ufl import replace
 
-from irksome import getForm
-from irksome.stage import getFormStage
+from irksome.stage_derivative import getForm
+from irksome.stage_value import getFormStage
 
 
 # Oddly, we can't turn pivoting off in scipy?
@@ -60,7 +61,6 @@ class RanaBase(AuxiliaryOperatorPC):
         stage_type = appctx.get("stage_type", None)
         bc_type = appctx.get("bc_type", None)
         splitting = appctx.get("splitting", None)
-        nullspace = appctx.get("nullspace", None)
 
         # Make a modified Butcher tableau, probably with some kind
         # of sparser structure (e.g. LD part of LDU factorization)
@@ -68,16 +68,19 @@ class RanaBase(AuxiliaryOperatorPC):
         butcher_new = copy.deepcopy(butcher_tableau)
         butcher_new.A = Atilde
 
-        # which getForm do I need to get?
+        # get stages
+        ctx = get_appctx(pc.getDM())
+        w = ctx._x
 
+        # which getForm do I need to get?
         if stage_type in ("deriv", None):
-            Fnew, w, bcnew, bignsp = \
-                getForm(F, butcher_new, t, dt, u0, bcs,
-                        bc_type, splitting, nullspace)
+            Fnew, bcnew = \
+                getForm(F, butcher_new, t, dt, u0, w, bcs,
+                        bc_type, splitting)
         elif stage_type == "value":
-            Fnew, _, w, bcnew, bignsp = \
-                getFormStage(F, butcher_new, u0, t, dt, bcs,
-                             splitting, nullspace)
+            Fnew, bcnew = \
+                getFormStage(F, butcher_new, t, dt, u0, w, bcs,
+                             splitting)
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
         test_old = Fnew.arguments()[0]
@@ -118,20 +121,23 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         stage_type = appctx.get("stage_type", None)
         bc_type = appctx.get("bc_type", None)
         splitting = appctx.get("splitting", None)
-        nullspace = appctx.get("nullspace", None)
         v0 = oldF.arguments()[0]
 
         F, bcs = self.getNewForm(pc, u0, v0)
         # which getForm do I need to get?
 
+        # get stages
+        ctx = get_appctx(pc.getDM())
+        w = ctx._x
+
         if stage_type in ("deriv", None):
-            Fnew, w, bcnew, bignsp = \
-                getForm(F, butcher_tableau, t, dt, u0, bcs,
-                        bc_type, splitting, nullspace)
+            Fnew, bcnew = \
+                getForm(F, butcher_tableau, t, dt, u0, w, bcs,
+                        bc_type, splitting)
         elif stage_type == "value":
-            Fnew, _, w, bcnew, bignsp = \
-                getFormStage(F, butcher_tableau, u0, t, dt, bcs,
-                             splitting, nullspace)
+            Fnew, _, w, bcnew = \
+                getFormStage(F, butcher_tableau, t, dt, u0, w, bcs,
+                             splitting)
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
         test_old = Fnew.arguments()[0]

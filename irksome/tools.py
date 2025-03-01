@@ -1,3 +1,5 @@
+from operator import mul
+from functools import reduce
 import numpy
 from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
 from ufl.algorithms.analysis import extract_type, has_exact_type
@@ -8,6 +10,10 @@ from ufl.corealg.multifunction import MultiFunction
 from ufl.tensors import as_tensor
 
 from irksome.deriv import TimeDerivative
+
+
+def get_stage_space(V, num_stages):
+    return reduce(mul, (V for _ in range(num_stages)))
 
 
 def getNullspace(V, Vbig, num_stages, nullspace):
@@ -142,3 +148,6 @@ class MeshConstant(object):
 def ConstantOrZero(x, MC=None):
     const = MC.Constant if MC else Constant
     return Zero() if abs(complex(x)) < 1.e-10 else const(x)
+
+
+vecconst = numpy.vectorize(ConstantOrZero)
