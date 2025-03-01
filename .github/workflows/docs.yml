@@ -20,6 +20,12 @@ jobs:
     container:
       image: firedrakeproject/firedrake-docdeps:latest
     steps:
+      - name: Fix HOME
+        # For unknown reasons GitHub actions overwrite HOME to /github/home
+        # which will break everything unless fixed
+        # (https://github.com/actions/runner/issues/863)
+        run: echo "HOME=/home/firedrake" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
         with:
           path: irksome-repo

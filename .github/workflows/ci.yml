@@ -51,7 +51,7 @@ jobs:
       - name: Run tests
         run: |
           . venv-irksome/bin/activate
-          make -C venv-irksome test THREADS=12
+          make -C irksome-repo test THREADS=12
 
       - name: Post-cleanup
         if: always()
