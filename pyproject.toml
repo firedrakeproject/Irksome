@@ -23,6 +23,7 @@ Homepage = "https://www.firedrakeproject.org/Irksome"
 Repository = "https://github.com/firedrakeproject/Irksome.git"
 
 [project.optional-dependencies]
+ci = ["flake8", "pytest"]
 docs = ["sphinx", "sphinxcontrib-bibtex"]
 
 

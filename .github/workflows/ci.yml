@@ -45,7 +45,7 @@ jobs:
       - name: Install Irksome
         run: |
           . venv-irksome/bin/activate
-          pip install ./irksome-repo
+          pip install './irksome-repo[ci]'
           pip list
 
       - name: Run tests
