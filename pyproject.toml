@@ -6,8 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "IRKsome"
 version = "0.0.1"
 authors = [
-  {name = "Rob Kirby", email = "Robert_Kirby@baylor.edu"},
-  {name = "Jorge Marchena Menendez"},
+  {name = "Pablo Brubeck"},
+  {name = "Patrick E. Farrell"},
+  {name = "Robert C. Kirby", email = "Robert_Kirby@baylor.edu"},
+  {name = "Scott P. MacLachlan"},
 ]
 description = "A library for fully implicit Runge-Kutta methods in Firedrake"
 readme = "README.md"
@@ -22,6 +24,10 @@ Repository = "https://github.com/firedrakeproject/Irksome.git"
 
 [project.optional-dependencies]
 docs = ["sphinx", "sphinxcontrib-bibtex"]
+
+
+[tool.setuptools.packages.find]
+include = ["irksome*"]
 
 [tool.pytest.ini_options]
 xfail_strict = true

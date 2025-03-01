@@ -36,12 +36,18 @@ Lawrence Mitchell provided early assistance on some UFL manipulation and documen
 Getting started
 ===============
 
-Irksome requires `Firedrake <https://www.firedrakeproject.org/>`__, if
-you have an existing Firedrake installation, you can add Irksome to it
-with ``firedrake-update --install irksome``. If you would like a fresh
-installation including Irksome, use ``firedrake-install --install
-irksome``. Alternately you can clone the repository and ``pip
-install -e .`` into the Firedrake virtual environment.
+Irksome requires `Firedrake <https://www.firedrakeproject.org/>`__.
+Instructions for installing Firedrake can be found
+`here <https://www.firedrakeproject.org/install.html>`__.
+Once Firedrake is installed you can install Irksome by running::
+
+   $ pip install --src . --editable git+https://github.com/firedrakeproject/Irksome.git#egg=Irksome
+
+or, equivalently::
+
+   $ git clone https://github.com/firedrakeproject/Irksome.git
+   $ pip install --editable ./Irksome
+
 
 Tutorials
 =========
