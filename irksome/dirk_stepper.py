@@ -30,8 +30,8 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     c = MC.Constant(1.0)
     a = MC.Constant(1.0)
 
-    repl = {t: t+c*dt,
-            u0: g + dt * a * k,
+    repl = {t: t + c * dt,
+            u0: g + k * (a * dt),
             TimeDerivative(u0): k}
     stage_F = component_replace(F, repl)
 
@@ -53,10 +53,8 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
             continue
 
         gdat = bcarg_stage - bc2space(bc, u0)
-        for i in range(num_stages):
-            gdat -= dt*a_vals[i]*bc2space(bc, ks[i])
-
-        gdat /= dt*d_val
+        gdat -= sum(bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
+        gdat /= d_val * dt
 
         bcnew.append(bc.reconstruct(g=gdat))
 
@@ -154,19 +152,14 @@ class DIRKTimeStepper:
         k, g, a, c = self.kgac
         ks = self.ks
         u0 = self.u0
-        dtc = float(self.dt)
+        dt = self.dt
         bt = self.butcher_tableau
         AA = bt.A
         BB = bt.b
-        gsplit = g.subfunctions
         for i in range(self.num_stages):
             # compute the already-known part of the state in the
             # variational form
-            g.assign(u0)
-            for j in range(i):
-                ksplit = ks[j].subfunctions
-                for (gbit, kbit) in zip(gsplit, ksplit):
-                    gbit += dtc * float(AA[i, j]) * kbit
+            g.assign(sum((ks[j] * (AA[i, j] * dt) for j in range(i)), u0))
 
             # update BC constants for the variational problem
             self.update_bc_constants(i, c)
@@ -181,15 +174,12 @@ class DIRKTimeStepper:
             # former is probably optimal, we hope for the best with
             # the latter.
             self.solver.solve()
-            mysnes = self.solver.snes
-            self.num_nonlinear_iterations += mysnes.getIterationNumber()
-            self.num_linear_iterations += mysnes.getLinearSolveIterations()
+            self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
+            self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
             ks[i].assign(k)
 
         # update the solution with now-computed stage values.
-        for i in range(self.num_stages):
-            for (u0bit, kbit) in zip(u0.subfunctions, ks[i].subfunctions):
-                u0bit += dtc * float(BB[i]) * kbit
+        u0 += sum(ks[i] * (BB[i] * dt) for i in range(self.num_stages))
 
         self.num_steps += 1
 

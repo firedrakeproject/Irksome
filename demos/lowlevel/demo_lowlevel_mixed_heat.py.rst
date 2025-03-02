@@ -6,6 +6,7 @@ problems on mixed function spaces.  This demo peels back the :class:`TimeStepper
 
 Imports::
 
+  from irksome.tools import get_stage_space
   from firedrake import *
   from irksome import LobattoIIIC, Dt, getForm, MeshConstant
   from ufl.algorithms.ad import expand_derivatives
@@ -50,9 +51,15 @@ Build the mesh and approximating spaces::
   F = (inner(Dt(u), w) * dx + inner(div(sigma), w) * dx - inner(rhs, w) * dx
        + inner(sigma, v) * dx - inner(u, div(v)) * dx)
 
-Because we aren't concerned with any strongly-enforced boundary conditions, we drop that information in calling `get_form`::
+Get the function space for the stage-coupled problem::
 
-  Fnew, k, _, _ = getForm(F, butcher_tableau, t, dt, sigu)
+  Vbig = get_stage_space(Z, butcher_tableau.num_stages)
+  k = Function(Vbig)
+
+Get the form and new boundary conditions (which are dropped since
+we have weak Dirichlet))::
+  
+  Fnew, _ = getForm(F, butcher_tableau, t, dt, sigu, k)
 
 We set up the variational problem and solver using a sparse direct method::
 
