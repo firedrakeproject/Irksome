@@ -120,9 +120,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     bcnew = []
     for bc in bcs:
         for i in range(num_stages):
-            gcur = bc._original_arg
-            if gcur != 0:
-                gcur = bc2gcur(bc, i)
+            gcur = bc2gcur(bc, i)
             bcnew.append(BCStageData(bc, gcur, u0, stages, i))
 
     return Fnew, bcnew
