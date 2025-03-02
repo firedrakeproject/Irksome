@@ -342,6 +342,10 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
         bcarg_stage = replace(bcarg, {t: t+c*dt})
+        if bcarg_stage == 0:
+            # Homogeneous BC, just zero out stage dofs
+            bcnew.append(bc.reconstruct(g=0))
+            continue
 
         gdat = bcarg_stage - bc2space(bc, u0)
         for i in range(num_stages):

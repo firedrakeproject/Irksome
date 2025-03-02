@@ -189,3 +189,61 @@ def test_1d_vecconvdiff_neumannbc(bt):
     conv = np.log2(errs[0]/errs[1])
     print(conv)
     assert conv > order-0.4
+
+
+def mixed_convdiff(butcher_tableau, order, N):
+    msh = UnitIntervalMesh(N)
+    V = FunctionSpace(msh, "CG", order)
+    W = FunctionSpace(msh, "DG", order-1)
+    Z = V * W
+    up = Function(Z)
+    u, p = split(up)
+    v, w = TestFunctions(Z)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(0.1 / N)
+    t = MC.Constant(0.0)
+    (x,) = SpatialCoordinate(msh)
+
+    pexact = exp(-t)*cos(2*pi*x)
+    uexact = -pexact.dx(0)
+    c = Constant(1.0)
+    rhs = expand_derivatives(diff(pexact, t)) - div(grad(pexact)) - c*pexact.dx(0)
+
+    bc = DirichletBC(Z.sub(0), 0, "on_boundary")
+    F = inner(Dt(p), w) * dx + inner(u.dx(0), w) * dx + inner(u, v) * dx - inner(p, v.dx(0)) * dx - inner(rhs, w) * dx
+    Fexp = c * inner(u, w) * dx
+
+    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
+
+    stepper = TimeStepper(
+        F, butcher_tableau, t, dt, up, Fexp=Fexp, bcs=bc,
+        solver_parameters=luparams, mass_parameters=luparams,
+        stage_type="dirkimex"
+    )
+
+    u, p = up.subfunctions
+    u.interpolate(uexact)
+    p.interpolate(pexact)
+
+    t_end = 0.1
+    while float(t) < t_end:
+        if float(t) + float(dt) > t_end:
+            dt.assign(t_end - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return (errornorm(pexact, p) / norm(pexact))
+
+
+@pytest.mark.parametrize("bt", [ARS_DIRK_IMEX(2, 3, 2),
+                                SSPK_DIRK_IMEX(2, 2, 2, 2)],
+                         ids=["ARS(2,3,2)",
+                              "SSP2(2,2,2)"])
+def test_1d_mixed_convdiff(bt):
+    order = bt.order
+    errs = np.array([mixed_convdiff(bt, order, 10*2**p) for p in [3, 4]])
+    print(errs)
+    conv = np.log2(errs[0]/errs[1])
+    print(conv)
+    assert conv > order-0.2
