@@ -10,6 +10,7 @@ only be read after perusing the more basic demos.
 We're solving the same problem that is done in the heat equation demos.
 
 Imports::
+
   from firedrake import *
   from ufl.algorithms.ad import expand_derivatives
 
