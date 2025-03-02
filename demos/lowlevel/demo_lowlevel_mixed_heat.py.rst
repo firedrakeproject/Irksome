@@ -6,8 +6,7 @@ problems on mixed function spaces.  This demo peels back the :class:`TimeStepper
 
 Imports::
 
-  from functools import reduce
-  from operator import mul
+  from irksome.tools import get_stage_space
   from firedrake import *
   from irksome import LobattoIIIC, Dt, getForm, MeshConstant
   from ufl.algorithms.ad import expand_derivatives
@@ -54,7 +53,7 @@ Build the mesh and approximating spaces::
 
 Get the function space for the stage-coupled problem::
 
-  Vbig = reduce(mul, (Z for _ in range(butcher_tableau.num_stages)))
+  Vbig = get_stage_space(Z, butcher_tableau.num_stages)
   k = Function(Vbig)
 
 Get the form and new boundary conditions (which are dropped since
