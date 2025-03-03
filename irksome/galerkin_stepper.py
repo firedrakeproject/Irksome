@@ -37,8 +37,6 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
        - Fnew, the :class:`Form` corresponding to the Galerkin-in-Time discretized problem
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
-       - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
-         that represents the nullspace of the coupled system
     """
     assert L_test.get_reference_element() == Q.ref_el
     assert L_trial.get_reference_element() == Q.ref_el

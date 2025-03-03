@@ -41,8 +41,6 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
        - Fnew, the :class:`Form` corresponding to the DG-in-Time discretized problem
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
-       - 'nspnew', the :class:`firedrake.MixedVectorSpaceBasis` object
-         that represents the nullspace of the coupled system
     """
     assert Q.ref_el.get_spatial_dimension() == 1
     assert L.get_reference_element() == Q.ref_el
