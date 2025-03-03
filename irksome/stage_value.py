@@ -30,8 +30,7 @@ def to_value(u0, stages, vandermonde):
     return vandermonde[1:] @ u_np
 
 
-def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None,
-                 bc_constraints=None):
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -64,12 +63,6 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
-    :arg bc_constraints: optionally, a dictionary mapping (some of) the boundary
-         conditions in `bcs` to triples of the form (params, lower, upper) indicating
-         solver parameters to use and lower and upper bounds to provide in doing
-         a bounds-constrained projection of the boundary data.
-         Note: if these bounds change over time, the user is responsible for maintaining
-         a handle on them and updating them between time steps.
     :arg nullspace: A list of tuples of the form (index, VSB) where
          index is an index into the function space associated with `u`
          and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
@@ -132,8 +125,6 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
 
     if bcs is None:
         bcs = []
-    if bc_constraints is None:
-        bc_constraints = {}
     bcsnew = []
 
     if vandermonde is not None:
@@ -145,31 +136,20 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     # time t+C[i]*dt.
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)
+        g_np = numpy.array([replace(bcarg, {t: t + ci * dt}) for ci in c])
+        if vandermonde is not None:
+            g_np -= vandermonde[1:, 0] * bcarg
+            g_np = Vander_inv[1:, 1:] @ g_np
 
-        if bc in bc_constraints:
-            bcparams, bclower, bcupper = bc_constraints[bc]
-            gcur = replace(bcarg, {t: t + c[i] * dt})
-            gcur = gcur - vandermonde[1+i, 0] * bcarg
-            # FIXME gcur is unused
-        else:
-            g_np = numpy.array([replace(bcarg, {t: t + ci * dt}) for ci in c])
-            if vandermonde is not None:
-                g_np -= vandermonde[1:, 0] * bcarg
-                g_np = Vander_inv[1:, 1:] @ g_np
-
-            bcnew_cur = []
-            for i in range(num_stages):
-                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                bcnew_cur.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
-
-            bcsnew.extend(bcnew_cur)
+        for i in range(num_stages):
+            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+            bcsnew.extend(bc.reconstruct(V=Vbigi, g=g_np[i]))
     return Fnew, bcsnew
 
 
 class StageValueTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
-                 bc_constraints=None,
                  splitting=AI, basis_type=None,
                  nullspace=None, appctx=None, bounds=None):
 
@@ -178,7 +158,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
-        self.bc_constraints = bc_constraints
 
         degree = butcher_tableau.num_stages
 
@@ -258,5 +237,4 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                             self.t, self.dt, self.u0,
                             stages, bcs=self.orig_bcs,
                             splitting=self.splitting,
-                            vandermonde=self.vandermonde,
-                            bc_constraints=self.bc_constraints)
+                            vandermonde=self.vandermonde)

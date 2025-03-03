@@ -40,7 +40,7 @@ approach to uniformly enforced bounds constraints in both space and time.
 First, we must import firedrake and certain items from Irksome: ::
 
     from firedrake import *
-    from irksome import (Dt, MeshConstant, RadauIIA, TimeStepper)
+    from irksome import Dt, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC
 
 We also need some UFL tools in order to manufacture a solution: ::
 
@@ -169,13 +169,15 @@ We set the bounds as follows (reusing those defined in the initial condition): :
 
     bounds = ('stage', lb, ub)
 
-We also ensure that projecting the boundary condition data satisfies bounds constraints through the
-`bc_constraints` keyword: ::
+Internally, Firedrake will project the boundary condition expression into the entire space and match degrees of freedom
+on the boundary.  This could introduce bounds violations.  To ensure this does not happen, we can use a special kind
+of boundary condition that projects with bounds contraints. ::
+
+    bc = BoundsConstrainedDirichletBC(V, uexact, "on_boundary", (lb, ub), solver_parameters=vi_params)
 
     kwargs_c = {"bounds": bounds,
                 "stage_type": "value",
                 "basis_type": 'Bernstein',
-		"bc_constraints": {bc: (vi_params, lb, ub)},
                 "solver_parameters": vi_params
             }
 

@@ -52,7 +52,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     valid_kwargs_per_stage_type = {
         "deriv": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
                   "bc_type", "splitting", "adaptive_parameters"],
-        "value": ["stage_type", "basis_type", "bc_constraints", "bcs", "nullspace", "solver_parameters",
+        "value": ["stage_type", "basis_type", "bcs", "nullspace", "solver_parameters",
                   "update_solver_parameters", "appctx", "splitting", "bounds"],
         "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
         "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
@@ -107,7 +107,6 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             safety_factor=safety_factor, gamma0_params=gamma0_params)
     elif stage_type == "value":
         bcs = kwargs.get("bcs")
-        bc_constraints = kwargs.get("bc_constraints")
         splitting = kwargs.get("splitting", AI)
         appctx = kwargs.get("appctx")
         solver_parameters = kwargs.get("solver_parameters")
@@ -118,7 +117,6 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
             solver_parameters=solver_parameters,
             splitting=splitting, basis_type=basis_type,
-            bc_constraints=bc_constraints,
             update_solver_parameters=update_solver_parameters,
             nullspace=nullspace)
 

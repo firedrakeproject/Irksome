@@ -51,16 +51,20 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
     return bc.reconstruct(V=Vbc, g=g)
 
 
-class BoundsConstrainedBC(DirichletBC):
+class BoundsConstrainedDirichletBC(DirichletBC):
     """A DirichletBC with bounds-constrained data."""
     def __init__(self, V, g, sub_domain, bounds, solver_parameters=None):
-        super().__init__(V, g, sub_domain)
         if solver_parameters is None:
             solver_parameters = {
-                "snes_type": "vinewtonssls",
+                "snes_type": "vinewtonrsls",
+                "snes_max_it": 300,
+                "snes_atol": 1.e-8,
+                "ksp_type": "preonly",
+                "mat_type": "aij",
             }
         self.solver_parameters = solver_parameters
         self.bounds = bounds
+        super().__init__(V, g, sub_domain)
 
     @property
     def function_arg(self):
@@ -87,3 +91,9 @@ class BoundsConstrainedBC(DirichletBC):
         self._function_arg = gnew
         self.function_arg_update = partial(solver.solve, bounds=self.bounds)
         self.function_arg_update()
+
+    def reconstruct(self, V=None, g=None, sub_domain=None):
+        V = V or self.V
+        g = g or self._original_arg
+        sub_domain = sub_domain or self.sub_domain
+        return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters)
