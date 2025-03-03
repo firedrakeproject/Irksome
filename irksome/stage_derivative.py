@@ -47,10 +47,6 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     On output, we return a tuple consisting of four parts:
 
        - Fnew, the :class:`Form`
-       - k, the :class:`firedrake.Function` holding all the stages.
-         It lives in a :class:`firedrake.FunctionSpace` corresponding to the
-         s-way tensor product of the space on which the semidiscrete
-         form lives.
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages,
     """
