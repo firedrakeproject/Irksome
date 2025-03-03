@@ -6,52 +6,69 @@ on:
       - master
   pull_request:
 
+concurrency:
+  # Cancels jobs running if new commits are pushed
+  group: >
+    ${{ github.workflow }}-
+    ${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    name: "Build docs"
-    runs-on: self-hosted
+    name: Build docs
+    runs-on: [self-hosted, Linux]
     container:
-      image: docker://firedrakeproject/firedrake-docdeps:2025-01
+      image: firedrakeproject/firedrake-docdeps:latest
     steps:
-      - name: Fix permissions
+      - name: Fix HOME
+        # For unknown reasons GitHub actions overwrite HOME to /github/home
+        # which will break everything unless fixed
+        # (https://github.com/actions/runner/issues/863)
+        run: echo "HOME=/home/firedrake" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+        with:
+          path: irksome-repo
+
+      - name: Install Irksome
         run: |
-          sudo chmod -R 777 $GITHUB_WORKSPACE /github /__w/_temp
-      - uses: actions/checkout@v2
-      - name: Install
-        run: |
-          . /home/firedrake/firedrake/bin/activate
-          python -m pip install -e .
-          python -m pip install sphinx
-          python -m pip install sphinxcontrib-bibtex
+          : # Pass '--system-site-packages' so already installed packages can be found
+          python3 -m venv --system-site-packages venv-irksome
+          . venv-irksome/bin/activate
+          pip install --verbose './irksome-repo[docs]'
+
       - name: Check documentation links
-        if: ${{ github.ref == 'refs/heads/master' }}
+        if: github.ref == 'refs/heads/master'
         run: |
-          . /home/firedrake/firedrake/bin/activate
-          cd docs
-          make linkcheck
+          . venv-irksome/bin/activate
+          make -C irksome-repo/docs linkcheck
+
       - name: Build docs
         run: |
-          . /home/firedrake/firedrake/bin/activate
-          cd docs
+          . venv-irksome/bin/activate
+          cd irksome-repo/docs
           make html
           make latex
           make latexpdf
+
       - name: Copy manual to HTML tree
         run: |
-          cd docs
+          cd irksome-repo/docs
           cp build/latex/Irksome.pdf build/html/_static/manual.pdf
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           name: github-pages
-          path: /__w/Irksome/Irksome/docs/build/html
+          path: /__w/Irksome/Irksome/irksome-repo/docs/build/html
           retention-days: 1
+
       - name: Deploy docs
-        if: ${{ github.ref == 'refs/heads/master' }}
+        if: github.ref == 'refs/heads/master'
         uses: crazy-max/ghaction-github-pages@v4
         with:
           target_branch: gh-pages
-          build_dir: ./docs/build/html
+          build_dir: ./irksome-repo/docs/build/html
           keep_history: false
           allow_empty_commit: false
           jekyll: false
