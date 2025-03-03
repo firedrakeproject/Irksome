@@ -9,6 +9,9 @@ from pyop2.types import MixedDat
 
 
 class BaseTimeStepper:
+    """Base class for various time steppers.  This is mainly to give code reuse stashing
+    objects that are common to all the time steppers.  It's a developer-level class.
+    """
     def __init__(self, F, t, dt, u0,
                  bcs=None, appctx=None, nullspace=None):
         self.F = F
@@ -43,12 +46,51 @@ class BaseTimeStepper:
         pass
 
 
-# Stage derivative + stage value are subclasses here.
 class StageCoupledTimeStepper(BaseTimeStepper):
+    """This developer-level class provides common features used by
+    various methods requiring stage-coupled variational problems to
+    compute the stages (e.g. fully implicit RK, Galerkin-in-time)
+
+    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
+            F(t, u; v) == 0, where `u` is the unknown
+            :class:`firedrake.Function and `v` is the
+            :class:firedrake.TestFunction`.
+    :arg t: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time.
+    :arg dt: a :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time step.
+         The user may adjust this value between time steps.
+    :arg u0: A :class:`firedrake.Function` containing the current
+            state of the problem to be solved.
+    :arg num_stages: The number of stages to solve for.  It could be the number of
+            RK stages or relate to the polynomial degree (Galerkin)
+    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+            the strongly-enforced boundary conditions.  Irksome will
+            manipulate these to obtain boundary conditions for each
+            stage of the RK method.
+    :arg solver_parameters: An optional :class:`dict` of solver parameters that
+            will be used in solving the algebraic problem associated
+            with each time step.
+    :arg appctx: An optional :class:`dict` containing application context.
+            This gets included with particular things that Irksome will
+            pass into the nonlinear solver so that, say, user-defined preconditioners
+            have access to it.
+    :arg nullspace: A list of tuples of the form (index, VSB) where
+            index is an index into the function space associated with
+            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
+            instance to be passed to a
+            `firedrake.MixedVectorSpaceBasis` over the larger space
+            associated with the Runge-Kutta method
+    :arg splitting: An optional kwarg (not used by all superclasses)
+    :arg bc_type: An optional kwarg (not used by all superclasses)
+    :arg butcher_tableau: A :class:`ButcherTableau` instance giving
+            the Runge-Kutta method to be used for time marching.
+    :arg bounds: An optional kwarg used in certain bounds-constrained methods.
+    """
     def __init__(self, F, t, dt, u0, num_stages,
                  bcs=None, solver_parameters=None,
                  appctx=None, nullspace=None,
-                 splitting=None, bc_type="DAE",
+                 splitting=None, bc_type=None,
                  butcher_tableau=None, bounds=None):
 
         super().__init__(F, t, dt, u0,
