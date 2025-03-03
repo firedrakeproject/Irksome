@@ -5,7 +5,7 @@ from firedrake import NonlinearVariationalSolver as NLVS
 from ufl.constantvalue import as_ufl
 
 from .deriv import TimeDerivative
-from .tools import component_replace, replace, MeshConstant
+from .tools import component_replace, replace, MeshConstant, vecconst
 from .bcs import bc2space
 
 
@@ -96,6 +96,8 @@ class DIRKTimeStepper:
         if butcher_tableau.is_explicit:
             self.AAb = self.AAb[1:]
             self.CCone = self.CCone[1:]
+        self.AA = vecconst(butcher_tableau.A)
+        self.BB = vecconst(butcher_tableau.b)
 
         self.V = V = u0.function_space()
         self.u0 = u0
@@ -153,17 +155,14 @@ class DIRKTimeStepper:
         ks = self.ks
         u0 = self.u0
         dt = self.dt
-        bt = self.butcher_tableau
-        AA = bt.A
-        BB = bt.b
         for i in range(self.num_stages):
             # compute the already-known part of the state in the
             # variational form
-            g.assign(sum((ks[j] * (AA[i, j] * dt) for j in range(i)), u0))
+            g.assign(sum((ks[j] * (self.AA[i, j] * dt) for j in range(i)), u0))
 
             # update BC constants for the variational problem
             self.update_bc_constants(i, c)
-            a.assign(AA[i, i])
+            a.assign(self.AA[i, i])
 
             # solve new variational problem, stash the computed
             # stage value.
@@ -179,7 +178,7 @@ class DIRKTimeStepper:
             ks[i].assign(k)
 
         # update the solution with now-computed stage values.
-        u0 += sum(ks[i] * (BB[i] * dt) for i in range(self.num_stages))
+        u0 += sum(ks[i] * (self.BB[i] * dt) for i in range(self.num_stages))
 
         self.num_steps += 1
 
