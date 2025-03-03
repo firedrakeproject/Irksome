@@ -43,7 +43,7 @@ class BaseTimeStepper:
         pass
 
 
-# Stage derivative + stage value + (maybe?) RadauIIAIMEX
+# Stage derivative + stage value are subclasses here.
 class StageCoupledTimeStepper(BaseTimeStepper):
     def __init__(self, F, t, dt, u0, num_stages,
                  bcs=None, solver_parameters=None,
