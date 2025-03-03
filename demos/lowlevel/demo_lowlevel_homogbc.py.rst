@@ -15,6 +15,7 @@ Imports::
   from ufl.algorithms.ad import expand_derivatives
 
   from irksome import GaussLegendre, getForm, Dt, MeshConstant
+  from irksome.tools import get_stage_space
 
 Note that we imported :func:`.getForm` rather than :class:`.TimeStepper`.  That's the
 lower-level function inside Irksome that manipulates UFL and boundary conditions.
@@ -54,20 +55,20 @@ Continuing::
 
   bc = DirichletBC(V, 0, "on_boundary")
 
-Now, we use the :func:`.getForm` function, which processes the semidiscrete problem::
+Get the function space for the stage-coupled problem and a function to hold the stages we're computing::
 
-  Fnew, k, bcnew, nspnew = getForm(F, butcher_tableau, t, dt, u, bcs=bc)
+  Vbig = get_stage_space(V, butcher_tableau.num_stages)
+  k = Function(Vbig)
+
+Get the variational form and bcs for the stage-coupled variational problem::
+
+  Fnew, bcnew = getForm(F, butcher_tableau, t, dt, u, k, bcs=bc)
 
 This returns several things:
 
 * ``Fnew`` is the UFL variational form for the fully discrete method.
-* ``k`` is a new :class:`~firedrake.function.Function` for  holding all the
-  stages.  It lives on the s-way product of the space on which the
-  problem was originally posed
 * ``bcnew`` is a list of new :class:`~firedrake.bcs.DirichletBC` that need to
   be enforced on the variational problem for the stages
-* ``nspnew`` is a new :class:`~firedrake.MixedVectorSpaceBasis` that
-  can be used to express the nullspace of `Fnew`
 
 
 Solver parameters are just blunt-force LU.  Other options are surely possible::
@@ -81,7 +82,7 @@ We can set up a new nonlinear variational problem and create a solver
 for it in standard Firedrake fashion::
 
   prob = NonlinearVariationalProblem(Fnew, k, bcs=bcnew)
-  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams, nullspace=nspnew)
+  solver = NonlinearVariationalSolver(prob, solver_parameters=luparams)
 
 We'll need to split the stage variable so that we can update the
 solution after solving for the stages at each time step::

@@ -1,12 +1,12 @@
-import abc
 import copy
 
 import numpy
 from firedrake import AuxiliaryOperatorPC, derivative
+from firedrake.dmhooks import get_appctx
 from ufl import replace
 
-from irksome import getForm
-from irksome.stage import getFormStage
+from irksome.stage_derivative import getForm
+from irksome.stage_value import getFormStage
 
 
 # Oddly, we can't turn pivoting off in scipy?
@@ -35,24 +35,26 @@ def ldu(A):
     return L, D, U
 
 
-class RanaBase(AuxiliaryOperatorPC):
-    """Base class for methods out of Rana, Howle, Long, Meek, & Milestone.
-    It inherits from Firedrake's AuxiliaryOperatorPC class and
-    provides the preconditioning bilinear form associated with an
-    approximation to the Butcher matrix (which is provided by
-    subclasses)."""
+class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
+    """Base class that inherits from Firedrake's AuxiliaryOperatorPC class and
+    provides the preconditioning bilinear form associated with an auxiliary
+    Form and/or approximate Butcher matrix (which are provided by subclasses).
+    """
 
-    @abc.abstractmethod
+    def getNewForm(self, pc, u0, test):
+        """Derived classes can optionally provide an auxiliary Form."""
+        raise NotImplementedError
+
     def getAtilde(self, A):
         """Derived classes produce a typically structured
         approximation to A."""
-        pass
+        raise NotImplementedError
 
     def form(self, pc, test, trial):
         """Implements the interface for AuxiliaryOperatorPC."""
         appctx = self.get_appctx(pc)
+        butcher = appctx["butcher_tableau"]
         F = appctx["F"]
-        butcher_tableau = appctx["butcher_tableau"]
         t = appctx["t"]
         dt = appctx["dt"]
         u0 = appctx["u0"]
@@ -60,31 +62,44 @@ class RanaBase(AuxiliaryOperatorPC):
         stage_type = appctx.get("stage_type", None)
         bc_type = appctx.get("bc_type", None)
         splitting = appctx.get("splitting", None)
-        nullspace = appctx.get("nullspace", None)
+        v0, = F.arguments()
 
-        # Make a modified Butcher tableau, probably with some kind
-        # of sparser structure (e.g. LD part of LDU factorization)
-        Atilde = self.getAtilde(butcher_tableau.A)
-        butcher_new = copy.deepcopy(butcher_tableau)
-        butcher_new.A = Atilde
+        try:
+            # use new Form if provided
+            F, bcs = self.getNewForm(pc, u0, v0)
+        except NotImplementedError:
+            pass
+
+        try:
+            # use new ButcherTableau if provided
+            Atilde = self.getAtilde(butcher.A)
+            butcher = copy.deepcopy(butcher)
+            butcher.A = Atilde
+        except NotImplementedError:
+            pass
+
+        # get stages
+        ctx = get_appctx(pc.getDM())
+        w = ctx._x
 
         # which getForm do I need to get?
-
         if stage_type in ("deriv", None):
-            Fnew, w, bcnew, bignsp = \
-                getForm(F, butcher_new, t, dt, u0, bcs,
-                        bc_type, splitting, nullspace)
+            Fnew, bcnew = getForm(F, butcher, t, dt, u0, w, bcs, bc_type, splitting)
         elif stage_type == "value":
-            Fnew, _, w, bcnew, bignsp = \
-                getFormStage(F, butcher_new, u0, t, dt, bcs,
-                             splitting, nullspace)
+            Fnew, bcnew = getFormStage(F, butcher, t, dt, u0, w, bcs, splitting)
+
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
         test_old = Fnew.arguments()[0]
-        a = replace(derivative(Fnew, w, du=trial),
-                    {test_old: test})
+        Jnew = replace(derivative(Fnew, w, du=trial),
+                       {test_old: test})
 
-        return a, bcnew
+        return Jnew, bcnew
+
+
+class RanaBase(IRKAuxiliaryOperatorPC):
+    """Base class for methods out of Rana, Howle, Long, Meek, & Milestone."""
+    pass
 
 
 class RanaLD(RanaBase):
@@ -99,43 +114,3 @@ class RanaDU(RanaBase):
     def getAtilde(self, A):
         L, D, U = ldu(A)
         return D @ U
-
-
-class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
-    @abc.abstractmethod
-    def getNewForm(self, pc, u0, test):
-        pass
-
-    def form(self, pc, test, trial):
-        """Implements the interface for AuxiliaryOperatorPC."""
-        appctx = self.get_appctx(pc)
-        butcher_tableau = appctx["butcher_tableau"]
-        oldF = appctx["F"]
-        t = appctx["t"]
-        dt = appctx["dt"]
-        u0 = appctx["u0"]
-        bcs = appctx["bcs"]
-        stage_type = appctx.get("stage_type", None)
-        bc_type = appctx.get("bc_type", None)
-        splitting = appctx.get("splitting", None)
-        nullspace = appctx.get("nullspace", None)
-        v0 = oldF.arguments()[0]
-
-        F, bcs = self.getNewForm(pc, u0, v0)
-        # which getForm do I need to get?
-
-        if stage_type in ("deriv", None):
-            Fnew, w, bcnew, bignsp = \
-                getForm(F, butcher_tableau, t, dt, u0, bcs,
-                        bc_type, splitting, nullspace)
-        elif stage_type == "value":
-            Fnew, _, w, bcnew, bignsp = \
-                getFormStage(F, butcher_tableau, u0, t, dt, bcs,
-                             splitting, nullspace)
-        # Now we get the Jacobian for the modified system,
-        # which becomes the auxiliary operator!
-        test_old = Fnew.arguments()[0]
-        a = replace(derivative(Fnew, w, du=trial),
-                    {test_old: test})
-
-        return a, bcnew

@@ -58,12 +58,13 @@ def heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs):
     bc = DirichletBC(V, uexact, "on_boundary")
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, u,
-                          bcs=bc, solver_parameters=solver_parameters, **kwargs)
+                          bcs=bc, solver_parameters=solver_parameters,
+                          bounds=bounds, **kwargs)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
             dt.assign(1.0 - float(t))
-        stepper.advance(bounds=bounds)
+        stepper.advance()
         t.assign(float(t) + float(dt))
 
     return errornorm(uexact, u) / norm(uexact)
@@ -118,12 +119,13 @@ def mixed_heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, up,
                           solver_parameters=solver_parameters,
+                          bounds=bounds,
                           **kwargs)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
             dt.assign(1.0 - float(t))
-        stepper.advance(bounds=bounds)
+        stepper.advance()
         t.assign(float(t) + float(dt))
 
     u, p = up.subfunctions
@@ -180,12 +182,13 @@ def mixed_wave(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, up,
                           solver_parameters=solver_parameters,
+                          bounds=bounds,
                           **kwargs)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
             dt.assign(1.0 - float(t))
-        stepper.advance(bounds=bounds)
+        stepper.advance()
         t.assign(float(t) + float(dt))
 
     u, p = up.subfunctions

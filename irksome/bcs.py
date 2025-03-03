@@ -3,11 +3,13 @@ from firedrake import (DirichletBC, Function, TestFunction,
                        NonlinearVariationalProblem,
                        NonlinearVariationalSolver,
                        replace, inner, dx)
+from ufl import as_ufl
 
 
 def get_sub(u, indices):
     for i in indices:
-        u = u.sub(i)
+        if i is not None:
+            u = u.sub(i)
     return u
 
 
@@ -17,67 +19,52 @@ def bc2space(bc, V):
 
 def stage2spaces4bc(bc, V, Vbig, i):
     """used to figure out how to apply Dirichlet BC to each stage"""
-    num_fields = len(V)
-    sub = 0 if num_fields == 1 else bc.function_space_index()
-    comp = bc.function_space().component
-
-    Vbigi = Vbig[sub+num_fields*i]
-    if comp is not None:  # check for sub-piece of vector-valued
-        Vbigi = Vbigi.sub(comp)
-
-    return Vbigi
+    field = 0 if len(V) == 1 else bc.function_space_index()
+    comp = (bc.function_space().component,)
+    return get_sub(Vbig[field + len(V)*i], comp)
 
 
-def BCStageData(V, gcur, u0, u0_mult, i, t, dt):
-    if V.component is None:  # V is not a bit of a VFS
-        if V.index is None:  # not part of MFS, either
-            indices = ()
-        else:  # part of MFS
-            indices = (V.index,)
-    else:  # bottommost space is bit of VFS
-        if V.parent.index is None:  # but not part of a MFS
-            indices = (V.component,)
-        else:   # V is a bit of a VFS inside an MFS
-            indices = (V.parent.index, V.component)
-
-    if gcur == 0:  # special case DirichletBC(V, 0, ...), do nothing
-        gdat = gcur
-    else:
-        gdat = gcur - u0_mult[i] * get_sub(u0, indices)
-    return gdat
+def BCStageData(bc, gcur, u0, stages, i):
+    if bc._original_arg == 0:
+        gcur = 0
+    V = u0.function_space()
+    Vbig = stages.function_space()
+    Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+    return bc.reconstruct(V=Vbigi, g=gcur)
 
 
-def EmbeddedBCData(bc, t, dt, num_fields, butcher_tableau, ws, u0):
+def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
+    Vbc = bc2space(bc, u0.function_space())
     gorig = bc._original_arg
-    if gorig == 0:  # special case DirichletBC(V, 0, ...), do nothing
-        gdat = gorig
+    if gorig == 0:
+        g = gorig
     else:
-        gcur = replace(gorig, {t: t+dt})
-        sub = 0 if num_fields == 1 else bc.function_space_index()
-        comp = bc.function_space().component
-        num_stages = butcher_tableau.num_stages
+        V = u0.function_space()
+        field = 0 if len(V) == 1 else bc.function_space_index()
+        comp = (bc.function_space().component,)
+        ws = stages.subfunctions[field::len(V)]
         btilde = butcher_tableau.btilde
-        if comp is None:  # check for sub-piece of vector-valued
-            for j in range(num_stages):
-                gcur -= dt*btilde[j]*ws[num_fields*j+sub]
-        else:
-            for j in range(num_stages):
-                gcur -= dt*btilde[j]*ws[num_fields*j+sub].sub(comp)
+        num_stages = butcher_tableau.num_stages
 
-        gdat = gcur - bc2space(bc, u0)
-    return gdat
+        g = replace(as_ufl(gorig), {t: t + dt}) - gorig
+        g -= sum(get_sub(ws[j], comp) * (btilde[j] * dt) for j in range(num_stages))
+    return bc.reconstruct(V=Vbc, g=g)
 
 
-class BoundsConstrainedBC(DirichletBC):
+class BoundsConstrainedDirichletBC(DirichletBC):
     """A DirichletBC with bounds-constrained data."""
     def __init__(self, V, g, sub_domain, bounds, solver_parameters=None):
-        super().__init__(V, g, sub_domain)
         if solver_parameters is None:
             solver_parameters = {
-                "snes_type": "vinewtonssls",
+                "snes_type": "vinewtonrsls",
+                "snes_max_it": 300,
+                "snes_atol": 1.e-8,
+                "ksp_type": "preonly",
+                "mat_type": "aij",
             }
         self.solver_parameters = solver_parameters
         self.bounds = bounds
+        super().__init__(V, g, sub_domain)
 
     @property
     def function_arg(self):
@@ -104,3 +91,9 @@ class BoundsConstrainedBC(DirichletBC):
         self._function_arg = gnew
         self.function_arg_update = partial(solver.solve, bounds=self.bounds)
         self.function_arg_update()
+
+    def reconstruct(self, V=None, g=None, sub_domain=None):
+        V = V or self.V
+        g = g or self._original_arg
+        sub_domain = sub_domain or self.sub_domain
+        return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters)
