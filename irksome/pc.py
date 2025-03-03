@@ -36,8 +36,13 @@ def ldu(A):
 
 
 class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
+    """Base class that inherits from Firedrake's AuxiliaryOperatorPC class and
+    provides the preconditioning bilinear form associated with an auxiliary
+    Form and/or approximate Butcher matrix (which are provided by subclasses).
+    """
 
     def getNewForm(self, pc, u0, test):
+        """Derived classes can optionally provide an auxiliary Form."""
         raise NotImplementedError
 
     def getAtilde(self, A):
@@ -57,7 +62,7 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         stage_type = appctx.get("stage_type", None)
         bc_type = appctx.get("bc_type", None)
         splitting = appctx.get("splitting", None)
-        v0 = F.arguments()[0]
+        v0, = F.arguments()
 
         try:
             # use new Form if provided
@@ -86,18 +91,14 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
         test_old = Fnew.arguments()[0]
-        a = replace(derivative(Fnew, w, du=trial),
-                    {test_old: test})
+        Jnew = replace(derivative(Fnew, w, du=trial),
+                       {test_old: test})
 
-        return a, bcnew
+        return Jnew, bcnew
 
 
 class RanaBase(IRKAuxiliaryOperatorPC):
-    """Base class for methods out of Rana, Howle, Long, Meek, & Milestone.
-    It inherits from Firedrake's AuxiliaryOperatorPC class and
-    provides the preconditioning bilinear form associated with an
-    approximation to the Butcher matrix (which is provided by
-    subclasses)."""
+    """Base class for methods out of Rana, Howle, Long, Meek, & Milestone."""
     pass
 
 

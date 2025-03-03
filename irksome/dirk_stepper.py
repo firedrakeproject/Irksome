@@ -45,18 +45,16 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
                          dtype=object)
     d_val = MC.Constant(1.0)
     for bc in bcs:
-        bcarg = as_ufl(bc._original_arg)
-        bcarg_stage = replace(bcarg, {t: t+c*dt})
-        if bcarg_stage == 0:
+        bcarg = bc._original_arg
+        if bcarg == 0:
             # Homogeneous BC, just zero out stage dofs
-            bcnew.append(bc.reconstruct(g=0))
-            continue
-
-        gdat = bcarg_stage - bc2space(bc, u0)
-        gdat -= sum(bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
-        gdat /= d_val * dt
-
-        bcnew.append(bc.reconstruct(g=gdat))
+            bcnew.append(bc)
+        else:
+            bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
+            gdat = bcarg_stage - bc2space(bc, u0)
+            gdat -= sum(bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
+            gdat /= d_val * dt
+            bcnew.append(bc.reconstruct(g=gdat))
 
     return stage_F, (k, g, a, c), bcnew, (a_vals, d_val)
 
