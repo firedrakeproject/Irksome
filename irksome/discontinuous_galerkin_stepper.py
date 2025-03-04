@@ -5,6 +5,7 @@ from FIAT import (Bernstein, DiscontinuousElement,
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
+from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
 from .tools import component_replace, replace, vecconst
 import numpy as np
@@ -78,6 +79,9 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     trial_dvals = vecconst(basis_dvals)
     test_vals_w = vecconst(basis_vals_w)
     qpts = vecconst(qpts.reshape((-1,)))
+
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
 
     split_form = extract_terms(F)
     F_dtless = strip_dt_form(split_form.time)

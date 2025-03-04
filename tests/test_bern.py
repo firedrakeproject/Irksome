@@ -46,7 +46,7 @@ def heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs):
     dt = MC.Constant(2.0 / N)
 
     uexact = exp(-t) * cos(pi * x)**2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
     u = project(uexact, V)
 

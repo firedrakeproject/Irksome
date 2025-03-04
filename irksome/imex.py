@@ -7,7 +7,7 @@ from firedrake.dmhooks import pop_parent, push_parent
 from ufl import zero
 
 from .ButcherTableaux import RadauIIA
-from .deriv import TimeDerivative
+from .deriv import TimeDerivative, expand_time_derivatives
 from .stage_value import getFormStage
 from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, component_replace, getNullspace, get_stage_space
 from .bcs import bc2space
@@ -58,6 +58,9 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
 
     Fit = zero()
     Fprop = zero()
+
+    # preprocess time derivatives
+    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u0,))
 
     if splitting == AI:
         for i in range(num_stages):
@@ -313,6 +316,10 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     c = MC.Constant(1.0)
     chat = MC.Constant(1.0)
     a = MC.Constant(1.0)
+
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u0,))
 
     # Implicit replacement, solve at time t + c * dt, for k
     repl = {t: t + c * dt,

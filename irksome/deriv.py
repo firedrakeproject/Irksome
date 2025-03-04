@@ -58,12 +58,19 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
         else:
             return self.independent_terminal(o)
 
-    def indexed(self, o, Ap, ii):
-        return TimeDerivative(o)
+    def spatial_coordinate(self, o):
+        return self.independent_terminal(o)
 
     def time_derivative(self, o):
         f, = o.ufl_operands
         return TimeDerivative(map_expr_dag(self, f))
+
+    def _linear_op(self, o):
+        return TimeDerivative(o)
+
+    grad = _linear_op
+    curl = _linear_op
+    div = _linear_op
 
 
 # mapping rules to splat out time derivatives so that replacement should
@@ -82,7 +89,7 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
 
     expr = MultiFunction.reuse_if_untouched
 
-    def time_derivative(self, o, f):
+    def time_derivative(self, o):
         nderivs = 0
         while isinstance(o, TimeDerivative):
             o, = o.ufl_operands
@@ -91,6 +98,13 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
         for k in range(nderivs):
             o = map_expr_dag(rules, o)
         return o
+
+    def _linear_op(self, o):
+        return o
+
+    grad = _linear_op
+    curl = _linear_op
+    div = _linear_op
 
 
 def apply_time_derivatives(expression, t=None, timedep_coeffs=None):
