@@ -57,8 +57,8 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: v_np[i],
-                u0: u0 + c[i] * dt * ut0 + dt**2 * Abark[i],
-                dtu: ut0 + dt * Ak[i],
+                u0: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
+                dtu: ut0 + Ak[i] * dt,
                 dt2u: k_np[i]}
         Fnew += component_replace(F, repl)
 
