@@ -68,7 +68,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
         raise ValueError(f"Unrecognized BC type: {bc_type}")
     else:
         try:
-            bA1inv = numpy.linalg.inv(A)
+            bA1inv = numpy.linalg.inv(tableau.A)
             A1inv = vecconst(bA1inv)
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("Can't have DAE BC's for this method")
@@ -96,9 +96,9 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                  bc_type="DAE"):
         self.ut0 = ut0
         if not isinstance(tableau, NystromTableau):
-            self.tableau = butcher_to_nystrom(tableau)
-        else:
-            self.tableau = tableau
+            tableau = butcher_to_nystrom(tableau)
+
+        self.tableau = tableau
 
         super().__init__(F, t, dt, u0,
                          tableau.num_stages, bcs=bcs,
@@ -107,7 +107,7 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                          bc_type=bc_type)
 
         self.updateb = vecconst(tableau.b)
-        self.udpatebbar = vecconst(tableau.bbar)
+        self.updatebbar = vecconst(tableau.bbar)
         self.num_fields = len(u0.function_space())
 
     def _update(self):

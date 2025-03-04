@@ -1,6 +1,6 @@
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, assemble, cos, dx,
-                       errornorm, grad, inner, pi, project, sin)
+                       TestFunction, UnitIntervalMesh, assemble, dx,
+                       norm, grad, inner, pi, project, sin)
 from irksome import Dt, GaussLegendre, StageDerivativeNystromTimeStepper
 
 
@@ -17,13 +17,13 @@ def wave(n, deg, time_stages):
     x, = SpatialCoordinate(msh)
 
     t = Constant(0.0)
-    dt = Constant(2.0 / N)
+    dt = Constant(1.0 / N)
 
-    uexact = sin(pi * x) * cos(pi * t)
+    uinit = sin(pi * x)
 
     butcher_tableau = GaussLegendre(time_stages)
 
-    u0 = project(uexact, V)
+    u0 = project(uinit, V)
     u = Function(u0)  # copy
     ut = Function(V)
 
@@ -39,20 +39,22 @@ def wave(n, deg, time_stages):
         F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params)
 
     E0 = assemble(E)
-    while (float(t) < 1.0):
-        if (float(t) + float(dt) > 1.0):
-            dt.assign(1.0 - float(t))
+    tf = 1
+    while (float(t) < tf):
+        if (float(t) + float(dt) > tf):
+            dt.assign(tf - float(t))
         stepper.advance()
         t.assign(float(t) + float(dt))
 
-    return assemble(E) / E0, errornorm(u, u0)
+    return assemble(E) / E0, norm(u + u0)
 
 
 def test_wave_eq():
     # number of refinements
-    n = 3
-    deg = 1
-    stage_count = 1
+    n = 5
+    deg = 2
+    stage_count = 2
     Erat, diff = wave(n, deg, stage_count)
-    print(Erat)
-    print(diff)
+    print(Erat, diff)
+    assert abs(Erat - 1) < 1.e-8
+    assert diff < 3.e-5
