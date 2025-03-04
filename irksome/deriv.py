@@ -3,6 +3,7 @@ from ufl.core.ufl_type import ufl_type
 from ufl.corealg.multifunction import MultiFunction
 from ufl.algorithms.map_integrands import map_integrand_dags, map_expr_dag
 from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
+from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl.tensors import ListTensor
 from ufl.indexed import Indexed
 
@@ -43,31 +44,29 @@ def Dt(f, order=1):
 
 
 class TimeDerivativeRuleset(GenericDerivativeRuleset):
-    """Apply AD rules to time derivative expressions.  WIP"""
-    def __init__(self, t, timedep_coeffs):
+    """Apply AD rules to time derivative expressions."""
+    def __init__(self, timedep_coeffs=None):
         GenericDerivativeRuleset.__init__(self, ())
-        self.t = t
         self.timedep_coeffs = timedep_coeffs
 
     def coefficient(self, o):
-        if o in self.timedep_coeffs:
+        if self.timedep_coeffs is None or o in self.timedep_coeffs:
             return TimeDerivative(o)
         else:
             return self.independent_terminal(o)
 
-    # def indexed(self, o, Ap, ii):
-    #     print(o, type(o))
-    #     print(Ap, type(Ap))
-    #     print(ii, type(ii))
-    #     1/0
+    def indexed(self, o, Ap, ii):
+        return TimeDerivative(o)
+
+    def time_derivative(self, o):
+        return TimeDerivative(o)
 
 
 # mapping rules to splat out time derivatives so that replacement should
 # work on more complex problems.
 class TimeDerivativeRuleDispatcher(MultiFunction):
-    def __init__(self, t, timedep_coeffs):
+    def __init__(self, timedep_coeffs=None):
         MultiFunction.__init__(self)
-        self.t = t
         self.timedep_coeffs = timedep_coeffs
 
     def terminal(self, o):
@@ -78,30 +77,13 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
 
     expr = MultiFunction.reuse_if_untouched
 
-    def grad(self, o):
-        from firedrake import grad
-        if isinstance(o, TimeDerivative):
-            return TimeDerivative(grad(*o.ufl_operands))
-        return o
-
-    def div(self, o):
-        return o
-
-    def reference_grad(self, o):
-        return o
-
-    def coefficient_derivative(self, o):
-        return o
-
-    def coordinate_derivative(self, o):
-        return o
-
     def time_derivative(self, o):
         f, = o.ufl_operands
-        rules = TimeDerivativeRuleset(self.t, self.timedep_coeffs)
+        rules = TimeDerivativeRuleset(timedep_coeffs=self.timedep_coeffs)
         return map_expr_dag(rules, f)
 
 
-def apply_time_derivatives(expression, t, timedep_coeffs=[]):
-    rules = TimeDerivativeRuleDispatcher(t, timedep_coeffs)
+def apply_time_derivatives(expression, timedep_coeffs=None):
+    expression = apply_algebra_lowering(expression)
+    rules = TimeDerivativeRuleDispatcher(timedep_coeffs=timedep_coeffs)
     return map_integrand_dags(rules, expression)
