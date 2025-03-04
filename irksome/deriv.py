@@ -1,3 +1,4 @@
+from ufl.constantvalue import as_ufl
 from ufl.differentiation import Derivative
 from ufl.core.ufl_type import ufl_type
 from ufl.corealg.multifunction import MultiFunction
@@ -6,6 +7,7 @@ from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
 from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl.tensors import ListTensor
 from ufl.indexed import Indexed
+from ufl.core.multiindex import FixedIndex
 
 
 @ufl_type(num_ops=1,
@@ -33,7 +35,10 @@ class TimeDerivative(Derivative):
     def _simplify_indexed(self, multiindex):
         """Return a simplified Expr used in the constructor of Indexed(self, multiindex)."""
         # Push Indexed inside TimeDerivative
-        return TimeDerivative(Indexed(self.ufl_operands[0], multiindex))
+        if all(isinstance(i, FixedIndex) for i in multiindex):
+            f, = self.ufl_operands
+            return TimeDerivative(Indexed(f, multiindex))
+        return Derivative._simplify_indexed(self, multiindex)
 
 
 def Dt(f, order=1):
@@ -52,18 +57,24 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
 
     def coefficient(self, o):
         if self.t is not None and o is self.t:
-            return 1.0
+            return as_ufl(1.0)
         elif self.timedep_coeffs is None or o in self.timedep_coeffs:
             return TimeDerivative(o)
         else:
             return self.independent_terminal(o)
 
-    def indexed(self, o, Ap, ii):
+    def spatial_coordinate(self, o):
+        return self.independent_terminal(o)
+
+    def time_derivative(self, o, f):
+        return TimeDerivative(f)
+
+    def _linear_op(self, o):
         return TimeDerivative(o)
 
-    def time_derivative(self, o):
-        f, = o.ufl_operands
-        return TimeDerivative(map_expr_dag(self, f))
+    grad = _linear_op
+    curl = _linear_op
+    div = _linear_op
 
 
 # mapping rules to splat out time derivatives so that replacement should
@@ -74,15 +85,9 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
         self.t = t
         self.timedep_coeffs = timedep_coeffs
 
-    def terminal(self, o):
-        return o
-
-    def derivative(self, o):
-        raise NotImplementedError("Missing derivative handler for {0}.".format(type(o).__name__))
-
     expr = MultiFunction.reuse_if_untouched
 
-    def time_derivative(self, o, f):
+    def time_derivative(self, o):
         nderivs = 0
         while isinstance(o, TimeDerivative):
             o, = o.ufl_operands
@@ -91,6 +96,15 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
         for k in range(nderivs):
             o = map_expr_dag(rules, o)
         return o
+
+    def _linear_op(self, o):
+        return o
+
+    terminal = _linear_op
+    derivative = _linear_op
+    grad = _linear_op
+    curl = _linear_op
+    div = _linear_op
 
 
 def apply_time_derivatives(expression, t=None, timedep_coeffs=None):
