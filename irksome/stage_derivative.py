@@ -74,6 +74,8 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     A1w = A1 @ w_np
     A2invw = A2inv @ w_np
 
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     dtu = TimeDerivative(u0)
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     Fnew = zero()

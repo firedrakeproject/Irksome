@@ -3,7 +3,6 @@ from firedrake import *
 from firedrake.__future__ import interpolate
 from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
 from irksome.tools import AI, IA
-from ufl.algorithms.ad import expand_derivatives
 
 
 def curlcross(a, b):
@@ -25,7 +24,7 @@ def curltest(N, deg, butcher_tableau, splitting):
     x, y = SpatialCoordinate(msh)
 
     uexact = as_vector([t + 2*t*x + 4*t*y + 3*t*(y**2) + 2*t*x*y, 7*t + 5*t*x + 6*t*y - 3*t*x*y - 2*t*(x**2)])
-    rhs = expand_derivatives(diff(uexact, t)) + curl(curl(uexact))
+    rhs = Dt(uexact) + curl(curl(uexact))
 
     u = assemble(interpolate(uexact, V))
 

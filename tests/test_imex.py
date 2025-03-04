@@ -16,7 +16,7 @@ def convdiff_neumannbc(butcher_tableau, order, N):
 
     # Choose uexact so rhs is nonzero
     uexact = cos(pi*x)*exp(-t)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + uexact.dx(0)
+    rhs = Dt(uexact) - div(grad(uexact)) + uexact.dx(0)
     u = Function(V)
     u.interpolate(uexact)
 

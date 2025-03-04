@@ -295,6 +295,10 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
 
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u0,))
+
     v = F.arguments()[0]
     V = v.function_space()
     msh = V.mesh()
