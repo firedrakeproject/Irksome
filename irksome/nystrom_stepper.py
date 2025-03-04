@@ -132,6 +132,6 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
             tableau = self.tableau
         return getFormNystrom(self.F, tableau, self.t,
                               self.dt, self.u0, self.ut0,
-                              self.stages,
+                              stages,
                               bcs=self.orig_bcs,
                               bc_type=self.bc_type)
