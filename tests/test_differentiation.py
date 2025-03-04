@@ -1,6 +1,7 @@
 import pytest
-from irksome import Dt, expand_time_derivatives
-from firedrake import Constant, dot, FunctionSpace, Function, UnitIntervalMesh, VectorFunctionSpace
+from ufl.algorithms import expand_derivatives
+from irksome import MeshConstant, Dt, expand_time_derivatives
+from firedrake import Constant, diff, dot, FunctionSpace, Function, sin, UnitIntervalMesh, VectorFunctionSpace
 
 
 @pytest.fixture
@@ -19,6 +20,16 @@ def V(request, mesh):
 def test_second_derivative(V):
     u = Function(V)
     assert Dt(u, 2) == Dt(Dt(u))
+
+
+def test_diff(mesh):
+    MC = MeshConstant(mesh)
+    t = MC.Constant(0.0)
+    q = sin(t**2)
+    expr = Dt(q)
+    expected = expand_derivatives(diff(q, t))
+    expr = expand_time_derivatives(expr, t=t)
+    assert expr == expected
 
 
 def test_expand_sum(V):

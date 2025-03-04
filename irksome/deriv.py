@@ -45,12 +45,15 @@ def Dt(f, order=1):
 
 class TimeDerivativeRuleset(GenericDerivativeRuleset):
     """Apply AD rules to time derivative expressions."""
-    def __init__(self, timedep_coeffs=None):
+    def __init__(self, t=None, timedep_coeffs=None):
         GenericDerivativeRuleset.__init__(self, ())
+        self.t = t
         self.timedep_coeffs = timedep_coeffs
 
     def coefficient(self, o):
-        if self.timedep_coeffs is None or o in self.timedep_coeffs:
+        if self.t is not None and o is self.t:
+            return 1.0
+        elif self.timedep_coeffs is None or o in self.timedep_coeffs:
             return TimeDerivative(o)
         else:
             return self.independent_terminal(o)
@@ -66,8 +69,9 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
 # mapping rules to splat out time derivatives so that replacement should
 # work on more complex problems.
 class TimeDerivativeRuleDispatcher(MultiFunction):
-    def __init__(self, timedep_coeffs=None):
+    def __init__(self, t=None, timedep_coeffs=None):
         MultiFunction.__init__(self)
+        self.t = t
         self.timedep_coeffs = timedep_coeffs
 
     def terminal(self, o):
@@ -83,18 +87,18 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
         while isinstance(o, TimeDerivative):
             o, = o.ufl_operands
             nderivs += 1
-        rules = TimeDerivativeRuleset(timedep_coeffs=self.timedep_coeffs)
+        rules = TimeDerivativeRuleset(t=self.t, timedep_coeffs=self.timedep_coeffs)
         for k in range(nderivs):
             o = map_expr_dag(rules, o)
         return o
 
 
-def apply_time_derivatives(expression, timedep_coeffs=None):
-    rules = TimeDerivativeRuleDispatcher(timedep_coeffs=timedep_coeffs)
+def apply_time_derivatives(expression, t=None, timedep_coeffs=None):
+    rules = TimeDerivativeRuleDispatcher(t=t, timedep_coeffs=timedep_coeffs)
     return map_integrand_dags(rules, expression)
 
 
-def expand_time_derivatives(expression, timedep_coeffs=None):
+def expand_time_derivatives(expression, t=None, timedep_coeffs=None):
     expression = apply_algebra_lowering(expression)
-    expression = apply_time_derivatives(expression)
+    expression = apply_time_derivatives(expression, t=t, timedep_coeffs=timedep_coeffs)
     return expression
