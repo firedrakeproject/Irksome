@@ -2,6 +2,8 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
 from .deriv import TimeDerivative
 from .tools import component_replace, replace, vecconst
+from firedrake import TestFunction, as_ufl
+import numpy
 from ufl import zero
 
 
@@ -13,6 +15,10 @@ class NystromTableau:
         self.Abar = Abar
         self.bbar = bbar
         self.order = order
+
+    @property
+    def num_stages(self):
+        return len(self.b)
 
 
 def butcher_to_nystrom(butch):
@@ -84,7 +90,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
 
 class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
-    def __init__(F, tableau, t, dt, u0, ut0,
+    def __init__(self, F, tableau, t, dt, u0, ut0,
                  bcs=None, solver_parameters=None,
                  appctx=None, nullspace=None,
                  bc_type="DAE"):
@@ -95,29 +101,32 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
             self.tableau = tableau
 
         super().__init__(F, t, dt, u0,
-                         butcher_tableau.num_stages, bcs=bcs,
+                         tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace,
                          bc_type=bc_type)
 
         self.updateb = vecconst(tableau.b)
         self.udpatebbar = vecconst(tableau.bbar)
+        self.num_fields = len(u0.function_space())
 
     def _update(self):
         b = self.updateb
         bbar = self.updatebbar
+        ns = self.tableau.num_stages
+        dt = self.dt
+        nf = self.num_fields
 
         # Note: order matters here.  derivative update doesn't
         # depend on old solution value.
         kp = self.stages.subfunctions
         for i, (u0bit, ut0bit) in enumerate(zip(self.u0.subfunctions,
                                                 self.ut0.subfunctions)):
-            u0bit += (ut0bit * dt +
-                      sum(kp[nf * s + i] * (bbar[s] * dt**2)
-                          for s in range(ns)))
+            u0bit += (ut0bit * dt
+                      + sum(kp[nf * s + i] * (bbar[s] * dt**2)
+                            for s in range(ns)))
             ut0bit += sum(kp[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-            
     def get_form_and_bcs(self, stages, tableau=None):
         if tableau is None:
             tableau = self.tableau

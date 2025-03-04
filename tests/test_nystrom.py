@@ -1,10 +1,7 @@
-import numpy as np
-import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, cos, diff, div, dx,
-                       errornorm, exp, grad, inner, norm, pi, project, sin)
-from irksome import Dt, GaussLegendre, TimeStepper, StageDerivativeNystromTimeStepper
-from ufl.algorithms import expand_derivatives
+                       TestFunction, UnitIntervalMesh, assemble, cos, dx,
+                       errornorm, grad, inner, pi, project, sin)
+from irksome import Dt, GaussLegendre, StageDerivativeNystromTimeStepper
 
 
 def wave(n, deg, time_stages):
@@ -29,7 +26,7 @@ def wave(n, deg, time_stages):
     u0 = project(uexact, V)
     u = Function(u0)  # copy
     ut = Function(V)
-    
+
     v = TestFunction(V)
 
     F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx
@@ -37,10 +34,9 @@ def wave(n, deg, time_stages):
     bc = DirichletBC(V, 0, "on_boundary")
 
     E = 0.5 * inner(ut, ut) * dx + 0.5 * inner(grad(u), grad(u)) * dx
-    
+
     stepper = StageDerivativeNystromTimeStepper(
-        F, butcher_tableau, t, dt, u, ut,
-        bcs=bc, solver_parameters=params)
+        F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params)
 
     E0 = assemble(E)
     while (float(t) < 1.0):
@@ -60,5 +56,3 @@ def test_wave_eq():
     Erat, diff = wave(n, deg, stage_count)
     print(Erat)
     print(diff)
-
-    
