@@ -5,7 +5,7 @@ from ufl import zero
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
-from .deriv import TimeDerivative
+from .deriv import TimeDerivative, expand_time_derivatives
 from .tools import component_replace, replace, vecconst
 import numpy as np
 from firedrake import TestFunction
@@ -81,6 +81,8 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
     dtu0sub = trial_dvals.T @ u_np
 
     dtu0 = TimeDerivative(u0)
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
 
     # now loop over quadrature points
     Fnew = zero()

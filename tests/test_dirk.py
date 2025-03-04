@@ -3,7 +3,6 @@ import pytest
 from firedrake import *
 from irksome import WSODIRK, Alexander, Dt, MeshConstant, TimeStepper
 from ufl import replace
-from ufl.algorithms.ad import expand_derivatives
 
 wsodirks = [WSODIRK(*x) for x in ((4, 3, 2), (4, 3, 3))]
 
@@ -35,7 +34,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         + u_0
         + ((x - x0) / x1) * (u_1 - u_0)
     )
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)
@@ -80,7 +79,7 @@ def test_1d_heat_neumannbc(butcher_tableau):
     (x,) = SpatialCoordinate(msh)
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u_dirk = Function(V)
     u = Function(V)
     u_dirk.interpolate(uexact)
@@ -125,7 +124,7 @@ def test_1d_heat_homogdbc(butcher_tableau):
     (x,) = SpatialCoordinate(msh)
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u_dirk = Function(V)
     u = Function(V)
     u_dirk.interpolate(uexact)
@@ -174,7 +173,7 @@ def test_1d_vectorheat_componentBC(butcher_tableau):
 
     uexact = as_vector([sin(pi*x/2)*exp(-(pi**2)*t/4),
                         cos(pi*x/2)*exp(-(pi**2)*t/4)])
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u_dirk = Function(V)
     u = Function(V)
     u_dirk.interpolate(uexact)
@@ -241,7 +240,7 @@ def test_stokes_bcs(butcher_tableau, bctype):
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
     pexact = x + y * t
 
-    u_rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + grad(pexact)
+    u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
     p_rhs = -div(uexact)
 
     z = Function(Z)

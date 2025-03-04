@@ -4,7 +4,6 @@ import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, GalerkinTimeStepper
 from irksome import TimeStepper, GaussLegendre
-from ufl.algorithms.ad import expand_derivatives
 from FIAT import make_quadrature, ufc_simplex
 
 
@@ -36,7 +35,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
         + u_0
         + ((x - x0) / x1) * (u_1 - u_0)
     )
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)
@@ -82,7 +81,7 @@ def test_1d_heat_neumannbc(order, num_quad_points):
     butcher_tableau = GaussLegendre(order)
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u_GL = Function(V)
     u = Function(V)
     u_GL.interpolate(uexact)
@@ -131,7 +130,7 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     butcher_tableau = GaussLegendre(order)
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     bcs = DirichletBC(V, uexact, "on_boundary")
     u_GL = Function(V)
     u = Function(V)

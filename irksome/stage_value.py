@@ -9,6 +9,7 @@ from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
+from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
 from .tools import AI, is_ode, replace, component_replace, vecconst
 from .base_time_stepper import StageCoupledTimeStepper
@@ -103,6 +104,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     split_form = extract_terms(F)
     F_dtless = strip_dt_form(split_form.time)
     F_remainder = split_form.remainder

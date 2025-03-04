@@ -4,7 +4,6 @@ import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, DiscontinuousGalerkinTimeStepper
 from irksome import TimeStepper, RadauIIA
-from ufl.algorithms.ad import expand_derivatives
 import FIAT
 
 
@@ -36,7 +35,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
         + u_0
         + ((x - x0) / x1) * (u_1 - u_0)
     )
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)
@@ -81,7 +80,7 @@ def test_1d_heat_neumannbc(order):
     butcher_tableau = RadauIIA(order+1)
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u_Radau = Function(V)
     u = Function(V)
     u_Radau.interpolate(uexact)
@@ -130,7 +129,7 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     butcher_tableau = RadauIIA(order+1)
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     bcs = DirichletBC(V, uexact, "on_boundary")
     u_Radau = Function(V)
     u = Function(V)

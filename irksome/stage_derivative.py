@@ -4,11 +4,9 @@ from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm
 
-from ufl import diff, zero
-from ufl.algorithms import expand_derivatives
-from ufl.constantvalue import as_ufl
+from ufl.constantvalue import as_ufl, zero
 from .tools import component_replace, replace, AI, vecconst
-from .deriv import TimeDerivative  # , apply_time_derivatives
+from .deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, bc2space
 from .manipulation import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
@@ -77,6 +75,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     A2invw = A2inv @ w_np
 
     dtu = TimeDerivative(u0)
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     Fnew = zero()
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
@@ -92,7 +91,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
-            gfoo = expand_derivatives(diff(gorig, t))
+            gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u0,))
             return replace(gfoo, {t: t + c[i] * dt})
 
     elif bc_type == "DAE":
@@ -291,6 +290,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.err_old = 0.0
         self.contreject = 0
 
+        F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
         split_form = extract_terms(F)
         self.dtless_form = -split_form.remainder
 

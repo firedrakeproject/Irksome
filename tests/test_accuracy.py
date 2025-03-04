@@ -1,10 +1,9 @@
 import numpy as np
 import pytest
 from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, cos, diff, div, dx,
+                       TestFunction, UnitIntervalMesh, cos, div, dx,
                        errornorm, exp, grad, inner, norm, pi, project)
 from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
-from ufl.algorithms import expand_derivatives
 
 
 # test the accuracy of the 1d heat equation using CG elements
@@ -26,7 +25,7 @@ def heat(n, deg, time_stages, **kwargs):
     dt = MC.Constant(2.0 / N)
 
     uexact = exp(-t) * cos(pi * x)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
     butcher_tableau = RadauIIA(time_stages)
 
