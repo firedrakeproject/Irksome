@@ -4,6 +4,7 @@ from ufl.corealg.multifunction import MultiFunction
 from ufl.algorithms.map_integrands import map_integrand_dags, map_expr_dag
 from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
 from ufl.tensors import ListTensor
+from ufl.indexed import Indexed
 
 
 @ufl_type(num_ops=1,
@@ -18,6 +19,7 @@ class TimeDerivative(Derivative):
 
     def __new__(cls, f):
         if isinstance(f, ListTensor):
+            # Push TimeDerivative inside ListTensor
             return ListTensor(*map(TimeDerivative, f.ufl_operands))
         return Derivative.__new__(cls)
 
@@ -27,11 +29,17 @@ class TimeDerivative(Derivative):
     def __str__(self):
         return "d{%s}/dt" % (self.ufl_operands[0],)
 
+    def _simplify_indexed(self, multiindex):
+        """Return a simplified Expr used in the constructor of Indexed(self, multiindex)."""
+        # Push Indexed inside TimeDerivative
+        return TimeDerivative(Indexed(self.ufl_operands[0], multiindex))
 
-def Dt(f):
-    """Short-hand function to produce a :class:`TimeDerivative` of the
-    input."""
-    return TimeDerivative(f)
+
+def Dt(f, order=1):
+    """Short-hand function to produce a :class:`TimeDerivative` of a given order."""
+    for k in range(order):
+        f = TimeDerivative(f)
+    return f
 
 
 class TimeDerivativeRuleset(GenericDerivativeRuleset):
