@@ -1,4 +1,4 @@
-Solving the Heat Equation with Irksome
+Solving the Wave Equation with Irksome
 ======================================
 
 Let's start with the simple wave equation on :math:`\Omega = [0,1]
@@ -6,7 +6,7 @@ Let's start with the simple wave equation on :math:`\Omega = [0,1]
 
 .. math::
 
-   u_{tt} - \Delta u &= f
+   u_{tt} - \Delta u &= 0
 
    u & = 0 \quad \textrm{on}\ \Gamma
 
@@ -21,7 +21,7 @@ that
 
 .. math::
 
-   (u_{tt}, v) + (\nabla u, \nabla v) = (f, v)
+   (u_{tt}, v) + (\nabla u, \nabla v) = 0
 
 As usual, we need to import firedrake::
 
@@ -30,11 +30,6 @@ As usual, we need to import firedrake::
 We will also need to import certain items from irksome::
 
   from irksome import GaussLegendre, Dt, MeshConstant, StageDerivativeNystromTimeStepper
-
-And we will need a little bit of UFL to support using the method of
-manufactured solutions::
-
-  from ufl.algorithms.ad import expand_derivatives
 
 We will create the Butcher tableau for a Gauss-Legendre
 Runge-Kutta method, which generalizes the implicit midpoint rule::
@@ -45,10 +40,10 @@ Runge-Kutta method, which generalizes the implicit midpoint rule::
 Now we define the mesh and piecewise linear approximating space in
 standard Firedrake fashion::
 
-  N = 10
+  N = 32
 
   msh = UnitSquareMesh(N, N)
-  V = FunctionSpace(msh, "CG", 1)
+  V = FunctionSpace(msh, "CG", 2)
 
 We define variables to store the time step and current time value::
 
@@ -81,10 +76,11 @@ Let's use simple solver options::
               "ksp_type": "preonly",
               "pc_type": "lu"}
 
-Most of Irksome's magic happens in the :class:`.TimeStepper`.  It
-transforms our semidiscrete form `F` into a fully discrete form for
-the stage unknowns and sets up a variational problem to solve for the
-stages at each time step.::
+Most of Irksome's magic happens in the
+:class:`.StageDerivativeNystromTimeStepper`.  It takes our semidiscrete
+form `F` and the tableau and produces the variational form for
+computing the stage unknowns.  Then, it sets up a variational problem to be
+solved for the stages at each time step.::
 
   stepper = StageDerivativeNystromTimeStepper(
       F, butcher_tableau, t, dt, u, ut, bcs=bc,

@@ -1,10 +1,10 @@
 Solving the wave equation with monolithic multigrid
 ===================================================
 
-This reprise of the heat equation demo uses a monolithic multigrid
+This reprise of the wave equation demo uses a monolithic multigrid
 algorithm to perform time advancement.
 
-We consider the heat equation on :math:`\Omega = [0,1]
+We consider the wave equation on :math:`\Omega = [0,1]
 \times [0,1]`, with boundary :math:`\Gamma`: giving rise to the weak form
 
 .. math::
@@ -28,7 +28,7 @@ within Firedrake::
   msh = mh[-1]
 
 From here, setting up the function space, manufactured solution, etc,
-are just as for the regular heat equation demo::
+are just as for the regular wave equation demo::
 
   V = FunctionSpace(msh, "CG", 2)
 
@@ -48,7 +48,7 @@ are just as for the regular heat equation demo::
 
 And now for the solver parameters.  Note that we are solving a
 block-wise system with all stages coupled together.  This performs a
-monolithic multigrid with pointwise block Jacobi preconditioning::
+monolithic multigrid with a stage-coupled vertex patch smoother::
 
   mgparams = {"mat_type": "aij",
               "snes_type": "ksponly",
@@ -66,7 +66,7 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
                   "pc_factor_mat_solver_type": "mumps"}
               }
  
-These solver parameters work just fine in the :class:`.TimeStepper`::
+These solver parameters work just fine in the stepper.::
 
   stepper = StageDerivativeNystromTimeStepper(
       F, butcher_tableau, t, dt, u, ut, bcs=bc,
