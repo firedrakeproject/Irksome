@@ -127,7 +127,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
             gfoo = expand_time_derivatives(Dt(gorig, 2), t=t, timedep_coeffs=(u0,))
             return replace(gfoo, {t: t + c[i] * dt})
 
-    elif bc_type == "ODE":
+    elif bc_type == "DAE":
         try:
             bA1inv = numpy.linalg.inv(tableau.Abar)
             A1inv = vecconst(bA1inv)
