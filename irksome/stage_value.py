@@ -76,6 +76,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages,
     """
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v = F.arguments()[0]
     V = v.function_space()
     assert V == u0.function_space()
@@ -104,7 +106,6 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     split_form = extract_terms(F)
     F_dtless = strip_dt_form(split_form.time)
     F_remainder = split_form.remainder

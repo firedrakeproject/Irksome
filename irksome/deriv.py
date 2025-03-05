@@ -72,6 +72,7 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
     def _linear_op(self, o):
         return TimeDerivative(o)
 
+    derivative = _linear_op
     grad = _linear_op
     curl = _linear_op
     div = _linear_op
@@ -115,4 +116,5 @@ def apply_time_derivatives(expression, t=None, timedep_coeffs=None):
 def expand_time_derivatives(expression, t=None, timedep_coeffs=None):
     expression = apply_algebra_lowering(expression)
     expression = apply_time_derivatives(expression, t=t, timedep_coeffs=timedep_coeffs)
+
     return expression
