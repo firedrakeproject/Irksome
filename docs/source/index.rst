@@ -97,6 +97,14 @@ and for explicit schemes:
 
    demos/demo_RTwave_PEP.py
 
+and for Nystrom methods for second-order-in-time equations:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_wave.py
+   demos/demo_wave_mg.py
+
 and for bounds constraints:
 
 .. toctree::
