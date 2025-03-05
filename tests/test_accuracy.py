@@ -97,7 +97,7 @@ def telegraph(n, deg, time_stages, **kwargs):
 
     v = TestFunction(V)
 
-    F = (inner(Dt(u, 2) + Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    F = (inner(Dt(Dt(u) + u), v) * dx + inner(grad(u), grad(v)) * dx
          - inner(rhs, v) * dx)
 
     bc = DirichletBC(V, uexact, "on_boundary")

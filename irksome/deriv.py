@@ -67,11 +67,15 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
         return self.independent_terminal(o)
 
     def time_derivative(self, o, f):
-        return TimeDerivative(f)
+        if isinstance(f, TimeDerivative):
+            return TimeDerivative(f)
+        else:
+            return map_expr_dag(self, f)
 
-    def _linear_op(self, o):
-        return TimeDerivative(o)
+    def _linear_op(self, o, f):
+        return o._ufl_expr_reconstruct_(f)
 
+    derivative = _linear_op
     grad = _linear_op
     curl = _linear_op
     div = _linear_op
@@ -82,29 +86,18 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
 class TimeDerivativeRuleDispatcher(MultiFunction):
     def __init__(self, t=None, timedep_coeffs=None):
         MultiFunction.__init__(self)
-        self.t = t
-        self.timedep_coeffs = timedep_coeffs
-
-    expr = MultiFunction.reuse_if_untouched
+        self.rules = TimeDerivativeRuleset(t=t, timedep_coeffs=timedep_coeffs)
 
     def time_derivative(self, o):
-        nderivs = 0
-        while isinstance(o, TimeDerivative):
-            o, = o.ufl_operands
-            nderivs += 1
-        rules = TimeDerivativeRuleset(t=self.t, timedep_coeffs=self.timedep_coeffs)
-        for k in range(nderivs):
-            o = map_expr_dag(rules, o)
-        return o
+        f, = o.ufl_operands
+        return map_expr_dag(self.rules, f)
 
-    def _linear_op(self, o):
-        return o
-
-    terminal = _linear_op
-    derivative = _linear_op
-    grad = _linear_op
-    curl = _linear_op
-    div = _linear_op
+    expr = MultiFunction.reuse_if_untouched
+    terminal = expr
+    derivative = expr
+    grad = expr
+    curl = expr
+    div = expr
 
 
 def apply_time_derivatives(expression, t=None, timedep_coeffs=None):
