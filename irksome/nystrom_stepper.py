@@ -20,6 +20,38 @@ class NystromTableau:
     def num_stages(self):
         return len(self.b)
 
+    @property
+    def is_explicit(self):
+        A = self.A
+        Abar = self.Abar
+        for i in range(self.num_stages):
+            for j in range(self.num_stages):
+                if abs(A[i, j]) > 1.e-15 or abs(Abar[i, j]) > 1.e-15:
+                    return False
+        return True
+
+    @property
+    def is_diagonally_implicit(self):
+        A = self.A
+        Abar = self.A
+        ns = self.num_stages
+        for i in range(ns):
+            for j in range(i+1, ns):
+                if abs(A[i, j]) > 1.e-15 or abs(Abar[i, j]) > 1.e-15:
+                    return False
+        return True
+
+    @property
+    def is_implicit(self):
+        return not self.is_explicit
+
+    @property
+    def is_fully_implicit(self):
+        return self.is_implicit and not self.is_diagonally_implicit
+
+    def __str__(self):
+        return str(self.__class__).split(".")[-1][:-2]+"()"
+
 
 def butcher_to_nystrom(butch):
     A = butch.A
@@ -60,8 +92,8 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: v_np[i],
-                u0: u0 + c[i] * dt * ut0 + dt**2 * Abark[i],
-                dtu: ut0 + dt * Ak[i],
+                u0: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
+                dtu: ut0 + Ak[i] * dt,
                 dt2u: k_np[i]}
         Fnew += component_replace(F, repl)
 
