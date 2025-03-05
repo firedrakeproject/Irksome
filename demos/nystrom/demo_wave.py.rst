@@ -10,7 +10,7 @@ Let's start with the simple wave equation on :math:`\Omega = [0,1]
 
    u & = 0 \quad \textrm{on}\ \Gamma
 
-for some known function :math:`f`.  At each time :math:`t`, the solution
+At each time :math:`t`, the solution
 to this equation will be some function :math:`u\in V`, for a suitable function
 space :math:`V`.
 
