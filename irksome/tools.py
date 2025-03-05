@@ -97,22 +97,14 @@ def replace(e, mapping):
     return map_integrand_dags(MyReplacer(mapping2), e)
 
 
-def get_component(expr, index):
-    if isinstance(expr, TimeDerivative):
-        expr, = expr.ufl_operands
-        return TimeDerivative(expr[index])
-    else:
-        return expr[index]
-
-
 def component_replace(e, mapping):
-    # Replace, reccurring on components
+    """Replace, recurring on components"""
     cmapping = {}
     for key, value in mapping.items():
         cmapping[key] = as_tensor(value)
         if key.ufl_shape:
             for j in numpy.ndindex(key.ufl_shape):
-                cmapping[get_component(key, j)] = value[j]
+                cmapping[key[j]] = value[j]
     return replace(e, cmapping)
 
 
