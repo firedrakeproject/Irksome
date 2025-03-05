@@ -21,7 +21,7 @@ that
 
 .. math::
 
-   (u_t, v) + (\nabla u, \nabla v) = (f, v)
+   (u_{tt}, v) + (\nabla u, \nabla v) = (f, v)
 
 As usual, we need to import firedrake::
 
