@@ -23,9 +23,6 @@ that
 
    (u_t, v) + (\nabla u, \nabla v) = (f, v)
 
-This demo implements an example used by Solin with a particular choice
-of :math:`f` given below
-
 As usual, we need to import firedrake::
 
   from firedrake import *
@@ -99,11 +96,10 @@ should be conserved with our choice of time-stepping method::
   
 Then, we can loop over time steps, much like with 1st order systems::
 
-  tf = 1
   while (float(t) < 1.0):
       if (float(t) + float(dt) > 1.0):
           dt.assign(1.0 - float(t))
       stepper.advance()
-      print(f"Time: {float(t)}, Energy: {assemble(E)}")
       t.assign(float(t) + float(dt))
+      print(f"Time: {float(t)}, Energy: {assemble(E)}")
 
