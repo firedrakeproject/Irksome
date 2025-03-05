@@ -59,6 +59,28 @@ def butcher_to_nystrom(butch):
     return NystromTableau(A, b, butch.c, A @ A, A.T @ b, butch.order)
 
 
+# Not all Nystrom methods come from RK
+class ClassicNystrom4Tableau(NystromTableau):
+    def __init__(self):
+        A = numpy.zeros((4, 4))
+        Abar = numpy.zeros((4, 4))
+
+        A[1, 0] = 0.5
+        A[2, 1] = 0.5
+        A[3, 2] = 1
+
+        Abar[1, 0] = 1./8
+        Abar[2, 0] = 1./8
+        Abar[3, 2] = 1.0
+
+        b = numpy.array([1, 2, 2, 1]) / 6.
+        bbar = numpy.array([1, 1, 1, 0]) / 6.
+
+        c = numpy.array([0, 0.5, 0.5, 1])
+
+        super().__init__(A, b, c, Abar, bbar, 4)
+
+
 def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
                    bcs=None, bc_type=None):
     if bc_type is None:
@@ -131,6 +153,7 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                  appctx=None, nullspace=None,
                  bc_type="DAE"):
         self.ut0 = ut0
+        print(type(tableau))
         if not isinstance(tableau, NystromTableau):
             tableau = butcher_to_nystrom(tableau)
 
