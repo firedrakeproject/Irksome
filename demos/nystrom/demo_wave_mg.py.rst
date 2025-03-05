@@ -32,7 +32,7 @@ are just as for the regular wave equation demo::
 
   V = FunctionSpace(msh, "CG", 2)
 
-  dt = Constant(10 / (N*2**nref))
+  dt = Constant(2 / (N*2**nref))
   t = Constant(0.0)
 
   x, y = SpatialCoordinate(msh)
