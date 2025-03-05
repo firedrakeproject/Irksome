@@ -1,6 +1,6 @@
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
-from .deriv import TimeDerivative, expand_time_derivatives
+from .deriv import Dt, TimeDerivative, expand_time_derivatives
 from .tools import component_replace, replace, vecconst
 from firedrake import TestFunction, as_ufl
 import numpy
@@ -121,9 +121,13 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
     if bcs is None:
         bcs = []
-    if bc_type != "DAE":
-        raise ValueError(f"Unrecognized BC type: {bc_type}")
-    else:
+    if bc_type == "ODE":
+        def bc2gcur(bc, i):
+            gorig = as_ufl(bc._original_arg)
+            gfoo = expand_time_derivatives(Dt(gorig, 2), t=t, timedep_coeffs=(u0,))
+            return replace(gfoo, {t: t + c[i] * dt})
+
+    elif bc_type == "ODE":
         try:
             bA1inv = numpy.linalg.inv(tableau.Abar)
             A1inv = vecconst(bA1inv)
@@ -137,7 +141,9 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
             gcur = (1/dt**2) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur - utcur * (dt * c[j])) * A1inv[i, j]
                                    for j in range(num_stages))
             return gcur
-
+    else:
+        raise ValueError(f"Unrecognized BC type: {bc_type}")        
+    
     bcnew = []
     for bc in bcs:
         for i in range(num_stages):
@@ -153,7 +159,6 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                  appctx=None, nullspace=None,
                  bc_type="DAE"):
         self.ut0 = ut0
-        print(type(tableau))
         if not isinstance(tableau, NystromTableau):
             tableau = butcher_to_nystrom(tableau)
 
