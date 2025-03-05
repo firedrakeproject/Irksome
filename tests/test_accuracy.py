@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, diff, div, dx,
-                       errornorm, exp, grad, inner, norm, pi, project, sin)
+                       TestFunction, UnitIntervalMesh, cos, diff, div, dx,
+                       errornorm, exp, grad, inner, norm, pi, project)
 from irksome import Dt, MeshConstant, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
 
 
@@ -87,7 +87,7 @@ def telegraph(n, deg, time_stages, **kwargs):
     t = MC.Constant(0.0)
     dt = MC.Constant(2.0 / N)
 
-    uexact = exp(-t) * sin(pi * x)
+    uexact = exp(-t) * cos(pi * x)
     rhs = Dt(uexact, 2) + Dt(uexact) - div(grad(uexact))
 
     butcher_tableau = RadauIIA(time_stages)

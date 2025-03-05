@@ -103,7 +103,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
         raise ValueError(f"Unrecognized BC type: {bc_type}")
     else:
         try:
-            bA1inv = numpy.linalg.inv(tableau.A)
+            bA1inv = numpy.linalg.inv(tableau.Abar)
             A1inv = vecconst(bA1inv)
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("Can't have DAE BC's for this method")
@@ -111,8 +111,9 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             ucur = bc2space(bc, u0)
-            gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur) * A1inv[i, j]
-                                for j in range(num_stages))
+            utcur = bc2space(bc, ut0)
+            gcur = (1/dt**2) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur - utcur * (dt * c[j])) * A1inv[i, j]
+                                   for j in range(num_stages))
             return gcur
 
     bcnew = []
