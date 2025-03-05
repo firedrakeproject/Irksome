@@ -142,8 +142,8 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
                                    for j in range(num_stages))
             return gcur
     else:
-        raise ValueError(f"Unrecognized BC type: {bc_type}")        
-    
+        raise ValueError(f"Unrecognized BC type: {bc_type}")
+
     bcnew = []
     for bc in bcs:
         for i in range(num_stages):
