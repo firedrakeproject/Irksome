@@ -67,7 +67,9 @@ we need an initial condition for the solution and its time derivative
   ut = Function(V)
 
 Now, we will define the semidiscrete variational problem using
-standard UFL notation, augmented by the ``Dt`` operator from Irksome::
+standard UFL notation, augmented by the ``Dt`` operator from Irksome.
+Here, the optional second argument indicates the number of derivatives,
+(defaulting to 1)::
 
   v = TestFunction(V)
   F = inner(Dt(u, 2), v)*dx + inner(grad(u), grad(v))*dx
