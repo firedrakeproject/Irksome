@@ -22,24 +22,13 @@ class NystromTableau:
 
     @property
     def is_explicit(self):
-        A = self.A
-        Abar = self.Abar
-        for i in range(self.num_stages):
-            for j in range(self.num_stages):
-                if abs(A[i, j]) > 1.e-15 or abs(Abar[i, j]) > 1.e-15:
-                    return False
-        return True
+        return (numpy.allclose(self.Abar, 0)
+                and numpy.allclose(numpy.triu(self.A), 0))
 
     @property
     def is_diagonally_implicit(self):
-        A = self.A
-        Abar = self.A
-        ns = self.num_stages
-        for i in range(ns):
-            for j in range(i+1, ns):
-                if abs(A[i, j]) > 1.e-15 or abs(Abar[i, j]) > 1.e-15:
-                    return False
-        return True
+        return (numpy.allclose(numpy.triu(self.Abar, 1), 0)
+                and numpy.allclose(numpy.triu(self.A, 1), 0))
 
     @property
     def is_implicit(self):
