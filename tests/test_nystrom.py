@@ -1,6 +1,6 @@
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, assemble, dx,
-                       norm, grad, inner, pi, project, sin)
+                       TestFunction, UnitIntervalMesh, VectorFunctionSpace, assemble, div, dx,
+                       norm, grad, inner, pi, project, sin, split)
 from irksome import Dt, GaussLegendre, StageDerivativeNystromTimeStepper
 
 
@@ -55,6 +55,68 @@ def test_wave_eq():
     deg = 2
     stage_count = 2
     Erat, diff = wave(n, deg, stage_count)
+    print(Erat, diff)
+    assert abs(Erat - 1) < 1.e-8
+    assert diff < 3.e-5
+
+
+def mixed_wave(n, deg, time_stages):
+    N = 2**n
+    msh = UnitIntervalMesh(N)
+
+    params = {"snes_type": "ksponly",
+              "ksp_type": "preonly",
+              "mat_type": "aij",
+              "pc_type": "lu"}
+
+    V = FunctionSpace(msh, "DG", deg-1)
+    S = VectorFunctionSpace(msh, "CG", deg)
+    Z = S * V
+    x, = SpatialCoordinate(msh)
+
+    t = Constant(0.0)
+    dt = Constant(1.0 / N)
+
+    uinit = sin(pi * x)
+
+    butcher_tableau = GaussLegendre(time_stages)
+
+    z0 = Function(Z)
+    sigma0, u0 = z0.subfunctions
+    u0.project(uinit)
+    sigma0.project(-grad(uinit))
+
+    z = Function(z0)  # copy
+    zt = Function(Z)
+
+    sigma, u = split(z)
+    tau, v = split(TestFunction(Z))
+
+    F = inner(Dt(u, 2), v) * dx + inner(div(sigma), v) * dx + inner(u, div(tau)) * dx - inner(sigma, tau)*dx
+
+    sigmat, ut = split(zt)
+    E = 0.5 * inner(ut, ut) * dx + 0.5 * inner(sigma, sigma) * dx
+
+    stepper = StageDerivativeNystromTimeStepper(
+        F, butcher_tableau, t, dt, z, zt, solver_parameters=params)
+
+    E0 = assemble(E)
+    tf = 1
+    while (float(t) < tf):
+        if (float(t) + float(dt) > tf):
+            dt.assign(tf - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return assemble(E) / E0, norm(u + u0)
+
+
+def test_mixed_wave_eq():
+    # number of refinements
+    n = 5
+    deg = 2
+    stage_count = 2
+    Erat, diff = mixed_wave(n, deg, stage_count)
     print(Erat, diff)
     assert abs(Erat - 1) < 1.e-8
     assert diff < 3.e-5
