@@ -321,6 +321,10 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     chat = MC.Constant(1.0)
     a = MC.Constant(1.0)
 
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u0,))
+
     # Implicit replacement, solve at time t + c * dt, for k
     repl = {t: t + c * dt,
             u0: g + dt * a * k,

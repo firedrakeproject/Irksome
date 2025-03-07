@@ -32,6 +32,19 @@ def test_diff(mesh):
     assert expr == expected
 
 
+def test_nested_derivative_expression(mesh):
+    MC = MeshConstant(mesh)
+    t = MC.Constant(0.0)
+    q = sin(t**2)
+
+    expr = Dt(Dt(q) + q)
+    expr = expand_time_derivatives(expr, t=t)
+
+    expected = diff(diff(q, t) + q, t)
+    expected = expand_derivatives(expected)
+    assert expr == expected
+
+
 def test_expand_sum(V):
     u = Function(V)
     w = Function(V)
