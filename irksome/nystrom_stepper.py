@@ -22,7 +22,7 @@ class NystromTableau:
 
     @property
     def is_explicit(self):
-        return (numpy.allclose(self.Abar, 0)
+        return (numpy.allclose(numpy.triu(self.Abar), 0)
                 and numpy.allclose(numpy.triu(self.A), 0))
 
     @property
