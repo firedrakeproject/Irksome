@@ -5,9 +5,6 @@ from ufl.corealg.multifunction import MultiFunction
 from ufl.algorithms.map_integrands import map_integrand_dags, map_expr_dag
 from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
 from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
-from ufl.tensors import ListTensor
-from ufl.indexed import Indexed
-from ufl.core.multiindex import FixedIndex
 
 
 @ufl_type(num_ops=1,
@@ -21,9 +18,6 @@ class TimeDerivative(Derivative):
     __slots__ = ()
 
     def __new__(cls, f):
-        if isinstance(f, ListTensor):
-            # Push TimeDerivative inside ListTensor
-            return ListTensor(*map(TimeDerivative, f.ufl_operands))
         return Derivative.__new__(cls)
 
     def __init__(self, f):
@@ -31,14 +25,6 @@ class TimeDerivative(Derivative):
 
     def __str__(self):
         return "d{%s}/dt" % (self.ufl_operands[0],)
-
-    def _simplify_indexed(self, multiindex):
-        """Return a simplified Expr used in the constructor of Indexed(self, multiindex)."""
-        # Push Indexed inside TimeDerivative
-        if all(isinstance(i, FixedIndex) for i in multiindex):
-            f, = self.ufl_operands
-            return TimeDerivative(Indexed(f, multiindex))
-        return Derivative._simplify_indexed(self, multiindex)
 
 
 def Dt(f, order=1):
@@ -72,9 +58,10 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
         else:
             return map_expr_dag(self, f)
 
-    def _linear_op(self, o, f):
-        return o._ufl_expr_reconstruct_(f)
+    def _linear_op(self, o, *operands):
+        return o._ufl_expr_reconstruct_(*operands)
 
+    indexed = _linear_op
     derivative = _linear_op
     grad = _linear_op
     curl = _linear_op
