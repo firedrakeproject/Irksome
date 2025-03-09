@@ -3,7 +3,8 @@ from functools import reduce
 import numpy
 from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
 from ufl.algorithms.analysis import extract_type
-from ufl import as_tensor, replace, zero
+from ufl import as_tensor, zero
+from ufl import replace as ufl_replace
 
 from irksome.deriv import TimeDerivative
 
@@ -50,10 +51,10 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     return nspnew
 
 
-def component_replace(e, mapping):
+def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
-    return replace(e, cmapping)
+    return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor

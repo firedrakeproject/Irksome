@@ -6,7 +6,7 @@ from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
-from .tools import component_replace, replace, vecconst
+from .tools import replace, vecconst
 import numpy as np
 from firedrake import TestFunction
 
@@ -91,7 +91,7 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
                 v: vsub[q] * dt,
                 u0: usub[q],
                 dtu0: dtu0sub[q] / dt}
-        Fnew += component_replace(F, repl)
+        Fnew += replace(F, repl)
 
     # Oh, honey, is it the boundary conditions?
     if bcs is None:

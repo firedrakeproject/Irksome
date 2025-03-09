@@ -7,7 +7,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
-from .tools import component_replace, replace, vecconst
+from .tools import replace, vecconst
 import numpy as np
 from firedrake import TestFunction
 
@@ -97,21 +97,21 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     # Jump terms
     repl = {u0: u_np[0] - u0,
             v: v_np[0]}
-    Fnew = component_replace(F_dtless, repl)
+    Fnew = replace(F_dtless, repl)
 
     # Terms with time derivatives
     for q in range(len(qpts)):
         repl = {t: t + qpts[q] * dt,
                 v: vsub[q] * dt,
                 u0: dtu0sub[q] / dt}
-        Fnew += component_replace(F_dtless, repl)
+        Fnew += replace(F_dtless, repl)
 
     # Handle the rest of the terms
     for q in range(len(qpts)):
         repl = {t: t + qpts[q] * dt,
                 v: vsub[q] * dt,
                 u0: usub[q]}
-        Fnew += component_replace(F_remainder, repl)
+        Fnew += replace(F_remainder, repl)
 
     # Oh, honey, is it the boundary conditions?
     if bcs is None:

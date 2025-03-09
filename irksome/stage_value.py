@@ -11,7 +11,7 @@ from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, is_ode, replace, component_replace, vecconst
+from .tools import AI, is_ode, replace, vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
 
@@ -117,7 +117,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
         repl = {t: t + c[i] * dt,
                 v: A2invTv[i],
                 u0: w_np[i] - u0}
-        Fnew += component_replace(F_dtless, repl)
+        Fnew += replace(F_dtless, repl)
 
     # Handle the rest of the terms
     for i in range(num_stages):
@@ -125,7 +125,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
         repl = {t: t + c[i] * dt,
                 v: A1Tv[i] * dt,
                 u0: w_np[i]}
-        Fnew += component_replace(F_remainder, repl)
+        Fnew += replace(F_remainder, repl)
 
     if bcs is None:
         bcs = []
@@ -212,7 +212,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
                     u0: u_np[i]}
-            Fupdate += dt * B[i] * component_replace(split_form.remainder, repl)
+            Fupdate += dt * B[i] * replace(split_form.remainder, repl)
 
         # And the BC's for the update -- just the original BC at t+dt
         update_bcs = []

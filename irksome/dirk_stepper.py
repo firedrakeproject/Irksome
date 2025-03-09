@@ -5,7 +5,7 @@ from firedrake import NonlinearVariationalSolver as NLVS
 from ufl.constantvalue import as_ufl
 
 from .deriv import TimeDerivative, expand_time_derivatives
-from .tools import component_replace, replace, MeshConstant, vecconst
+from .tools import replace, MeshConstant, vecconst
 from .bcs import bc2space
 
 
@@ -36,7 +36,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     repl = {t: t + c * dt,
             u0: g + k * (a * dt),
             TimeDerivative(u0): k}
-    stage_F = component_replace(F, repl)
+    stage_F = replace(F, repl)
 
     bcnew = []
 
