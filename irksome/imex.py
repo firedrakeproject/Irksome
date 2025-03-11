@@ -9,7 +9,7 @@ from ufl import zero
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative, expand_time_derivatives
 from .stage_value import getFormStage
-from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, component_replace, getNullspace, get_stage_space
+from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, getNullspace, get_stage_space
 from .bcs import bc2space
 
 
@@ -66,7 +66,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
         for i in range(num_stages):
             # replace test function
             repl = {v: v_np[i]}
-            Ftmp = component_replace(Fexp, repl)
+            Ftmp = replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
@@ -74,7 +74,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
                         u0: u_np[j]}
 
                 # and sum the contribution
-                replF = component_replace(Ftmp, repl)
+                replF = replace(Ftmp, repl)
                 Fit += Ait[i, j] * dt * replF
                 Fprop += Aprop[i, j] * dt * replF
     elif splitting == IA:
@@ -84,7 +84,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
                     u0: u_np[i],
                     v: v_np[i]}
 
-            Fit += dt * component_replace(Fexp, repl)
+            Fit += dt * replace(Fexp, repl)
 
         # dense contribution to propagator
         AinvAexp = vecconst(np.linalg.solve(butch.A, Aexp))
@@ -92,7 +92,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
         for i in range(num_stages):
             # replace test function
             repl = {v: v_np[i]}
-            Ftmp = component_replace(Fexp, repl)
+            Ftmp = replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
@@ -100,7 +100,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
                         u0: u_np[j]}
 
                 # and sum the contribution
-                Fprop += AinvAexp[i, j] * dt * component_replace(Ftmp, repl)
+                Fprop += AinvAexp[i, j] * dt * replace(Ftmp, repl)
     else:
         raise NotImplementedError(
             "Must specify splitting to either IA or AI")
@@ -329,13 +329,13 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     repl = {t: t + c * dt,
             u0: g + dt * a * k,
             TimeDerivative(u0): k}
-    stage_F = component_replace(F, repl)
+    stage_F = replace(F, repl)
 
     # Explicit replacement, solve at time t + chat * dt, for khat
     replhat = {t: t + chat * dt,
                u0: ghat}
 
-    Fhat = inner(khat, vhat)*dx + component_replace(Fexp, replhat)
+    Fhat = inner(khat, vhat)*dx + replace(Fexp, replhat)
 
     bcnew = []
 

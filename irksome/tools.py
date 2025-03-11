@@ -2,12 +2,9 @@ from operator import mul
 from functools import reduce
 import numpy
 from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
-from ufl.algorithms.analysis import extract_type, has_exact_type
-from ufl.algorithms.map_integrands import map_integrand_dags
-from ufl.classes import CoefficientDerivative, Zero
-from ufl.constantvalue import as_ufl
-from ufl.corealg.multifunction import MultiFunction
-from ufl.tensors import as_tensor
+from ufl.algorithms.analysis import extract_type
+from ufl import as_tensor, zero
+from ufl import replace as ufl_replace
 
 from irksome.deriv import TimeDerivative
 
@@ -54,58 +51,10 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     return nspnew
 
 
-# Update for UFL's replace that performs post-order traversal and hence replaces
-# more complicated expressions first.
-class MyReplacer(MultiFunction):
-    def __init__(self, mapping):
-        super().__init__()
-        self.replacements = mapping
-        if not all(k.ufl_shape == v.ufl_shape for k, v in mapping.items()):
-            raise ValueError("Replacement expressions must have the same shape as what they replace.")
-
-    def expr(self, o):
-        if o in self.replacements:
-            return self.replacements[o]
-        else:
-            return self.reuse_if_untouched(o, *map(self, o.ufl_operands))
-
-
 def replace(e, mapping):
-    """Replace subexpressions in expression.
-
-    @param e:
-        An Expr or Form.
-    @param mapping:
-        A dict with from:to replacements to perform.
-    """
-    mapping2 = dict((k, as_ufl(v)) for (k, v) in mapping.items())
-
-    # Workaround for problem with delayed derivative evaluation
-    # The problem is that J = derivative(f(g, h), g) does not evaluate immediately
-    # So if we subsequently do replace(J, {g: h}) we end up with an expression:
-    # derivative(f(h, h), h)
-    # rather than what were were probably thinking of:
-    # replace(derivative(f(g, h), g), {g: h})
-    #
-    # To fix this would require one to expand derivatives early (which
-    # is not attractive), or make replace lazy too.
-    if has_exact_type(e, CoefficientDerivative):
-        # Hack to avoid circular dependencies
-        from ufl.algorithms.ad import expand_derivatives
-        e = expand_derivatives(e)
-
-    return map_integrand_dags(MyReplacer(mapping2), e)
-
-
-def component_replace(e, mapping):
-    """Replace, recurring on components"""
-    cmapping = {}
-    for key, value in mapping.items():
-        cmapping[key] = as_tensor(value)
-        if key.ufl_shape:
-            for j in numpy.ndindex(key.ufl_shape):
-                cmapping[key[j]] = value[j]
-    return replace(e, cmapping)
+    """A wrapper for ufl.replace that allows numpy arrays."""
+    cmapping = {k: as_tensor(v) for k, v in mapping.items()}
+    return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor
@@ -120,11 +69,13 @@ def IA(A):
 def is_ode(f, u):
     """Given a form defined over a function `u`, checks if
     (each bit of) u appears under a time derivative."""
-    blah = extract_type(f, TimeDerivative)
-
-    Dtbits = set(b.ufl_operands[0] for b in blah)
-    ubits = set(u[i] for i in numpy.ndindex(u.ufl_shape))
-    return Dtbits == ubits
+    derivs = extract_type(f, TimeDerivative)
+    Dtbits = []
+    for k in derivs:
+        op, = k.ufl_operands
+        Dtbits.extend(op[i] for i in numpy.ndindex(op.ufl_shape))
+    ubits = [u[i] for i in numpy.ndindex(u.ufl_shape)]
+    return set(Dtbits) == set(ubits)
 
 
 # Utility class for constants on a mesh
@@ -139,7 +90,7 @@ class MeshConstant(object):
 
 def ConstantOrZero(x, MC=None):
     const = MC.Constant if MC else Constant
-    return Zero() if abs(complex(x)) < 1.e-10 else const(x)
+    return zero() if abs(complex(x)) < 1.e-10 else const(x)
 
 
 vecconst = numpy.vectorize(ConstantOrZero)

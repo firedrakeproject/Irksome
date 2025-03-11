@@ -5,7 +5,7 @@ from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm
 
 from ufl.constantvalue import as_ufl, zero
-from .tools import component_replace, replace, AI, vecconst
+from .tools import AI, replace, vecconst
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, bc2space
 from .manipulation import extract_terms
@@ -84,7 +84,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
                 v: v_np[i],
                 u0: u0 + A1w[i] * dt,
                 dtu: A2invw[i]}
-        Fnew += component_replace(F, repl)
+        Fnew += replace(F, repl)
 
     if bcs is None:
         bcs = []

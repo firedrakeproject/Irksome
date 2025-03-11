@@ -1,7 +1,7 @@
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
-from .tools import component_replace, replace, vecconst
+from .tools import replace, vecconst
 from firedrake import TestFunction, as_ufl
 import numpy
 from ufl import zero
@@ -106,7 +106,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
                 u0: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
                 dtu: ut0 + Ak[i] * dt,
                 dt2u: k_np[i]}
-        Fnew += component_replace(F, repl)
+        Fnew += replace(F, repl)
 
     if bcs is None:
         bcs = []
