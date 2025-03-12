@@ -1,10 +1,11 @@
+import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, VectorFunctionSpace, assemble, div, dx,
                        norm, grad, inner, pi, project, sin, split)
 from irksome import Dt, GaussLegendre, StageDerivativeNystromTimeStepper, ClassicNystrom4Tableau
 
 
-def wave(n, deg, time_stages):
+def wave(n, deg, time_stages, bc_type):
     N = 2**n
     msh = UnitIntervalMesh(N)
 
@@ -36,7 +37,7 @@ def wave(n, deg, time_stages):
     E = 0.5 * inner(ut, ut) * dx + 0.5 * inner(grad(u), grad(u)) * dx
 
     stepper = StageDerivativeNystromTimeStepper(
-        F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params)
+        F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params, bc_type=bc_type)
 
     E0 = assemble(E)
     tf = 1
@@ -49,12 +50,13 @@ def wave(n, deg, time_stages):
     return assemble(E) / E0, norm(u + u0)
 
 
-def test_wave_eq():
+@pytest.mark.parametrize("bc_type", ["ODE", "DAE", "dDAE"])
+def test_wave_eq(bc_type):
     # number of refinements
     n = 5
     deg = 2
     stage_count = 2
-    Erat, diff = wave(n, deg, stage_count)
+    Erat, diff = wave(n, deg, stage_count, bc_type)
     print(Erat, diff)
     assert abs(Erat - 1) < 1.e-8
     assert diff < 3.e-5
