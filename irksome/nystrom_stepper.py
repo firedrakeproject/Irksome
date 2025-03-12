@@ -130,6 +130,34 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
             gcur = (1/dt**2) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur - utcur * (dt * c[j])) * A1inv[i, j]
                                    for j in range(num_stages))
             return gcur
+
+    elif bc_type == "dDAE":
+        if tableau.is_explicit:
+            try:
+                AAb = numpy.vstack((tableau.A, tableau.b))
+                AAb = AAb[1:]
+                bA1inv = numpy.linalg.inv(AAb)
+                A1inv = vecconst(bA1inv)
+                c_one = numpy.append(tableau.c, 1.0)
+                c_ddae = vecconst(c_one[1:])
+            except numpy.linalg.LinAlgError:
+                raise NotImplementedError("Can't have derivative DAE BC's for this method")
+        else:
+            try:
+                bA1inv = numpy.linalg.inv(tableau.A)
+                A1inv = vecconst(bA1inv)
+                c_ddae = vecconst(tableau.c)
+            except numpy.linalg.LinAlgError:
+                raise NotImplementedError("Can't have derivative DAE BC's for this method")
+
+        def bc2gcur(bc, i):
+            gorig = as_ufl(bc._original_arg)
+            gfoo = expand_time_derivatives(Dt(gorig, 1), t=t, timedep_coeffs=(u0,))
+            utcur = bc2space(bc, ut0)
+            gcur = (1/dt) * sum((replace(gfoo, {t: t + c_ddae[j]*dt}) - utcur) * A1inv[i, j]
+                                for j in range(num_stages))
+            return gcur
+
     else:
         raise ValueError(f"Unrecognized BC type: {bc_type}")
 
