@@ -103,6 +103,7 @@ and for Nystrom methods for second-order-in-time equations:
    :maxdepth: 1
 
    demos/demo_wave.py
+   demos/demo_wave_explicit.py
    demos/demo_wave_mg.py
 
 and for bounds constraints:
