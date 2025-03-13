@@ -117,6 +117,8 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
             return replace(gfoo, {t: t + c[i] * dt})
 
     elif bc_type == "DAE":
+        if tableau.is_explicit:
+            raise NotImplementedError("Can't impose DAE BCs for an explicit Nystrom tableau.  You should probably try bc_type = 'dDAE' instead")
         try:
             bA1inv = numpy.linalg.inv(tableau.Abar)
             A1inv = vecconst(bA1inv)
