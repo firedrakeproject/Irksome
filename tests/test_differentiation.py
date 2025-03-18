@@ -1,7 +1,7 @@
 import pytest
 from ufl.algorithms import expand_derivatives
 from irksome import MeshConstant, Dt, expand_time_derivatives
-from firedrake import Constant, diff, dot, FunctionSpace, Function, sin, UnitIntervalMesh, VectorFunctionSpace
+from firedrake import Cofunction, Constant, diff, dot, dx, FunctionSpace, Function, inner, sin, TestFunction, UnitIntervalMesh, VectorFunctionSpace
 
 
 @pytest.fixture
@@ -79,3 +79,16 @@ def test_expand_second_derivative_product_rule(V):
                 + dot(u, Dt(w, 2)))
     # UFL equality is failing here due to different index numbers
     assert str(expr) == str(expected)
+
+
+def test_cofunction(V):
+    u = Function(V)
+    v = TestFunction(V)
+    c = Cofunction(V.dual())
+    expr = inner(Dt(u), v)*dx + c
+
+    # TimeDerivatives are already expanded
+    # This is just to test that it can handle Cofunction properly
+    expected = expr
+    expr = expand_time_derivatives(expr)
+    assert expr == expected
