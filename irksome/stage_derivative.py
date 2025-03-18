@@ -194,6 +194,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         nf = self.num_fields
 
         # Note: this now cates the optimized/stiffly accurate case as b[s] == Zero() will get dropped
+        # self.u0 += dt*self.stages
+        # self.u0 += dt*self.stages
+
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 

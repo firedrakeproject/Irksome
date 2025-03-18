@@ -137,7 +137,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         Note: overwrites the value `u0`."""
 
         push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
-        self.solver.solve(bounds=self.stage_bounds)
+        # self.solver.solve(bounds=self.stage_bounds)
+        self.solver.solve()
         pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
 
         self.num_steps += 1
