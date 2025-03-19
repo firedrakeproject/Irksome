@@ -79,12 +79,7 @@ class TimeDerivativeRuleDispatcher(MultiFunction):
         f, = o.ufl_operands
         return map_expr_dag(self.rules, f)
 
-    expr = MultiFunction.reuse_if_untouched
-    terminal = expr
-    derivative = expr
-    grad = expr
-    curl = expr
-    div = expr
+    ufl_type = MultiFunction.reuse_if_untouched
 
 
 def apply_time_derivatives(expression, t=None, timedep_coeffs=None):
