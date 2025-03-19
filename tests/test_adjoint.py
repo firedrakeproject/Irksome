@@ -40,17 +40,9 @@ def test_adjoint_diffusivity(nt, order, Scheme):
     t = Constant(0)
     bt = Scheme(order)
 
-    params = {
-        'snes_type': 'ksponly',
-        'mat_type': 'aij',
-        'ksp_type': 'preonly',
-        'pc_type': 'lu',
-    }
-
     bcs = DirichletBC(V, 0, "on_boundary")
     F = inner(Dt(u), v) * dx + kappa * inner(grad(u), grad(v)) * dx
-    stepper = TimeStepper(F, bt, t, dt, u, bcs=bcs,
-                          solver_parameters=params)
+    stepper = TimeStepper(F, bt, t, dt, u, bcs=bcs)
 
     continue_annotation()
     with set_working_tape() as tape:
