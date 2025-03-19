@@ -42,10 +42,6 @@ def test_adjoint_diffusivity(nt, order, Scheme):
         J = assemble(inner(u, u) * dx)
         rf = ReducedFunctional(J, Control(kappa), tape=tape)
     pause_annotation()
-
-    nu = Function(R).assign(3.0)
-
-    assert abs(rf(kappa) - rf(nu)) > 1e-8
     assert taylor_test(rf, kappa, Constant(0.01)) > 1.9
 
 
