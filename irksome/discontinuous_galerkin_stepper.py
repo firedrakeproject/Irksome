@@ -1,6 +1,6 @@
 from FIAT import (Bernstein, DiscontinuousElement,
                   DiscontinuousLagrange,
-                  IntegratedLegendre, Lagrange,
+                  Lagrange, Legendre,
                   make_quadrature, ufc_simplex)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
@@ -46,7 +46,9 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     assert Q.ref_el.get_spatial_dimension() == 1
     assert L.get_reference_element() == Q.ref_el
 
-    v = F.arguments()[0]
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
 
@@ -59,15 +61,6 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     tabulate_basis = L.tabulate(1, qpts)
     basis_vals = tabulate_basis[(0,)]
     basis_dvals = tabulate_basis[(1,)]
-
-    element = L
-    if isinstance(element, DiscontinuousElement):
-        element = element._element
-    # sort dofs geometrically by entity location
-    edofs = element.entity_dofs()
-    perm = [*edofs[0][0], *edofs[1][0], *edofs[0][1]]
-    basis_vals = basis_vals[perm]
-    basis_dvals = basis_dvals[perm]
     basis_vals_w = np.multiply(basis_vals, qwts)
 
     # mass matrix later for BC
@@ -79,9 +72,6 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     trial_dvals = vecconst(basis_dvals)
     test_vals_w = vecconst(basis_vals_w)
     qpts = vecconst(qpts.reshape((-1,)))
-
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
 
     split_form = extract_terms(F)
     F_dtless = strip_dt_form(split_form.time)
@@ -95,8 +85,11 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     dtu0sub = trial_dvals.T @ u_np
 
     # Jump terms
-    repl = {u0: u_np[0] - u0,
-            v: v_np[0]}
+    L_at_0 = vecconst(L.tabulate(0, (0.0,))[(0,)])
+    u_at_0 = L_at_0 @ u_np
+    v_at_0 = L_at_0 @ v_np
+    repl = {u0: u_at_0 - u0,
+            v: v_at_0}
     Fnew = replace(F_dtless, repl)
 
     # Terms with time derivatives
@@ -181,11 +174,11 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         ufc_line = ufc_simplex(1)
 
         if order == 0:
-            self.el = DiscontinuousLagrange(ufc_line, 0)
+            self.el = DiscontinuousLagrange(ufc_line, order)
         elif basis_type == "Bernstein":
             self.el = DiscontinuousElement(Bernstein(ufc_line, order))
         elif basis_type == "integral":
-            self.el = DiscontinuousElement(IntegratedLegendre(ufc_line, order))
+            self.el = Legendre(ufc_line, order)
         else:
             # Let recursivenodes handle the general case
             variant = None if basis_type == "Lagrange" else basis_type
@@ -197,6 +190,9 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         assert np.size(quadrature.get_points()) >= order+1
 
         num_stages = order+1
+
+        self.update_b = vecconst(self.el.tabulate(0, (1.0,))[(0,)])
+
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace)
@@ -207,6 +203,5 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
                                    self.orig_bcs)
 
     def _update(self):
-        # only correct if we are nodal w.r.t. right end.
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(self.stages.subfunctions[self.num_fields*(self.order)+i])
+            u0bit.assign(np.dot(self.stages.subfunctions[i::self.num_fields], self.update_b))
