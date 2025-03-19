@@ -4,6 +4,23 @@ from irksome import Dt, RadauIIA, GaussLegendre, TimeStepper
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def handle_taping():
+    yield
+    tape = get_working_tape()
+    tape.clear_tape()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def handle_annotation():
+    if not annotate_tape():
+        continue_annotation()
+    yield
+    # Ensure annotation is paused when we finish.
+    if annotate_tape():
+        pause_annotation()
+
+
 @pytest.mark.parametrize("nt", (1, 4))
 @pytest.mark.parametrize("order", (1, 2))
 @pytest.mark.parametrize("Scheme", (RadauIIA, GaussLegendre))
@@ -46,4 +63,4 @@ def test_adjoint_diffusivity(nt, order, Scheme):
 
 
 if __name__ == '__main__':
-    test_adjoint_diffusivity(2, 1, RadauIIA)
+    test_adjoint_diffusivity(1, 1, RadauIIA)
