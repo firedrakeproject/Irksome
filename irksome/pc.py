@@ -120,7 +120,7 @@ class RanaDU(RanaBase):
 class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
     """Base class that inherits from Firedrake's AuxiliaryOperatorPC class and
     provides the preconditioning bilinear form associated with an auxiliary
-    Form and/or approximate Butcher matrix (which are provided by subclasses).
+    Form and/or approximate Nystrom matrices (which are provided by subclasses).
     """
 
     def getNewForm(self, pc, u0, ut0, test):
