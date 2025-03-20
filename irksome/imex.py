@@ -411,6 +411,7 @@ class DIRKIMEXMethod:
                           "u0": u0,
                           "bcs": bcs,
                           "bc_type": "DAE",
+                          "stage_type": "dirkimex",
                           "nullspace": nullspace}
         if appctx is None:
             appctx = appctx_irksome

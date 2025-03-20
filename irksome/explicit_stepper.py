@@ -20,3 +20,4 @@ class ExplicitTimeStepper(DIRKTimeStepper):
             F, butcher_tableau, t, dt, u0, bcs=bcs,
             solver_parameters=solver_parameters, appctx=appctx,
             nullspace=None)
+        self.appctx["stage_type"] = "explicit"

@@ -119,6 +119,7 @@ class DIRKTimeStepper:
         self.bcnew = bcnew
 
         appctx_irksome = {"F": F,
+                          "stage_type": "dirk",
                           "butcher_tableau": butcher_tableau,
                           "t": t,
                           "dt": dt,
@@ -130,6 +131,7 @@ class DIRKTimeStepper:
             appctx = appctx_irksome
         else:
             appctx = {**appctx, **appctx_irksome}
+        self.appctx = appctx
 
         self.problem = NLVP(stage_F, k, bcnew)
         self.solver = NLVS(
