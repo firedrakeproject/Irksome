@@ -1,8 +1,9 @@
-Solving the wave equation with monolithic multigrid
-===================================================
+Solving the telegraph equation with a stage-decoupled preconditioner
+====================================================================
 
-This reprise of the wave equation demo uses a monolithic multigrid
-algorithm to perform time advancement.
+This demo solves a slightly more involved equation -- the telegraph equation
+-- and uses a stage-segregated preconditioner rather than direct method or
+monolithic multigrid.
 
 We consider the telegraph equation on :math:`\Omega = [0,1]
 \times [0,1]`, with boundary :math:`\Gamma`: giving rise to the weak form
@@ -15,7 +16,7 @@ We perform similar imports and setup as before::
 
   from firedrake import *
   from irksome import GaussLegendre, Dt, MeshConstant, StageDerivativeNystromTimeStepper
-  butcher_tableau = GaussLegendre(2)
+  tableau = GaussLegendre(2)
 
 
 We're going to use a stage-segregated preconditioner, and we have access to AMG
@@ -29,7 +30,7 @@ are just as for the regular wave equation demo::
 
   V = FunctionSpace(msh, "CG", 2)
 
-  dt = Constant(8 / N)
+  dt = Constant(2 / N)
   t = Constant(0.0)
 
   x, y = SpatialCoordinate(msh)
@@ -59,19 +60,19 @@ hypre on the diagonal blocks::
                 "pc_fieldsplit_type": "multiplicative",
 		"fieldsplit": {
 		  "ksp_type": "preonly",
-		  "pc_type": "lu"
+		  "pc_type": "hypre"
 		}
             }}
  
 These solver parameters work just fine in the stepper.::
 
   stepper = StageDerivativeNystromTimeStepper(
-      F, butcher_tableau, t, dt, u, ut, bcs=bc,
+      F, tableau, t, dt, u, ut, bcs=bc,
       solver_parameters=params)
 
-The system energy is an important quantity for the wave equation.  It is also
-important for the telegraph method, but should decay exponentially over time
-instead of being conserved.::
+The system energy is the same quantity as for the wave equation, but in the
+telegraph equation it decays exponentially over time instead of being
+conserved.::
 
   E = 0.5 * (inner(ut, ut) * dx + inner(grad(u), grad(u)) * dx)
   print(f"Initial energy: {assemble(E)}")
