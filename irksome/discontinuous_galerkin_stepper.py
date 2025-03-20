@@ -1,6 +1,6 @@
 from FIAT import (Bernstein, DiscontinuousElement,
                   DiscontinuousLagrange,
-                  Lagrange, Legendre,
+                  Legendre,
                   make_quadrature, ufc_simplex)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
@@ -182,7 +182,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         else:
             # Let recursivenodes handle the general case
             variant = None if basis_type == "Lagrange" else basis_type
-            self.el = DiscontinuousElement(Lagrange(ufc_line, order, variant=variant))
+            self.el = DiscontinuousLagrange(ufc_line, order, variant=variant)
 
         if quadrature is None:
             quadrature = make_quadrature(ufc_line, order+1)
