@@ -42,10 +42,6 @@ jobs:
         # pass '--system-site-packages' so Firedrake can be found
         run: python3 -m venv --system-site-packages venv-irksome
 
-      - name: Checkout firedrake branch
-        # we need to test against a specific branch of firedrake
-        run: git -C /home/firedrake/firedrake fetch && git -C /home/firedrake/firedrake checkout JHopeCollins/annotate-cached-subfunctions
-
       - name: Install Irksome
         run: |
           . venv-irksome/bin/activate
