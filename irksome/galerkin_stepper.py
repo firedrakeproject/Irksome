@@ -43,7 +43,9 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
     assert Q.ref_el.get_spatial_dimension() == 1
     assert L_trial.get_order() == L_test.get_order() + 1
 
-    v = F.arguments()[0]
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
 
@@ -53,12 +55,9 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
     qpts = Q.get_points()
     qwts = Q.get_weights()
 
-    # sort dofs geometrically by entity location
-    edofs = L_trial.entity_dofs()
-    trial_perm = [*edofs[0][0], *edofs[1][0], *edofs[0][1]]
     tabulate_trials = L_trial.tabulate(1, qpts)
-    trial_vals = tabulate_trials[(0,)][trial_perm]
-    trial_dvals = tabulate_trials[(1,)][trial_perm]
+    trial_vals = tabulate_trials[(0,)]
+    trial_dvals = tabulate_trials[(1,)]
     test_vals = L_test.tabulate(0, qpts)[(0,)]
     test_vals_w = np.multiply(test_vals, qwts)
 
@@ -81,8 +80,6 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
     dtu0sub = trial_dvals.T @ u_np
 
     dtu0 = TimeDerivative(u0)
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
 
     # now loop over quadrature points
     Fnew = zero()
@@ -154,10 +151,6 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
                  quadrature=None,
                  solver_parameters=None, appctx=None, nullspace=None):
         assert order >= 1
-        self.u0 = u0
-        self.orig_bcs = bcs
-        self.t = t
-        self.dt = dt
         self.order = order
         self.basis_type = basis_type
 
@@ -195,5 +188,6 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
                                self.quadrature, self.t, self.dt, self.u0, stages, self.orig_bcs)
 
     def _update(self):
+        k1, = self.trial_el.entity_dofs()[0][1]
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(self.stages.subfunctions[self.num_fields*(self.order-1)+i])
+            u0bit.assign(self.stages.subfunctions[self.num_fields*(k1-1)+i])
