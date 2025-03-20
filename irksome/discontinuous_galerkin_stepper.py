@@ -1,7 +1,8 @@
 from FIAT import (Bernstein, DiscontinuousElement,
                   DiscontinuousLagrange,
                   Legendre,
-                  make_quadrature, ufc_simplex)
+                  ufc_simplex)
+from FIAT.quadrature_schemes import create_quadrature
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
@@ -185,11 +186,12 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             self.el = DiscontinuousLagrange(ufc_line, order, variant=variant)
 
         if quadrature is None:
-            quadrature = make_quadrature(ufc_line, order+1)
+            ref_complex = self.el.get_reference_complex()
+            quadrature = create_quadrature(ref_complex, 2*order)
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order+1
 
-        num_stages = order+1
+        num_stages = self.el.space_dimension()
 
         self.update_b = vecconst(self.el.tabulate(0, (1.0,))[(0,)])
 

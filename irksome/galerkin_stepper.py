@@ -1,6 +1,7 @@
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange, Legendre,
-                  make_quadrature, ufc_simplex)
+                  ufc_simplex)
+from FIAT.quadrature_schemes import create_quadrature
 from ufl import zero
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
@@ -38,8 +39,8 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
     """
-    assert L_test.get_reference_element() == Q.ref_el
-    assert L_trial.get_reference_element() == Q.ref_el
+    # assert L_test.get_reference_element() == Q.ref_el
+    # assert L_trial.get_reference_element() == Q.ref_el
     assert Q.ref_el.get_spatial_dimension() == 1
     assert L_trial.get_order() == L_test.get_order() + 1
 
@@ -175,11 +176,14 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
             self.test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
 
         if quadrature is None:
-            quadrature = make_quadrature(ufc_line, order)
+            ref_complex = self.test_el.get_reference_complex()
+            quadrature = create_quadrature(ref_complex, 2*order)
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order
 
-        super().__init__(F, t, dt, u0, order, bcs=bcs,
+        num_stages = self.test_el.space_dimension()
+
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace)
 

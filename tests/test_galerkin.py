@@ -7,9 +7,7 @@ from irksome import TimeStepper, GaussLegendre
 from FIAT import make_quadrature, ufc_simplex
 
 
-@pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral"])
-def test_1d_heat_dirichletbc(order, basis_type):
+def run_1d_heat_dirichletbc(order, basis_type):
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -66,6 +64,17 @@ def test_1d_heat_dirichletbc(order, basis_type):
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
+
+
+@pytest.mark.parametrize("order", [1, 2, 3])
+@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral"])
+def test_1d_heat_dirichletbc(order, basis_type):
+    run_1d_heat_dirichletbc(order, basis_type)
+
+
+@pytest.mark.parametrize("order", [1, 2, 3])
+def test_1d_heat_dirichletbc_iso(order):
+    run_1d_heat_dirichletbc(1, f"iso({order})")
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])

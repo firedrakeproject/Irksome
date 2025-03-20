@@ -87,6 +87,9 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
             Fnew, bcnew = getForm(F, butcher, t, dt, u0, w, bcs, bc_type, splitting)
         elif stage_type == "value":
             Fnew, bcnew = getFormStage(F, butcher, t, dt, u0, w, bcs, splitting)
+        elif stage_type == "galerkin":
+            # TODO
+            pass
 
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
