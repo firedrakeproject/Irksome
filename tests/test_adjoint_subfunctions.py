@@ -23,14 +23,14 @@ def handle_annotation():
 def test_adjoint_subfunctions():
     from networkx.algorithms import is_weakly_connected
 
-    mesh = UnitIntervalMesh(8)
+    mesh = UnitIntervalMesh(1)
     R = FunctionSpace(mesh, "R", 0)
 
     kappa = Function(R).assign(2.0)
     u = Function(R)
     usub = u.subfunctions[0]
 
-    print(f"{str(kappa) = } | {str(u) = } | {str(usub) = }")
+    print(f"{str(kappa) = } | {str(u) = } | {str(usub) = }")  # noqa
 
     with set_working_tape() as tape:
 
