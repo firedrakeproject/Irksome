@@ -105,6 +105,7 @@ and for Nystrom methods for second-order-in-time equations:
    demos/demo_wave.py
    demos/demo_wave_explicit.py
    demos/demo_wave_mg.py
+   demos/demo_wave_clines.py
 
 and for bounds constraints:
 

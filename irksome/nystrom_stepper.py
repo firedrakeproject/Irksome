@@ -189,6 +189,9 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx, nullspace=nullspace,
                          bc_type=bc_type)
 
+        self.appctx["ut0"] = ut0
+        self.appctx["nystrom_tableau"] = tableau
+
         self.updateb = vecconst(tableau.b)
         self.updatebbar = vecconst(tableau.bbar)
         self.num_fields = len(u0.function_space())
