@@ -187,6 +187,10 @@ class ClinesLD(ClinesBase):
     def getAtildes(self, A, Abar):
         L, D, _ = ldu(A)
         Atilde = L @ D
-        Lbar, Dbar, _ = ldu(Abar)
+        try:
+            Lbar, Dbar, _ = ldu(Abar)
+        except AssertionError:
+            raise ValueError(
+                "ClinesLD preconditioner failed for for this tableau.  Please try again with GaussLegendre or RadauIIA methods")
         Abartilde = Lbar @ Dbar
         return Atilde, Abartilde
