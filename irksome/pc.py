@@ -62,6 +62,7 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         stage_type = appctx.get("stage_type", None)
         bc_type = appctx.get("bc_type", None)
         splitting = appctx.get("splitting", None)
+        vandermonde = appctx.get("vandermonde", None)
         v0, = F.arguments()
 
         try:
@@ -86,7 +87,9 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         if stage_type in ("deriv", None):
             Fnew, bcnew = getForm(F, butcher, t, dt, u0, w, bcs, bc_type, splitting)
         elif stage_type == "value":
-            Fnew, bcnew = getFormStage(F, butcher, t, dt, u0, w, bcs, splitting)
+            Fnew, bcnew = getFormStage(F, butcher, t, dt, u0, w, bcs, splitting, vandermonde)
+        else:
+            raise NotImplementedError(f"Rana PC is not implemented (and probably doesn't make sense) for stage_type of {stage_type}")
 
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
