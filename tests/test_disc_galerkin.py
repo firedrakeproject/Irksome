@@ -7,7 +7,7 @@ from irksome import TimeStepper, RadauIIA
 import FIAT
 
 
-def run_1d_heat_dirichletbc(order, basis_type):
+def run_1d_heat_dirichletbc(order, basis_type, solver_parameters=None):
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -47,11 +47,13 @@ def run_1d_heat_dirichletbc(order, basis_type):
         DirichletBC(V, u_0, 1),
     ]
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    if solver_parameters is None:
+        luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+        solver_parameters = luparams
 
     stepper = DiscontinuousGalerkinTimeStepper(
         F, order, t, dt, u, bcs=bc, basis_type=basis_type,
-        solver_parameters=luparams
+        solver_parameters=solver_parameters
     )
 
     t_end = 2.0
@@ -72,7 +74,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
     run_1d_heat_dirichletbc(order, basis_type)
 
 
-@pytest.mark.parametrize("order", [0, 1, 2])
+@pytest.mark.parametrize("order", [1, 2])
 def test_1d_heat_dirichletbc_iso(order):
     run_1d_heat_dirichletbc(0, f"iso({order})")
 

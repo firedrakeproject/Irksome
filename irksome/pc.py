@@ -8,6 +8,10 @@ from ufl import replace
 from irksome.stage_derivative import getForm
 from irksome.stage_value import getFormStage
 
+from FIAT.quadrature_schemes import create_quadrature
+from irksome.galerkin_stepper import getFormGalerkin, getElementGalerkin
+from irksome.discontinuous_galerkin_stepper import getFormDiscontinuousGalerkin, getElementDiscontinuousGalerkin
+
 
 # Oddly, we can't turn pivoting off in scipy?
 def ldu(A):
@@ -87,9 +91,6 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
             Fnew, bcnew = getForm(F, butcher, t, dt, u0, w, bcs, bc_type, splitting)
         elif stage_type == "value":
             Fnew, bcnew = getFormStage(F, butcher, t, dt, u0, w, bcs, splitting)
-        elif stage_type == "galerkin":
-            # TODO
-            pass
 
         # Now we get the Jacobian for the modified system,
         # which becomes the auxiliary operator!
@@ -117,3 +118,61 @@ class RanaDU(RanaBase):
     def getAtilde(self, A):
         L, D, U = ldu(A)
         return D @ U
+
+
+class BaseGalerkinPC(AuxiliaryOperatorPC):
+    """Base class that inherits from Firedrake's AuxiliaryOperatorPC class and
+    provides the preconditioning bilinear form associated with an auxiliary
+    Form and/or equivalent finite element (which are provided by subclasses).
+    """
+
+    def getNewForm(self, pc, u0, test):
+        """Derived classes can optionally provide an auxiliary Form."""
+        raise NotImplementedError
+
+    def get_stage_residual(self, F, t, dt, u0, stages, bcs):
+        raise NotImplementedError
+
+    def form(self, pc, test, trial):
+        """Implements the interface for AuxiliaryOperatorPC."""
+        appctx = self.get_appctx(pc)
+        F = appctx["F"]
+        t = appctx["t"]
+        dt = appctx["dt"]
+        u0 = appctx["u0"]
+        bcs = appctx["bcs"]
+        v0, = F.arguments()
+
+        try:
+            # use new Form if provided
+            F, bcs = self.getNewForm(pc, u0, v0)
+        except NotImplementedError:
+            pass
+
+        # get stages
+        ctx = get_appctx(pc.getDM())
+        stages = ctx._x
+        Fnew, bcnew = self.get_stage_residual(F, t, dt, u0, stages, bcs, appctx)
+        # Now we get the Jacobian for the modified system,
+        # which becomes the auxiliary operator!
+        Jnew = derivative(Fnew, stages, du=trial)
+        return Jnew, bcnew
+
+
+class LowOrderRefinedGalerkinPC(BaseGalerkinPC):
+    def get_stage_residual(self, F, t, dt, u0, stages, bcs, appctx):
+        order = appctx["num_stages"]
+        basis_type = f"iso({order})"
+        L_trial, L_test = getElementGalerkin(basis_type, 1)
+        Q = create_quadrature(L_test.get_reference_complex(), L_trial.degree() + L_test.degree())
+        return getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs)
+
+
+class LowOrderRefinedDiscontinuousGalerkinPC(BaseGalerkinPC):
+    def get_stage_residual(self, F, t, dt, u0, stages, bcs, appctx):
+        print(len(stages.subfunctions) // len(u0.subfunctions))
+        order = appctx["num_stages"] - 1
+        basis_type = f"iso({order})"
+        L = getElementDiscontinuousGalerkin(basis_type, 0)
+        Q = create_quadrature(L.get_reference_complex(), 2*L.degree())
+        return getFormDiscontinuousGalerkin(F, L, Q, t, dt, u0, stages, bcs)

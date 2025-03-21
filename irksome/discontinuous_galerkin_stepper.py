@@ -13,8 +13,7 @@ import numpy as np
 from firedrake import TestFunction
 
 
-def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
-
+def getFormDiscontinuousGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
@@ -122,6 +121,20 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     return Fnew, bcsnew
 
 
+def getElementDiscontinuousGalerkin(basis_type, order):
+    ufc_line = ufc_simplex(1)
+    if order == 0:
+        return DiscontinuousLagrange(ufc_line, order)
+    elif basis_type == "Bernstein":
+        return DiscontinuousElement(Bernstein(ufc_line, order))
+    elif basis_type == "integral":
+        return Legendre(ufc_line, order)
+    else:
+        # Let recursivenodes handle the general case
+        variant = None if basis_type == "Lagrange" else basis_type
+        return DiscontinuousLagrange(ufc_line, order, variant=variant)
+
+
 class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
     """Front-end class for advancing a time-dependent PDE via a Discontinuous Galerkin
     in time method
@@ -172,18 +185,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         V = u0.function_space()
         self.num_fields = len(V)
 
-        ufc_line = ufc_simplex(1)
-
-        if order == 0:
-            self.el = DiscontinuousLagrange(ufc_line, order)
-        elif basis_type == "Bernstein":
-            self.el = DiscontinuousElement(Bernstein(ufc_line, order))
-        elif basis_type == "integral":
-            self.el = Legendre(ufc_line, order)
-        else:
-            # Let recursivenodes handle the general case
-            variant = None if basis_type == "Lagrange" else basis_type
-            self.el = DiscontinuousLagrange(ufc_line, order, variant=variant)
+        self.el = getElementDiscontinuousGalerkin(basis_type, order)
 
         if quadrature is None:
             ref_complex = self.el.get_reference_complex()
@@ -200,9 +202,9 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx, nullspace=nullspace)
 
     def get_form_and_bcs(self, stages):
-        return getFormDiscGalerkin(self.F, self.el,
-                                   self.quadrature, self.t, self.dt, self.u0, stages,
-                                   self.orig_bcs)
+        return getFormDiscontinuousGalerkin(self.F, self.el, self.quadrature,
+                                            self.t, self.dt, self.u0, stages,
+                                            self.orig_bcs)
 
     def _update(self):
         for i, u0bit in enumerate(self.u0.subfunctions):
