@@ -106,6 +106,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.splitting = splitting
         self.appctx["splitting"] = splitting
         self.bc_type = bc_type
+        self.appctx["bc_type"] = bc_type
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0

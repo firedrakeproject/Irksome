@@ -183,6 +183,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds)
+        self.appctx["stage_type"] = "value"
+        self.appctx["vandermonde"] = vandermonde
 
         if (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
             self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
