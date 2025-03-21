@@ -1,6 +1,7 @@
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange, Legendre,
-                  make_quadrature, ufc_simplex)
+                  ufc_simplex)
+from FIAT.quadrature_schemes import create_quadrature
 from ufl import zero
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
@@ -38,8 +39,8 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
     """
-    assert L_test.get_reference_element() == Q.ref_el
-    assert L_trial.get_reference_element() == Q.ref_el
+    assert L_test.get_reference_element() <= Q.ref_el
+    assert L_trial.get_reference_element() <= Q.ref_el
     assert Q.ref_el.get_spatial_dimension() == 1
     assert L_trial.get_order() == L_test.get_order() + 1
 
@@ -107,6 +108,26 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
     return Fnew, bcsnew
 
 
+def getElementGalerkin(basis_type, order):
+    ufc_line = ufc_simplex(1)
+    if basis_type == "Bernstein":
+        trial_el = Bernstein(ufc_line, order)
+        if order == 1:
+            test_el = DiscontinuousLagrange(ufc_line, 0)
+        else:
+            test_el = DiscontinuousElement(Bernstein(ufc_line, order-1))
+    elif basis_type == "integral":
+        trial_el = IntegratedLegendre(ufc_line, order)
+        test_el = Legendre(ufc_line, order-1)
+    else:
+        # Let recursivenodes handle the general case
+        variant = None if basis_type == "Lagrange" else basis_type
+        trial_el = Lagrange(ufc_line, order, variant=variant)
+        test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
+
+    return trial_el, test_el
+
+
 class GalerkinTimeStepper(StageCoupledTimeStepper):
     """Front-end class for advancing a time-dependent PDE via a Galerkin
     in time method
@@ -157,29 +178,17 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
         V = u0.function_space()
         self.num_fields = len(V)
 
-        ufc_line = ufc_simplex(1)
-        if basis_type == "Bernstein":
-            self.trial_el = Bernstein(ufc_line, order)
-            if order == 1:
-                self.test_el = DiscontinuousLagrange(ufc_line, 0)
-            else:
-                self.test_el = DiscontinuousElement(
-                    Bernstein(ufc_line, order-1))
-        elif basis_type == "integral":
-            self.trial_el = IntegratedLegendre(ufc_line, order)
-            self.test_el = Legendre(ufc_line, order-1)
-        else:
-            # Let recursivenodes handle the general case
-            variant = None if basis_type == "Lagrange" else basis_type
-            self.trial_el = Lagrange(ufc_line, order, variant=variant)
-            self.test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
-
+        self.trial_el, self.test_el = getElementGalerkin(basis_type, order)
         if quadrature is None:
-            quadrature = make_quadrature(ufc_line, order)
+            ref_complex = self.test_el.get_reference_complex()
+            quadrature_degree = self.trial_el.degree() + self.test_el.degree()
+            quadrature = create_quadrature(ref_complex, quadrature_degree)
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order
 
-        super().__init__(F, t, dt, u0, order, bcs=bcs,
+        num_stages = self.test_el.space_dimension()
+
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace)
 
