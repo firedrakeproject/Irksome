@@ -29,3 +29,6 @@ from .tools import MeshConstant             # noqa: F401
 from .wso_dirk_tableaux import WSODIRK      # noqa: F401
 from .galerkin_stepper import GalerkinTimeStepper  # noqa: F401
 from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper  # noqa: F401
+from .nprk import NPRKMethod                # noqa: F401
+from .nprk_tableaux import IMIMNPRKTableau  # noqa: F401
+from .nprk_tableaux import IMEXNPRKTableau  # noqa: F401
