@@ -65,7 +65,6 @@ def test_1d_heat_dirichletbc(butcher_tableau, stage_type):
         assert norm(u - uexact) / norm(uexact) < 1e-5
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
-
 @pytest.mark.parametrize("stage_type", ["deriv"])
 @pytest.mark.parametrize("butcher_tableau", [RadauIIA(2)])
 def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
