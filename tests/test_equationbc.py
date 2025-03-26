@@ -97,7 +97,7 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
     u, sigma = split(sln)
 
     v, tau = TestFunctions(Z)
-    F = (inner(Dt(u), v)*dx + inner(div(sigma), v)*dx - inner(rhs, v)*dx(degree=10)
+    F = (inner(Dt(u) + div(sigma), v)*dx - inner(rhs, v)*dx(degree=10)
          + inner(sigma, tau)*dx - inner(u, div(tau))*dx)
 
     bc = EquationBC(inner(u + (u ** 2) - dot(sigma, nml) - bdrydata, dot(tau, nml)) * ds == 0, sln, (1, 2, 3, 4), V=Z.sub(1))
@@ -110,6 +110,7 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
 
     u, sigma = sln.subfunctions
     u.interpolate(uexact)
+    sigma.interpolate(sigmaexact)
 
     t_end = 1.0
     while float(t) < t_end:
