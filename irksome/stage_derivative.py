@@ -3,11 +3,13 @@ from firedrake import Function, TestFunction
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm
+from firedrake.bcs import EquationBC, EquationBCSplit
+from firedrake.solving import _extract_bcs
 
 from ufl.constantvalue import as_ufl, zero
 from .tools import AI, replace, vecconst
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
-from .bcs import EmbeddedBCData, BCStageData, bc2space
+from .bcs import EmbeddedBCData, BCStageData, bc2space, stage2spaces4bc
 from .manipulation import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -32,9 +34,9 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possibly time-dependent) boundary conditions imposed
-         on the system.
+    :arg bcs: optionally, a :class:`DirichletBC` or :class:`EquationBC`
+         object (or iterable thereof) containing (possibly time-dependent) 
+         boundary conditions imposed on the system.
     :arg bc_type: How to manipulate the strongly-enforced boundary
          conditions to derive the stage boundary conditions.  Should
          be a string, either "DAE", which implements BCs as
@@ -115,10 +117,30 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     # This logic uses information set up in the previous section to
     # set up the new BCs for either method
     bcnew = []
+
+    # Don't iterate the EquationBCSplits if the user passed a single EquationBC
+    bcs = tuple(bc.extract_form("F") for bc in _extract_bcs(bcs))
+
     for bc in bcs:
         for i in range(num_stages):
-            gcur = bc2gcur(bc, i)
-            bcnew.append(BCStageData(bc, gcur, u0, stages, i))
+            if isinstance(bc, EquationBCSplit):
+
+                assert bc_type == "DAE", "EquationBC only implemented for DAE formulation"
+
+                repl = {t: t + c[i] * dt,
+                        v: v_np[i],
+                        u0: u0 + A1w[i] * dt,
+                        dtu: A2invw[i]}
+
+                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u0,))
+                F_bc_new = replace(F_bc_orig, repl)
+
+                Vi = stage2spaces4bc(bc, V, Vbig, i)
+                bcnew.append(EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vi,))
+
+            else:
+                gcur = bc2gcur(bc, i)
+                bcnew.append(BCStageData(bc, gcur, u0, stages, i))
 
     return Fnew, bcnew
 

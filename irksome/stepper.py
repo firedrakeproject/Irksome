@@ -24,7 +24,8 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
          The user may adjust this value between time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or
+            :class: `firedrake.EquationBC` containing
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the RK method.
