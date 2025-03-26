@@ -65,6 +65,8 @@ def test_1d_heat_dirichletbc(butcher_tableau, stage_type):
         assert norm(u - uexact) / norm(uexact) < 1e-5
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
+
+
 @pytest.mark.parametrize("stage_type", ["deriv"])
 @pytest.mark.parametrize("butcher_tableau", [RadauIIA(2)])
 def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
@@ -99,7 +101,7 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
         - inner(rhs, v)*dx(degree=10)
     F += inner(sigma, tau)*dx(degree=10) - inner(u, div(tau))*dx(degree=10)
 
-    bc = EquationBC(inner(u + (u ** 2) - dot(sigma, nml) - bdrydata, dot(tau, nml)) \
+    bc = EquationBC(inner(u + (u ** 2) - dot(sigma, nml) - bdrydata, dot(tau, nml))
                     * ds(degree=10) == 0, sln, (1, 2, 3, 4), V=Z.sub(1))
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
