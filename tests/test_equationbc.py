@@ -90,19 +90,17 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
     uexact = sin(t) * cos(x + y + t)
     sigmaexact = -grad(uexact)
 
-    rhs = expand_derivatives(diff(uexact, t)) + div(sigmaexact)
-    bdrydata = expand_derivatives(uexact + (uexact ** 2) - dot(sigmaexact, nml))
+    rhs = Dt(uexact) + div(sigmaexact)
+    bdrydata = uexact + (uexact ** 2) - dot(sigmaexact, nml)
 
     sln = Function(Z)
     u, sigma = split(sln)
 
     v, tau = TestFunctions(Z)
-    F = inner(Dt(u), v)*dx(degree=10) + inner(div(sigma), v)*dx(degree=10) \
-        - inner(rhs, v)*dx(degree=10)
-    F += inner(sigma, tau)*dx(degree=10) - inner(u, div(tau))*dx(degree=10)
+    F = (inner(Dt(u), v)*dx + inner(div(sigma), v)*dx - inner(rhs, v)*dx(degree=10)
+        + inner(sigma, tau)*dx - inner(u, div(tau))*dx)
 
-    bc = EquationBC(inner(u + (u ** 2) - dot(sigma, nml) - bdrydata, dot(tau, nml))
-                    * ds(degree=10) == 0, sln, (1, 2, 3, 4), V=Z.sub(1))
+    bc = EquationBC(inner(u + (u ** 2) - dot(sigma, nml) - bdrydata, dot(tau, nml)) * ds == 0, sln, (1, 2, 3, 4), V=Z.sub(1))
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
