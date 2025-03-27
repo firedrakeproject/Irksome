@@ -178,7 +178,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         if vandermonde is not None:
             vandermonde = vecconst(vandermonde)
         self.vandermonde = vandermonde
-
+        
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace,

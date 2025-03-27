@@ -163,35 +163,38 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     def get_stage_bounds(self, bounds=None):
         if bounds is None:
             return None
-
-        flatten = numpy.hstack
+        
         Vbig = self.stages.function_space()
         bounds_type, lower, upper = bounds
         if lower is None:
             slb = Function(Vbig).assign(PETSc.NINFINITY)
         if upper is None:
             sub = Function(Vbig).assign(PETSc.INFINITY)
-
+        
         if bounds_type == "stage":
             if lower is not None:
-                dats = [lower.dat] * (self.num_stages)
-                slb = Function(Vbig, val=MixedDat(flatten(dats)))
+                slb = Function(Vbig)
+                for s in range(self.num_stages):
+                    slb.subfunctions[s].assign(lower)
             if upper is not None:
-                dats = [upper.dat] * (self.num_stages)
-                sub = Function(Vbig, val=MixedDat(flatten(dats)))
+                sub = Function(Vbig)
+                for s in range(self.num_stages):
+                    sub.subfunctions[s].assign(upper)
 
         elif bounds_type == "last_stage":
             V = self.u0.function_space()
             if lower is not None:
                 ninfty = Function(V).assign(PETSc.NINFINITY)
-                dats = [ninfty.dat] * (self.num_stages-1)
-                dats.append(lower.dat)
-                slb = Function(Vbig, val=MixedDat(flatten(dats)))
+                slb = Function(Vbig)
+                for s in range(self.num_stages-1):
+                    slb.subfunctions[s].assign(ninfty)
+                slb.subfunctions[self.num_stages-1].assign(lower)
             if upper is not None:
                 infty = Function(V).assign(PETSc.INFINITY)
-                dats = [infty.dat] * (self.num_stages-1)
-                dats.append(upper.dat)
-                sub = Function(Vbig, val=MixedDat(flatten(dats)))
+                sub = Function(Vbig)
+                for s in range(self.num_stages-1):
+                    sub.subfunctions[s].assign(infty)
+                sub.subfunctions[self.num_stages-1].assign(upper)
 
         else:
             raise ValueError("Unknown bounds type")

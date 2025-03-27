@@ -117,12 +117,13 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         basis_type = kwargs.get("basis_type")
         update_solver_parameters = kwargs.get("update_solver_parameters")
         nullspace = kwargs.get("nullspace")
+        bounds = kwargs.get("bounds")
         return StageValueTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
             solver_parameters=solver_parameters,
             splitting=splitting, basis_type=basis_type,
             update_solver_parameters=update_solver_parameters,
-            nullspace=nullspace)
+            nullspace=nullspace, bounds=bounds)
 
     elif stage_type == "dirk":
         bcs = kwargs.get("bcs")
