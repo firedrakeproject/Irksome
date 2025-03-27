@@ -205,13 +205,18 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
 
         # Note: order matters here.  derivative update doesn't
         # depend on old solution value.
-        kp = self.stages.subfunctions
-        for i, (u0bit, ut0bit) in enumerate(zip(self.u0.subfunctions,
-                                                self.ut0.subfunctions)):
-            u0bit += (ut0bit * dt
-                      + sum(kp[nf * s + i] * (bbar[s] * dt**2)
-                            for s in range(ns)))
-            ut0bit += sum(kp[nf * s + i] * (b[s] * dt) for s in range(ns))
+        # Temporary hack that assumes a single field
+        self.u0 += self.ut0 * dt * sum(self.stages[s] * (bbar[s] * dt**2)
+                                       for s in range(ns))
+        self.ut0 += sum(self.stages[s] * (b[s] * dt)
+                        for s in range(ns))
+        # kp = self.stages.subfunctions
+        # for i, (u0bit, ut0bit) in enumerate(zip(self.u0.subfunctions,
+        #                                         self.ut0.subfunctions)):
+        #     u0bit += (ut0bit * dt
+        #               + sum(kp[nf * s + i] * (bbar[s] * dt**2)
+        #                     for s in range(ns)))
+        #     ut0bit += sum(kp[nf * s + i] * (b[s] * dt) for s in range(ns))
 
     def get_form_and_bcs(self, stages, tableau=None):
         if tableau is None:
