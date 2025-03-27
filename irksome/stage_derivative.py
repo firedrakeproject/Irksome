@@ -42,13 +42,15 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
          be a string, either "DAE", which implements BCs as
          constraints in the style of a differential-algebraic
          equation, or "ODE", which takes the time derivative of the
-         boundary data and evaluates this for the stage values
+         boundary data and evaluates this for the stage values.
+         Support for `firedrake.EquationBC` in `bcs` is limited
+         to DAE style BCs.
 
     On output, we return a tuple consisting of four parts:
 
        - Fnew, the :class:`Form`
-       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
-         on the stages,
+       - `bcnew`, a list of :class:`firedrake.DirichletBC` or :class:`EquationBC`
+         objects to be posed on the stages,
     """
     if bc_type is None:
         bc_type = "DAE"
@@ -162,8 +164,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
          The user may adjust this value between time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
-            the strongly-enforced boundary conditions.  Irksome will
+    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`EquationBC`
+            containing the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the RK method.
     :arg bc_type: How to manipulate the strongly-enforced boundary
@@ -171,7 +173,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             Should be a string, either "DAE", which implements BCs as
             constraints in the style of a differential-algebraic
             equation, or "ODE", which takes the time derivative of the
-            boundary data and evaluates this for the stage values
+            boundary data and evaluates this for the stage values.
+            Support for `firedrake.EquationBC` in `bcs` is limited
+            to DAE style BCs.
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
@@ -268,8 +272,8 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             a proposed step is rejected
     :arg gamma0_params: Solver parameters for mass matrix solve when using
             an embedded scheme with explicit first stage
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
-            the strongly-enforced boundary conditions.  Irksome will
+    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`EquationBC`
+            containing the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the RK method.
     :arg solver_parameters: A :class:`dict` of solver parameters that

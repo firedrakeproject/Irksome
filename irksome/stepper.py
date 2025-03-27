@@ -36,10 +36,13 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
     :arg stage_type: Whether to formulate in terms of a stage
-            derivatives or stage values.
+            derivatives or stage values. Support for `firedrake.EquationBC`
+            in `bcs` is limited to the stage derivative formulation.
     :arg splitting: An callable used to factor the Butcher matrix
     :arg bc_type: For stage derivative formulation, how to manipulate
             the strongly-enforced boundary conditions.
+            Support for `firedrake.EquationBC` in `bcs` is limited
+            to DAE style BCs.
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
