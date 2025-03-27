@@ -1,6 +1,7 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
 import numpy
 from FIAT import Bernstein, ufc_simplex
+from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
@@ -155,7 +156,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, update_solver_parameters=None,
                  splitting=AI, basis_type=None,
-                 nullspace=None, appctx=None, bounds=None):
+                 nullspace=None, appctx=None, bounds=None, use_collocation_update=False):
 
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
         assert is_ode(F, u0) or butcher_tableau.is_stiffly_accurate
@@ -185,8 +186,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds)
         self.appctx["stage_type"] = "value"
         self.appctx["vandermonde"] = vandermonde
-
-        if (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
+        if use_collocation_update:
+            self._update = self._update_collocation
+        elif (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
             self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
             self._update = self._update_general
         else:
@@ -235,6 +237,22 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def _update_general(self):
         self.update_solver.solve()
         self.u0.assign(self.unew)
+
+    def _update_collocation(self):
+        assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need collocation for collocation update"
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        assert(len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need non-confluent collocation for collocation update"
+        # assert(self.basis_type is None or basis_type == "Lagrange"), "Need the Lagrange form of the collocation polynomial"
+        lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
+    
+        vander = lag_basis.tabulate(numpy.array([[1.0]]), 0)[(0,)]
+
+        stage_vals = (self.u0, )
+        for s in range(self.num_stages):
+            stage_vals += (self.stages.subfunctions[s], )
+
+        coll_poly_val = vander.T @ stage_vals
+        self.u0.assign(coll_poly_val[0])
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
