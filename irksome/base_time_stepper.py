@@ -170,16 +170,18 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             slb = Function(Vbig).assign(PETSc.NINFINITY)
         if upper is None:
             sub = Function(Vbig).assign(PETSc.INFINITY)
-        
+
         if bounds_type == "stage":
             if lower is not None:
                 slb = Function(Vbig)
-                for s in range(self.num_stages):
-                    slb.subfunctions[s].assign(lower)
+                for nf in range(self.num_fields):
+                    for s in range(self.num_stages):
+                        slb.subfunctions[nf + s*self.num_fields].assign(lower.subfunctions[nf])
             if upper is not None:
                 sub = Function(Vbig)
-                for s in range(self.num_stages):
-                    sub.subfunctions[s].assign(upper)
+                for nf in range(self.num_fields):
+                    for s in range(self.num_stages):
+                        sub.subfunctions[nf + s*self.num_fields].assign(upper.subfunctions[nf])
 
         elif bounds_type == "last_stage":
             V = self.u0.function_space()
