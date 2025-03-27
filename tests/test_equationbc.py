@@ -2,12 +2,11 @@ import pytest
 from firedrake import *
 from math import isclose
 from irksome import GaussLegendre, RadauIIA, Dt, MeshConstant, TimeStepper
-from ufl.algorithms.ad import expand_derivatives
 
 
 @pytest.mark.parametrize("stage_type", ["deriv"])
 @pytest.mark.parametrize("butcher_tableau", [GaussLegendre(3)])
-def test_1d_heat_dirichletbc(butcher_tableau, stage_type):
+def test_1d_heat_equationbc(butcher_tableau, stage_type):
 
     # Boundary values
     u_0 = Constant(2.0)
