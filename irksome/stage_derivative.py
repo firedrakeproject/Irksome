@@ -4,12 +4,11 @@ from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm
 from firedrake.bcs import EquationBC, EquationBCSplit
-from firedrake.solving import _extract_bcs
 
-from ufl.constantvalue import as_ufl, zero
+from ufl.constantvalue import as_ufl
 from .tools import AI, replace, vecconst
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
-from .bcs import EmbeddedBCData, BCStageData, bc2space, stage2spaces4bc
+from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
 from .manipulation import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -82,23 +81,27 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     A2invw = A2inv @ w_np
 
     dtu = TimeDerivative(u0)
-    Fnew = zero()
+    repl = {}
     for i in range(num_stages):
-        repl = {t: t + c[i] * dt,
-                v: v_np[i],
-                u0: u0 + A1w[i] * dt,
-                dtu: A2invw[i]}
-        Fnew += replace(F, repl)
+        repl[i] = {t: t + c[i] * dt,
+                   v: v_np[i],
+                   u0: u0 + A1w[i] * dt,
+                   dtu: A2invw[i]}
+
+    Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 
     if bcs is None:
         bcs = []
     if bc_type == "ODE":
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
 
-        def bc2gcur(bc, i):
+        def bc2stagebc(bc, i):
+            if isinstance(bc, EquationBCSplit):
+                raise NotImplementedError("EquationBC not implemented for ODE formulation")
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u0,))
-            return replace(gfoo, {t: t + c[i] * dt})
+            gcur = replace(gfoo, {t: t + c[i] * dt})
+            return BCStageData(bc, gcur, u0, stages, i)
 
     elif bc_type == "DAE":
         try:
@@ -107,42 +110,25 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
-        def bc2gcur(bc, i):
-            gorig = as_ufl(bc._original_arg)
-            ucur = bc2space(bc, u0)
-            gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur) * A1inv[i, j]
-                                for j in range(num_stages))
-            return gcur
+        def bc2stagebc(bc, i):
+            if isinstance(bc, EquationBCSplit):
+                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u0,))
+                F_bc_new = replace(F_bc_orig, repl[i])
+                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi)
+            else:
+                gorig = as_ufl(bc._original_arg)
+                ucur = bc2space(bc, u0)
+                gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur) * A1inv[i, j]
+                                    for j in range(num_stages))
+                return BCStageData(bc, gcur, u0, stages, i)
     else:
         raise ValueError("Unrecognised bc_type: %s", bc_type)
 
     # This logic uses information set up in the previous section to
     # set up the new BCs for either method
-    bcnew = []
-
-    # Don't iterate the EquationBCSplits if the user passed a single EquationBC
-    bcs = tuple(bc.extract_form("F") for bc in _extract_bcs(bcs))
-
-    for bc in bcs:
-        for i in range(num_stages):
-            if isinstance(bc, EquationBCSplit):
-
-                assert bc_type == "DAE", "EquationBC only implemented for DAE formulation"
-
-                repl = {t: t + c[i] * dt,
-                        v: v_np[i],
-                        u0: u0 + A1w[i] * dt,
-                        dtu: A2invw[i]}
-
-                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u0,))
-                F_bc_new = replace(F_bc_orig, repl)
-
-                Vi = stage2spaces4bc(bc, V, Vbig, i)
-                bcnew.append(EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vi,))
-
-            else:
-                gcur = bc2gcur(bc, i)
-                bcnew.append(BCStageData(bc, gcur, u0, stages, i))
+    bcs = extract_bcs(bcs)
+    bcnew = [bc2stagebc(bc, i) for i in range(num_stages) for bc in bcs]
 
     return Fnew, bcnew
 
