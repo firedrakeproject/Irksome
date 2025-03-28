@@ -163,6 +163,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
+        self.basis_type = basis_type
 
         degree = butcher_tableau.num_stages
 
@@ -239,10 +240,10 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.u0.assign(self.unew)
 
     def _update_collocation(self):
-        assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need collocation for collocation update"
+        assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method for collocation update"
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
-        assert(len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need non-confluent collocation for collocation update"
-        # assert(self.basis_type is None or basis_type == "Lagrange"), "Need the Lagrange form of the collocation polynomial"
+        assert(len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need a non-confluent collocation for collocation update"
+        assert(self.basis_type is None or self.basis_type == "Lagrange"), "Collocation update requires the Lagrange form of the collocation polynomial"
         lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
     
         vander = lag_basis.tabulate(numpy.array([[1.0]]), 0)[(0,)]

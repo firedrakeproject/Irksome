@@ -68,6 +68,7 @@ class BoundsConstrainedDirichletBC(DirichletBC):
                 "ksp_type": "preonly",
                 "mat_type": "aij",
             }
+        self.V = V
         self.solver_parameters = solver_parameters
         self.bounds = bounds
         super().__init__(V, g, sub_domain)
