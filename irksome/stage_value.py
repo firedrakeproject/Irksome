@@ -4,10 +4,10 @@ from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
-                       inner)
+                       inner, Constant)
 from ufl import zero
 from ufl.constantvalue import as_ufl
-
+                               
 from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .deriv import expand_time_derivatives
@@ -180,7 +180,14 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         if vandermonde is not None:
             vandermonde = vecconst(vandermonde)
         self.vandermonde = vandermonde
-        
+
+        # if bcs is None: ## TODO: Not currently working--should return assign True if all bcs are constant and False otherwise.
+        #     self.bcs_const = None
+        # elif type(bcs) == list:
+        #     self.bcs_const = all([isinstance(bc.function_arg, Constant) for bc in bcs])
+        # else:
+        #     self.bcs_const = isinstance(bcs.function_arg, Constant)
+
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace,
@@ -240,20 +247,26 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.u0.assign(self.unew)
 
     def _update_collocation(self):
+        '''Use the terminal value of the collocation polynomial to update the solution. Note: .'''
+        # assert self.bcs_const, "Collocation update  is only implemented for constant boundary conditions" ## TODO: enable this line when bcs_const is fixed.
         assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method for collocation update"
-        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
-        assert(len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need a non-confluent collocation for collocation update"
         assert(self.basis_type is None or self.basis_type == "Lagrange"), "Collocation update requires the Lagrange form of the collocation polynomial"
+
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        assert(len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need a non-confluent collocation method for collocation update"
+        
         lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
     
         vander = lag_basis.tabulate(numpy.array([[1.0]]), 0)[(0,)]
 
-        stage_vals = (self.u0, )
-        for s in range(self.num_stages):
-            stage_vals += (self.stages.subfunctions[s], )
+        stage_vals = numpy.reshape(self.stages.subfunctions, (self.num_stages, self.num_fields))
+        stage_vals = numpy.insert(stage_vals, 0, [self.u0.subfunctions[nf] for nf in range(self.num_fields)], axis=0)
 
-        coll_poly_val = vander.T @ stage_vals
-        self.u0.assign(coll_poly_val[0])
+        coll_poly_vals = vander.T @ stage_vals
+
+        for nf in range(self.num_fields):
+            self.u0.subfunctions[nf].assign(coll_poly_vals[0, nf])
+
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
