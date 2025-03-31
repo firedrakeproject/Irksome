@@ -4,7 +4,7 @@ from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
-                       inner, Constant)
+                       inner)
 from ufl import zero
 from ufl.constantvalue import as_ufl
                                
