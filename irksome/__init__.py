@@ -19,6 +19,8 @@ from .imex import RadauIIAIMEXMethod        # noqa: F401
 from .imex import DIRKIMEXMethod            # noqa: F401
 from .nystrom_stepper import StageDerivativeNystromTimeStepper   # noqa: F401
 from .nystrom_stepper import ClassicNystrom4Tableau  # noqa: F401
+from .pc import ClinesBase, ClinesLD        # noqa: F401
+from .pc import NystromAuxiliaryOperatorPC  # noqa: F401
 from .pc import RanaBase, RanaDU, RanaLD    # noqa: F401
 from .pc import IRKAuxiliaryOperatorPC      # noqa: F401
 from .stage_value import StageValueTimeStepper  # noqa: F401
