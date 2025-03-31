@@ -181,13 +181,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             vandermonde = vecconst(vandermonde)
         self.vandermonde = vandermonde
 
-        # if bcs is None: ## TODO: Not currently working--should return assign True if all bcs are constant-in-time and False otherwise.
-        #     self.bcs_const = None
-        # elif type(bcs) == list:
-        #     self.bcs_const = all([isinstance(bc.function_arg, Constant) for bc in bcs])
-        # else:
-        #     self.bcs_const = isinstance(bcs.function_arg, Constant)
-
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx, nullspace=nullspace,
@@ -248,7 +241,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
     def _update_collocation(self):
         '''Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.'''
-        # assert self.bcs_const, "Collocation update  is only implemented for constant boundary conditions" ## TODO: enable this line when bcs_const is fixed.
+        ## TODO: create an assertion to check for uniform-in-time boundary conditions.
         assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method for collocation update"
         assert(self.basis_type is None or self.basis_type == "Lagrange"), "Collocation update requires the Lagrange form of the collocation polynomial"
 
