@@ -21,10 +21,10 @@ def handle_annotation():
         pause_annotation()
 
 
-@pytest.mark.parametrize("nt", (1, 4))
-@pytest.mark.parametrize("order", (1, 2))
+@pytest.mark.parametrize("nt", (pytest.param(n, id=f"nt={n}") for n in (1, 4)))
+@pytest.mark.parametrize("stages", (pytest.param(n, id=f"stages={n}") for n in (1, 3)))
 @pytest.mark.parametrize("Scheme", (RadauIIA, GaussLegendre))
-def test_adjoint_diffusivity(nt, order, Scheme):
+def test_adjoint_diffusivity(nt, stages, Scheme):
     msh = UnitIntervalMesh(8)
     x, = SpatialCoordinate(msh)
     V = FunctionSpace(msh, "CG", 1)
@@ -38,7 +38,7 @@ def test_adjoint_diffusivity(nt, order, Scheme):
 
     dt = Constant(0.1)
     t = Constant(0)
-    bt = Scheme(order)
+    bt = Scheme(stages)
 
     bcs = DirichletBC(V, 0, "on_boundary")
     F = inner(Dt(u), v) * dx + kappa * inner(grad(u), grad(v)) * dx
