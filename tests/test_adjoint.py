@@ -51,8 +51,4 @@ def test_adjoint_diffusivity(nt, stages, Scheme):
         J = assemble(inner(u, u) * dx)
         rf = ReducedFunctional(J, Control(kappa), tape=tape)
     pause_annotation()
-    assert taylor_test(rf, kappa, Constant(0.01)) > 1.9
-
-
-if __name__ == '__main__':
-    test_adjoint_diffusivity(1, 1, RadauIIA)
+    assert taylor_test(rf, kappa, Constant(-1.0)) > 1.9
