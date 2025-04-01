@@ -167,7 +167,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         degree = butcher_tableau.num_stages
 
-        if basis_type is None:
+        if basis_type is None or basis_type == 'Lagrange':
             vandermonde = None
         elif basis_type == "Bernstein":
             assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
@@ -241,24 +241,19 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
     def _update_collocation(self):
         '''Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.'''
-        ## TODO: create an assertion to check for uniform-in-time boundary conditions.
+        ## TODO: create an assertion to check for constant-in-time boundary conditions.
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+
         assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method for collocation update"
         assert(self.basis_type is None or self.basis_type == "Lagrange"), "Collocation update requires the Lagrange form of the collocation polynomial"
-
-        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
         assert(len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need a non-confluent collocation method to use collocation update"
         
         lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
-    
-        vander = lag_basis.tabulate(numpy.array([[1.0]]), 0)[(0,)]
+        vander = lag_basis.tabulate(numpy.array([[1.0]]), 0)[(0,)].flatten()
+        stage_vals = numpy.insert(self.stages.subfunctions, 0, [self.u0.subfunctions[nf] for nf in range(self.num_fields)])
 
-        stage_vals = numpy.reshape(self.stages.subfunctions, (self.num_stages, self.num_fields))
-        stage_vals = numpy.insert(stage_vals, 0, [self.u0.subfunctions[nf] for nf in range(self.num_fields)], axis=0)
-
-        coll_poly_vals = vander.T @ stage_vals
-
-        for nf in range(self.num_fields):
-            self.u0.subfunctions[nf].assign(coll_poly_vals[0, nf])
+        for i, u0bit in enumerate(self.u0.subfunctions):
+            u0bit.assign(numpy.dot(vander[:],  stage_vals[i::self.num_fields]))
 
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):

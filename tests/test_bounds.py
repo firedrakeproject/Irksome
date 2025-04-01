@@ -143,13 +143,13 @@ def wave_H1(butcher_tableau):
     
     stepper = TimeStepper(F, butcher_tableau, t, dt, uv, bcs=bc,
                           stage_type='value',
-                          basis_type=None,
+                          basis_type="Lagrange",
                           solver_parameters=lu_params,
                           use_collocation_update=False)
     
     stepper_coll_update = TimeStepper(F_coll_update, butcher_tableau, t, dt, uv_coll_update, bcs=bc,
                           stage_type='value',
-                          basis_type=None,
+                          basis_type="Lagrange",
                           solver_parameters=lu_params,
                           use_collocation_update=True)
 
@@ -167,7 +167,7 @@ def wave_H1(butcher_tableau):
 
 
 @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
-@pytest.mark.parametrize('basis_type', ('Bernstein', None))
+@pytest.mark.parametrize('basis_type', ('Bernstein', 'Lagrange'))
 @pytest.mark.parametrize('bounds_type', ("stage", "last_stage"))
 def test_heat_bern_bounds(butcher_tableau, basis_type, bounds_type):
     error_list = heat(butcher_tableau, basis_type, bounds_type)
