@@ -165,12 +165,107 @@ def wave_H1(butcher_tableau):
     return norm(uv - uv_coll_update)
 
 
+def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type):
+
+    msh = UnitSquareMesh(16, 16, name='mesh')
+
+    W = FunctionSpace(msh, spatial_basis, 2)
+    W2 = FunctionSpace(msh, spatial_basis, 2)
+
+    Z = W*W2
+
+    x, y = SpatialCoordinate(msh)
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(np.sqrt(2) / 160.0)
+    Tf = MC.Constant(np.sqrt(2) / 10.0)
+    
+    u_init = sin(5*pi*x)*sin(5*pi*y)
+
+    vi_opts = {
+        "snes_type": "vinewtonrsls",
+        "snes_max_it": 100,
+        "snes_atol": 1.e-8
+    }
+
+    uv = Function(Z, name='uv')
+
+    phi0 = TestFunction(W)
+
+    bc = DirichletBC(W, Constant(0), "on_boundary")
+
+    projection_problem = NonlinearVariationalProblem(
+        inner(uv.subfunctions[0] - u_init, phi0) * dx,
+        uv.subfunctions[0], bcs=bc)
+
+    projection_solver = NonlinearVariationalSolver(
+        projection_problem, solver_parameters=vi_opts)
+
+
+    upper = Function(Z)
+    lower = Function(Z)
+
+    upper.subfunctions[1].assign(np.inf)
+    lower.subfunctions[1].assign(-np.inf)
+
+    upper.subfunctions[0].assign(1.0)
+    lower.subfunctions[0].assign(-1.0)
+
+    projection_solver.solve(bounds=(lower.subfunctions[0], upper.subfunctions[0]))
+    u, v = split(uv)
+
+    phi, psi = TestFunctions(Z)
+    F = (inner(Dt(u), phi) * dx - inner(v, phi) * dx
+         + inner(Dt(v), psi) * dx + inner(grad(u), grad(psi)) * dx)
+        
+    E = (0.5 * inner(v, v)*dx + 0.5 * inner(grad(u), grad(u))*dx)
+
+    butcher_tableau = butcher_tableau
+
+    bc = [DirichletBC(Z.sub(0), Constant(0), "on_boundary"), DirichletBC(Z.sub(1), Constant(0), "on_boundary")]
+
+    
+    
+    stepper = TimeStepper(F, butcher_tableau, t, dt, uv, bcs=bc,
+                          stage_type='value',
+                          bounds=(bounds_type, lower, upper),
+                          basis_type=temporal_basis,
+                          solver_parameters=vi_opts)
+
+    bounds_violations = []
+
+    while (float(t) < float(Tf)):
+        if float(t) + float(dt) > float(Tf):
+            dt.assign(float(Tf) - float(t))
+
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+        
+        min_val = min(uv.subfunctions[0].dat.data)
+        max_val = max(uv.subfunctions[0].dat.data)
+
+        if min_val < -1.0:
+            bounds_violations.append(min_val)
+        if max_val > 1.0:
+            bounds_violations.append(max_val)
+
+    return bounds_violations
+
 
 @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
 @pytest.mark.parametrize('basis_type', ('Bernstein', 'Lagrange'))
 @pytest.mark.parametrize('bounds_type', ("stage", "last_stage"))
-def test_heat_bern_bounds(butcher_tableau, basis_type, bounds_type):
+def test_heat_bounds(butcher_tableau, basis_type, bounds_type):
     error_list = heat(butcher_tableau, basis_type, bounds_type)
+    assert len(error_list) == 0
+
+@pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
+@pytest.mark.parametrize('spatial_basis', ('Bernstein', 'Lagrange'))
+@pytest.mark.parametrize('temporal_basis', ('Bernstein', 'Lagrange'))
+@pytest.mark.parametrize('bounds_type', ("stage", "last_stage"))
+def test_wave_bounds(butcher_tableau, spatial_basis, temporal_basis, bounds_type):
+    error_list = wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
     assert len(error_list) == 0
 
 
