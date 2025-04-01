@@ -44,7 +44,7 @@ jobs:
 
       - name: Checkout firedrake branch
         # we need to test against a specific branch of firedrake
-        run: git -C /home/firedrake/firedrake fetch && git -C /home/firedrake/firedrake checkout JHopeCollins/subfunction_merge_eval_adj
+        run: git -C /opt/firedrake fetch && git -C /opt/firedrake checkout JHopeCollins/subfunction_merge_eval_adj
 
       - name: Install Irksome
         run: |
