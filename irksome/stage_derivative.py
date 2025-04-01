@@ -2,7 +2,7 @@ import numpy
 from firedrake import Function, TestFunction
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import assemble, dx, inner, norm
+from firedrake import action, assemble, dx, inner, norm
 
 from ufl.constantvalue import as_ufl, zero
 from .tools import AI, replace, vecconst
@@ -81,10 +81,10 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     Fnew = zero()
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
-                v: v_np[i],
+                #v: v_np[i],
                 u0: u0 + A1w[i] * dt,
                 dtu: A2invw[i]}
-        Fnew += replace(F, repl)
+        Fnew += action(replace(F, repl), v_np[i])
 
     if bcs is None:
         bcs = []
