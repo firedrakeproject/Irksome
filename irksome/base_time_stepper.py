@@ -64,10 +64,11 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             state of the problem to be solved.
     :arg num_stages: The number of stages to solve for.  It could be the number of
             RK stages or relate to the polynomial degree (Galerkin)
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
-            the strongly-enforced boundary conditions.  Irksome will
+    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or `firedrake.EquationBC`
+            containing the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
-            stage of the RK method.
+            stage of the RK method.  Support for `firedrake.EquationBC` is limited
+            to the stage derivative formulation with DAE style BCs.
     :arg solver_parameters: An optional :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
