@@ -2,14 +2,12 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, GalerkinTimeStepper
-from irksome import TimeStepper, GaussLegendre
+from irksome import (Dt, MeshConstant, GalerkinTimeStepper,
+                     TimeStepper, GaussLegendre)
 from FIAT import make_quadrature, ufc_simplex
 
 
-@pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral"])
-def test_1d_heat_dirichletbc(order, basis_type):
+def run_1d_heat_dirichletbc(order, basis_type, solver_parameters=None):
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -49,23 +47,60 @@ def test_1d_heat_dirichletbc(order, basis_type):
         DirichletBC(V, u_0, 1),
     ]
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
+    if solver_parameters is None:
+        luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
+        solver_parameters = luparams
 
     stepper = GalerkinTimeStepper(
         F, order, t, dt, u, bcs=bc, basis_type=basis_type,
-        solver_parameters=luparams
+        solver_parameters=solver_parameters
     )
 
     t_end = 2.0
+    stats = []
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
         stepper.advance()
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
+        stats.append(stepper.solver_stats())
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
+
+    linits = [stat[2] / stat[0] / stat[1] for stat in stats]
+    return max(linits)
+
+
+@pytest.mark.parametrize("order", [1, 2, 3])
+@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral"])
+def test_1d_heat_dirichletbc(order, basis_type):
+    run_1d_heat_dirichletbc(order, basis_type)
+
+
+@pytest.mark.parametrize("order", [2, 3])
+def test_1d_heat_dirichletbc_iso(order):
+    run_1d_heat_dirichletbc(1, f"iso({order})")
+
+
+@pytest.mark.parametrize("order", [2, 3])
+def test_low_order_refined_galerkin_pc(order):
+    params = {"mat_type": "matfree",
+              "snes_type": "ksponly",
+              "snes_lag_jacobian": -2,
+              "ksp_type": "gmres",
+              "ksp_converged_reason": None,
+              "pc_type": "python",
+              "pc_python_type": "irksome.LowOrderRefinedGalerkinPC",
+              "aux_mat_type": "aij",
+              "aux_pc_type": "lu",
+              "aux_pc_factor_mat_solver_type": "mumps",
+              }
+
+    basis_type = "spectral"
+    its = run_1d_heat_dirichletbc(order, basis_type, solver_parameters=params)
+    assert its <= order + 2
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
