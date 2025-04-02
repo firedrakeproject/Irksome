@@ -2,7 +2,7 @@ import numpy
 from firedrake import Function, TestFunction
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import action, assemble, dx, inner, norm
+from firedrake import assemble, dx, inner, norm
 from firedrake.bcs import EquationBC, EquationBCSplit
 
 from ufl.constantvalue import as_ufl
@@ -56,7 +56,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v = F.arguments()[0]
+    v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
 
