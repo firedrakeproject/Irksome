@@ -8,6 +8,7 @@ from ufl import replace as ufl_replace
 
 from irksome.deriv import TimeDerivative
 
+
 def flatten_dats(dats):
     flat_dat = []
     for dat in dats:
@@ -16,6 +17,7 @@ def flatten_dats(dats):
         else:
             flat_dat.append(dat)
     return flat_dat
+
 
 def get_stage_space(V, num_stages):
     return reduce(mul, (V for _ in range(num_stages)))

@@ -1,5 +1,3 @@
-import numpy
-
 from abc import abstractmethod
 from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationalSolver
 from firedrake.dmhooks import pop_parent, push_parent
