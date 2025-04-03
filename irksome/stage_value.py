@@ -254,7 +254,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(numpy.dot(vander[:], stage_vals[i::self.num_fields]))
-            
+
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
             butcher_tableau = self.butcher_tableau
