@@ -115,7 +115,8 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
                 F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u0,))
                 F_bc_new = replace(F_bc_orig, repl[i])
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi)
+                return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
+                                  bcs=[bc2stagebc(innerbc, i) for innerbc in extract_bcs(bc.bcs)])
             else:
                 gorig = as_ufl(bc._original_arg)
                 ucur = bc2space(bc, u0)

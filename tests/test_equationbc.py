@@ -118,3 +118,51 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
         # Check solution values
         assert errornorm(uexact, u) / norm(uexact) < 1e-3
         assert errornorm(sigmaexact, sigma) / norm(sigmaexact) < 1e-3
+
+
+@pytest.mark.parametrize("stage_type", ["deriv"])
+@pytest.mark.parametrize("butcher_tableau", [RadauIIA(2), GaussLegendre(3)])
+def test_2d_equation_and_dirichlet_bc(butcher_tableau, stage_type):
+
+    msh = UnitSquareMesh(5, 5)
+    V = FunctionSpace(msh, "CG", 4)
+
+    x, y = SpatialCoordinate(msh)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(0.01)
+    t = MC.Constant(0.0)
+
+    uexact = cos(t) * cos(x + y + t)
+    rhs = Dt(uexact) - div(grad(uexact))
+
+    u = Function(V)
+    v = TestFunction(V)
+
+    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx(degree=10)
+
+    bc0 = DirichletBC(V, uexact, ((1, 3), (1, 4), (2, 3), (2, 4)))
+    bc1 = EquationBC(inner((u ** 2) - (uexact ** 2), v) * ds((1, 2), degree=10) == 0, u, (1, 2), bcs=[bc0])
+    bc2 = DirichletBC(V, uexact, (3, 4))
+
+    params = {"snes_rtol": 1e-12, "snes_atol": 1e-12, "ksp_type": "preonly", "pc_type": "lu"}
+
+    stepper = TimeStepper(
+        F, butcher_tableau, t, dt, u, bcs=[bc1, bc2], solver_parameters=params, bc_type="DAE"
+    )
+
+    # Do a single timestep
+    u.interpolate(uexact)
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+
+    # Check that the BCs from bc0 are satisfied
+    diff = Function(V)
+    diff.interpolate(u - uexact)
+    assert diff.at([0, 0]) < 1e-10
+    assert diff.at([1, 0]) < 1e-10
+    assert diff.at([0, 1]) < 1e-10
+    assert diff.at([1, 1]) < 1e-10
+
+    # Check that the BCs from bc1, bc2 are satisfied
+    assert sqrt(assemble(((u - uexact) ** 2) * ds((1, 2, 3, 4), degree=10))) < 1e-6
