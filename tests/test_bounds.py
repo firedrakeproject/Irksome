@@ -1,11 +1,9 @@
 import numpy as np
 import pytest
-from firedrake import (DirichletBC,
-                       Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, TestFunctions, Constant,
-                       UnitSquareMesh, diff, div, dx,
-                       exp, grad, inner, norm, pi, sin, split, tanh, 
-                       sqrt, NonlinearVariationalProblem, NonlinearVariationalSolver)
+from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction, 
+                       TestFunctions, Constant, UnitSquareMesh, diff, div, dx, exp, grad, inner, 
+                       norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem, 
+                       NonlinearVariationalSolver)
 from irksome import (Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
 from ufl.algorithms import expand_derivatives
 
@@ -23,6 +21,7 @@ vi_params = {
     "ksp_type": "preonly",
     "pc_type": "lu",
 }
+
 
 def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
     N = 16
@@ -125,27 +124,25 @@ def wave_H1(butcher_tableau):
 
     phi, psi = TestFunctions(Z)
 
-    F = (inner(Dt(u), phi) * dx - inner(v, phi) * dx
-         + inner(Dt(v), psi) * dx + inner(grad(u), grad(psi)) * dx)
-    
-    F_coll_update = (inner(Dt(u_coll_update), phi) * dx - inner(v_coll_update, phi) * dx
-         + inner(Dt(v_coll_update), psi) * dx + inner(grad(u_coll_update), grad(psi)) * dx)
+    F = (inner(Dt(u), phi) * dx - inner(v, phi) * dx + inner(Dt(v), psi) * dx + inner(grad(u), grad(psi)) * dx)
+
+    F_coll_update = (inner(Dt(u_coll_update), phi) * dx - inner(v_coll_update, phi) * dx + inner(Dt(v_coll_update), psi) * dx + inner(grad(u_coll_update), grad(psi)) * dx)
 
     butcher_tableau = butcher_tableau
 
     bc = [DirichletBC(Z.sub(0), Constant(0), "on_boundary"), DirichletBC(Z.sub(1), Constant(0), "on_boundary")]
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, uv, bcs=bc,
-                        stage_type='value',
-                        basis_type="Lagrange",
-                        solver_parameters=lu_params,
-                        use_collocation_update=False)
-    
+                          stage_type='value',
+                          basis_type="Lagrange",
+                          solver_parameters=lu_params,
+                          use_collocation_update=False)
+
     stepper_coll_update = TimeStepper(F_coll_update, butcher_tableau, t, dt, uv_coll_update, bcs=bc,
-                        stage_type='value',
-                        basis_type="Lagrange",
-                        solver_parameters=lu_params,
-                        use_collocation_update=True)
+                                      stage_type='value',
+                                      basis_type="Lagrange",
+                                      solver_parameters=lu_params,
+                                      use_collocation_update=True)
 
     while (float(t) < float(Tf)):
         if float(t) + float(dt) > float(Tf):
