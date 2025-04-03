@@ -1,10 +1,8 @@
-import numpy
-
 from abc import abstractmethod
 from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationalSolver
 from firedrake.dmhooks import pop_parent, push_parent
 from firedrake.petsc import PETSc
-from .tools import AI, get_stage_space, getNullspace
+from .tools import AI, get_stage_space, getNullspace, flatten_dats
 from pyop2.types import MixedDat
 
 
@@ -164,7 +162,6 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         if bounds is None:
             return None
 
-        flatten = numpy.hstack
         Vbig = self.stages.function_space()
         bounds_type, lower, upper = bounds
         if lower is None:
@@ -174,24 +171,24 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         if bounds_type == "stage":
             if lower is not None:
-                dats = [lower.dat] * (self.num_stages)
-                slb = Function(Vbig, val=MixedDat(flatten(dats)))
+                dats = flatten_dats(lower.dat) * (self.num_stages)
+                slb = Function(Vbig, val=MixedDat(dats))
             if upper is not None:
-                dats = [upper.dat] * (self.num_stages)
-                sub = Function(Vbig, val=MixedDat(flatten(dats)))
+                dats = flatten_dats(upper.dat) * (self.num_stages)
+                sub = Function(Vbig, val=MixedDat(dats))
 
         elif bounds_type == "last_stage":
             V = self.u0.function_space()
             if lower is not None:
                 ninfty = Function(V).assign(PETSc.NINFINITY)
-                dats = [ninfty.dat] * (self.num_stages-1)
-                dats.append(lower.dat)
-                slb = Function(Vbig, val=MixedDat(flatten(dats)))
+                dats = flatten_dats(ninfty.dat) * (self.num_stages-1)
+                dats.extend(flatten_dats(lower.dat))
+                slb = Function(Vbig, val=MixedDat(dats))
             if upper is not None:
                 infty = Function(V).assign(PETSc.INFINITY)
-                dats = [infty.dat] * (self.num_stages-1)
-                dats.append(upper.dat)
-                sub = Function(Vbig, val=MixedDat(flatten(dats)))
+                dats = flatten_dats(infty.dat) * (self.num_stages-1)
+                dats.extend(flatten_dats(upper.dat))
+                sub = Function(Vbig, val=MixedDat(dats))
 
         else:
             raise ValueError("Unknown bounds type")
