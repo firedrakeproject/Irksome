@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
-from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction, 
-                       TestFunctions, Constant, UnitSquareMesh, diff, div, dx, exp, grad, inner, 
-                       norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem, 
+from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction,
+                       TestFunctions, Constant, UnitSquareMesh, diff, div, dx, exp, grad, inner,
+                       norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem,
                        NonlinearVariationalSolver)
 from irksome import (Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
 from ufl.algorithms import expand_derivatives
@@ -71,7 +71,7 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
                 "stage_type": "value",
                 "basis_type": basis_type,
                 "solver_parameters": vi_params
-            }
+                }
 
     stepper_c = TimeStepper(F_c, butcher_tableau, t, dt, u_c, bcs=bc, **kwargs_c)
 
