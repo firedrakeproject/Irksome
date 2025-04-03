@@ -1,13 +1,12 @@
 import numpy as np
 import pytest
-from firedrake import (BrokenElement, DirichletBC, FacetNormal, FiniteElement,
+from firedrake import (DirichletBC,
                        Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, TestFunctions, UnitIntervalMesh, Constant,
-                       UnitSquareMesh, cos, diff, div, dot, ds, dx, errornorm,
-                       exp, grad, inner, norm, pi, project, sin, split, tanh, sqrt, NonlinearVariationalProblem, NonlinearVariationalSolver,
-                       triangle)
-from firedrake.petsc import PETSc
-from irksome import Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC
+                       TestFunction, TestFunctions, Constant,
+                       UnitSquareMesh, diff, div, dx,
+                       exp, grad, inner, norm, pi, sin, split, tanh, 
+                       sqrt, NonlinearVariationalProblem, NonlinearVariationalSolver)
+from irksome import (Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
 from ufl.algorithms import expand_derivatives
 
 lu_params = {
@@ -25,7 +24,6 @@ vi_params = {
     "pc_type": "lu",
 }
 
-
 def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
     N = 16
 
@@ -37,7 +35,6 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
     MC = MeshConstant(msh)
     dt = MC.Constant(2 / N)
     t = MC.Constant(0.0)
-    Tf = MC.Constant(0.5)
 
     x, y = SpatialCoordinate(msh)
 
@@ -133,26 +130,22 @@ def wave_H1(butcher_tableau):
     
     F_coll_update = (inner(Dt(u_coll_update), phi) * dx - inner(v_coll_update, phi) * dx
          + inner(Dt(v_coll_update), psi) * dx + inner(grad(u_coll_update), grad(psi)) * dx)
-        
-    butcher_tableau = butcher_tableau
 
+    butcher_tableau = butcher_tableau
 
     bc = [DirichletBC(Z.sub(0), Constant(0), "on_boundary"), DirichletBC(Z.sub(1), Constant(0), "on_boundary")]
 
-    
-    
     stepper = TimeStepper(F, butcher_tableau, t, dt, uv, bcs=bc,
-                          stage_type='value',
-                          basis_type="Lagrange",
-                          solver_parameters=lu_params,
-                          use_collocation_update=False)
+                        stage_type='value',
+                        basis_type="Lagrange",
+                        solver_parameters=lu_params,
+                        use_collocation_update=False)
     
     stepper_coll_update = TimeStepper(F_coll_update, butcher_tableau, t, dt, uv_coll_update, bcs=bc,
-                          stage_type='value',
-                          basis_type="Lagrange",
-                          solver_parameters=lu_params,
-                          use_collocation_update=True)
-
+                        stage_type='value',
+                        basis_type="Lagrange",
+                        solver_parameters=lu_params,
+                        use_collocation_update=True)
 
     while (float(t) < float(Tf)):
         if float(t) + float(dt) > float(Tf):
@@ -180,7 +173,7 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
     t = MC.Constant(0.0)
     dt = MC.Constant(np.sqrt(2) / 160.0)
     Tf = MC.Constant(np.sqrt(2) / 10.0)
-    
+
     u_init = sin(5*pi*x)*sin(5*pi*y)
 
     vi_opts = {
@@ -202,7 +195,6 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
     projection_solver = NonlinearVariationalSolver(
         projection_problem, solver_parameters=vi_opts)
 
-
     upper = Function(Z)
     lower = Function(Z)
 
@@ -218,15 +210,11 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
     phi, psi = TestFunctions(Z)
     F = (inner(Dt(u), phi) * dx - inner(v, phi) * dx
          + inner(Dt(v), psi) * dx + inner(grad(u), grad(psi)) * dx)
-        
-    E = (0.5 * inner(v, v)*dx + 0.5 * inner(grad(u), grad(u))*dx)
 
     butcher_tableau = butcher_tableau
 
     bc = [DirichletBC(Z.sub(0), Constant(0), "on_boundary"), DirichletBC(Z.sub(1), Constant(0), "on_boundary")]
 
-    
-    
     stepper = TimeStepper(F, butcher_tableau, t, dt, uv, bcs=bc,
                           stage_type='value',
                           bounds=(bounds_type, lower, upper),
@@ -241,7 +229,7 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
 
         stepper.advance()
         t.assign(float(t) + float(dt))
-        
+
         min_val = min(uv.subfunctions[0].dat.data)
         max_val = max(uv.subfunctions[0].dat.data)
 
@@ -260,6 +248,7 @@ def test_heat_bounds(butcher_tableau, basis_type, bounds_type):
     error_list = heat(butcher_tableau, basis_type, bounds_type)
     assert len(error_list) == 0
 
+
 @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2)])
 @pytest.mark.parametrize('spatial_basis', ('Bernstein', 'Lagrange'))
 @pytest.mark.parametrize('temporal_basis', ('Bernstein', 'Lagrange'))
@@ -273,4 +262,3 @@ def test_wave_bounds(butcher_tableau, spatial_basis, temporal_basis, bounds_type
 def test_wave_H1(butcher_tableau):
 
     assert wave_H1(butcher_tableau) < 1e-13
-
