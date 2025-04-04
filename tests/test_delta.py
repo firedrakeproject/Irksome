@@ -7,8 +7,8 @@ import ufl
 def delta(v, expr):
     msh = v.function_space().mesh()
 
-    vom_msh = VertexOnlyMesh(msh, [(0.5, 0.5)])
-    P0 = FunctionSpace(vom_msh, "DG", 0)
+    vom = VertexOnlyMesh(msh, [(0.5, 0.5)])
+    P0 = FunctionSpace(vom, "DG", 0)
     v0 = TestFunction(P0)
 
     F = inner(expr, v0) * dx
@@ -24,24 +24,41 @@ def test_delta():
 
     t = Constant(0)
 
-    d = delta(v, -cos(t))
+    d = delta(v, cos(t))
     assert d.arguments() == (v,)
 
-    F = inner(grad(u), grad(v)) * dx + d
+    # Test domain
+    assert ufl.domain.extract_domains(d) == (msh,)
+
+    # Test steady RHS and Jacobian assembly
+    F = inner(grad(u), grad(v)) * dx - d
     assemble(F)
     J = derivative(F, u)
     assemble(J)
 
+    # Test stage replacement
     Vbig = V * V
     test = TestFunction(Vbig)
-    d0 = ufl.replace(d, {v: test[i]})
-    assert d != d0, str(d)
-    # print("d", d)
-    # print("d0", d0)
 
-    # c = assemble(d0)
-    # assert c.function_space().dual() == Vbig
-    # print(c.dat.data)
+    d0 = ufl.replace(d, {v: test[0]})
+    assert d != d0
+    assert d0.arguments() == (test,)
+
+    # Test replacement assembly
+    c = assemble(d0)
+    assert c.function_space().dual() == Vbig
+
+    R = FunctionSpace(msh, "R", 0)
+    q = Function(R)  # Passes
+    q = Constant(0)  # Fails
+    d01 = ufl.replace(d, {v: q*test[1]})
+    assert d != d01
+    assert d01.arguments() == (test,)
+
+    print(d01)
+    # Test replacement assembly
+    c = assemble(d01)
+    assert c.function_space().dual() == Vbig
 
 
 def heat_delta(bt, stage_type):
@@ -53,8 +70,8 @@ def heat_delta(bt, stage_type):
 
     t = Constant(0)
 
-    d = delta(v, -cos(t))
-    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx + d
+    d = delta(v, cos(t))
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - d
     assert F.arguments() == (v,)
 
     dt = Constant(1/N)
@@ -72,9 +89,9 @@ def heat_delta_galerkin(stepper, order):
     v = TestFunction(V)
 
     t = Constant(0)
-    d = delta(v, -cos(t))
+    d = delta(v, cos(t))
 
-    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx + d
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - d
 
     dt = Constant(1/N)
 
@@ -92,9 +109,9 @@ def wave_delta(bt):
     v = TestFunction(V)
 
     t = Constant(0)
-    d = delta(v, -cos(t))
+    d = delta(v, cos(t))
 
-    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx + d
+    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx - d
 
     dt = Constant(1/N)
 
