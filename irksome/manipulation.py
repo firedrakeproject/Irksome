@@ -23,7 +23,7 @@ from ufl.core.operator import Operator
 from ufl.core.terminal import Terminal
 from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.differentiation import Derivative
-from ufl.form import Form
+from ufl.form import Form, FormSum
 from ufl.indexed import Indexed
 from ufl.indexsum import IndexSum
 from ufl.integral import Integral
@@ -180,6 +180,9 @@ def extract_terms(form: Form) -> SplitTimeForm:
     :raises ValueError: if the form does not apply anything other than
         first-order time derivatives to a single coefficient.
     """
+    if isinstance(form, FormSum):
+        # Assume that TimeDerivative cannot occur on BaseForms
+        form = next((f for f in form.components() if isinstance(f, Form)), Form([]))
     time_terms = []
     rest_terms = []
     for integral in form.integrals():
