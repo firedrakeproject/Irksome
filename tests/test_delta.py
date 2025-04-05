@@ -11,7 +11,10 @@ def delta(v, expr):
     P0 = FunctionSpace(vom, "DG", 0)
     v0 = TestFunction(P0)
 
-    F = inner(expr, v0) * dx
+    q0 = Constant(1)
+    q1 = Function(FunctionSpace(vom, "R", 0))
+
+    F = inner(expr, (q0 + q1) * v0) * dx
     return Interpolate(v, F)
 
 
@@ -22,7 +25,7 @@ def test_delta():
     v = TestFunction(V)
     u = Function(V)
 
-    t = Constant(0)
+    t = Constant(0, name="time")
 
     d = delta(v, cos(t))
     assert d.arguments() == (v,)
@@ -36,6 +39,17 @@ def test_delta():
     J = derivative(F, u)
     assemble(J)
 
+    # Test replacement with Constant and Function(R)
+    c0 = Constant(1)
+    c1 = Function(FunctionSpace(msh, "R", 0))
+    dc = ufl.replace(d, {v: v * (c0 + c1)})
+    assert d != dc
+    assert dc.arguments() == (v,)
+
+    # Test replacement assembly
+    result = assemble(dc)
+    assert result.function_space() == V.dual()
+
     # Test stage replacement
     Vbig = V * V
     test = TestFunction(Vbig)
@@ -45,20 +59,8 @@ def test_delta():
     assert d0.arguments() == (test,)
 
     # Test replacement assembly
-    c = assemble(d0)
-    assert c.function_space().dual() == Vbig
-
-    R = FunctionSpace(msh, "R", 0)
-    q = Function(R)  # Passes
-    q = Constant(0)  # Fails
-    d01 = ufl.replace(d, {v: q*test[1]})
-    assert d != d01
-    assert d01.arguments() == (test,)
-
-    print(d01)
-    # Test replacement assembly
-    c = assemble(d01)
-    assert c.function_space().dual() == Vbig
+    result = assemble(d0)
+    assert result.function_space() == Vbig.dual()
 
 
 def heat_delta(bt, stage_type):
@@ -122,7 +124,7 @@ def wave_delta(bt):
 
 @pytest.mark.parametrize('stage_type', ('deriv', 'value'))
 @pytest.mark.parametrize('num_stages', (1, 2))
-def test_heat_fi(num_stages, stage_type):
+def test_heat_fully_implicit(num_stages, stage_type):
     heat_delta(RadauIIA(num_stages), stage_type)
 
 
@@ -135,7 +137,7 @@ def test_wave(num_stages):
     wave_delta(GaussLegendre(num_stages))
 
 
-@pytest.mark.parametrize('stepper', (DiscontinuousGalerkinTimeStepper,
-                                     GalerkinTimeStepper))
-def test_galerkin(stepper):
-    heat_delta_galerkin(stepper, 2)
+@pytest.mark.parametrize('stepper,degree', [(DiscontinuousGalerkinTimeStepper, 1),
+                                            (GalerkinTimeStepper, 2)])
+def test_galerkin(stepper, degree):
+    heat_delta_galerkin(stepper, degree)
