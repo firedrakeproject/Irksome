@@ -17,11 +17,10 @@ def vom(msh):
     return VertexOnlyMesh(msh, [(0.5, 0.5)])
 
 
-def delta(v, expr, vom):
+def delta(v, vom):
     P0 = FunctionSpace(vom, "DG", 0)
     v_vom = TestFunction(P0)
-
-    F_vom = inner(expr, v_vom) * dx
+    F_vom = inner(1, v_vom) * dx
     return Interpolate(v, F_vom)
 
 
@@ -32,7 +31,7 @@ def test_delta(msh, vom):
 
     t = Constant(0.3, name="time")
 
-    d = delta(v, cos(t), vom)
+    d = delta(v * cos(t), vom)
     assert d.arguments() == (v,)
 
     # Test domain
@@ -83,7 +82,7 @@ def heat_delta(msh, vom, bt, stage_type):
 
     t = Constant(0)
 
-    d = delta(v, cos(t*pi), vom)
+    d = delta(v * sin(t*pi), vom)
 
     F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - d
     bcs = DirichletBC(V, 0, "on_boundary")
@@ -101,7 +100,7 @@ def heat_delta_galerkin(msh, vom, stepper, order):
     v = TestFunction(V)
 
     t = Constant(0)
-    d = delta(v, cos(t), vom)
+    d = delta(v * sin(t*pi), vom)
 
     F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - d
     bcs = DirichletBC(V, 0, "on_boundary")
@@ -120,7 +119,7 @@ def wave_delta(msh, vom, bt):
     v = TestFunction(V)
 
     t = Constant(0)
-    d = delta(v, sin(t*pi)*Constant(0.1), vom)
+    d = delta(v * sin(t*pi), vom)
 
     F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx - d
     bcs = DirichletBC(V, 0, "on_boundary")
