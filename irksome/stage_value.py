@@ -199,10 +199,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
             lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
             collocation_vander = vecconst(lag_basis.tabulate((1.0,))[(0,)])
-            stage_vals = numpy.insert(self.stages.subfunctions, 0, [self.u0.subfunctions[nf] for nf in range(self.num_fields)])
 
             self.collocation_vander = collocation_vander
-            self.stage_vals = stage_vals
             self._update = self._update_collocation
 
         elif (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
@@ -256,9 +254,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.u0.assign(self.unew)
 
     def _update_collocation(self):
-
+        stage_vals = self.u0.subfunctions + self.stages.subfunctions
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(numpy.dot(self.collocation_vander[:], self.stage_vals[i::self.num_fields]))
+            u0bit.assign(numpy.dot(self.collocation_vander[:], stage_vals[i::self.num_fields]))
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
