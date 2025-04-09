@@ -12,7 +12,7 @@ from irksome.deriv import TimeDerivative
 def flatten_dats(dats):
     flat_dat = []
     for dat in dats:
-        if isinstance(dat, tuple):
+        if isinstance(dat, (tuple, list)):
             flat_dat.extend(dat)
         else:
             flat_dat.append(dat)
