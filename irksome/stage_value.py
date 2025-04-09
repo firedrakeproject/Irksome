@@ -198,7 +198,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             assert (len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need a non-confluent collocation method to use collocation update"
 
             lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
-            collocation_vander = vecconst(lag_basis.tabulate(numpy.array([[1.0]]), 0)[(0,)].flatten())
+            collocation_vander = vecconst(lag_basis.tabulate((1.0,))[(0,)])
             stage_vals = numpy.insert(self.stages.subfunctions, 0, [self.u0.subfunctions[nf] for nf in range(self.num_fields)])
 
             self.collocation_vander = collocation_vander
