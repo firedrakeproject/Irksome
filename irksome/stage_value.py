@@ -187,8 +187,24 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds)
         self.appctx["stage_type"] = "value"
         self.appctx["vandermonde"] = vandermonde
+
         if use_collocation_update:
+            # Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.
+            # TODO: create an assertion to check for constant-in-time boundary conditions.
+            nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+
+            assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method for collocation update"
+            assert (self.basis_type is None or self.basis_type == "Lagrange"), "Collocation update requires the Lagrange form of the collocation polynomial"
+            assert (len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need a non-confluent collocation method to use collocation update"
+
+            lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
+            collocation_vander = vecconst(lag_basis.tabulate(numpy.array([[1.0]]), 0)[(0,)].flatten())
+            stage_vals = numpy.insert(self.stages.subfunctions, 0, [self.u0.subfunctions[nf] for nf in range(self.num_fields)])
+
+            self.collocation_vander = collocation_vander
+            self.stage_vals = stage_vals
             self._update = self._update_collocation
+
         elif (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
             self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
             self._update = self._update_general
@@ -240,20 +256,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.u0.assign(self.unew)
 
     def _update_collocation(self):
-        # Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.
-        # TODO: create an assertion to check for constant-in-time boundary conditions.
-        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
-
-        assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method for collocation update"
-        assert (self.basis_type is None or self.basis_type == "Lagrange"), "Collocation update requires the Lagrange form of the collocation polynomial"
-        assert (len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need a non-confluent collocation method to use collocation update"
-
-        lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
-        vander = lag_basis.tabulate(numpy.array([[1.0]]), 0)[(0,)].flatten()
-        stage_vals = numpy.insert(self.stages.subfunctions, 0, [self.u0.subfunctions[nf] for nf in range(self.num_fields)])
 
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(numpy.dot(vander[:], stage_vals[i::self.num_fields]))
+            u0bit.assign(numpy.dot(self.collocation_vander[:], self.stage_vals[i::self.num_fields]))
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:

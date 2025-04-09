@@ -5,6 +5,7 @@ from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor, zero
 from ufl import replace as ufl_replace
+from pyop2.types import MixedDat
 
 from irksome.deriv import TimeDerivative
 
@@ -12,7 +13,9 @@ from irksome.deriv import TimeDerivative
 def flatten_dats(dats):
     flat_dat = []
     for dat in dats:
-        if isinstance(dat, (tuple, list)):
+        if isinstance(dat, MixedDat):
+            flat_dat.extend(dat.split)
+        elif isinstance(dat, (tuple, list)):
             flat_dat.extend(dat)
         else:
             flat_dat.append(dat)
