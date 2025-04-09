@@ -118,7 +118,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         update_solver_parameters = kwargs.get("update_solver_parameters")
         nullspace = kwargs.get("nullspace")
         bounds = kwargs.get("bounds")
-        use_collocation_update = kwargs.get("use_collocation_update")
+        use_collocation_update = kwargs.get("use_collocation_update", False)
         return StageValueTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
             solver_parameters=solver_parameters,
