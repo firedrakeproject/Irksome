@@ -22,11 +22,9 @@ def handle_annotation():
 
 
 @pytest.mark.parametrize("nt", (pytest.param(n, id=f"nt={n}") for n in (1, 4)))
-# @pytest.mark.parametrize("stages", (pytest.param(n, id=f"stages={n}") for n in (1, 3)))
-# @pytest.mark.parametrize("Scheme", (RadauIIA, GaussLegendre))
 @pytest.mark.parametrize("stage_type,bt",
                          [(stage, ibt(k)) for ibt in (RadauIIA, GaussLegendre)
-                           for k in (1, 3) for stage in ("value", "deriv")]
+                          for k in (1, 3) for stage in ("value", "deriv")]
                          + [("dirk", blah) for blah in (Alexander(), WSODIRK(4, 3, 3))])
 def test_adjoint_diffusivity(nt, stage_type, bt):
     msh = UnitIntervalMesh(8)
