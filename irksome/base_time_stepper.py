@@ -89,7 +89,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         the terminal value of the collocation polynomial as the solution
         update. This is needed to bypass the mass matrix inversion when
         enforcing bounds constraints with an RK method that is not stiffly
-        accurate. Currenty, only constant-in-time boundary conditions are
+        accurate. Currently, only constant-in-time boundary conditions are
         supported.
     """
     def __init__(self, F, t, dt, u0, num_stages,
