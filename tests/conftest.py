@@ -8,6 +8,23 @@ from subprocess import check_call
 from mpi4py import MPI
 
 
+@pytest.fixture(scope="module", autouse=True)
+def check_empty_tape(request):
+    """Check that the tape is empty at the end of each module"""
+    from pyadjoint.tape import annotate_tape, get_working_tape
+
+    def fin():
+        # make sure taping is switched off
+        assert not annotate_tape()
+
+        # make sure the tape is empty
+        tape = get_working_tape()
+        if tape is not None:
+            assert len(tape.get_blocks()) == 0
+
+    request.addfinalizer(fin)
+
+
 @pytest.fixture(autouse=True)
 def disable_gc_on_parallel(request):
     """ Disables garbage collection on parallel tests,
