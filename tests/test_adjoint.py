@@ -1,6 +1,6 @@
 from firedrake import *
 from firedrake.adjoint import *
-from irksome import Dt, RadauIIA, GaussLegendre, TimeStepper
+from irksome import Alexander, Dt, RadauIIA, GaussLegendre, TimeStepper, WSODIRK
 import pytest
 
 
@@ -22,9 +22,13 @@ def handle_annotation():
 
 
 @pytest.mark.parametrize("nt", (pytest.param(n, id=f"nt={n}") for n in (1, 4)))
-@pytest.mark.parametrize("stages", (pytest.param(n, id=f"stages={n}") for n in (1, 3)))
-@pytest.mark.parametrize("Scheme", (RadauIIA, GaussLegendre))
-def test_adjoint_diffusivity(nt, stages, Scheme):
+# @pytest.mark.parametrize("stages", (pytest.param(n, id=f"stages={n}") for n in (1, 3)))
+# @pytest.mark.parametrize("Scheme", (RadauIIA, GaussLegendre))
+@pytest.mark.parametrize("stage_type,bt",
+                         [(stage, ibt(k)) for ibt in (RadauIIA, GaussLegendre)
+                           for k in (1, 3) for stage in ("value", "deriv")]
+                         + [("dirk", blah) for blah in (Alexander(), WSODIRK(4, 3, 3))])
+def test_adjoint_diffusivity(nt, stage_type, bt):
     msh = UnitIntervalMesh(8)
     x, = SpatialCoordinate(msh)
     V = FunctionSpace(msh, "CG", 1)
@@ -38,11 +42,10 @@ def test_adjoint_diffusivity(nt, stages, Scheme):
 
     dt = Constant(0.1)
     t = Constant(0)
-    bt = Scheme(stages)
 
     bcs = DirichletBC(V, 0, "on_boundary")
     F = inner(Dt(u), v) * dx + kappa * inner(grad(u), grad(v)) * dx
-    stepper = TimeStepper(F, bt, t, dt, u, bcs=bcs)
+    stepper = TimeStepper(F, bt, t, dt, u, bcs=bcs, stage_type=stage_type)
 
     continue_annotation()
     with set_working_tape() as tape:
