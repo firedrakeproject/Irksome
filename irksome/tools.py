@@ -5,8 +5,19 @@ from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor, zero
 from ufl import replace as ufl_replace
+from pyop2.types import MixedDat
 
 from irksome.deriv import TimeDerivative
+
+
+def flatten_dats(dats):
+    flat_dat = []
+    for dat in dats:
+        if isinstance(dat, (tuple, list, MixedDat)):
+            flat_dat.extend(dat)
+        else:
+            flat_dat.append(dat)
+    return MixedDat(flat_dat)
 
 
 def get_stage_space(V, num_stages):
