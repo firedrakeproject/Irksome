@@ -3,7 +3,6 @@ from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationa
 from firedrake.dmhooks import pop_parent, push_parent
 from firedrake.petsc import PETSc
 from .tools import AI, get_stage_space, getNullspace, flatten_dats
-from pyop2.types import MixedDat
 
 
 class BaseTimeStepper:
@@ -178,10 +177,10 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         if bounds_type == "stage":
             if lower is not None:
                 dats = [lower.dat] * (self.num_stages)
-                slb = Function(Vbig, val=MixedDat(flatten_dats(dats)))
+                slb = Function(Vbig, val=flatten_dats(dats))
             if upper is not None:
                 dats = [upper.dat] * (self.num_stages)
-                sub = Function(Vbig, val=MixedDat(flatten_dats(dats)))
+                sub = Function(Vbig, val=flatten_dats(dats))
 
         elif bounds_type == "last_stage":
             V = self.u0.function_space()
@@ -189,12 +188,12 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                 ninfty = Function(V).assign(PETSc.NINFINITY)
                 dats = [ninfty.dat] * (self.num_stages-1)
                 dats.append(lower.dat)
-                slb = Function(Vbig, val=MixedDat(flatten_dats(dats)))
+                slb = Function(Vbig, val=flatten_dats(dats))
             if upper is not None:
                 infty = Function(V).assign(PETSc.INFINITY)
                 dats = [infty.dat] * (self.num_stages-1)
                 dats.append(upper.dat)
-                sub = Function(Vbig, val=MixedDat(flatten_dats(dats)))
+                sub = Function(Vbig, val=flatten_dats(dats))
 
         else:
             raise ValueError("Unknown bounds type")
