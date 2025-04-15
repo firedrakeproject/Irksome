@@ -108,7 +108,7 @@ def wave_H1(butcher_tableau):
 
     phi0 = TestFunction(W)
 
-    bc = [DirichletBC(W, Constant(0), "on_boundary")]
+    bc = [DirichletBC(W, 0, "on_boundary")]
     projection_problem = NonlinearVariationalProblem(
         inner(uv.subfunctions[0] - u_init, phi0) * dx,
         uv.subfunctions[0], bcs=bc)
@@ -126,7 +126,7 @@ def wave_H1(butcher_tableau):
 
     F_coll_update = (inner(Dt(u_coll_update), phi) * dx - inner(v_coll_update, phi) * dx + inner(Dt(v_coll_update), psi) * dx + inner(grad(u_coll_update), grad(psi)) * dx)
 
-    bc = [DirichletBC(Z.sub(0), Constant(0), "on_boundary"), DirichletBC(Z.sub(1), Constant(0), "on_boundary")]
+    bc = [DirichletBC(Z.sub(0), 0, "on_boundary"), DirichletBC(Z.sub(1), 0, "on_boundary")]
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, uv, bcs=bc,
                           stage_type='value',
@@ -236,7 +236,7 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
 
     phi0 = TestFunction(W)
 
-    bc = DirichletBC(W, Constant(0), "on_boundary")
+    bc = DirichletBC(W, 0, "on_boundary")
 
     projection_problem = NonlinearVariationalProblem(
         inner(uv.subfunctions[0] - u_init, phi0) * dx,
@@ -261,7 +261,7 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
     F = (inner(Dt(u), phi) * dx - inner(v, phi) * dx
          + inner(Dt(v), psi) * dx + inner(grad(u), grad(psi)) * dx)
 
-    bc = [DirichletBC(Z.sub(0), Constant(0), "on_boundary"), DirichletBC(Z.sub(1), Constant(0), "on_boundary")]
+    bc = [DirichletBC(Z.sub(0), 0, "on_boundary"), DirichletBC(Z.sub(1), 0, "on_boundary")]
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, uv, bcs=bc,
                           stage_type='value',
