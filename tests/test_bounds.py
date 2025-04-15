@@ -29,8 +29,6 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
     msh = UnitSquareMesh(N, N)
     V = FunctionSpace(msh, "Lagrange", 1)
 
-    butcher_tableau = butcher_tableau
-
     MC = MeshConstant(msh)
     dt = MC.Constant(2 / N)
     t = MC.Constant(0.0)
@@ -128,8 +126,6 @@ def wave_H1(butcher_tableau):
 
     F_coll_update = (inner(Dt(u_coll_update), phi) * dx - inner(v_coll_update, phi) * dx + inner(Dt(v_coll_update), psi) * dx + inner(grad(u_coll_update), grad(psi)) * dx)
 
-    butcher_tableau = butcher_tableau
-
     bc = [DirichletBC(Z.sub(0), Constant(0), "on_boundary"), DirichletBC(Z.sub(1), Constant(0), "on_boundary")]
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, uv, bcs=bc,
@@ -179,8 +175,6 @@ def wave_HDiv(butcher_tableau):
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
     dt = MC.Constant(1.0/N)
-
-    butcher_tableau = butcher_tableau
 
     params = {"mat_type": "aij",
               "snes_type": "ksponly",
@@ -266,8 +260,6 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
     phi, psi = TestFunctions(Z)
     F = (inner(Dt(u), phi) * dx - inner(v, phi) * dx
          + inner(Dt(v), psi) * dx + inner(grad(u), grad(psi)) * dx)
-
-    butcher_tableau = butcher_tableau
 
     bc = [DirichletBC(Z.sub(0), Constant(0), "on_boundary"), DirichletBC(Z.sub(1), Constant(0), "on_boundary")]
 

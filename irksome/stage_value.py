@@ -254,9 +254,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.u0.assign(self.unew)
 
     def _update_collocation(self):
-        stage_vals = self.u0.subfunctions + self.stages.subfunctions
+        stage_vals = numpy.asarray(self.u0.subfunctions + self.stages.subfunctions, dtype=object)
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(numpy.dot(self.collocation_vander[:], stage_vals[i::self.num_fields]))
+            u0bit.assign(stage_vals[i::self.num_fields] @ self.collocation_vander)
 
     def get_form_and_bcs(self, stages, butcher_tableau=None):
         if butcher_tableau is None:
