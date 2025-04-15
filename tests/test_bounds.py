@@ -3,9 +3,9 @@ import pytest
 from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction,
                        TestFunctions, UnitSquareMesh, diff, div, dx, exp, grad, inner,
                        norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem,
-                       NonlinearVariationalSolver, project, as_vector)
+                       NonlinearVariationalSolver)
 from irksome import (Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
-from ufl.algorithms import expand_derivatives
+from ufl.algorithms import expand_derivatives, replace
 
 lu_params = {
     "snes_type": "ksponly",
@@ -25,7 +25,6 @@ vi_params = {
 
 def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
     N = 16
-
     msh = UnitSquareMesh(N, N)
     V = FunctionSpace(msh, "Lagrange", 1)
 
@@ -77,7 +76,7 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
 
     for _ in range(5):
         stepper_c.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
         min_value_c = min(u_c.dat.data)
         if min_value_c < 0:
             violations_for_constrained_method.append(min_value_c)
@@ -86,12 +85,9 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
 
 
 def wave_H1(butcher_tableau):
-
     msh = UnitSquareMesh(16, 16)
-
     W = FunctionSpace(msh, "Lagrange", 2)
-    W2 = FunctionSpace(msh, "Lagrange", 2)
-    Z = W*W2
+    Z = W * W
 
     x, y = SpatialCoordinate(msh)
 
@@ -108,23 +104,21 @@ def wave_H1(butcher_tableau):
 
     phi0 = TestFunction(W)
 
-    bc = [DirichletBC(W, 0, "on_boundary")]
+    bc = DirichletBC(W, 0, "on_boundary")
     projection_problem = NonlinearVariationalProblem(
         inner(uv.subfunctions[0] - u_init, phi0) * dx,
         uv.subfunctions[0], bcs=bc)
 
     projection_solver = NonlinearVariationalSolver(projection_problem, solver_parameters=lu_params)
     projection_solver.solve()
-    uv_coll_update = uv.copy(deepcopy=True)
 
     u, v = split(uv)
-    u_coll_update, v_coll_update = split(uv_coll_update)
-
     phi, psi = TestFunctions(Z)
 
     F = (inner(Dt(u), phi) * dx - inner(v, phi) * dx + inner(Dt(v), psi) * dx + inner(grad(u), grad(psi)) * dx)
 
-    F_coll_update = (inner(Dt(u_coll_update), phi) * dx - inner(v_coll_update, phi) * dx + inner(Dt(v_coll_update), psi) * dx + inner(grad(u_coll_update), grad(psi)) * dx)
+    uv_coll_update = uv.copy(deepcopy=True)
+    F_coll_update = replace(F, {uv: uv_coll_update})
 
     bc = [DirichletBC(Z.sub(0), 0, "on_boundary"), DirichletBC(Z.sub(1), 0, "on_boundary")]
 
@@ -146,31 +140,28 @@ def wave_H1(butcher_tableau):
 
         stepper.advance()
         stepper_coll_update.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
 
     return norm(uv - uv_coll_update)
 
 
 def wave_HDiv(butcher_tableau):
-
     N = 10
-
     msh = UnitSquareMesh(N, N)
     V = FunctionSpace(msh, "RT", 2)
     W = FunctionSpace(msh, "DG", 1)
     Z = V*W
 
     x, y = SpatialCoordinate(msh)
-    up0 = project(as_vector([0, 0, sin(pi*x)*sin(pi*y)]), Z)
+    up0 = Function(Z)
+    up0.subfunctions[1].interpolate(sin(pi*x)*sin(pi*y))
     u0, p0 = split(up0)
-
-    up0_coll_update = up0.copy(deepcopy=True)
-    u0_coll, p0_coll = split(up0_coll_update)
 
     v, w = TestFunctions(Z)
     F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
 
-    F_collocation_update = inner(Dt(u0_coll), v)*dx + inner(div(u0_coll), w) * dx + inner(Dt(p0_coll), w)*dx - inner(p0_coll, div(v)) * dx
+    up0_coll_update = up0.copy(deepcopy=True)
+    F_collocation_update = replace(F, {up0: up0_coll_update})
 
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
@@ -202,20 +193,15 @@ def wave_HDiv(butcher_tableau):
 
         stepper.advance()
         stepper_coll_update.advance()
-
-        t.assign(float(t) + float(dt))
+        t += dt
 
     return norm(up0 - up0_coll_update)
 
 
 def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type):
-
     msh = UnitSquareMesh(16, 16, name='mesh')
-
     W = FunctionSpace(msh, spatial_basis, 2)
-    W2 = FunctionSpace(msh, spatial_basis, 2)
-
-    Z = W*W2
+    Z = W * W
 
     x, y = SpatialCoordinate(msh)
 
@@ -276,7 +262,7 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
             dt.assign(float(Tf) - float(t))
 
         stepper.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
 
         min_val = min(uv.subfunctions[0].dat.data)
         max_val = max(uv.subfunctions[0].dat.data)

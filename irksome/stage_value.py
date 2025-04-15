@@ -254,7 +254,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.u0.assign(self.unew)
 
     def _update_collocation(self):
-        stage_vals = numpy.asarray(self.u0.subfunctions + self.stages.subfunctions, dtype=object)
+        stage_vals = numpy.array(self.u0.subfunctions + self.stages.subfunctions, dtype=object)
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(stage_vals[i::self.num_fields] @ self.collocation_vander)
 
