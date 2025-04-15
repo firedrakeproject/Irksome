@@ -174,7 +174,7 @@ def wave_HDiv(butcher_tableau):
     v, w = TestFunctions(Z)
     F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
 
-    F = inner(Dt(u0_coll), v)*dx + inner(div(u0_coll), w) * dx + inner(Dt(p0_coll), w)*dx - inner(p0_coll, div(v)) * dx
+    F_collocation_update = inner(Dt(u0_coll), v)*dx + inner(div(u0_coll), w) * dx + inner(Dt(p0_coll), w)*dx - inner(p0_coll, div(v)) * dx
 
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
@@ -195,7 +195,7 @@ def wave_HDiv(butcher_tableau):
                           use_collocation_update=False
                           )
 
-    stepper_coll_update = TimeStepper(F, butcher_tableau, t, dt, up0,
+    stepper_coll_update = TimeStepper(F_collocation_update, butcher_tableau, t, dt, up0_coll_update,
                                       solver_parameters=params,
                                       stage_type='value',
                                       basis_type='Lagrange',
