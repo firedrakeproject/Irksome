@@ -3,7 +3,7 @@ import pytest
 from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction,
                        TestFunctions, Constant, UnitSquareMesh, diff, div, dx, exp, grad, inner,
                        norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem,
-                       NonlinearVariationalSolver)
+                       NonlinearVariationalSolver, project, as_vector)
 from irksome import (Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
 from ufl.algorithms import expand_derivatives
 
@@ -155,6 +155,65 @@ def wave_H1(butcher_tableau):
     return norm(uv - uv_coll_update)
 
 
+def wave_HDiv(butcher_tableau):
+
+    N = 10
+
+    msh = UnitSquareMesh(N, N)
+    V = FunctionSpace(msh, "RT", 2)
+    W = FunctionSpace(msh, "DG", 1)
+    Z = V*W
+
+    x, y = SpatialCoordinate(msh)
+    up0 = project(as_vector([0, 0, sin(pi*x)*sin(pi*y)]), Z)
+    u0, p0 = split(up0)
+
+    up0_coll_update = up0.copy(deepcopy=True)
+    u0_coll, p0_coll = split(up0_coll_update)
+
+    v, w = TestFunctions(Z)
+    F = inner(Dt(u0), v)*dx + inner(div(u0), w) * dx + inner(Dt(p0), w)*dx - inner(p0, div(v)) * dx
+
+    F = inner(Dt(u0_coll), v)*dx + inner(div(u0_coll), w) * dx + inner(Dt(p0_coll), w)*dx - inner(p0_coll, div(v)) * dx
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(1.0/N)
+
+    butcher_tableau = butcher_tableau
+
+    params = {"mat_type": "aij",
+              "snes_type": "ksponly",
+              "ksp_type": "preonly",
+              "pc_type": "lu"
+              }
+
+    stepper = TimeStepper(F, butcher_tableau, t, dt, up0,
+                          solver_parameters=params,
+                          stage_type='value',
+                          basis_type='Lagrange',
+                          use_collocation_update=False
+                          )
+
+    stepper_coll_update = TimeStepper(F, butcher_tableau, t, dt, up0,
+                                      solver_parameters=params,
+                                      stage_type='value',
+                                      basis_type='Lagrange',
+                                      use_collocation_update=True
+                                      )
+
+    while (float(t) < 1.0):
+        if float(t) + float(dt) > 1.0:
+            dt.assign(1.0 - float(t))
+
+        stepper.advance()
+        stepper_coll_update.advance()
+
+        t.assign(float(t) + float(dt))
+
+    return norm(up0 - up0_coll_update)
+
+
 def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type):
 
     msh = UnitSquareMesh(16, 16, name='mesh')
@@ -259,3 +318,9 @@ def test_wave_bounds(butcher_tableau, spatial_basis, temporal_basis, bounds_type
 def test_wave_H1(butcher_tableau):
 
     assert wave_H1(butcher_tableau) < 1e-13
+
+
+@pytest.mark.parametrize('butcher_tableau', [GaussLegendre(i) for i in (1, 2, 3)])
+def test_wave_HDiv(butcher_tableau):
+
+    assert wave_HDiv(butcher_tableau) < 1e-13
