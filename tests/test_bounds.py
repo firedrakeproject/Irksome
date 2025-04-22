@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction,
-                       TestFunctions, UnitSquareMesh, diff, div, dx, exp, grad, inner,
+from firedrake import (assemble, ds, cos, DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction,
+                       TestFunctions, UnitSquareMesh, project, diff, div, dx, exp, grad, inner,
                        norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem,
                        NonlinearVariationalSolver)
 from irksome import (Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
@@ -82,6 +82,64 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
             violations_for_constrained_method.append(min_value_c)
 
     return violations_for_constrained_method
+
+
+def heat_BC(N, butcher_tableau):
+
+    N_spat = 2 ** N
+
+    msh = UnitSquareMesh(N_spat, N_spat)
+    V = FunctionSpace(msh, "Bernstein", 1)
+
+    butcher_tableau = butcher_tableau
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1 / N_spat)
+    t = MC.Constant(0.0)
+    Tf = MC.Constant(1.0)
+
+    vi_params = {"snes_type": "vinewtonrsls",
+                 "snes_max_it": 300,
+                 "snes_atol": 1.e-8,
+                 "ksp_type": "preonly",
+                 "mat_type": "aij",
+                 "pc_type": "lu",
+                 }
+
+    x, y = SpatialCoordinate(msh)
+
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+
+    lb = Function(V).assign(-np.inf)
+    ub = Function(V).assign(np.inf)
+    bounds = ('stage', lb, ub)
+
+    bc = BoundsConstrainedDirichletBC(V, uexact, "on_boundary", (lb, ub), solver_parameters=vi_params)
+
+    u = project(uexact, V, bcs=bc)
+
+    v = TestFunction(V)
+
+    F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(rhs, v) * dx)
+
+    kwargs = {"stage_type": "value",
+              "bounds": bounds,
+              "basis_type": "Bernstein",
+              "solver_parameters": vi_params
+              }
+
+    stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc, **kwargs)
+
+    while (float(t) < float(Tf)):
+        if (float(t) + float(dt) > float(Tf)):
+            dt.assign(float(Tf) - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    final_boundary_condition = Function(V).interpolate(uexact)
+
+    return assemble(inner(u - final_boundary_condition, u - final_boundary_condition) * ds)
 
 
 def wave_H1(butcher_tableau):
@@ -302,3 +360,10 @@ def test_wave_H1(butcher_tableau):
 def test_wave_HDiv(butcher_tableau):
 
     assert wave_HDiv(butcher_tableau) < 1e-13
+
+
+@pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2, 3)])
+@pytest.mark.parametrize('N', [1, 2, 3, 4])
+def test_heat_BC(N, butcher_tableau):
+
+    assert heat_BC(N, butcher_tableau) < 1e-8
