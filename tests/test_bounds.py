@@ -111,15 +111,19 @@ def heat_BC(N, butcher_tableau):
     uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
-    lb = Function(V).assign(-np.inf)
+    lb = Function(V).assign(0)
     ub = Function(V).assign(np.inf)
     bounds = ('stage', lb, ub)
 
     bc = BoundsConstrainedDirichletBC(V, uexact, "on_boundary", (lb, ub), solver_parameters=vi_params)
+    # bc = DirichletBC(V, uexact, "on_boundary")
 
-    u = project(uexact, V, bcs=bc)
-
+    u = Function(V)
     v = TestFunction(V)
+    G = inner(u - uexact, v) * dx
+    nlvp = NonlinearVariationalProblem(G, u)
+    nlvs = NonlinearVariationalSolver(nlvp, solver_parameters=vi_params)
+    nlvs.solve(bounds=(lb, ub))
 
     F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(rhs, v) * dx)
 
@@ -137,9 +141,7 @@ def heat_BC(N, butcher_tableau):
         stepper.advance()
         t.assign(float(t) + float(dt))
 
-    final_boundary_condition = Function(V).interpolate(uexact)
-
-    return assemble(inner(u - final_boundary_condition, u - final_boundary_condition) * ds)
+    return assemble(inner(u - uexact, u - uexact) * ds)**0.5
 
 
 def wave_H1(butcher_tableau):
@@ -363,7 +365,7 @@ def test_wave_HDiv(butcher_tableau):
 
 
 @pytest.mark.parametrize('butcher_tableau', [RadauIIA(i) for i in (1, 2, 3)])
-@pytest.mark.parametrize('N', [1, 2, 3, 4])
-def test_heat_BC(N, butcher_tableau):
-
-    assert heat_BC(N, butcher_tableau) < 1e-8
+def test_heat_BC(butcher_tableau):
+    errors = [heat_BC(N, butcher_tableau) for N in range(3, 5)]
+    rates = np.diff(-np.log(errors)/np.log(2))
+    assert (rates > 1.9).all()

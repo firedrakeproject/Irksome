@@ -1,4 +1,3 @@
-from functools import partial
 from firedrake.solving import _extract_bcs
 from firedrake import (DirichletBC, Function, TestFunction,
                        NonlinearVariationalProblem,
@@ -68,39 +67,30 @@ class BoundsConstrainedDirichletBC(DirichletBC):
                 "ksp_type": "preonly",
                 "mat_type": "aij",
             }
-        self.V = V
+        self.g = g
         self.solver_parameters = solver_parameters
         self.bounds = bounds
+
+        self.gnew = Function(V)
+        F = inner(self.gnew - g, TestFunction(V)) * dx
+        problem = NonlinearVariationalProblem(F, self.gnew)
+        self.solver = NonlinearVariationalSolver(problem, solver_parameters=self.solver_parameters)
         super().__init__(V, g, sub_domain)
 
     @property
     def function_arg(self):
         '''The value of this boundary condition.'''
-        if hasattr(self, "_function_arg_update"):
-            self._function_arg_update()
-        return self._function_arg
+        self.solver.solve(bounds=self.bounds)
+        return self.gnew
 
     @function_arg.setter
     def function_arg(self, g):
         '''Set the value of this boundary condition.'''
-        V = self.function_space()
-        gnew = Function(V)
-        try:
-            # Use the interpolant as initial guess
-            gnew.interpolate(g)
-        except (NotImplementedError, AttributeError):
-            pass
-        F = inner(TestFunction(V), gnew - g) * dx
-        problem = NonlinearVariationalProblem(F, gnew)
-        solver = NonlinearVariationalSolver(problem,
-                                            solver_parameters=self.solver_parameters)
-
-        self._function_arg = gnew
-        self.function_arg_update = partial(solver.solve, bounds=self.bounds)
-        self.function_arg_update()
+        self.solver.solve(bounds=self.bounds)
+        return self.gnew
 
     def reconstruct(self, V=None, g=None, sub_domain=None):
-        V = V or self.V
-        g = g or self._original_arg
+        V = V or self.function_space()
+        g = g or self.g
         sub_domain = sub_domain or self.sub_domain
         return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters)
