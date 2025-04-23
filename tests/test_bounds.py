@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from firedrake import (assemble, ds, cos, DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction,
-                       TestFunctions, UnitSquareMesh, project, diff, div, dx, exp, grad, inner,
+                       TestFunctions, UnitSquareMesh, diff, div, dx, exp, grad, inner,
                        norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem,
                        NonlinearVariationalSolver)
 from irksome import (Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
