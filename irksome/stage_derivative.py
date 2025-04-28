@@ -115,7 +115,8 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
                 F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u0,))
                 F_bc_new = replace(F_bc_orig, repl[i])
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi)
+                return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
+                                  bcs=[bc2stagebc(innerbc, i) for innerbc in extract_bcs(bc.bcs)])
             else:
                 gorig = as_ufl(bc._original_arg)
                 ucur = bc2space(bc, u0)
@@ -206,7 +207,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         ns = self.num_stages
         nf = self.num_fields
 
-        # Note: this now cates the optimized/stiffly accurate case as b[s] == Zero() will get dropped
+        # Note: this now catches the optimized/stiffly accurate case as b[s] == Zero() will get dropped
+
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 

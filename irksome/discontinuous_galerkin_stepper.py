@@ -203,5 +203,6 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
                                    self.orig_bcs)
 
     def _update(self):
+        stages_np = np.array(self.stages.subfunctions, dtype=object)
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(np.dot(self.stages.subfunctions[i::self.num_fields], self.update_b))
+            u0bit.assign(stages_np[i::self.num_fields] @ self.update_b)

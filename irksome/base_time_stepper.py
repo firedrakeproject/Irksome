@@ -1,11 +1,8 @@
-import numpy
-
 from abc import abstractmethod
 from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationalSolver
 from firedrake.dmhooks import pop_parent, push_parent
 from firedrake.petsc import PETSc
-from .tools import AI, get_stage_space, getNullspace
-from pyop2.types import MixedDat
+from .tools import AI, get_stage_space, getNullspace, flatten_dats
 
 
 class BaseTimeStepper:
@@ -87,6 +84,12 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
             the Runge-Kutta method to be used for time marching.
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
+    :arg use_collocation_update: An optional kwarg indicating whether to use
+        the terminal value of the collocation polynomial as the solution
+        update. This is needed to bypass the mass matrix inversion when
+        enforcing bounds constraints with an RK method that is not stiffly
+        accurate. Currently, only constant-in-time boundary conditions are
+        supported.
     """
     def __init__(self, F, t, dt, u0, num_stages,
                  bcs=None, solver_parameters=None,
@@ -164,7 +167,6 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         if bounds is None:
             return None
 
-        flatten = numpy.hstack
         Vbig = self.stages.function_space()
         bounds_type, lower, upper = bounds
         if lower is None:
@@ -175,10 +177,10 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         if bounds_type == "stage":
             if lower is not None:
                 dats = [lower.dat] * (self.num_stages)
-                slb = Function(Vbig, val=MixedDat(flatten(dats)))
+                slb = Function(Vbig, val=flatten_dats(dats))
             if upper is not None:
                 dats = [upper.dat] * (self.num_stages)
-                sub = Function(Vbig, val=MixedDat(flatten(dats)))
+                sub = Function(Vbig, val=flatten_dats(dats))
 
         elif bounds_type == "last_stage":
             V = self.u0.function_space()
@@ -186,12 +188,12 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                 ninfty = Function(V).assign(PETSc.NINFINITY)
                 dats = [ninfty.dat] * (self.num_stages-1)
                 dats.append(lower.dat)
-                slb = Function(Vbig, val=MixedDat(flatten(dats)))
+                slb = Function(Vbig, val=flatten_dats(dats))
             if upper is not None:
                 infty = Function(V).assign(PETSc.INFINITY)
                 dats = [infty.dat] * (self.num_stages-1)
                 dats.append(upper.dat)
-                sub = Function(Vbig, val=MixedDat(flatten(dats)))
+                sub = Function(Vbig, val=flatten_dats(dats))
 
         else:
             raise ValueError("Unknown bounds type")
