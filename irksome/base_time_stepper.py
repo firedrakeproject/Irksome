@@ -101,6 +101,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
 
         self.num_stages = num_stages
+        self.appctx["num_stages"] = num_stages
         if butcher_tableau:
             assert num_stages == butcher_tableau.num_stages
             self.appctx["butcher_tableau"] = butcher_tableau
