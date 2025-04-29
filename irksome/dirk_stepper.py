@@ -1,7 +1,7 @@
 import numpy
-from firedrake import Function
-from firedrake import NonlinearVariationalProblem as NLVP
-from firedrake import NonlinearVariationalSolver as NLVS
+from firedrake import (Function,
+                       NonlinearVariationalProblem,
+                       NonlinearVariationalSolver)
 from ufl.constantvalue import as_ufl
 
 from .deriv import TimeDerivative, expand_time_derivatives
@@ -68,7 +68,9 @@ class DIRKTimeStepper:
 
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None,
-                 appctx=None, nullspace=None):
+                 appctx=None, nullspace=None,
+                 transpose_nullspace=None, near_nullspace=None,
+                 **kwargs):
         assert butcher_tableau.is_diagonally_implicit
 
         self.num_steps = 0
@@ -133,10 +135,20 @@ class DIRKTimeStepper:
             appctx = {**appctx, **appctx_irksome}
         self.appctx = appctx
 
-        self.problem = NLVP(stage_F, k, bcnew)
-        self.solver = NLVS(
-            self.problem, appctx=appctx, solver_parameters=solver_parameters,
-            nullspace=nullspace)
+        self.problem = NonlinearVariationalProblem(
+            stage_F, k, bcs=bcnew,
+            form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+            is_linear=kwargs.pop("is_linear", False),
+            restrict=kwargs.pop("restrict", False),
+        )
+        self.solver = NonlinearVariationalSolver(
+            self.problem, appctx=appctx,
+            nullspace=nullspace,
+            transpose_nullspace=transpose_nullspace,
+            near_nullspace=near_nullspace,
+            solver_parameters=solver_parameters,
+            **kwargs,
+        )
 
         self.kgac = k, g, a, c
         self.bc_constants = a_vals, d_val

@@ -5,6 +5,24 @@ from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
 from .stage_value import StageValueTimeStepper
 from .tools import AI
 
+valid_base_kwargs = ("form_compiler_parameters", "is_linear", "restrict", "solver_parameters",
+                     "nullspace", "transpose_nullspace", "near_nullspace",
+                     "appctx", "options_prefix", "pre_apply_bcs")
+
+valid_kwargs_per_stage_type = {
+    "deriv": ["stage_type", "bc_type", "splitting", "adaptive_parameters"],
+    "value": ["stage_type", "basis_type",
+              "update_solver_parameters", "splitting", "bounds", "use_collocation_update"],
+    "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
+    "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
+    "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
+             "splitting", "num_its_initial", "num_its_per_step"],
+    "dirkimex": ["Fexp", "stage_type", "mass_parameters"]}
+
+valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
+                          "max_reject", "onscale_factor",
+                          "safety_factor", "gamma0_params"]
+
 
 def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     """Helper function to dispatch between various back-end classes
@@ -51,45 +69,34 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             stage_type is "value")
     :arg adaptive_parameters: A :class:`dict` of parameters for use with
             adaptive time stepping (only used if stage_type is "deriv")
+    :arg use_collocation_update: An optional kwarg indicating whether to use
+        the terminal value of the collocation polynomial as the solution
+        update. This is needed to bypass the mass matrix inversion when
+        enforcing bounds constraints with an RK method that is not stiffly
+        accurate. Currently, only constant-in-time boundary conditions are
+        supported.
     """
-
-    valid_kwargs_per_stage_type = {
-        "deriv": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx",
-                  "bc_type", "splitting", "adaptive_parameters"],
-        "value": ["stage_type", "basis_type", "bcs", "nullspace", "solver_parameters",
-                  "update_solver_parameters", "appctx", "splitting", "bounds", "use_collocation_update"],
-        "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
-        "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
-        "imex": ["Fexp", "stage_type", "bcs", "nullspace",
-                 "it_solver_parameters", "prop_solver_parameters",
-                 "splitting", "appctx",
-                 "num_its_initial", "num_its_per_step"],
-        "dirkimex": ["Fexp", "stage_type", "bcs", "nullspace", "solver_parameters", "mass_parameters", "appctx"]}
-
-    valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
-                              "max_reject", "onscale_factor",
-                              "safety_factor", "gamma0_params"]
-
-    stage_type = kwargs.get("stage_type", "deriv")
-    adapt_params = kwargs.get("adaptive_parameters")
+    stage_type = kwargs.pop("stage_type", "deriv")
+    adapt_params = kwargs.pop("adaptive_parameters", None)
     if adapt_params is not None:
         assert stage_type == "deriv", "Adaptive time stepping is only implemented for derivative stage type"
+
+    base_kwargs = {}
+    for k in valid_base_kwargs:
+        if k in kwargs:
+            base_kwargs[k] = kwargs.pop(k)
+    bcs = kwargs.pop("bcs", None)
+
     for cur_kwarg in kwargs.keys():
-        if cur_kwarg not in valid_kwargs_per_stage_type:
-            assert cur_kwarg in valid_kwargs_per_stage_type[stage_type]
+        assert cur_kwarg in valid_kwargs_per_stage_type[stage_type]
 
     if stage_type == "deriv":
-        bcs = kwargs.get("bcs")
         bc_type = kwargs.get("bc_type", "DAE")
         splitting = kwargs.get("splitting", AI)
-        appctx = kwargs.get("appctx")
-        solver_parameters = kwargs.get("solver_parameters")
-        nullspace = kwargs.get("nullspace")
         if adapt_params is None:
             return StageDerivativeTimeStepper(
-                F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
-                solver_parameters=solver_parameters, nullspace=nullspace,
-                bc_type=bc_type, splitting=splitting)
+                F, butcher_tableau, t, dt, u0, bcs,
+                bc_type=bc_type, splitting=splitting, **base_kwargs)
         else:
             for param in adapt_params:
                 assert param in valid_adapt_parameters
@@ -103,53 +110,38 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             safety_factor = adapt_params.get("safety_factor", 0.9)
             gamma0_params = adapt_params.get("gamma0_params")
         return AdaptiveTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs, appctx=appctx,
-            solver_parameters=solver_parameters, nullspace=nullspace,
+            F, butcher_tableau, t, dt, u0, bcs,
             bc_type=bc_type, splitting=splitting,
             tol=tol, dtmin=dtmin, dtmax=dtmax, KI=KI, KP=KP,
             max_reject=max_reject, onscale_factor=onscale_factor,
-            safety_factor=safety_factor, gamma0_params=gamma0_params)
+            safety_factor=safety_factor, gamma0_params=gamma0_params,
+            **base_kwargs)
     elif stage_type == "value":
-        bcs = kwargs.get("bcs")
         splitting = kwargs.get("splitting", AI)
-        appctx = kwargs.get("appctx")
-        solver_parameters = kwargs.get("solver_parameters")
         basis_type = kwargs.get("basis_type")
         update_solver_parameters = kwargs.get("update_solver_parameters")
-        nullspace = kwargs.get("nullspace")
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
         return StageValueTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs=bcs, appctx=appctx,
-            solver_parameters=solver_parameters,
+            F, butcher_tableau, t, dt, u0, bcs=bcs,
             splitting=splitting, basis_type=basis_type,
             update_solver_parameters=update_solver_parameters,
-            nullspace=nullspace, bounds=bounds, use_collocation_update=use_collocation_update)
-
+            bounds=bounds, use_collocation_update=use_collocation_update,
+            **base_kwargs)
     elif stage_type == "dirk":
-        bcs = kwargs.get("bcs")
-        appctx = kwargs.get("appctx")
-        solver_parameters = kwargs.get("solver_parameters")
-        nullspace = kwargs.get("nullspace")
         return DIRKTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs,
-            solver_parameters, appctx, nullspace)
+            F, butcher_tableau, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "explicit":
-        bcs = kwargs.get("bcs")
-        appctx = kwargs.get("appctx")
-        solver_parameters = kwargs.get("solver_parameters")
         return ExplicitTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs,
-            solver_parameters, appctx)
+            F, butcher_tableau, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "imex":
         Fexp = kwargs.get("Fexp")
         assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
-        bcs = kwargs.get("bcs")
-        appctx = kwargs.get("appctx")
+        appctx = base_kwargs.get("appctx")
+        nullspace = base_kwargs.get("nullspace")
         splitting = kwargs.get("splitting", AI)
         it_solver_parameters = kwargs.get("it_solver_parameters")
         prop_solver_parameters = kwargs.get("prop_solver_parameters")
-        nullspace = kwargs.get("nullspace")
         num_its_initial = kwargs.get("num_its_initial", 0)
         num_its_per_step = kwargs.get("num_its_per_step", 0)
 
@@ -161,11 +153,10 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     elif stage_type == "dirkimex":
         Fexp = kwargs.get("Fexp")
         assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
-        bcs = kwargs.get("bcs")
-        appctx = kwargs.get("appctx")
-        solver_parameters = kwargs.get("solver_parameters")
+        appctx = base_kwargs.get("appctx")
+        nullspace = base_kwargs.get("nullspace")
+        solver_parameters = base_kwargs.get("solver_parameters")
         mass_parameters = kwargs.get("mass_parameters")
-        nullspace = kwargs.get("nullspace")
         return DIRKIMEXMethod(
             F, Fexp, butcher_tableau, t, dt, u0, bcs,
             solver_parameters, mass_parameters, appctx, nullspace)

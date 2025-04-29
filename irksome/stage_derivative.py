@@ -180,7 +180,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
-                 appctx=None, nullspace=None, bc_type="DAE"):
+                 appctx=None, bc_type="DAE", **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
@@ -193,9 +193,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         super().__init__(F, t, dt, u0,
                          butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
-                         appctx=appctx, nullspace=nullspace,
+                         appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
-                         butcher_tableau=butcher_tableau)
+                         butcher_tableau=butcher_tableau, **kwargs)
         self.appctx["stage_type"] = "deriv"
 
     def _update(self):

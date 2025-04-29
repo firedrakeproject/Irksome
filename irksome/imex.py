@@ -3,7 +3,6 @@ import numpy as np
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction,
                        as_ufl, dx, inner)
-from firedrake.dmhooks import pop_parent, push_parent
 from ufl import zero
 
 from .ButcherTableaux import RadauIIA
@@ -224,7 +223,6 @@ class RadauIIAIMEXMethod:
         else:
             appctx = {**appctx, **appctx_irksome}
 
-        push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.it_solver = NonlinearVariationalSolver(
             self.itprob, appctx=appctx,
             solver_parameters=it_solver_parameters,
@@ -233,7 +231,6 @@ class RadauIIAIMEXMethod:
             self.propprob, appctx=appctx,
             solver_parameters=prop_solver_parameters,
             nullspace=nsp)
-        pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
 
         num_fields = len(self.u0.function_space())
         u0split = u0.subfunctions
@@ -249,9 +246,7 @@ class RadauIIAIMEXMethod:
         """Called 1 or more times to set up the initial state of the
         system before time-stepping.  Can also be called after each
         call to `advance`"""
-        push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.it_solver.solve()
-        pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.UU_old.assign(self.UU)
         self.num_its += 1
         self.num_nonlinear_iterations_it += self.it_solver.snes.getIterationNumber()
@@ -267,11 +262,8 @@ class RadauIIAIMEXMethod:
         for i, u0bit in enumerate(u0split):
             u0bit.assign(self.UU_old_split[(ns-1)*nf + i])
 
-        push_parent(self.u0.function_space().dm, self.UU.function_space().dm)
-
         ps = self.prop_solver
         ps.solve()
-        pop_parent(self.u0.function_space().dm, self.UU.function_space().dm)
         self.UU_old.assign(self.UU)
         self.num_props += 1
         self.num_nonlinear_iterations_prop += ps.snes.getIterationNumber()
