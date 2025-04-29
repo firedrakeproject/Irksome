@@ -174,9 +174,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
 class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, tableau, t, dt, u0, ut0,
-                 bcs=None, solver_parameters=None,
-                 appctx=None, nullspace=None,
-                 bc_type="DAE"):
+                 bcs=None, bc_type="DAE", **kwargs):
         self.ut0 = ut0
         if not isinstance(tableau, NystromTableau):
             tableau = butcher_to_nystrom(tableau)
@@ -185,9 +183,7 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0,
                          tableau.num_stages, bcs=bcs,
-                         solver_parameters=solver_parameters,
-                         appctx=appctx, nullspace=nullspace,
-                         bc_type=bc_type)
+                         bc_type=bc_type, **kwargs)
 
         self.appctx["ut0"] = ut0
         self.appctx["nystrom_tableau"] = tableau

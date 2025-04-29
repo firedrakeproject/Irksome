@@ -148,8 +148,7 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
             associated with the Runge-Kutta method
     """
     def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None,
-                 solver_parameters=None, appctx=None, nullspace=None):
+                 quadrature=None, **kwargs):
         assert order >= 1
         self.order = order
         self.basis_type = basis_type
@@ -179,9 +178,7 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order
 
-        super().__init__(F, t, dt, u0, order, bcs=bcs,
-                         solver_parameters=solver_parameters,
-                         appctx=appctx, nullspace=nullspace)
+        super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
 
     def get_form_and_bcs(self, stages):
         return getFormGalerkin(self.F, self.trial_el, self.test_el,
