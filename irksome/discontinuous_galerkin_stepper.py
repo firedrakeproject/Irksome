@@ -162,8 +162,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             associated with the Runge-Kutta method
     """
     def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None,
-                 solver_parameters=None, appctx=None, nullspace=None):
+                 quadrature=None, **kwargs):
         assert order >= 0
         self.order = order
         self.basis_type = basis_type
@@ -193,9 +192,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
 
         self.update_b = vecconst(self.el.tabulate(0, (1.0,))[(0,)])
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs,
-                         solver_parameters=solver_parameters,
-                         appctx=appctx, nullspace=nullspace)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
 
     def get_form_and_bcs(self, stages):
         return getFormDiscGalerkin(self.F, self.el,

@@ -1,6 +1,5 @@
 from abc import abstractmethod
 from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationalSolver
-from firedrake.dmhooks import pop_parent, push_parent
 from firedrake.petsc import PETSc
 from .tools import AI, get_stage_space, getNullspace, flatten_dats
 
@@ -84,18 +83,14 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
             the Runge-Kutta method to be used for time marching.
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
-    :arg use_collocation_update: An optional kwarg indicating whether to use
-        the terminal value of the collocation polynomial as the solution
-        update. This is needed to bypass the mass matrix inversion when
-        enforcing bounds constraints with an RK method that is not stiffly
-        accurate. Currently, only constant-in-time boundary conditions are
-        supported.
     """
     def __init__(self, F, t, dt, u0, num_stages,
                  bcs=None, solver_parameters=None,
                  appctx=None, nullspace=None,
+                 transpose_nullspace=None, near_nullspace=None,
                  splitting=None, bc_type=None,
-                 butcher_tableau=None, bounds=None):
+                 butcher_tableau=None, bounds=None,
+                 **kwargs):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
@@ -120,19 +115,28 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         Fbig, bigBCs = self.get_form_and_bcs(self.stages)
 
-        nsp = getNullspace(u0.function_space(),
-                           stages.function_space(),
-                           self.num_stages, nullspace)
+        V = u0.function_space()
+        Vbig = stages.function_space()
+        nullspace = getNullspace(V, Vbig, num_stages, nullspace)
+        transpose_nullspace = getNullspace(V, Vbig, num_stages, transpose_nullspace)
+        near_nullspace = getNullspace(V, Vbig, num_stages, near_nullspace)
 
         self.bigBCs = bigBCs
 
-        self.prob = NonlinearVariationalProblem(Fbig, stages, bigBCs)
-
-        push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
+        self.problem = NonlinearVariationalProblem(
+            Fbig, stages, bcs=bigBCs,
+            form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+            is_linear=kwargs.pop("is_linear", False),
+            restrict=kwargs.pop("restrict", False),
+        )
         self.solver = NonlinearVariationalSolver(
-            self.prob, appctx=self.appctx, nullspace=nsp,
-            solver_parameters=solver_parameters)
-        pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
+            self.problem, appctx=self.appctx,
+            nullspace=nullspace,
+            transpose_nullspace=transpose_nullspace,
+            near_nullspace=near_nullspace,
+            solver_parameters=solver_parameters,
+            **kwargs,
+        )
 
         # stash these for later in case we do bounds constraints
         self.stage_bounds = self.get_stage_bounds(bounds)
@@ -141,9 +145,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
 
-        push_parent(self.u0.function_space().dm, self.stages.function_space().dm)
         self.solver.solve(bounds=self.stage_bounds)
-        pop_parent(self.u0.function_space().dm, self.stages.function_space().dm)
 
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()

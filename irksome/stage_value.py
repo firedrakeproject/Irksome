@@ -154,9 +154,12 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
 
 class StageValueTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
-                 solver_parameters=None, update_solver_parameters=None,
+                 solver_parameters=None,
+                 update_solver_parameters=None,
                  splitting=AI, basis_type=None,
-                 nullspace=None, appctx=None, bounds=None, use_collocation_update=False):
+                 appctx=None, bounds=None,
+                 use_collocation_update=False,
+                 **kwargs):
 
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
         assert is_ode(F, u0) or butcher_tableau.is_stiffly_accurate
@@ -183,8 +186,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
-                         appctx=appctx, nullspace=nullspace,
-                         splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds)
+                         appctx=appctx,
+                         splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
+                         **kwargs)
         self.appctx["stage_type"] = "value"
         self.appctx["vandermonde"] = vandermonde
 
