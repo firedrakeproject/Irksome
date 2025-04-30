@@ -12,6 +12,23 @@ import numpy as np
 from firedrake import TestFunction
 
 
+ufc_line = ufc_simplex(1)
+
+
+def getElement(basis_type, order):
+    if order == 0:
+        el = DiscontinuousLagrange(ufc_line, order)
+    elif basis_type == "Bernstein":
+        el = DiscontinuousElement(Bernstein(ufc_line, order))
+    elif basis_type == "integral":
+        el = Legendre(ufc_line, order)
+    else:
+        # Let recursivenodes handle the general case
+        variant = None if basis_type == "Lagrange" else basis_type
+        el = DiscontinuousLagrange(ufc_line, order, variant=variant)
+    return el
+
+
 def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
 
     """Given a time-dependent variational form, trial and test spaces, and
@@ -170,18 +187,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         V = u0.function_space()
         self.num_fields = len(V)
 
-        ufc_line = ufc_simplex(1)
-
-        if order == 0:
-            self.el = DiscontinuousLagrange(ufc_line, order)
-        elif basis_type == "Bernstein":
-            self.el = DiscontinuousElement(Bernstein(ufc_line, order))
-        elif basis_type == "integral":
-            self.el = Legendre(ufc_line, order)
-        else:
-            # Let recursivenodes handle the general case
-            variant = None if basis_type == "Lagrange" else basis_type
-            self.el = DiscontinuousLagrange(ufc_line, order, variant=variant)
+        self.el = getElement(basis_type, order)
 
         if quadrature is None:
             quadrature = make_quadrature(ufc_line, order+1)
@@ -194,10 +200,19 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
 
-    def get_form_and_bcs(self, stages):
-        return getFormDiscGalerkin(self.F, self.el,
-                                   self.quadrature, self.t, self.dt, self.u0, stages,
-                                   self.orig_bcs)
+    def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, F=None):
+        if basis_type is None:
+            basis_type = self.basis_type
+        if order is None:
+            order = self.order
+        if basis_type == self.basis_type and order == self.order:
+            el = self.el
+        else:
+            el = getElement(basis_type, order)
+        return getFormDiscGalerkin(F or self.F,
+                                   el,
+                                   quadrature or self.quadrature,
+                                   self.t, self.dt, self.u0, stages, self.orig_bcs)
 
     def _update(self):
         stages_np = np.array(self.stages.subfunctions, dtype=object)

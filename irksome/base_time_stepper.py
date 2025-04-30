@@ -26,7 +26,8 @@ class BaseTimeStepper:
             "dt": dt,
             "u0": u0,
             "bcs": bcs,
-            "nullspace": nullspace}
+            "nullspace": nullspace,
+            "stepper": self}
 
         if appctx is None:
             self.appctx = appctx_base
@@ -155,7 +156,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     # allow butcher tableau as input for preconditioners to create
     # an alternate operator
     @abstractmethod
-    def get_form_and_bcs(self, stages, butcher_tableau=None):
+    def get_form_and_bcs(self, stages, tableau=None, F=None):
         pass
 
     def solver_stats(self):
