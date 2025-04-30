@@ -206,10 +206,9 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                             for s in range(ns)))
             ut0bit += sum(kp[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-    def get_form_and_bcs(self, stages, tableau=None):
-        if tableau is None:
-            tableau = self.tableau
-        return getFormNystrom(self.F, tableau, self.t,
+    def get_form_and_bcs(self, stages, tableau=None, F=None):
+        return getFormNystrom(F or self.F,
+                              tableau or self.tableau, self.t,
                               self.dt, self.u0, self.ut0,
                               stages,
                               bcs=self.orig_bcs,

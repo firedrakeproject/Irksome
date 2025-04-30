@@ -208,6 +208,10 @@ class RadauIIAIMEXMethod:
         self.propprob = NonlinearVariationalProblem(
             Fbig + Fprop, UU, bcs=bigBCs)
 
+        self.F = F
+        self.orig_bcs = bcs
+        self.splitting = splitting
+
         appctx_irksome = {"F": F,
                           "Fexp": Fexp,
                           "butcher_tableau": butcher_tableau,
@@ -216,6 +220,7 @@ class RadauIIAIMEXMethod:
                           "u0": u0,
                           "bcs": bcs,
                           "stage_type": "value",
+                          "stepper": self,
                           "splitting": splitting,
                           "nullspace": nullspace}
         if appctx is None:
@@ -281,6 +286,13 @@ class RadauIIAIMEXMethod:
                 self.num_linear_iterations_prop,
                 self.num_nonlinear_iterations_it,
                 self.num_linear_iterations_it)
+
+    def get_form_and_bcs(self, stages, tableau=None, F=None):
+        return getFormStage(F or self.F,
+                            tableau or self.butcher_tableau,
+                            self.t, self.dt, self.u0,
+                            stages, bcs=self.orig_bcs,
+                            splitting=self.splitting)
 
 
 def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
