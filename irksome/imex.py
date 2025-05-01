@@ -212,17 +212,8 @@ class RadauIIAIMEXMethod:
         self.orig_bcs = bcs
         self.splitting = splitting
 
-        appctx_irksome = {"F": F,
-                          "Fexp": Fexp,
-                          "butcher_tableau": butcher_tableau,
-                          "t": t,
-                          "dt": dt,
-                          "u0": u0,
-                          "bcs": bcs,
-                          "stage_type": "value",
-                          "stepper": self,
-                          "splitting": splitting,
-                          "nullspace": nullspace}
+        appctx_irksome = {"stepper": self}
+
         if appctx is None:
             appctx = appctx_irksome
         else:

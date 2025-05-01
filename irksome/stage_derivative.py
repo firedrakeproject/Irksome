@@ -196,7 +196,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau, **kwargs)
-        self.appctx["stage_type"] = "deriv"
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been

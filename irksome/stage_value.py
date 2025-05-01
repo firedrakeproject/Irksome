@@ -189,8 +189,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
                          **kwargs)
-        self.appctx["stage_type"] = "value"
-        self.appctx["vandermonde"] = vandermonde
 
         if use_collocation_update:
             # Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.

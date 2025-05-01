@@ -23,7 +23,7 @@ def Fubc(V, t, uexact):
 class myPC(NystromAuxiliaryOperatorPC):
     def getNewForm(self, pc, u0, ut0, test):
         appctx = self.get_appctx(pc)
-        bcs = appctx["bcs"]
+        bcs = appctx["stepper"].orig_bcs
         F = inner(Dt(u0, 2), test) * dx + inner(grad(u0), grad(test)) * dx
         return F, bcs
 

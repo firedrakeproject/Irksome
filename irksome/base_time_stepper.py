@@ -20,14 +20,7 @@ class BaseTimeStepper:
         self.nullspace = nullspace
         self.V = u0.function_space()
 
-        appctx_base = {
-            "F": F,
-            "t": t,
-            "dt": dt,
-            "u0": u0,
-            "bcs": bcs,
-            "nullspace": nullspace,
-            "stepper": self}
+        appctx_base = {"stepper": self}
 
         if appctx is None:
             self.appctx = appctx_base
@@ -99,13 +92,10 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.num_stages = num_stages
         if butcher_tableau:
             assert num_stages == butcher_tableau.num_stages
-            self.appctx["butcher_tableau"] = butcher_tableau
         if splitting is None:
             splitting = AI
         self.splitting = splitting
-        self.appctx["splitting"] = splitting
         self.bc_type = bc_type
-        self.appctx["bc_type"] = bc_type
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
