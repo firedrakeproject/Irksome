@@ -44,8 +44,28 @@ def getFormNystromDIRK(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
     stage_F = replace(F, repl)
 
     # BC's (TODO!)
+    bcnew = []
 
-    return stage_F, (k, g1, g2, a, abar, c), None, None
+    # For the DIRK case, we need one new BC for each old one (rather
+    # than one per stage), but we need a `Function` inside of each BC
+    # and a rule for computing that function at each time for each
+    # stage.
+    abar_vals = numpy.array([MC.Constant(0) for i in range(num_stages)],
+                            dtype=object)
+    d_val = MC.Constant(1.0)
+    for bc in bcs:
+        bcarg = bc._original_arg
+        if bcarg == 0:
+            # Homogeneous BC, just zero out stage dofs
+            bcnew.append(bc)
+        else:
+            bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
+            gdat = bcarg_stage - bc2space(bc, u0) - c*dt*bc2space(bc, ut0)
+            gdat -= sum(bc2space(bc, ks[i]) * (abar_vals[i] * dt**2) for i in range(num_stages))
+            gdat /= d_val * dt**2
+            bcnew.append(bc.reconstruct(g=gdat))
+
+    return stage_F, (k, g1, g2, a, abar, c), bcnew, (abar_vals, d_val)
 
 
 class NystromDIRKTimeStepper:
@@ -70,7 +90,7 @@ class NystromDIRKTimeStepper:
         self.num_stages = num_stages = tableau.num_stages
 
         self.AA = vecconst(tableau.A)
-        self.AAbar = vecconst(tableau.A)
+        self.AAbar = vecconst(tableau.Abar)
         self.BB = vecconst(tableau.b)
         self.BBbar = vecconst(tableau.bbar)
         self.CC = vecconst(tableau.c)
@@ -83,9 +103,10 @@ class NystromDIRKTimeStepper:
         self.num_fields = len(u0.function_space())
         self.ks = [Function(V) for _ in range(num_stages)]
 
-        stage_F, self.kgac, bcnew, _ = getFormNystromDIRK(
+        stage_F, self.kgac, bcnew, (abar_vals, d_val) = getFormNystromDIRK(
             F, self.ks, tableau, t, dt, u0, ut0, bcs=bcs)
 
+        k = self.kgac[0]
         self.bcnew = bcnew
 
         appctx_irksome = {"F": F,
@@ -119,10 +140,19 @@ class NystromDIRKTimeStepper:
             **kwargs,
         )
 
-        self.bc_constants = None
+        self.bc_constants = abar_vals, d_val
 
     def update_bc_constants(self, i, c):
-        pass
+        AAbar = self.AAbar
+        CC = self.CC
+        abar_vals, d_val = self.bc_constants
+        ns = AAbar.shape[1]
+        for j in range(i):
+            abar_vals[j].assign(AAbar[i, j])
+        for j in range(i, ns):
+            abar_vals[j].assign(0)
+        d_val.assign(AAbar[i, i])
+        c.assign(CC[i])
 
     def advance(self):
         k, g1, g2, a, abar, c = self.kgac
