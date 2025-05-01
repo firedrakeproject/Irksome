@@ -3,11 +3,6 @@ import copy
 import numpy
 from firedrake import AuxiliaryOperatorPC, derivative
 from firedrake.dmhooks import get_appctx
-from ufl import replace
-
-from irksome.nystrom_stepper import getFormNystrom
-from irksome.stage_derivative import getForm
-from irksome.stage_value import getFormStage
 
 
 # Oddly, we can't turn pivoting off in scipy?
@@ -54,16 +49,11 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
     def form(self, pc, test, trial):
         """Implements the interface for AuxiliaryOperatorPC."""
         appctx = self.get_appctx(pc)
-        butcher = appctx["butcher_tableau"]
-        F = appctx["F"]
-        t = appctx["t"]
-        dt = appctx["dt"]
-        u0 = appctx["u0"]
-        bcs = appctx["bcs"]
-        stage_type = appctx.get("stage_type", None)
-        bc_type = appctx.get("bc_type", None)
-        splitting = appctx.get("splitting", None)
-        vandermonde = appctx.get("vandermonde", None)
+        stepper = appctx["stepper"]
+        butcher = stepper.butcher_tableau
+        F = stepper.F
+        u0 = stepper.u0
+        bcs = stepper.orig_bcs
         v0, = F.arguments()
 
         try:
@@ -84,19 +74,8 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         ctx = get_appctx(pc.getDM())
         w = ctx._x
 
-        # which getForm do I need to get?
-        if stage_type in ("deriv", None):
-            Fnew, bcnew = getForm(F, butcher, t, dt, u0, w, bcs, bc_type, splitting)
-        elif stage_type == "value":
-            Fnew, bcnew = getFormStage(F, butcher, t, dt, u0, w, bcs, splitting, vandermonde)
-        else:
-            raise NotImplementedError(f"Rana PC is not implemented (and probably doesn't make sense) for stage_type of {stage_type}")
-
-        # Now we get the Jacobian for the modified system,
-        # which becomes the auxiliary operator!
-        test_old = Fnew.arguments()[0]
-        Jnew = replace(derivative(Fnew, w, du=trial),
-                       {test_old: test})
+        Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F)
+        Jnew = derivative(Fnew, w, du=trial)
 
         return Jnew, bcnew
 
@@ -138,14 +117,12 @@ class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
     def form(self, pc, test, trial):
         """Implements the interface for AuxiliaryOperatorPC."""
         appctx = self.get_appctx(pc)
-        tableau = appctx["nystrom_tableau"]
-        F = appctx["F"]
-        t = appctx["t"]
-        dt = appctx["dt"]
-        u0 = appctx["u0"]
-        ut0 = appctx["ut0"]
-        bcs = appctx["bcs"]
-        bc_type = appctx.get("bc_type", None)
+        stepper = appctx["stepper"]
+        tableau = stepper.tableau
+        F = stepper.F
+        bcs = stepper.orig_bcs
+        u0 = stepper.u0
+        ut0 = stepper.ut0
         v0, = F.arguments()
 
         try:
@@ -167,15 +144,8 @@ class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         ctx = get_appctx(pc.getDM())
         w = ctx._x
 
-        # which getForm do I need to get?
-        Fnew, bcnew = getFormNystrom(
-            F, tableau, t, dt, u0, ut0, w, bcs, bc_type)
-
-        # Now we get the Jacobian for the modified system,
-        # which becomes the auxiliary operator!
-        test_old = Fnew.arguments()[0]
-        Jnew = replace(derivative(Fnew, w, du=trial),
-                       {test_old: test})
+        Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=tableau, F=F)
+        Jnew = derivative(Fnew, w, du=trial)
 
         return Jnew, bcnew
 
