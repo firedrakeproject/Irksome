@@ -1,8 +1,11 @@
 import copy
 
 import numpy
-from firedrake import AuxiliaryOperatorPC, derivative
+from irksome.discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper, getElement
+from irksome.tools import vecconst
+from firedrake import Function, AuxiliaryOperatorPC, TwoLevelPC, derivative
 from firedrake.dmhooks import get_appctx
+from firedrake.petsc import PETSc
 
 
 # Oddly, we can't turn pivoting off in scipy?
@@ -167,3 +170,74 @@ class ClinesLD(ClinesBase):
                 "ClinesLD preconditioner failed for for this tableau.  Please try again with GaussLegendre or RadauIIA methods")
         Abartilde = Lbar @ Dbar
         return Atilde, Abartilde
+
+
+
+class Interpolator:
+    def __init__(self, V, Vbig, source, target):
+        self.u = Function(V)
+        self.ubig = Function(Vbig)
+
+        primal = source.get_nodal_basis()
+        dual = target.get_dual_set()
+        A = dual.to_riesz(primal)
+        B = primal.get_coeffs()
+        b = (A @ B).reshape((-1,))
+        self.bs = vecconst(b)
+
+    def mult(self, mat, x, y):
+        with self.u.dat.vec_wo as xv:
+            x.copy(xv)
+
+        num_fields = len(self.u.subfunctions)
+        for i in range(num_fields):
+            xi = self.u.subfunctions[i]
+            yi = numpy.array(self.ubig.subfunctions[i::num_fields], dtype=object)
+            for j in range(len(self.bs)):
+                yi[j].assign(xi * self.bs[j])
+
+        with self.ubig.dat.vec_ro as yv:
+            yv.copy(y)
+
+    def multTranspose(self, mat, x, y):
+        with self.ubig.dat.vec_wo as xv:
+            x.copy(xv)
+
+        num_fields = len(self.u.subfunctions)
+        for i in range(num_fields):
+            yi = self.u.subfunctions[i]
+            xi = numpy.array(self.ubig.subfunctions[i::num_fields], dtype=object)
+            yi.assign(numpy.dot(xi, self.bs))
+
+        with self.u.dat.vec_ro as yv:
+            yv.copy(y)
+
+
+class LowOrderInTimePC(TwoLevelPC):
+
+    _prefix = "pmg_"
+
+    def coarsen(self, pc):
+        appctx = self.get_appctx(pc)
+        stepper = appctx["stepper"]
+
+        is_dg = isinstance(stepper, DiscontinuousGalerkinTimeStepper)
+        order = 0 if is_dg else 1
+
+        w = stepper.u0
+        F, bcs = stepper.get_form_and_bcs(w, order=order)
+        a = derivative(F, w)
+
+        elbig = stepper.el if is_dg else stepper.trial_el
+        el = type(elbig)(elbig.ref_el, order)
+        el = getElement(stepper.basis_type, order)
+
+        V = stepper.u0.function_space()
+        Vbig = stepper.stages.function_space()
+
+        shell = Interpolator(V, Vbig, el, elbig)
+        sizes = (Vbig.dof_dset.layout_vec.getSizes(),
+                 V.dof_dset.layout_vec.getSizes())
+        I = PETSc.Mat().createPython(sizes, shell, comm=V._comm)
+        I.setUp()
+        return a, bcs, I
