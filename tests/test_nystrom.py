@@ -2,7 +2,7 @@ import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, VectorFunctionSpace, assemble, div, dx,
                        norm, grad, inner, pi, project, sin, split)
-from irksome import Alexander, Dt, GaussLegendre, NystromDIRKTimeStepper, StageDerivativeNystromTimeStepper, ClassicNystrom4Tableau
+from irksome import Dt, GaussLegendre, NystromDIRKTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
 
 
 def wave(n, deg, time_stages, bc_type):
@@ -63,11 +63,11 @@ def dirk_wave(n, deg):
     x, = SpatialCoordinate(msh)
 
     t = Constant(0.0)
-    dt = Constant(1.0 / N)
+    dt = Constant(0.2 / N)
 
     uinit = sin(pi * x)
 
-    butcher_tableau = Alexander()
+    butcher_tableau = WSODIRK(6,4,3)
 
     u0 = project(uinit, V)
     u = Function(u0)  # copy
