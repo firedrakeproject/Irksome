@@ -165,7 +165,7 @@ class NystromDIRKTimeStepper:
         dt = self.dt
         for i in range(self.num_stages):
             g1.assign(sum((ks[j] * (self.AAbar[i, j] * dt**2) for j in range(i)),
-                          u0, ut0 * (self.CC[i] * dt)))
+                          u0 + ut0 * (self.CC[i] * dt)))
             g2.assign(sum((ks[j] * (self.AA[i, j] * dt) for j in range(i)), ut0))
             self.update_bc_constants(i, c)
             a.assign(self.AA[i, i])
@@ -176,7 +176,7 @@ class NystromDIRKTimeStepper:
             ks[i].assign(k)
 
         # update the solution with now-computed stage values.
-        u0 += ut0 * dt + sum(ks[i] * (self.BBbar[i] * dt) for i in range(self.num_stages))
+        u0 += ut0 * dt + sum(ks[i] * (self.BBbar[i] * dt**2) for i in range(self.num_stages))
         ut0 += sum(ks[i] * (self.BB[i] * dt) for i in range(self.num_stages))
 
         self.num_steps += 1
