@@ -7,6 +7,7 @@ from ufl.constantvalue import as_ufl
 from .deriv import TimeDerivative, expand_time_derivatives
 from .tools import replace, MeshConstant, vecconst
 from .bcs import bc2space
+from .nystrom_stepper import butcher_to_nystrom, NystromTableau
 
 
 def getFormNystromDIRK(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
@@ -78,6 +79,8 @@ class NystromDIRKTimeStepper:
                  transpose_nullspace=None, near_nullspace=None,
                  bc_type=None,
                  **kwargs):
+        if not isinstance(tableau, NystromTableau):
+            tableau = butcher_to_nystrom(tableau)
         assert tableau.is_diagonally_implicit
         if bc_type is None:
             bc_type = "DAE"

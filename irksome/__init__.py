@@ -17,6 +17,7 @@ from .dirk_stepper import DIRKTimeStepper   # noqa: F401
 from .stage_derivative import getForm       # noqa: F401
 from .imex import RadauIIAIMEXMethod        # noqa: F401
 from .imex import DIRKIMEXMethod            # noqa: F401
+from .nystrom_dirk_stepper import NystromDIRKTimeStepper   # noqa: F401
 from .nystrom_stepper import StageDerivativeNystromTimeStepper   # noqa: F401
 from .nystrom_stepper import ClassicNystrom4Tableau  # noqa: F401
 from .pc import ClinesBase, ClinesLD        # noqa: F401
