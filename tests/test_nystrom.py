@@ -1,8 +1,8 @@
 import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, VectorFunctionSpace, assemble, div, dx,
+                       TestFunction, UnitIntervalMesh, VectorFunctionSpace, assemble, cos, div, dx,
                        norm, grad, inner, pi, project, sin, split)
-from irksome import Dt, GaussLegendre, NystromDIRKTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
+from irksome import Dt, GaussLegendre, MeshConstant, NystromDIRKTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
 
 
 def wave(n, deg, time_stages, bc_type):
@@ -17,22 +17,22 @@ def wave(n, deg, time_stages, bc_type):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    t = Constant(0.0)
-    dt = Constant(1.0 / N)
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(1.0 / N)
 
-    uinit = sin(pi * x)
+    uexact = 0.5*(cos(pi * (x - t)) + cos(pi * (x + t)))
 
     butcher_tableau = GaussLegendre(time_stages)
 
-    u0 = project(uinit, V)
-    u = Function(u0)  # copy
+    u = project(uexact, V)
     ut = Function(V)
 
     v = TestFunction(V)
 
     F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx
 
-    bc = DirichletBC(V, 0, "on_boundary")
+    bc = DirichletBC(V, uexact, "on_boundary")
 
     E = 0.5 * inner(ut, ut) * dx + 0.5 * inner(grad(u), grad(u)) * dx
 
@@ -47,7 +47,7 @@ def wave(n, deg, time_stages, bc_type):
         stepper.advance()
         t.assign(float(t) + float(dt))
 
-    return assemble(E) / E0, norm(u + u0)
+    return assemble(E) / E0, norm(u - uexact)
 
 
 def dirk_wave(n, deg):
@@ -62,14 +62,15 @@ def dirk_wave(n, deg):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    t = Constant(0.0)
-    dt = Constant(0.2 / N)
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.2 / N)
 
-    uinit = sin(pi * x)
+    uexact = 0.5*(cos(pi * (x - t)) + cos(pi * (x + t)))
 
-    butcher_tableau = WSODIRK(6,4,3)
+    butcher_tableau = WSODIRK(6, 4, 3)
 
-    u0 = project(uinit, V)
+    u0 = project(uexact, V)
     u = Function(u0)  # copy
     ut = Function(V)
 
@@ -77,7 +78,7 @@ def dirk_wave(n, deg):
 
     F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx
 
-    bc = DirichletBC(V, 0, "on_boundary")
+    bc = DirichletBC(V, uexact, "on_boundary")
 
     E = 0.5 * inner(ut, ut) * dx + 0.5 * inner(grad(u), grad(u)) * dx
 
@@ -92,7 +93,7 @@ def dirk_wave(n, deg):
         stepper.advance()
         t.assign(float(t) + float(dt))
 
-    return assemble(E) / E0, norm(u + u0)
+    return assemble(E) / E0, norm(u - uexact)
 
 
 @pytest.mark.parametrize("bc_type", ["ODE", "DAE", "dDAE"])
