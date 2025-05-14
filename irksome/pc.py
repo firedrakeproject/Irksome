@@ -75,6 +75,7 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         w = ctx._x
 
         Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F)
+
         Jnew = derivative(Fnew, w, du=trial)
 
         return Jnew, bcnew
