@@ -43,14 +43,14 @@ params = {
     "snes_type": "python",
     "snes_python_type": "irksome.SDCLDSNES",
     "sdc": newton_params,
-    # "sdc": {
-    #     "snes_type": "python",
-    #     "snes_python_type": "firedrake.FieldsplitSNES",
-    #     "snes_fieldsplit_type": "multiplicative",
-    #     "fieldsplit_0": newton_params,
-    #     "fieldsplit_1": newton_params,
-    #     "fieldsplit_2": newton_params,
-    # }
+    "sdc": {
+        "snes_type": "python",
+        "snes_python_type": "firedrake.FieldsplitSNES",
+        "snes_fieldsplit_type": "multiplicative",
+        "fieldsplit_0": newton_params,
+        "fieldsplit_1": newton_params,
+        "fieldsplit_2": newton_params,
+    }
 }
 
 stepper = TimeStepper(
