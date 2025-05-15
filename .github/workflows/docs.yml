@@ -29,7 +29,7 @@ jobs:
       - name: Install system dependencies
         run: |
           apt-get update
-          apt-get install -y texlive
+          apt-get install -y latexmk
 
       - uses: actions/checkout@v4
         with:
