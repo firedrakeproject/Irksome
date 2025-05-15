@@ -29,7 +29,7 @@ jobs:
       - name: Install system dependencies
         run: |
           apt-get update
-          apt-get install -y latexmk texlive-latex-extra
+          apt-get install -y latexmk texlive texlive-latex-extra
 
       - uses: actions/checkout@v4
         with:
