@@ -18,7 +18,7 @@ jobs:
     name: Build docs
     runs-on: [self-hosted, Linux]
     container:
-      image: firedrakeproject/firedrake-docdeps:latest
+      image: firedrakeproject/firedrake-vanilla-default:latest
     steps:
       - name: Fix HOME
         # For unknown reasons GitHub actions overwrite HOME to /github/home
