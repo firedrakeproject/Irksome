@@ -7,6 +7,7 @@ from firedrake import (Constant, DirichletBC, FiniteElement, Function,
                        errornorm, grad, inner, pi, sin, split)
 from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
 from irksome.tools import AI, IA
+from irksome.labeling import explicit
 from pyop2.mpi import COMM_WORLD
 
 
@@ -50,12 +51,12 @@ def test_diffreact(splitting):
         stage_type="value")
 
     imex_stepper = TimeStepper(
-        Fimp, bt, t, dt, u_split,
+        Fimp+explicit(Fexp), bt, t, dt, u_split,
         stage_type="imex",
         bcs=bcs, splitting=splitting,
         it_solver_parameters=luparams,
         prop_solver_parameters=luparams,
-        Fexp=Fexp,
+        Fexp=None,
         num_its_initial=10,
         num_its_per_step=5)
 

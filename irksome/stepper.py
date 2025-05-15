@@ -136,8 +136,17 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         return ExplicitTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "imex":
-        Fexp = kwargs.get("Fexp")
-        assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
+        Fimp, Fexp0 = split_explicit(F)
+        Fexp1 = kwargs.get("Fexp")
+        if Fexp0 is None:
+            if Fexp1 is None:
+                raise ValueError("Calling an IMEX scheme with no explicit form.  Did you really mean to do this?")
+            else:
+                Fexp = Fexp1
+        else:
+            Fexp = Fexp0
+            if Fexp1 is not None:
+                raise ValueError("You specified an explicit part in two ways!")
         appctx = base_kwargs.get("appctx")
         nullspace = base_kwargs.get("nullspace")
         splitting = kwargs.get("splitting", AI)
@@ -147,7 +156,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         num_its_per_step = kwargs.get("num_its_per_step", 0)
 
         return RadauIIAIMEXMethod(
-            F, Fexp, butcher_tableau, t, dt, u0, bcs,
+            Fimp, Fexp, butcher_tableau, t, dt, u0, bcs,
             it_solver_parameters, prop_solver_parameters,
             splitting, appctx, nullspace,
             num_its_initial, num_its_per_step)
