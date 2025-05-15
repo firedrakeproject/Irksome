@@ -31,6 +31,7 @@ We start with standard Firedrake/Irksome imports::
                          RectangleMesh, SpatialCoordinate, TestFunctions,
                          as_matrix, conditional, dx, grad, inner, split)
   from irksome import Dt, MeshConstant, TimeStepper, ARS_DIRK_IMEX
+  from irksome.labeling import explicit
 
 And we set up the mesh and function space.::
   
@@ -90,8 +91,10 @@ This is the part to be handled explicitly.::
 	  
   F2 = inner((chi/eps) * (-u + (u**3 / 3) + c), vu)*dx
 
-If we wanted to use a fully implicit method, we would just take
-F = F1 + F2.
+If we wanted to use a fully implicit method, we would just take F = F1 + F2.
+Instead, we use a label::
+
+  F = F1 + explicit(F2)
 
 Now, set up solver parameters.  Since we're using a DIRK-IMEX scheme, we can
 specify only parameters for each stage.  We use an additive Schwarz (fieldsplit) method that applies AMG to the potential block and incomplete Cholesky to the cell block independently for each stage::

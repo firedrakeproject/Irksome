@@ -1,6 +1,7 @@
 from .dirk_stepper import DIRKTimeStepper
 from .explicit_stepper import ExplicitTimeStepper
 from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
+from .labeling import split_explicit
 from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
 from .stage_value import StageValueTimeStepper
 from .tools import AI
@@ -151,12 +152,22 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             splitting, appctx, nullspace,
             num_its_initial, num_its_per_step)
     elif stage_type == "dirkimex":
-        Fexp = kwargs.get("Fexp")
-        assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
+        Fimp, Fexp0 = split_explicit(F)
+        Fexp1 = kwargs.get("Fexp")
+        if Fexp0 is None:
+            if Fexp1 is None:
+                raise ValueError("Calling an IMEX scheme with no explicit form.  Did you really mean to do this?")
+            else:
+                Fexp = Fexp1
+        else:
+            Fexp = Fexp0
+            if Fexp1 is not None:
+                raise ValueError("You specified an explicit part in two ways!")
+
         appctx = base_kwargs.get("appctx")
         nullspace = base_kwargs.get("nullspace")
         solver_parameters = base_kwargs.get("solver_parameters")
         mass_parameters = kwargs.get("mass_parameters")
         return DIRKIMEXMethod(
-            F, Fexp, butcher_tableau, t, dt, u0, bcs,
+            Fimp, Fexp, butcher_tableau, t, dt, u0, bcs,
             solver_parameters, mass_parameters, appctx, nullspace)
