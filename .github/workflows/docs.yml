@@ -26,6 +26,11 @@ jobs:
         # (https://github.com/actions/runner/issues/863)
         run: echo "HOME=/home/firedrake" >> "$GITHUB_ENV"
 
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y texlive
+
       - uses: actions/checkout@v4
         with:
           path: irksome-repo
