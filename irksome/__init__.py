@@ -3,6 +3,7 @@ from .ButcherTableaux import Alexander      # noqa: F401
 from .ButcherTableaux import BackwardEuler  # noqa: F401
 from .ButcherTableaux import GaussLegendre  # noqa: F401
 from .ButcherTableaux import LobattoIIIA    # noqa: F401
+from .ButcherTableaux import LobattoIIIB    # noqa: F401
 from .ButcherTableaux import LobattoIIIC    # noqa: F401
 from .ButcherTableaux import PareschiRusso  # noqa: F401
 from .ButcherTableaux import QinZhang       # noqa: F401
@@ -19,6 +20,7 @@ from .imex import RadauIIAIMEXMethod        # noqa: F401
 from .imex import DIRKIMEXMethod            # noqa: F401
 from .nystrom_dirk_stepper import NystromDIRKTimeStepper   # noqa: F401
 from .nystrom_stepper import StageDerivativeNystromTimeStepper   # noqa: F401
+from .nystrom_stepper import partitioned_to_nystrom   # noqa: F401
 from .nystrom_stepper import ClassicNystrom4Tableau  # noqa: F401
 from .pc import ClinesBase, ClinesLD        # noqa: F401
 from .pc import NystromAuxiliaryOperatorPC  # noqa: F401

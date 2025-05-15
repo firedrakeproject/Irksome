@@ -2,7 +2,7 @@ import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, VectorFunctionSpace, assemble, cos, div, dx,
                        norm, grad, inner, pi, project, sin, split)
-from irksome import Dt, GaussLegendre, MeshConstant, NystromDIRKTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
+from irksome import Dt, GaussLegendre, MeshConstant, NystromDIRKTimeStepper, StageDerivativeNystromTimeStepper, TimeStepper, WSODIRK, ClassicNystrom4Tableau
 
 
 def wave(n, deg, time_stages, bc_type):
@@ -48,6 +48,53 @@ def wave(n, deg, time_stages, bc_type):
         t.assign(float(t) + float(dt))
 
     return assemble(E) / E0, norm(u - uexact)
+
+
+def wave_rk(n, deg, time_stages, bc_type):
+    N = 2**n
+    msh = UnitIntervalMesh(N)
+
+    params = {"snes_type": "ksponly",
+              "ksp_type": "preonly",
+              "mat_type": "aij",
+              "pc_type": "lu"}
+
+    V = FunctionSpace(msh, "CG", deg)
+    W = V*V
+    x, = SpatialCoordinate(msh)
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(1.0 / N)
+
+    uexact = 0.5*(cos(pi * (x - t)) + cos(pi * (x + t)))
+
+    butcher_tableau = GaussLegendre(time_stages)
+
+    u0 = Function(W)
+    u0.sub(0).project(uexact)
+    u,ut = split(u0)
+
+    v,w = TestFunction(W)
+
+    F = inner(Dt(ut, 1), v) * dx + inner(grad(u), grad(v)) * dx + inner(Dt(u, 1) - ut, w) * dx
+
+    bc = DirichletBC(W.sub(0), uexact, "on_boundary")
+
+    E = 0.5 * inner(u0.sub(1), u0.sub(1)) * dx + 0.5 * inner(grad(u0.sub(0)), grad(u0.sub(0))) * dx
+
+    stepper = TimeStepper(
+        F, butcher_tableau, t, dt, u0, bcs=bc, solver_parameters=params, bc_type=bc_type, stage_type = 'deriv')
+
+    E0 = assemble(E)
+    tf = 1
+    while (float(t) < tf):
+        if (float(t) + float(dt) > tf):
+            dt.assign(tf - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return assemble(E) / E0, norm(u0.sub(0) - uexact)
 
 
 def dirk_wave(n, deg):
@@ -101,8 +148,19 @@ def test_wave_eq(bc_type):
     # number of refinements
     n = 5
     deg = 2
-    stage_count = 2
+    stage_count = 3
     Erat, diff = wave(n, deg, stage_count, bc_type)
+    print(Erat, diff)
+    assert abs(Erat - 1) < 1.e-8
+    assert diff < 3.e-5
+
+@pytest.mark.parametrize("bc_type", ["ODE", "DAE"])
+def test_rk_wave_eq(bc_type):
+    # number of refinements
+    n = 5
+    deg = 2
+    stage_count = 3
+    Erat, diff = wave_rk(n, deg, stage_count, bc_type)
     print(Erat, diff)
     assert abs(Erat - 1) < 1.e-8
     assert diff < 3.e-5

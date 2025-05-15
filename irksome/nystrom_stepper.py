@@ -47,6 +47,14 @@ def butcher_to_nystrom(butch):
     b = butch.b
     return NystromTableau(A, b, butch.c, A @ A, A.T @ b, butch.order)
 
+def partitioned_to_nystrom(butch1, butch2):
+    assert numpy.allclose(butch1.c, butch2.c)
+    A1 = butch1.A
+    b1 = butch1.b
+    A2 = butch2.A
+    b2 = butch2.b
+    return NystromTableau(A1, b1, butch1.c, A1 @ A2, A2.T @ b1, butch1.order)
+
 
 # Not all Nystrom methods come from RK
 class ClassicNystrom4Tableau(NystromTableau):

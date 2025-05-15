@@ -230,6 +230,37 @@ class LobattoIIIC(ButcherTableau):
         return "LobattoIIIC(%d)" % self.num_stages
 
 
+class LobattoIIIB(ButcherTableau):
+    """Discontinuous collocation method based on the Lobatto points.
+    The order of accuracy is 2 * `num_stages` - 2.
+    LobattoIIIB methods are A-stable, but not L- nor B- stable.
+
+    :arg num_stages: The number of stages (2 or greater)
+    """
+    def __init__(self, num_stages):
+        assert num_stages > 1
+        # mooch the b and c from IIIA
+        IIIA = LobattoIIIA(num_stages)
+        b = IIIA.b
+        btilde = IIIA.btilde
+        c = IIIA.c
+        embedded_order = IIIA.embedded_order
+        gamma0 = IIIA.gamma0
+
+        A = numpy.zeros((num_stages, num_stages))
+
+        mat = numpy.fromfunction(lambda q, i: b[i]*c[i]**q, (num_stages, num_stages), dtype=int)
+        for j in range(num_stages):
+            rhs = numpy.array([(b[j]/(k+1))*(1 - c[j]**(k+1))
+                               for k in range(num_stages)])
+            A[:,j] = numpy.linalg.solve(mat, rhs)
+
+        super(LobattoIIIB, self).__init__(A, b, btilde, c, 2 * num_stages - 2, embedded_order, gamma0)
+
+    def __str__(self):
+        return "LobattoIIIB(%d)" % self.num_stages
+
+
 class PareschiRusso(ButcherTableau):
     """Second order, diagonally implicit, 2-stage.
     A-stable if x >= 1/4 and L-stable iff x = 1 plus/minus 1/sqrt(2)."""
