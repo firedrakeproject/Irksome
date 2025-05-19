@@ -1,7 +1,7 @@
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange, Legendre, ufc_simplex)
 from FIAT.quadrature_schemes import create_quadrature
-from ufl import zero
+from ufl import Form
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
@@ -11,6 +11,7 @@ from .tools import replace, vecconst
 from .labeling import TimeQuadratureRule
 import numpy as np
 from firedrake import TestFunction
+from firedrake import assemble, derivative
 
 
 ufc_line = ufc_simplex(1)
@@ -36,8 +37,7 @@ def getElements(basis_type, order):
     return trial_el, test_el
 
 
-def getTermGalerkin(Fcur, L_trial, L_test, qpts, qwts, t, dt, u0, stages, test):
-    print(f"woohoo {len(qpts)}")
+def getTermGalerkin(Fcur, L_trial, L_test, qpts, qwts, t, dt, u0, stages, test, aux_indices):
     v, = Fcur.arguments()
     Fcur = expand_time_derivatives(Fcur, t=t, timedep_coeffs=(u0,))
     tabulate_trials = L_trial.tabulate(1, qpts)
@@ -54,14 +54,19 @@ def getTermGalerkin(Fcur, L_trial, L_test, qpts, qwts, t, dt, u0, stages, test):
     # set up the pieces we need to work with to do our substitutions
     v_np = np.reshape(test, (-1, *u0.ufl_shape))
     w_np = np.reshape(stages, (-1, *u0.ufl_shape))
+
+    # Expand unknowns in the trial space, including the initial condition
     u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
-    vsub = test_vals_w.T @ v_np
     usub = trial_vals.T @ u_np
     dtu0sub = trial_dvals.T @ u_np
+    if aux_indices is not None:
+        # Expand auxiliary variables in the test space rather than the trial space
+        usub[:, aux_indices] = test_vals.T @ w_np[:, aux_indices]
+
+    vsub = test_vals_w.T @ v_np
 
     dtu0 = TimeDerivative(u0)
-
-    Fnew = zero()
+    Fnew = Form([])
 
     # now loop over quadrature points
     for q in range(len(qpts)):
@@ -74,7 +79,7 @@ def getTermGalerkin(Fcur, L_trial, L_test, qpts, qwts, t, dt, u0, stages, test):
     return Fnew
 
 
-def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None):
+def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, aux_indices=None):
 
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
@@ -91,9 +96,11 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None):
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
+    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
+    :kwarg aux_indices: a list of field indices to be discretized in the test space
+         rather than trial space.
 
     On output, we return a tuple consisting of four parts:
 
@@ -117,7 +124,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None):
     Vbig = stages.function_space()
     test = TestFunction(Vbig)
 
-    Fnew = zero()
+    Fnew = Form([])
     for term in F.terms:
         print(term)
         labels = term.labels
@@ -127,12 +134,14 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None):
             qpts = Qdefault.get_points()
             qwts = Qdefault.get_weights()
         elif len(quad_labels) == 1:
-            qpts = quad_labels[0].x
-            qwts = quad_labels[0].w
+            qpts = np.asarray(quad_labels[0].x)
+            qwts = np.asarray(quad_labels[0].w)
         else:
             raise ValueError("Multiple quadrature labels on one form.")
 
-        Fnew += getTermGalerkin(term.form, L_trial, L_test, qpts, qwts, t, dt, u0, stages, test)
+        Fnew += getTermGalerkin(term.form, L_trial, L_test, qpts, qwts, t, dt, u0, stages, test, aux_indices)
+
+    assemble(derivative(Fnew, stages), mat_type="aij").petscmat.convert("dense").view()
 
     # mass-ish matrix for BC, based on default quadrature rule
     qpts = Qdefault.get_points()
@@ -183,23 +192,25 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
          The user may adjust this value between time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+    :kwarg bcs: An iterable of :class:`firedrake.DirichletBC` containing
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the method.
-    :arg basis_type: A string indicating the finite element family (either
+    :kwarg basis_type: A string indicating the finite element family (either
             `'Lagrange'` or `'Bernstein'`) or the Lagrange variant for the
             test/trial spaces. Defaults to equispaced Lagrange elements.
-    :arg quadrature: A :class:`FIAT.QuadratureRule` indicating the quadrature
+    :kwarg quadrature: A :class:`FIAT.QuadratureRule` indicating the quadrature
             to be used in time, defaulting to GL with order points
-    :arg solver_parameters: A :class:`dict` of solver parameters that
+    :kwarg aux_indices: a list of field indices to be discretized in the test space
+            rather than trial space.
+    :kwarg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
-    :arg appctx: An optional :class:`dict` containing application context.
+    :kwarg appctx: An optional :class:`dict` containing application context.
             This gets included with particular things that Irksome will
             pass into the nonlinear solver so that, say, user-defined preconditioners
             have access to it.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
+    :kwarg nullspace: A list of tuples of the form (index, VSB) where
             index is an index into the function space associated with
             `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
             instance to be passed to a
@@ -207,10 +218,11 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
             associated with the Runge-Kutta method
     """
     def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None, **kwargs):
+                 quadrature=None, aux_indices=None, **kwargs):
         assert order >= 1
         self.order = order
         self.basis_type = basis_type
+        self.aux_indices = aux_indices
 
         V = u0.function_space()
         self.num_fields = len(V)
@@ -224,7 +236,7 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
 
-    def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, F=None):
+    def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
         if basis_type is None:
             basis_type = self.basis_type
         if order is None:
@@ -237,7 +249,8 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
         return getFormGalerkin(F or self.F,
                                trial_el, test_el,
                                quadrature or self.quadrature,
-                               self.t, self.dt, self.u0, stages, self.orig_bcs)
+                               self.t, self.dt, self.u0, stages, self.orig_bcs,
+                               aux_indices or self.aux_indices)
 
     def _update(self):
         k1, = self.trial_el.entity_dofs()[0][1]

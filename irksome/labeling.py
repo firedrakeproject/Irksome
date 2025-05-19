@@ -12,8 +12,8 @@ class TimeQuadratureLabel(Label):
 
 class TimeQuadratureRule:
     def __init__(self, x, w):
-        self.x = tuple(x)
-        self.w = tuple(w)
+        self.x = x
+        self.w = w
 
 
 def split_explicit(F):
