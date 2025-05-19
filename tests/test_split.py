@@ -56,7 +56,6 @@ def test_diffreact(splitting):
         bcs=bcs, splitting=splitting,
         it_solver_parameters=luparams,
         prop_solver_parameters=luparams,
-        Fexp=None,
         num_its_initial=10,
         num_its_per_step=5)
 
