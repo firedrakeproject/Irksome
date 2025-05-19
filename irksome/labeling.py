@@ -6,9 +6,8 @@ explicit = Label("explicit")
 
 
 def split_explicit(F):
-    if isinstance(F, Form):
+    if not isinstance(F, LabelledForm):
         return (F, None)
-    assert isinstance(F, LabelledForm)
     exp_part = F.label_map(lambda t: t.has_label(explicit),
                            map_if_true=keep,
                            map_if_false=drop)

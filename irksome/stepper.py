@@ -25,6 +25,19 @@ valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "safety_factor", "gamma0_params"]
 
 
+def imex_separation(F, Fexp1, label):
+    Fimp, Fexp0 = split_explicit(F)
+    if Fexp0 is None:
+        if Fexp1 is None:
+            raise ValueError(f"Calling an {label} scheme with no explicit form.  Did you really mean to do this?")
+        else:
+            Fexp = Fexp1
+    else:
+        Fexp = Fexp0
+        if Fexp1 is not None:
+            raise ValueError("You specified an explicit part in two ways!")
+
+
 def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     """Helper function to dispatch between various back-end classes
        for doing time stepping.  Returns an instance of the
@@ -136,17 +149,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         return ExplicitTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "imex":
-        Fimp, Fexp0 = split_explicit(F)
-        Fexp1 = kwargs.get("Fexp")
-        if Fexp0 is None:
-            if Fexp1 is None:
-                raise ValueError("Calling an IMEX scheme with no explicit form.  Did you really mean to do this?")
-            else:
-                Fexp = Fexp1
-        else:
-            Fexp = Fexp0
-            if Fexp1 is not None:
-                raise ValueError("You specified an explicit part in two ways!")
+        Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
         appctx = base_kwargs.get("appctx")
         nullspace = base_kwargs.get("nullspace")
         splitting = kwargs.get("splitting", AI)
@@ -161,18 +164,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             splitting, appctx, nullspace,
             num_its_initial, num_its_per_step)
     elif stage_type == "dirkimex":
-        Fimp, Fexp0 = split_explicit(F)
-        Fexp1 = kwargs.get("Fexp")
-        if Fexp0 is None:
-            if Fexp1 is None:
-                raise ValueError("Calling an IMEX scheme with no explicit form.  Did you really mean to do this?")
-            else:
-                Fexp = Fexp1
-        else:
-            Fexp = Fexp0
-            if Fexp1 is not None:
-                raise ValueError("You specified an explicit part in two ways!")
-
+        Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
         appctx = base_kwargs.get("appctx")
         nullspace = base_kwargs.get("nullspace")
         solver_parameters = base_kwargs.get("solver_parameters")
