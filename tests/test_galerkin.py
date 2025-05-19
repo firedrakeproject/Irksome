@@ -4,7 +4,9 @@ import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, GalerkinTimeStepper
 from irksome import TimeStepper, GaussLegendre
+from irksome.labeling import TimeQuadratureLabel
 from FIAT import make_quadrature, ufc_simplex
+from FIAT.quadrature_schemes import create_quadrature
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
@@ -163,6 +165,54 @@ def test_1d_heat_homogeneous_dirichletbc(order):
         stepper_GL.advance()
         t.assign(float(t) + float(dt))
         assert (errornorm(u_GL, u) / norm(u)) < 1.e-10
+
+
+@pytest.mark.parametrize("order", [1, 2, 3])
+def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
+    N = 20
+    msh = UnitIntervalMesh(N)
+    V = FunctionSpace(msh, "CG", 1)
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0 / N)
+    t = MC.Constant(0.0)
+    (x,) = SpatialCoordinate(msh)
+
+    uexact = sin(pi*x)*exp(-(pi**2)*t)
+    rhs = Dt(uexact) - div(grad(uexact))
+    bcs = DirichletBC(V, uexact, "on_boundary")
+    u = Function(V)
+    u.interpolate(uexact)
+
+    v = TestFunction(V)
+
+    ufc_line = ufc_simplex(1)
+    Qlow = create_quadrature(ufc_line, 2*order-2)
+    Qhigh = create_quadrature(ufc_line, 2*order+2)
+    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+
+    F = (
+        Llow(inner(Dt(u), v) * dx)
+        + inner(grad(u), grad(v)) * dx
+        - Lhigh(inner(rhs, v) * dx)
+    )
+
+    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+
+    stepper = GalerkinTimeStepper(
+        F, order, t, dt, u, bcs=bcs,
+        solver_parameters=luparams
+    )
+
+    t_end = 1.0
+    while float(t) < t_end:
+        print(float(t))
+        if float(t) + float(dt) > t_end:
+            dt.assign(t_end - float(t))
+        stepper.advance()
+        t += dt
+
+    assert errornorm(uexact, u) < 1.e-4
 
 
 def galerkin_wave(n, deg, alpha, order):

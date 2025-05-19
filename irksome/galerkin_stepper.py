@@ -1,12 +1,14 @@
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
-                  IntegratedLegendre, Lagrange, Legendre,
-                  make_quadrature, ufc_simplex)
+                  IntegratedLegendre, Lagrange, Legendre, ufc_simplex)
+from FIAT.quadrature_schemes import create_quadrature
 from ufl import zero
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
+from .labeling import as_labelled_form
 from .tools import replace, vecconst
+from .labeling import TimeQuadratureRule
 import numpy as np
 from firedrake import TestFunction
 
@@ -34,7 +36,45 @@ def getElements(basis_type, order):
     return trial_el, test_el
 
 
-def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
+def getTermGalerkin(Fcur, L_trial, L_test, qpts, qwts, t, dt, u0, stages, test):
+    print(f"woohoo {len(qpts)}")
+    v, = Fcur.arguments()
+    Fcur = expand_time_derivatives(Fcur, t=t, timedep_coeffs=(u0,))
+    tabulate_trials = L_trial.tabulate(1, qpts)
+    trial_vals = tabulate_trials[(0,)]
+    trial_dvals = tabulate_trials[(1,)]
+    test_vals = L_test.tabulate(0, qpts)[(0,)]
+    test_vals_w = np.multiply(test_vals, qwts)
+
+    trial_vals = vecconst(trial_vals)
+    trial_dvals = vecconst(trial_dvals)
+    test_vals_w = vecconst(test_vals_w)
+    qpts = vecconst(np.reshape(qpts, (-1,)))
+
+    # set up the pieces we need to work with to do our substitutions
+    v_np = np.reshape(test, (-1, *u0.ufl_shape))
+    w_np = np.reshape(stages, (-1, *u0.ufl_shape))
+    u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
+    vsub = test_vals_w.T @ v_np
+    usub = trial_vals.T @ u_np
+    dtu0sub = trial_dvals.T @ u_np
+
+    dtu0 = TimeDerivative(u0)
+
+    Fnew = zero()
+
+    # now loop over quadrature points
+    for q in range(len(qpts)):
+        repl = {t: t + qpts[q] * dt,
+                v: vsub[q] * dt,
+                u0: usub[q],
+                dtu0: dtu0sub[q] / dt}
+        Fnew += replace(Fcur, repl)
+
+    return Fnew
+
+
+def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None):
 
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
@@ -61,57 +101,53 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
     """
-    assert L_test.get_reference_element() == Q.ref_el
-    assert L_trial.get_reference_element() == Q.ref_el
-    assert Q.ref_el.get_spatial_dimension() == 1
+    assert L_test.get_reference_element() == Qdefault.ref_el
+    assert L_trial.get_reference_element() == Qdefault.ref_el
+    assert Qdefault.ref_el.get_spatial_dimension() == 1
     assert L_trial.get_order() == L_test.get_order() + 1
 
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v, = F.arguments()
+    F = as_labelled_form(F)
+
+    v, = F.form.arguments()
     V = v.function_space()
     assert V == u0.function_space()
 
     num_stages = L_test.space_dimension()
     Vbig = stages.function_space()
     test = TestFunction(Vbig)
-    qpts = Q.get_points()
-    qwts = Q.get_weights()
 
-    tabulate_trials = L_trial.tabulate(1, qpts)
+    Fnew = zero()
+    for term in F.terms:
+        print(term)
+        labels = term.labels
+        print(labels)
+        quad_labels = [label for label in labels if isinstance(label, TimeQuadratureRule)]
+        if len(quad_labels) == 0:
+            qpts = Qdefault.get_points()
+            qwts = Qdefault.get_weights()
+        elif len(quad_labels) == 1:
+            qpts = quad_labels[0].x
+            qwts = quad_labels[0].w
+        else:
+            raise ValueError("Multiple quadrature labels on one form.")
+
+        Fnew += getTermGalerkin(term.form, L_trial, L_test, qpts, qwts, t, dt, u0, stages, test)
+
+    # mass-ish matrix for BC, based on default quadrature rule
+    qpts = Qdefault.get_points()
+    qwts = Qdefault.get_weights()
+    tabulate_trials = L_trial.tabulate(0, qpts)
     trial_vals = tabulate_trials[(0,)]
-    trial_dvals = tabulate_trials[(1,)]
     test_vals = L_test.tabulate(0, qpts)[(0,)]
     test_vals_w = np.multiply(test_vals, qwts)
 
-    # mass-ish matrix later for BC
     mmat = test_vals_w @ trial_vals[1:].T
-    # L2 projector
+
     proj = vecconst(np.linalg.solve(mmat, test_vals_w))
-
-    trial_vals = vecconst(trial_vals)
-    trial_dvals = vecconst(trial_dvals)
     test_vals_w = vecconst(test_vals_w)
+    trial_vals = vecconst(trial_vals)
     qpts = vecconst(qpts.reshape((-1,)))
-
-    # set up the pieces we need to work with to do our substitutions
-    v_np = np.reshape(test, (num_stages, *u0.ufl_shape))
-    w_np = np.reshape(stages, (num_stages, *u0.ufl_shape))
-    u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
-    vsub = test_vals_w.T @ v_np
-    usub = trial_vals.T @ u_np
-    dtu0sub = trial_dvals.T @ u_np
-
-    dtu0 = TimeDerivative(u0)
-
-    # now loop over quadrature points
-    Fnew = zero()
-    for q in range(len(qpts)):
-        repl = {t: t + qpts[q] * dt,
-                v: vsub[q] * dt,
-                u0: usub[q],
-                dtu0: dtu0sub[q] / dt}
-        Fnew += replace(F, repl)
 
     # Oh, honey, is it the boundary conditions?
     if bcs is None:
@@ -182,9 +218,9 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
         self.trial_el, self.test_el = getElements(basis_type, order)
 
         if quadrature is None:
-            quadrature = make_quadrature(ufc_line, order)
+            quadrature = create_quadrature(ufc_line, 2 * order)
         self.quadrature = quadrature
-        assert np.size(quadrature.get_points()) >= order
+        assert np.size(quadrature.get_points()) >= order + 1
 
         super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
 
