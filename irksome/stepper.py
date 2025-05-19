@@ -25,16 +25,16 @@ valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "safety_factor", "gamma0_params"]
 
 
-def imex_separation(F, Fexp1, label):
-    Fimp, Fexp0 = split_explicit(F)
-    if Fexp0 is None:
-        if Fexp1 is None:
+def imex_separation(F, Fexp_kwarg, label):
+    Fimp, Fexp_label = split_explicit(F)
+    if Fexp_kwarg is None:
+        if Fexp_label is None:
             raise ValueError(f"Calling an {label} scheme with no explicit form.  Did you really mean to do this?")
         else:
-            Fexp = Fexp1
+            Fexp = Fexp_label
     else:
-        Fexp = Fexp0
-        if Fexp1 is not None:
+        Fexp = Fexp_kwarg
+        if Fexp_label is not None:
             raise ValueError("You specified an explicit part in two ways!")
 
     return Fimp, Fexp
