@@ -1,5 +1,4 @@
 from firedrake.fml import Label, keep, drop, LabelledForm
-from ufl.form import Form
 
 
 explicit = Label("explicit")
