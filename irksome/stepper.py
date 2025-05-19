@@ -37,6 +37,8 @@ def imex_separation(F, Fexp1, label):
         if Fexp1 is not None:
             raise ValueError("You specified an explicit part in two ways!")
 
+    return Fimp, Fexp
+
 
 def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     """Helper function to dispatch between various back-end classes
