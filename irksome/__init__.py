@@ -23,6 +23,8 @@ from .pc import ClinesBase, ClinesLD        # noqa: F401
 from .pc import NystromAuxiliaryOperatorPC  # noqa: F401
 from .pc import RanaBase, RanaDU, RanaLD    # noqa: F401
 from .pc import IRKAuxiliaryOperatorPC      # noqa: F401
+from .snes import IRKAuxiliaryOperatorSNES      # noqa: F401
+from .snes import SDCLDSNES      # noqa: F401
 from .stage_value import StageValueTimeStepper  # noqa: F401
 from .stepper import TimeStepper            # noqa: F401
 from .tools import MeshConstant             # noqa: F401
