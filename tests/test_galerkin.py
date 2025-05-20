@@ -267,66 +267,64 @@ def test_wave_eq_galerkin(deg, N, order):
     assert np.allclose(energy[1:], energy[:-1])
 
 
-
-
-
-@pytest.mark.parametrize('order', (1,))
+@pytest.mark.parametrize('order', (1, 2))
 def test_kepler(order):
     msh = UnitIntervalMesh(1)
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
-    dt = MC.Constant(4/16)
+    dt = MC.Constant(pi/100)
+    Nsteps = 10
 
     sd = 2
     nbody = 2
     dim = (nbody-1)*sd
-    R = FunctionSpace(msh, "R", 0)
-    V = MixedFunctionSpace([R]*dim)
-    Z = V * V
+    Z = VectorFunctionSpace(msh, "DG", 0, dim=2*dim)
     z = Function(Z)
 
-    p0 = [0, 1]
-    q0 = [1, 0]
-    vals = p0 + q0
-    for c, val in zip(z.subfunctions, vals):
-        c.assign(val)
+    pq = z
+    p = as_vector([pq[k] for k in range(dim)])
+    q = as_vector([pq[k] for k in range(dim, 2*dim)])
 
-    c = split(z)
-    p = as_vector(c[:dim])
-    q = as_vector(c[dim:])
     J = as_matrix(np.kron([[0, -1], [1, 0]], np.eye(dim)))
 
     H = (0.5*dot(p, p) - 1/dot(q, q)**0.5)*dx
     L = dot(p, perp(q))*dx
 
+    Qhigh = create_quadrature(ufc_simplex(1), 25)
+    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+
     test = TestFunction(Z)
     Hz = derivative(H, z, test)
-    F = inner(Dt(z), test)*dx - replace(Hz, {test: dot(J.T, test)})
+    F = inner(Dt(z), test)*dx + Lhigh(-replace(Hz, {test: dot(J.T, test)}))
 
-    stepper = GalerkinTimeStepper(F, order, t, dt, z, solver_parameters={"mat_type": "nest",
-                                                                         "snes_rtol": 1E-14,})
+    # Initial condition
+    vals = Constant((0, 2, 0.4, 0))
+    z.subfunctions[0].interpolate(vals)
+    sp = {
+        "snes_linesearch_type": "l2",
+        "snes_atol": 1.0e-14,
+        "snes_rtol": 1.0e-14,
+        "mat_type": "dense",
+        "pc_type": "lu"
+    }
+    stepper = GalerkinTimeStepper(F, order, t, dt, z, solver_parameters=sp, basis_type="integral")
 
     energies = []
-
     print(float(t), assemble(H), assemble(L))
-
-    T = 10
-    while (float(t) < T):
-        if (float(t) + float(dt) > T):
-            dt.assign(T - float(t))
+    for _ in range(Nsteps):
         stepper.advance()
         t += dt
-
         print(float(t), assemble(H), assemble(L))
         energies.append(assemble(H))
 
 
-@pytest.mark.parametrize('order', (1,))
+@pytest.mark.parametrize('order', (1, 2))
 def test_kepler_aux_variable(order):
     msh = UnitIntervalMesh(1)
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
-    dt = MC.Constant(pi/10)
+    dt = MC.Constant(pi/100)
+    Nsteps = 10
 
     sd = 2
     nbody = 2
@@ -342,55 +340,43 @@ def test_kepler_aux_variable(order):
 
     J = as_matrix(np.kron([[0, -1], [1, 0]], np.eye(dim)))
 
-    H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))
+    H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))*dx
 
     L = dot(p, perp(q))*dx
 
     test = TestFunction(Z)
     test_pq, test_aux = split(test)
 
-    ufc_line = ufc_simplex(1)
-    Qhigh = create_quadrature(ufc_line, 4)
+    Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
+    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+
+    Qhigh = create_quadrature(ufc_simplex(1), 25)
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
 
-    F = inner(Dt(pq) - dot(J, aux), test_pq/dt)*dx
-
-    Hpq = diff(H, pq)
-    F += Lhigh(inner(aux - Hpq, test_aux)*dx)
-    print(F.form)
-    H = H * dx
+    Hpq = diff(H.integrals()[0].integrand(), pq)
+    pq, aux = split(z)
+    F = Llow(inner(Dt(pq) - J*aux, test_pq)*dx)
+    F += Llow(inner(aux, test_aux)*dx) + Lhigh(-inner(Hpq, test_aux)*dx)
 
     # Initial condition
-    vals = (0, 2, 0.4, 0)
-    z.subfunctions[0].interpolate(as_vector(vals))
-
-    aux_indices = list(range(2*dim, 4*dim))
-    #aux_indices = None
+    pq_init = Constant((0, 2, 0.4, 0))
+    z.subfunctions[0].interpolate(pq_init)
     sp = {
-        #"snes_monitor": None,
         "snes_linesearch_type": "l2",
-        #"snes_converged_reason": None,
         "snes_atol": 1.0e-14,
         "snes_rtol": 1.0e-14,
         "mat_type": "dense",
         "pc_type": "lu"
     }
-
+    aux_indices = list(range(2*dim, 4*dim))
     stepper = GalerkinTimeStepper(F, order, t, dt, z,
                                   solver_parameters=sp,
                                   aux_indices=aux_indices)
 
     energies = []
     print(float(t), assemble(H), assemble(L))
-
-    T = 10
-    #while (float(t) < T):
-    for _ in range(2):
-        if (float(t) + float(dt) > T):
-            dt.assign(T - float(t))
-        print("F", assemble(stepper.solver._problem.F).dat.data)
+    for _ in range(Nsteps):
         stepper.advance()
         t += dt
-
         print(float(t), assemble(H), assemble(L))
         energies.append(assemble(H))

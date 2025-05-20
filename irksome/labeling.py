@@ -1,8 +1,7 @@
 from firedrake.fml import Label, keep, drop, LabelledForm
-
+import numpy as np
 
 explicit = Label("explicit")
-empty_label = Label("")
 
 
 class TimeQuadratureLabel(Label):
@@ -14,6 +13,36 @@ class TimeQuadratureRule:
     def __init__(self, x, w):
         self.x = x
         self.w = w
+
+    def get_points(self):
+        return np.asarray(self.x)
+
+    def get_weights(self):
+        return np.asarray(self.w)
+
+
+def split_quadrature(F, Qdefault=None):
+    if not isinstance(F, LabelledForm):
+        return {Qdefault: F}
+
+    quad_labels = set()
+    for term in F.terms:
+        cur_labels = [label for label in term.labels if isinstance(label, TimeQuadratureRule)]
+        if len(cur_labels) == 1:
+            quad_labels.update(cur_labels)
+        elif len(cur_labels) > 1:
+            raise ValueError("Multiple quadrature labels on one term.")
+
+    splitting = {Q: F.label_map(lambda t: Q in t.labels, map_if_true=keep, map_if_false=drop)
+                 for Q in quad_labels}
+    splitting[Qdefault] = F.label_map(lambda t: len(quad_labels.intersection(t.labels)) > 0,
+                                      map_if_true=drop, map_if_false=keep)
+    for Q in list(splitting):
+        try:
+            splitting[Q] = splitting[Q].form
+        except TypeError:
+            splitting.pop(Q)
+    return splitting
 
 
 def split_explicit(F):
@@ -27,10 +56,3 @@ def split_explicit(F):
                            map_if_true=keep, map_if_false=drop)
 
     return imp_part.form, exp_part.form
-
-
-def as_labelled_form(F):
-    if not isinstance(F, LabelledForm):
-        return empty_label(F)
-    else:
-        return F
