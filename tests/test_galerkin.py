@@ -330,22 +330,29 @@ def test_kepler_aux_variable(order):
     nbody = 2
     dim = (nbody-1)*sd
     V = VectorFunctionSpace(msh, "DG", 0, dim=2*dim)
-    Z = V * V
+    Z = V * V * V * V
     z = Function(Z)
 
-    pq, aux = split(z)
+    pq, w0, w1, w2 = split(z)
     pq = variable(pq)
     p = as_vector([pq[k] for k in range(dim)])
     q = as_vector([pq[k] for k in range(dim, 2*dim)])
 
-    J = as_matrix(np.kron([[0, -1], [1, 0]], np.eye(dim)))
+    T = 0.5*dot(p, p)
+    U = -1/sqrt(dot(q, q))
 
-    H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))*dx
+    # Invariants
+    H = T + U
+    L = dot(p, perp(q))
+    A1, A2 = U*q - L*perp(p)
 
-    L = dot(p, perp(q))*dx
+    invariants = [H*dx, L*dx, A1*dx, A2*dx]
+    dHdu = diff(H, pq)
+    dA1du = diff(A1, pq)
+    dA2du = diff(A2, pq)
 
     test = TestFunction(Z)
-    test_pq, test_aux = split(test)
+    test_pq, v0, v1, v2 = split(test)
 
     Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
@@ -353,30 +360,39 @@ def test_kepler_aux_variable(order):
     Qhigh = create_quadrature(ufc_simplex(1), 25)
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
 
-    Hpq = diff(H.integrals()[0].integrand(), pq)
-    pq, aux = split(z)
-    F = Llow(inner(Dt(pq) - J*aux, test_pq)*dx)
-    F += Llow(inner(aux, test_aux)*dx) + Lhigh(-inner(Hpq, test_aux)*dx)
+    # determinant_forms = [test_pq, dHdu, dA1du, dA2du]
+    determinant_forms = [test_pq, w0, w1, w2]
+    tensor = as_tensor(determinant_forms)
+
+    F = Llow(inner(Dt(pq), test_pq)*dx) + Llow(-(det(tensor) / (2*L*H))*dx)
+    F += Llow(inner(w0, v0)*dx) + Lhigh(-inner(dHdu, v0)*dx)
+    F += Llow(inner(w1, v1)*dx) + Lhigh(-inner(dA1du, v1)*dx)
+    F += Llow(inner(w2, v2)*dx) + Lhigh(-inner(dA2du, v2)*dx)
 
     # Initial condition
     pq_init = Constant((0, 2, 0.4, 0))
     z.subfunctions[0].interpolate(pq_init)
+    z.subfunctions[1].interpolate(dHdu)
+    z.subfunctions[2].interpolate(dA1du)
+    z.subfunctions[3].interpolate(dA2du)
     sp = {
+        "snes_converged_reason": None,
         "snes_linesearch_type": "l2",
         "snes_atol": 1.0e-14,
         "snes_rtol": 1.0e-14,
         "mat_type": "dense",
         "pc_type": "lu"
     }
-    aux_indices = list(range(2*dim, 4*dim))
+    aux_indices = list(range(V.value_size, Z.value_size))
     stepper = GalerkinTimeStepper(F, order, t, dt, z,
                                   solver_parameters=sp,
+                                  basis_type="integral",
                                   aux_indices=aux_indices)
 
-    energies = []
-    print(float(t), assemble(H), assemble(L))
+    print()
+    print(float(t), *map(assemble, invariants))
     for _ in range(Nsteps):
         stepper.advance()
         t += dt
-        print(float(t), assemble(H), assemble(L))
-        energies.append(assemble(H))
+        print(f"u({float(t)}) = ", z.subfunctions[0].dat.data)
+        print(float(t), *map(assemble, invariants))
