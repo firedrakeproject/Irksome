@@ -196,7 +196,6 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
     F2 = inner(rhs, v) * dx
     F = Llow(F0) + F1 - Lhigh(F2)
 
-
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
     stepper = GalerkinTimeStepper(

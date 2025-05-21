@@ -202,6 +202,8 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
             instance to be passed to a
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
+    :kwarg aux_indices: a list of field indices to be discretized in the test space
+            rather than trial space.
     """
     def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
                  quadrature=None, aux_indices=None, **kwargs):
