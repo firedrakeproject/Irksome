@@ -196,7 +196,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau, **kwargs)
-        self.appctx["stage_type"] = "deriv"
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -212,10 +211,10 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-    def get_form_and_bcs(self, stages, butcher_tableau=None):
-        if butcher_tableau is None:
-            butcher_tableau = self.butcher_tableau
-        return getForm(self.F, butcher_tableau, self.t, self.dt,
+    def get_form_and_bcs(self, stages, tableau=None, F=None):
+        return getForm(F or self.F,
+                       tableau or self.butcher_tableau,
+                       self.t, self.dt,
                        self.u0, stages, self.orig_bcs, self.bc_type,
                        self.splitting)
 

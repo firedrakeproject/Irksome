@@ -118,15 +118,7 @@ class DIRKTimeStepper:
 
         self.bcnew = bcnew
 
-        appctx_irksome = {"F": F,
-                          "stage_type": "dirk",
-                          "butcher_tableau": butcher_tableau,
-                          "t": t,
-                          "dt": dt,
-                          "u0": u0,
-                          "bcs": bcs,
-                          "bc_type": "DAE",
-                          "nullspace": nullspace}
+        appctx_irksome = {"stepper": self}
         if appctx is None:
             appctx = appctx_irksome
         else:
@@ -197,3 +189,10 @@ class DIRKTimeStepper:
 
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
+
+    def get_form_and_bcs(self, stages, tableau=None, F=None):
+        return getFormDIRK(F or self.F,
+                           stages,
+                           tableau or self.butcher_tableau,
+                           self.t, self.dt,
+                           self.u0, bcs=self.orig_bcs)

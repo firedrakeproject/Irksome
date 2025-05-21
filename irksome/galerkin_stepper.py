@@ -11,6 +11,29 @@ import numpy as np
 from firedrake import TestFunction
 
 
+ufc_line = ufc_simplex(1)
+
+
+def getElements(basis_type, order):
+    if basis_type == "Bernstein":
+        trial_el = Bernstein(ufc_line, order)
+        if order == 1:
+            test_el = DiscontinuousLagrange(ufc_line, 0)
+        else:
+            test_el = DiscontinuousElement(
+                Bernstein(ufc_line, order-1))
+    elif basis_type == "integral":
+        trial_el = IntegratedLegendre(ufc_line, order)
+        test_el = Legendre(ufc_line, order-1)
+    else:
+        # Let recursivenodes handle the general case
+        variant = None if basis_type == "Lagrange" else basis_type
+        trial_el = Lagrange(ufc_line, order, variant=variant)
+        test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
+
+    return trial_el, test_el
+
+
 def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
 
     """Given a time-dependent variational form, trial and test spaces, and
@@ -156,22 +179,7 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
         V = u0.function_space()
         self.num_fields = len(V)
 
-        ufc_line = ufc_simplex(1)
-        if basis_type == "Bernstein":
-            self.trial_el = Bernstein(ufc_line, order)
-            if order == 1:
-                self.test_el = DiscontinuousLagrange(ufc_line, 0)
-            else:
-                self.test_el = DiscontinuousElement(
-                    Bernstein(ufc_line, order-1))
-        elif basis_type == "integral":
-            self.trial_el = IntegratedLegendre(ufc_line, order)
-            self.test_el = Legendre(ufc_line, order-1)
-        else:
-            # Let recursivenodes handle the general case
-            variant = None if basis_type == "Lagrange" else basis_type
-            self.trial_el = Lagrange(ufc_line, order, variant=variant)
-            self.test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
+        self.trial_el, self.test_el = getElements(basis_type, order)
 
         if quadrature is None:
             quadrature = make_quadrature(ufc_line, order)
@@ -180,9 +188,20 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
 
-    def get_form_and_bcs(self, stages):
-        return getFormGalerkin(self.F, self.trial_el, self.test_el,
-                               self.quadrature, self.t, self.dt, self.u0, stages, self.orig_bcs)
+    def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, F=None):
+        if basis_type is None:
+            basis_type = self.basis_type
+        if order is None:
+            order = self.order
+        if basis_type == self.basis_type and order == self.order:
+            trial_el = self.trial_el
+            test_el = self.test_el
+        else:
+            trial_el, test_el = getElements(basis_type, order)
+        return getFormGalerkin(F or self.F,
+                               trial_el, test_el,
+                               quadrature or self.quadrature,
+                               self.t, self.dt, self.u0, stages, self.orig_bcs)
 
     def _update(self):
         k1, = self.trial_el.entity_dofs()[0][1]
