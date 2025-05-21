@@ -267,76 +267,36 @@ def test_wave_eq_galerkin(deg, N, order):
     assert np.allclose(energy[1:], energy[:-1])
 
 
-@pytest.mark.parametrize('order', (1, 2))
-def test_kepler(order):
-    msh = UnitIntervalMesh(1)
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(pi/100)
-    Nsteps = 10
+def kepler(V, order, t, dt, u0, solver_parameters):
+    dim = V.value_size//2
+    u = Function(V)
+    u.interpolate(u0)
 
-    sd = 2
-    nbody = 2
-    dim = (nbody-1)*sd
-    Z = VectorFunctionSpace(msh, "DG", 0, dim=2*dim)
-    z = Function(Z)
-
-    pq = z
-    p = as_vector([pq[k] for k in range(dim)])
-    q = as_vector([pq[k] for k in range(dim, 2*dim)])
-
+    p = as_vector([u[k] for k in range(dim)])
+    q = as_vector([u[k] for k in range(dim, 2*dim)])
     J = as_matrix(np.kron([[0, -1], [1, 0]], np.eye(dim)))
-
-    H = (0.5*dot(p, p) - 1/dot(q, q)**0.5)*dx
-    L = dot(p, perp(q))*dx
+    H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))*dx
 
     Qhigh = create_quadrature(ufc_simplex(1), 25)
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
 
-    test = TestFunction(Z)
-    Hz = derivative(H, z, test)
-    F = inner(Dt(z), test)*dx + Lhigh(-replace(Hz, {test: dot(J.T, test)}))
-
-    # Initial condition
-    vals = Constant((0, 2, 0.4, 0))
-    z.subfunctions[0].interpolate(vals)
-    sp = {
-        "snes_linesearch_type": "l2",
-        "snes_atol": 1.0e-14,
-        "snes_rtol": 1.0e-14,
-        "mat_type": "dense",
-        "pc_type": "lu"
-    }
-    stepper = GalerkinTimeStepper(F, order, t, dt, z, solver_parameters=sp, basis_type="integral")
-
-    energies = []
-    print(float(t), assemble(H), assemble(L))
-    for _ in range(Nsteps):
-        stepper.advance()
-        t += dt
-        print(float(t), assemble(H), assemble(L))
-        energies.append(assemble(H))
+    test = TestFunction(V)
+    dHdu = derivative(H, u, test)
+    F = inner(Dt(u), test)*dx + Lhigh(-replace(dHdu, {test: dot(J.T, test)}))
+    stepper = GalerkinTimeStepper(F, order, t, dt, u, solver_parameters=solver_parameters)
+    return stepper, [H]
 
 
-@pytest.mark.parametrize('order', (1, 2))
-def test_kepler_aux_variable(order):
-    msh = UnitIntervalMesh(1)
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(pi/100)
-    Nsteps = 10
-
-    sd = 2
-    nbody = 2
-    dim = (nbody-1)*sd
-    V = VectorFunctionSpace(msh, "DG", 0, dim=2*dim)
+def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
+    dim = V.value_size//2
     Z = V * V * V * V
     z = Function(Z)
+    z.subfunctions[0].interpolate(u0)
 
-    pq, w0, w1, w2 = split(z)
-    pq = variable(pq)
-    p = as_vector([pq[k] for k in range(dim)])
-    q = as_vector([pq[k] for k in range(dim, 2*dim)])
+    u, w0, w1, w2 = split(z)
+    u = variable(u)
+    p = as_vector([u[k] for k in range(dim)])
+    q = as_vector([u[k] for k in range(dim, 2*dim)])
 
     T = 0.5*dot(p, p)
     U = -1/sqrt(dot(q, q))
@@ -347,12 +307,12 @@ def test_kepler_aux_variable(order):
     A1, A2 = U*q - L*perp(p)
 
     invariants = [H*dx, L*dx, A1*dx, A2*dx]
-    dHdu = diff(H, pq)
-    dA1du = diff(A1, pq)
-    dA2du = diff(A2, pq)
+    dHdu = diff(H, u)
+    dA1du = diff(A1, u)
+    dA2du = diff(A2, u)
 
     test = TestFunction(Z)
-    test_pq, v0, v1, v2 = split(test)
+    test_u, v0, v1, v2 = split(test)
 
     Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
@@ -360,21 +320,34 @@ def test_kepler_aux_variable(order):
     Qhigh = create_quadrature(ufc_simplex(1), 25)
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
 
-    # determinant_forms = [test_pq, dHdu, dA1du, dA2du]
-    determinant_forms = [test_pq, w0, w1, w2]
+    # determinant_forms = [test_u, dHdu, dA1du, dA2du]
+    determinant_forms = [test_u, w0, w1, w2]
     tensor = as_tensor(determinant_forms)
 
-    F = Llow(inner(Dt(pq), test_pq)*dx) + Llow(-(det(tensor) / (2*L*H))*dx)
+    F = Llow(inner(Dt(u), test_u)*dx) + Lhigh(-(det(tensor) / (2*L*H))*dx)
     F += Llow(inner(w0, v0)*dx) + Lhigh(-inner(dHdu, v0)*dx)
     F += Llow(inner(w1, v1)*dx) + Lhigh(-inner(dA1du, v1)*dx)
     F += Llow(inner(w2, v2)*dx) + Lhigh(-inner(dA2du, v2)*dx)
 
-    # Initial condition
-    pq_init = Constant((0, 2, 0.4, 0))
-    z.subfunctions[0].interpolate(pq_init)
-    z.subfunctions[1].interpolate(dHdu)
-    z.subfunctions[2].interpolate(dA1du)
-    z.subfunctions[3].interpolate(dA2du)
+    # Auxiliary variable subspaces
+    aux_indices = list(range(1, len(Z)))
+    stepper = GalerkinTimeStepper(F, order, t, dt, z,
+                                  solver_parameters=solver_parameters,
+                                  aux_indices=aux_indices)
+    return stepper, invariants
+
+
+@pytest.mark.parametrize('order', (1, 2))
+@pytest.mark.parametrize('problem', (kepler, kepler_aux_variable))
+def test_kepler(problem, order):
+    msh = UnitIntervalMesh(1)
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(pi/100)
+    Nsteps = 2
+
+    dim = 2
+    V = VectorFunctionSpace(msh, "DG", 0, dim=2*dim)
     sp = {
         "snes_converged_reason": None,
         "snes_linesearch_type": "l2",
@@ -383,16 +356,17 @@ def test_kepler_aux_variable(order):
         "mat_type": "dense",
         "pc_type": "lu"
     }
-    aux_indices = list(range(V.value_size, Z.value_size))
-    stepper = GalerkinTimeStepper(F, order, t, dt, z,
-                                  solver_parameters=sp,
-                                  basis_type="integral",
-                                  aux_indices=aux_indices)
+
+    # Initial condition
+    u0 = Constant((0, 2, 0.4, 0))
+    stepper, invariants = problem(V, order, t, dt, u0, sp)
 
     print()
-    print(float(t), *map(assemble, invariants))
+    E0 = np.asarray(list(map(assemble, invariants)))
+    print(float(t), E0)
     for _ in range(Nsteps):
         stepper.advance()
         t += dt
-        print(f"u({float(t)}) = ", z.subfunctions[0].dat.data)
-        print(float(t), *map(assemble, invariants))
+        Et = np.asarray(list(map(assemble, invariants)))
+        print(float(t), Et)
+        assert np.allclose(E0, Et)

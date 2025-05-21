@@ -65,13 +65,13 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     if aux_indices is not None:
         cur = 0
         aux_comps = []
-        V = v.function_space()
-        for i, Vi in enumerate(V):
-            if i in aux_indices:
-                aux_comps.extend(range(cur, cur+Vi.value_size))
-            cur += Vi.value_size
+        for field, Vsub in enumerate(v.function_space()):
+            if field in aux_indices:
+                aux_comps.extend(range(cur, cur+Vsub.value_size))
+            cur += Vsub.value_size
 
         # Expand auxiliary variables in the test space rather than the trial space
+        test_vals = vecconst(test_vals)
         usub[:, aux_comps] = test_vals.T @ w_np[:, aux_comps]
 
     dtu0 = TimeDerivative(u0)
@@ -140,7 +140,6 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
     mmat = test_vals_w @ trial_vals[1:].T
 
     proj = vecconst(np.linalg.solve(mmat, test_vals_w))
-    test_vals_w = vecconst(test_vals_w)
     trial_vals = vecconst(trial_vals)
     qpts = vecconst(qpts.reshape((-1,)))
 
