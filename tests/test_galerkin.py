@@ -191,11 +191,11 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
 
-    F = (
-        Llow(inner(Dt(u), v) * dx)
-        + inner(grad(u), grad(v)) * dx
-        - Lhigh(inner(rhs, v) * dx)
-    )
+    F0 = inner(Dt(u), v) * dx
+    F1 = inner(grad(u), grad(v)) * dx
+    F2 = inner(rhs, v) * dx
+    F = Llow(F0) + F1 - Lhigh(F2)
+
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
