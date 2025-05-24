@@ -6,7 +6,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
-from .tools import replace, vecconst
+from .tools import replace, vecconst, replace_auxiliary_variables
 import numpy as np
 from firedrake import TestFunction, Constant
 
@@ -36,6 +36,7 @@ def getElements(basis_type, order):
 
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
     # preprocess time derivatives
+    F = replace_auxiliary_variables(F, u0, aux_indices)
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
     assert v.function_space() == u0.function_space()
@@ -57,23 +58,10 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     v_np = np.reshape(test, (-1, *u0.ufl_shape))
     w_np = np.reshape(stages, (-1, *u0.ufl_shape))
 
-    # Expand unknowns in the trial space, including the initial condition
     u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
     vsub = test_vals_w.T @ v_np
     usub = trial_vals.T @ u_np
     dtu0sub = trial_dvals.T @ u_np
-    if aux_indices is not None:
-        cur = 0
-        aux_comps = []
-        for field, Vsub in enumerate(v.function_space()):
-            if field in aux_indices:
-                aux_comps.extend(range(cur, cur+Vsub.value_size))
-            cur += Vsub.value_size
-
-        # Expand auxiliary variables in the test space rather than the trial space
-        test_vals = vecconst(test_vals)
-        usub[:, aux_comps] = test_vals.T @ w_np[:, aux_comps]
-
     dtu0 = TimeDerivative(u0)
 
     # now loop over quadrature points
