@@ -56,7 +56,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v = F.arguments()[0]
+    v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
 

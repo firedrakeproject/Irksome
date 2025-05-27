@@ -41,6 +41,18 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
         self.t = t
         self.timedep_coeffs = timedep_coeffs
 
+    def constant_value(self, o):
+        if self.t is not None and o is self.t:
+            return as_ufl(1.0)
+        else:
+            return self.independent_terminal(o)
+
+    def variable(self, o):
+        if self.t is not None and o is self.t:
+            return as_ufl(1.0)
+        else:
+            return self.independent_terminal(o)
+
     def coefficient(self, o):
         if self.t is not None and o is self.t:
             return as_ufl(1.0)
