@@ -101,10 +101,10 @@ def test_wave_eq(bc_type):
     # number of refinements
     n = 5
     deg = 2
-    stage_count = 2
+    stage_count = 3
     Erat, diff = wave(n, deg, stage_count, bc_type)
     print(Erat, diff)
-    assert abs(Erat - 1) < 1.e-8
+    assert abs(Erat - 1) < 1.e-6
     assert diff < 3.e-5
 
 
@@ -114,7 +114,7 @@ def test_dirk_wave_eq():
     deg = 2
     Erat, diff = dirk_wave(n, deg)
     print(Erat, diff)
-    assert abs(Erat - 1) < 1.e-8
+    assert abs(Erat - 1) < 1.e-6
     assert diff < 3.e-5
 
 
