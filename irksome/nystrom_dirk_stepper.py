@@ -4,7 +4,7 @@ from firedrake import (Function,
                        NonlinearVariationalSolver)
 from ufl.constantvalue import as_ufl
 
-from .deriv import TimeDerivative, expand_time_derivatives
+from .deriv import Dt, TimeDerivative, expand_time_derivatives
 from .tools import replace, MeshConstant, vecconst
 from .bcs import bc2space
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
@@ -54,17 +54,37 @@ def getFormNystromDIRK(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
     abar_vals = numpy.array([MC.Constant(0) for i in range(num_stages)],
                             dtype=object)
     d_val = MC.Constant(1.0)
-    for bc in bcs:
-        bcarg = bc._original_arg
-        if bcarg == 0:
-            # Homogeneous BC, just zero out stage dofs
-            bcnew.append(bc)
-        else:
-            bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
-            gdat = bcarg_stage - bc2space(bc, u0) - c*dt*bc2space(bc, ut0)
-            gdat -= sum(bc2space(bc, ks[i]) * (abar_vals[i] * dt**2) for i in range(num_stages))
-            gdat /= d_val * dt**2
-            bcnew.append(bc.reconstruct(g=gdat))
+    if bc_type == "DAE":
+        # Here, at each stage, abar_vals should include the
+        # subdiagonal values from Abar in the Nystrom Tableau and
+        # d_val should include the diagonal value from Abar
+        for bc in bcs:
+            bcarg = bc._original_arg
+            if bcarg == 0:
+                # Homogeneous BC, just zero out stage dofs
+                bcnew.append(bc)
+            else:
+                bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
+                gdat = bcarg_stage - bc2space(bc, u0) - c*dt*bc2space(bc, ut0)
+                gdat -= sum(bc2space(bc, ks[i]) * (abar_vals[i] * dt**2) for i in range(num_stages))
+                gdat /= d_val * dt**2
+                bcnew.append(bc.reconstruct(g=gdat))
+    elif bc_type == "dDAE":
+        # Here, at each stage, abar_vals should include the
+        # subdiagonal values from A in the Nystrom Tableau and
+        # d_val should include the diagonal value from A
+        for bc in bcs:
+            bcarg = bc._original_arg
+            if bcarg == 0:
+                # Homogeneous BC, just zero out stage dofs
+                bcnew.append(bc)
+            else:
+                bcprime = expand_time_derivatives(Dt(as_ufl(bcarg), 1), t=t, timedep_coefs=(u0,))
+                bcprime_stage = replace(bcprime, {t: t+c*dt})
+                gdat = bcprime_stage - bc2space(bc, ut0)
+                gdat -= sum(bc2space(bc, ks[i]) * (abar_vals[i] * dt) for i in range(num_stages))
+                gdat /= d_val * dt
+                bcnew.append(bc.reconstruct(g=gdat))
 
     return stage_F, (k, g1, g2, a, abar, c), bcnew, (abar_vals, d_val)
 
@@ -97,6 +117,23 @@ class NystromDIRKTimeStepper:
         self.BB = vecconst(tableau.b)
         self.BBbar = vecconst(tableau.bbar)
         self.CC = vecconst(tableau.c)
+
+        if bc_type == "DAE":
+            if tableau.is_explicit:
+                raise NotImplementedError("Cannot have DAE BCs with Explicit Nystrom methods")
+            self.AABbar = vecconst(tableau.Abar)
+            self.CCone = vecconst(tableau.c)
+        elif bc_type == "dDAE":
+            if tableau.is_explicit:
+                AABbar = numpy.vstack((tableau.A, tableau.b))
+                self.AABbar = vecconst(AABbar[1:])
+                CCone = numpy.append(tableau.c[1:], 1.0)
+                self.CCone = vecconst(CCone)
+            else:
+                self.AABbar = vecconst(tableau.A)
+                self.CCone = vecconst(tableau.c)
+        else:
+            raise NotImplementedError(f"No implementation for bc_type {bc_type} for DIRK-Nystrom or Explicit-Nystrom methods")
 
         self.V = V = u0.function_space()
         self.u0 = u0
@@ -146,8 +183,8 @@ class NystromDIRKTimeStepper:
         self.bc_constants = abar_vals, d_val
 
     def update_bc_constants(self, i, c):
-        AAbar = self.AAbar
-        CC = self.CC
+        AAbar = self.AABbar
+        CCone = self.CCone
         abar_vals, d_val = self.bc_constants
         ns = AAbar.shape[1]
         for j in range(i):
@@ -155,7 +192,7 @@ class NystromDIRKTimeStepper:
         for j in range(i, ns):
             abar_vals[j].assign(0)
         d_val.assign(AAbar[i, i])
-        c.assign(CC[i])
+        c.assign(CCone[i])
 
     def advance(self):
         k, g1, g2, a, abar, c = self.kgac
@@ -183,3 +220,35 @@ class NystromDIRKTimeStepper:
 
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
+
+
+class ExplicitNystromTimeStepper(NystromDIRKTimeStepper):
+    """Front-end class for advancing a second-order time-dependent PDE via an explicit
+    Runge-Kutta-Nystrom method formulated in terms of stage derivatives."""
+
+    def __init__(self, F, tableau, t, dt, u0, ut0, bcs=None,
+                 solver_parameters=None,
+                 appctx=None, nullspace=None,
+                 transpose_nullspace=None, near_nullspace=None,
+                 bc_type=None,
+                 **kwargs):
+        if not isinstance(tableau, NystromTableau):
+            tableau = butcher_to_nystrom(tableau)
+        assert tableau.is_explicit
+        if bc_type is None:
+            bc_type = "dDAE"
+
+        # we just have one mass matrix we're reusing for each time step and
+        # each stage, so we can nudge this along
+        solver_parameters = {} if solver_parameters is None else solver_parameters
+        solver_parameters["snes_lag_jacobian_persists"] = "true"
+        solver_parameters["snes_lag_jacobian"] = -2
+        solver_parameters["snes_lag_preconditioner_persists"] = "true"
+        solver_parameters["snes_lag_preconditioner"] = -2
+        super(ExplicitNystromTimeStepper, self).__init__(
+            F, tableau, t, dt, u0, ut0, bcs=bcs,
+            solver_parameters=solver_parameters, appctx=appctx,
+            nullspace=None,
+            transpose_nullspace=None, near_nullspace=None,
+            bc_type=None,
+            **kwargs)
