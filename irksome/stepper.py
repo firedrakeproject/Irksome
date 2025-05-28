@@ -1,6 +1,7 @@
 from .dirk_stepper import DIRKTimeStepper
 from .explicit_stepper import ExplicitTimeStepper
 from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
+from .labeling import split_explicit
 from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
 from .stage_value import StageValueTimeStepper
 from .tools import AI
@@ -22,6 +23,21 @@ valid_kwargs_per_stage_type = {
 valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "max_reject", "onscale_factor",
                           "safety_factor", "gamma0_params"]
+
+
+def imex_separation(F, Fexp_kwarg, label):
+    Fimp, Fexp_label = split_explicit(F)
+    if Fexp_kwarg is None:
+        if Fexp_label is None:
+            raise ValueError(f"Calling an {label} scheme with no explicit form.  Did you really mean to do this?")
+        else:
+            Fexp = Fexp_label
+    else:
+        Fexp = Fexp_kwarg
+        if Fexp_label is not None:
+            raise ValueError("You specified an explicit part in two ways!")
+
+    return Fimp, Fexp
 
 
 def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
@@ -135,8 +151,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         return ExplicitTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "imex":
-        Fexp = kwargs.get("Fexp")
-        assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
+        Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
         appctx = base_kwargs.get("appctx")
         nullspace = base_kwargs.get("nullspace")
         splitting = kwargs.get("splitting", AI)
@@ -146,17 +161,16 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         num_its_per_step = kwargs.get("num_its_per_step", 0)
 
         return RadauIIAIMEXMethod(
-            F, Fexp, butcher_tableau, t, dt, u0, bcs,
+            Fimp, Fexp, butcher_tableau, t, dt, u0, bcs,
             it_solver_parameters, prop_solver_parameters,
             splitting, appctx, nullspace,
             num_its_initial, num_its_per_step)
     elif stage_type == "dirkimex":
-        Fexp = kwargs.get("Fexp")
-        assert Fexp is not None, "Calling an IMEX scheme with no explicit form.  Did you really mean to do this?"
+        Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
         appctx = base_kwargs.get("appctx")
         nullspace = base_kwargs.get("nullspace")
         solver_parameters = base_kwargs.get("solver_parameters")
         mass_parameters = kwargs.get("mass_parameters")
         return DIRKIMEXMethod(
-            F, Fexp, butcher_tableau, t, dt, u0, bcs,
+            Fimp, Fexp, butcher_tableau, t, dt, u0, bcs,
             solver_parameters, mass_parameters, appctx, nullspace)

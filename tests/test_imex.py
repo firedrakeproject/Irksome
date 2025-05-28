@@ -3,10 +3,11 @@ from math import isclose
 import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, TimeStepper, ARS_DIRK_IMEX, SSPK_DIRK_IMEX
+from irksome.labeling import explicit
 from ufl.algorithms.ad import expand_derivatives
 
 
-def convdiff_neumannbc(butcher_tableau, order, N):
+def convdiff_neumannbc(butcher_tableau, order, N, labeled=False):
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", order)
     MC = MeshConstant(msh)
@@ -21,12 +22,18 @@ def convdiff_neumannbc(butcher_tableau, order, N):
     u.interpolate(uexact)
 
     v = TestFunction(V)
-    F = (
+    Fimp = (
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
         - inner(rhs, v) * dx
     )
     Fexp = inner(u.dx(0), v)*dx
+
+    if labeled:
+        F = Fimp + explicit(Fexp)
+        Fexp = None
+    else:
+        F = Fimp
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
@@ -46,6 +53,7 @@ def convdiff_neumannbc(butcher_tableau, order, N):
     return (errornorm(uexact, u) / norm(uexact))
 
 
+@pytest.mark.parametrize("labeled", (True, False))
 @pytest.mark.parametrize("bt", [ARS_DIRK_IMEX(1, 1, 1), ARS_DIRK_IMEX(1, 2, 1),
                                 ARS_DIRK_IMEX(1, 2, 2), ARS_DIRK_IMEX(2, 2, 2),
                                 ARS_DIRK_IMEX(2, 3, 2), ARS_DIRK_IMEX(2, 3, 3),
@@ -55,9 +63,9 @@ def convdiff_neumannbc(butcher_tableau, order, N):
                          ids=["ARS(1,1,1)", "ARS(1,2,1)", "ARS(1,2,2)", "ARS(2,2,2)",
                               "ARS(2,3,2)", "ARS(2,3,3)", "ARS(3,4,3)", "ARS(4,4,3)",
                               "SSP2(2,2,2)", "SSP2(3,2,2)", "SSP2(3,3,2)", "SSP3(3,3,2)"])
-def test_1d_convdiff_neumannbc(bt):
+def test_1d_convdiff_neumannbc(bt, labeled):
     order = bt.order
-    errs = np.array([convdiff_neumannbc(bt, order, 10*2**p) for p in [3, 4]])
+    errs = np.array([convdiff_neumannbc(bt, order, 10*2**p, labeled) for p in [3, 4]])
     print(errs)
     conv = np.log2(errs[0]/errs[1])
     print(conv)
