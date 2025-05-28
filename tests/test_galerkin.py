@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, GalerkinTimeStepper
+from irksome import Dt, MeshConstant, GalerkinTimeStepper, TimeProjector
 from irksome import TimeStepper, GaussLegendre
 from irksome.labeling import TimeQuadratureLabel
 from FIAT import make_quadrature, ufc_simplex
@@ -266,7 +266,7 @@ def test_wave_eq_galerkin(deg, N, order):
     assert np.allclose(energy[1:], energy[:-1])
 
 
-def kepler(V, order, t, dt, u0, solver_parameters):
+def kepler_naive(V, order, t, dt, u0, solver_parameters):
     dim = V.value_size//2
     u = Function(V)
     u.interpolate(u0)
@@ -274,16 +274,19 @@ def kepler(V, order, t, dt, u0, solver_parameters):
     p = as_vector([u[k] for k in range(dim)])
     q = as_vector([u[k] for k in range(dim, 2*dim)])
     J = as_matrix(np.kron([[0, -1], [1, 0]], np.eye(dim)))
-    H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))*dx
+    H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))
 
-    Qhigh = create_quadrature(ufc_simplex(1), 25)
+    Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
+    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+
+    Qhigh = create_quadrature(ufc_simplex(1), 2*order+2)
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
 
     test = TestFunction(V)
-    dHdu = derivative(H, u, test)
-    F = inner(Dt(u), test)*dx + Lhigh(-replace(dHdu, {test: dot(J.T, test)}))
+    dHdu = derivative(H*dx, u, test)
+    F = Llow(inner(Dt(u), test)*dx) + Lhigh(-replace(dHdu, {test: dot(J.T, test)}))
     stepper = GalerkinTimeStepper(F, order, t, dt, u, solver_parameters=solver_parameters)
-    return stepper, [H]
+    return stepper, [H*dx]
 
 
 def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
@@ -316,7 +319,7 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
 
-    Qhigh = create_quadrature(ufc_simplex(1), 25)
+    Qhigh = create_quadrature(ufc_simplex(1), 2*order+2)
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
 
     # determinant_forms = [test_u, dHdu, dA1du, dA2du]
@@ -336,13 +339,53 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     return stepper, invariants
 
 
+def kepler_projector(V, order, t, dt, u0, solver_parameters):
+    dim = V.value_size//2
+    u = Function(V)
+    u.interpolate(u0)
+
+    p = as_vector([u[k] for k in range(dim)])
+    q = as_vector([u[k] for k in range(dim, 2*dim)])
+
+    T = 0.5*dot(p, p)
+    U = -1/sqrt(dot(q, q))
+
+    # Invariants
+    H = T + U
+    L = dot(p, perp(q))
+    A1, A2 = U*q - L*perp(p)
+    invariants = [H*dx, L*dx, A1*dx, A2*dx]
+
+    v = TestFunction(V)
+    dHdu = derivative(H*dx, u, v)
+    dA1du = derivative(A1*dx, u, v)
+    dA2du = derivative(A2*dx, u, v)
+
+    Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
+    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+
+    Qhigh = create_quadrature(ufc_simplex(1), 2*order+2)
+    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+
+    w0 = TimeProjector(dHdu, order-1, Qhigh)
+    w1 = TimeProjector(dA1du, order-1, Qhigh)
+    w2 = TimeProjector(dA2du, order-1, Qhigh)
+    determinant_forms = [v, w0, w1, w2]
+    tensor = as_tensor(determinant_forms)
+    F = Llow(inner(Dt(u), v)*dx) + Lhigh(-(det(tensor) / (2*L*H))*dx)
+
+    stepper = GalerkinTimeStepper(F, order, t, dt, u,
+                                  solver_parameters=solver_parameters)
+    return stepper, invariants
+
+
 @pytest.mark.parametrize('order', (1, 2))
-@pytest.mark.parametrize('problem', (kepler, kepler_aux_variable))
+@pytest.mark.parametrize('problem', (kepler_naive, kepler_aux_variable, kepler_projector))
 def test_kepler(problem, order):
     msh = UnitIntervalMesh(1)
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
-    dt = MC.Constant(pi/100)
+    dt = MC.Constant(0.01*pi)
     Nsteps = 2
 
     dim = 2
