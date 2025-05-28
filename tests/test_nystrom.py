@@ -2,7 +2,7 @@ import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, VectorFunctionSpace, assemble, cos, div, dx,
                        norm, grad, inner, pi, project, sin, split)
-from irksome import Dt, GaussLegendre, MeshConstant, NystromDIRKTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
+from irksome import Dt, ExplicitNystromTimeStepper, GaussLegendre, MeshConstant, NystromDIRKTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
 
 
 def wave(n, deg, time_stages, bc_type):
@@ -96,6 +96,52 @@ def dirk_wave(n, deg):
     return assemble(E) / E0, norm(u - uexact)
 
 
+def explicit_dirk_wave(n, deg):
+    N = 2**n
+    msh = UnitIntervalMesh(N)
+
+    params = {"snes_type": "ksponly",
+              "ksp_type": "preonly",
+              "mat_type": "aij",
+              "pc_type": "lu"}
+
+    V = FunctionSpace(msh, "CG", deg)
+    x, = SpatialCoordinate(msh)
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.2 / N)
+
+    uexact = 0.5*(cos(pi * (x - t)) + cos(pi * (x + t)))
+
+    tableau = ClassicNystrom4Tableau()
+
+    u0 = project(uexact, V)
+    u = Function(u0)  # copy
+    ut = Function(V)
+
+    v = TestFunction(V)
+
+    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+
+    E = 0.5 * inner(ut, ut) * dx + 0.5 * inner(grad(u), grad(u)) * dx
+
+    stepper = ExplicitNystromTimeStepper(
+        F, tableau, t, dt, u, ut, bcs=bc, solver_parameters=params)
+
+    E0 = assemble(E)
+    tf = 1
+    while (float(t) < tf):
+        if (float(t) + float(dt) > tf):
+            dt.assign(tf - float(t))
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return assemble(E) / E0, norm(u - uexact)
+
+
 @pytest.mark.parametrize("bc_type", ["ODE", "DAE", "dDAE"])
 def test_wave_eq(bc_type):
     # number of refinements
@@ -113,6 +159,16 @@ def test_dirk_wave_eq():
     n = 5
     deg = 2
     Erat, diff = dirk_wave(n, deg)
+    print(Erat, diff)
+    assert abs(Erat - 1) < 1.e-6
+    assert diff < 3.e-5
+
+
+def test_explicit_dirk_wave_eq():
+    # number of refinements
+    n = 5
+    deg = 2
+    Erat, diff = explicit_wave(n, deg)
     print(Erat, diff)
     assert abs(Erat - 1) < 1.e-6
     assert diff < 3.e-5
