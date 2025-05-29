@@ -103,7 +103,7 @@ def nse_naive(msh, order, t, dt, Re, solver_parameters=None):
 
     bcs = DirichletBC(Z.sub(0), Constant((0, 0, 0)), "on_boundary")
 
-    stepper = GalerkinTimeStepper(F, 2, t, dt, up, bcs=bcs)
+    stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs)
 
     Q1 = inner(u, u) * dx
     Q2 = inner(u, curl(u)) * dx
@@ -135,7 +135,7 @@ def nse_project_both(msh, order, t, dt, Re, solver_parameters=None):
 
     ufcline = ufc_simplex(1)
 
-    Qhigh = make_quadrature(ufcline, 3*order-1)
+    Qhigh = make_quadrature(ufcline, 3*(order-1))
     Qlow = make_quadrature(ufcline, 2*(order-1))
 
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
@@ -145,15 +145,14 @@ def nse_project_both(msh, order, t, dt, Re, solver_parameters=None):
     w1 = TimeProjector(u, order-1, Qk)
     w2 = TimeProjector(curl(u), order-1, Qk)
 
-    F = (Llow(inner(Dt(u), v) * dx) +
-         Lhigh(- inner(cross(w1, w2), v) * dx) + (
-         + 1/Re * inner(grad(w1), grad(v)) * dx
+    F = (Llow(inner(Dt(u), v) * dx + 1/Re * inner(grad(w1), grad(v)) * dx) +
+         Lhigh(-inner(cross(w1, w2), v) * dx) + (
          - inner(p, div(v)) * dx
          + inner(div(u), w) * dx))
 
     bcs = DirichletBC(Z.sub(0), Constant((0, 0, 0)), "on_boundary")
 
-    stepper = GalerkinTimeStepper(F, 2, t, dt, up, bcs=bcs)
+    stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs)
 
     Q1 = inner(u, u) * dx
     Q2 = inner(u, curl(u)) * dx
@@ -179,7 +178,7 @@ t = Constant(0)
 dt = Constant(2**-10)
 msh.coordinates.dat.data[:, :] -= 0.5
 Re = Constant(2**8)
-Q1s, Q2s = nse_naive(msh, 2, t, dt, Re)
+Q1s, Q2s = nse_project_both(msh, 1, t, dt, Re)
 print(Q1s)
 print(Q2s)
 
