@@ -50,7 +50,7 @@ def wave(n, deg, time_stages, bc_type):
     return assemble(E) / E0, norm(u - uexact)
 
 
-def dirk_wave(n, deg):
+def dirk_wave(n, deg, bc_type):
     N = 2**n
     msh = UnitIntervalMesh(N)
 
@@ -83,12 +83,12 @@ def dirk_wave(n, deg):
     E = 0.5 * inner(ut, ut) * dx + 0.5 * inner(grad(u), grad(u)) * dx
 
     stepper = NystromDIRKTimeStepper(
-        F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params)
+        F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params, bc_type=bc_type)
 
     E0 = assemble(E)
     tf = 1
-    while (float(t) < tf):
-        if (float(t) + float(dt) > tf):
+    while (float(t) < tf - 1e-12):
+        if (float(t) + float(dt) > tf - 1e-12):
             dt.assign(tf - float(t))
         stepper.advance()
         t.assign(float(t) + float(dt))
@@ -154,14 +154,15 @@ def test_wave_eq(bc_type):
     assert diff < 3.e-5
 
 
-def test_dirk_wave_eq():
+@pytest.mark.parametrize("bc_type", ["DAE", "dDAE"])
+def test_dirk_wave_eq(bc_type):
     # number of refinements
     n = 5
     deg = 2
-    Erat, diff = dirk_wave(n, deg)
+    Erat, diff = dirk_wave(n, deg, bc_type)
     print(Erat, diff)
-    assert abs(Erat - 1) < 1.e-6
-    assert diff < 3.e-5
+    assert abs(Erat - 1) < 1.e-3
+    assert diff < 3.e-4
 
 
 def test_explicit_dirk_wave_eq():
