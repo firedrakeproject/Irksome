@@ -44,7 +44,7 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
             TimeDerivative(TimeDerivative(u0)): k}
     stage_F = replace(F, repl)
 
-    # BC's (TODO!)
+    # BC's
     bcnew = []
 
     # For the DIRK case, we need one new BC for each old one (rather
