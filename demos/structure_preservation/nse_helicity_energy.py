@@ -135,8 +135,8 @@ def nse_project_both(msh, order, t, dt, Re, solver_parameters=None):
 
     ufcline = ufc_simplex(1)
 
-    Qhigh = make_quadrature(ufcline, 3*(order-1))
-    Qlow = make_quadrature(ufcline, 2*(order-1))
+    Qhigh = make_quadrature(ufcline, 3*order-1)
+    Qlow = make_quadrature(ufcline, 2*order-1)
 
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
