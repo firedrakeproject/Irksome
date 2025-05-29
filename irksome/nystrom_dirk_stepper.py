@@ -10,7 +10,7 @@ from .bcs import bc2space
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
 
 
-def getFormNystromDIRK(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
+def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
     if bcs is None:
         bcs = []
     if bc_type is None:
@@ -89,7 +89,7 @@ def getFormNystromDIRK(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
     return stage_F, (k, g1, g2, a, abar, c), bcnew, (abar_vals, d_val)
 
 
-class NystromDIRKTimeStepper:
+class DIRKNystromTimeStepper:
     """Front-end class for advancing a second-order time-dependent PDE via a diagonally-implicit
     Runge-Kutta-Nystrom method formulated in terms of stage derivatives."""
 
@@ -143,7 +143,7 @@ class NystromDIRKTimeStepper:
         self.num_fields = len(u0.function_space())
         self.ks = [Function(V) for _ in range(num_stages)]
 
-        stage_F, self.kgac, bcnew, (abar_vals, d_val) = getFormNystromDIRK(
+        stage_F, self.kgac, bcnew, (abar_vals, d_val) = getFormDIRKNystrom(
             F, self.ks, tableau, t, dt, u0, ut0, bcs=bcs)
 
         k = self.kgac[0]
@@ -222,7 +222,7 @@ class NystromDIRKTimeStepper:
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
 
 
-class ExplicitNystromTimeStepper(NystromDIRKTimeStepper):
+class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
     """Front-end class for advancing a second-order time-dependent PDE via an explicit
     Runge-Kutta-Nystrom method formulated in terms of stage derivatives."""
 
