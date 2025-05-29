@@ -132,12 +132,11 @@ def explicit_dirk_wave(n, deg):
         F, tableau, t, dt, u, ut, bcs=bc, solver_parameters=params)
 
     E0 = assemble(E)
-    tf = 1
-    while (float(t) < tf):
-        if (float(t) + float(dt) > tf):
-            dt.assign(tf - float(t))
+    step = 0
+    while (step < 5*N):
         stepper.advance()
         t.assign(float(t) + float(dt))
+        step += 1
 
     return assemble(E) / E0, norm(u - uexact)
 
