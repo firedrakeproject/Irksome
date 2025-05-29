@@ -59,26 +59,25 @@ def hill(vec, radius):
 
     # Cylindrical/spherical coordinates
     r_cyl = sqrt(x**2 + y**2)  # Cylindrical radius
-    r_sph = sqrt(x**2 + y**2 + z**2)  # Spherical radius
-    theta = conditional(  # Spherical angle
-        le(r_cyl, 1e-13),
-        0,
-        pi/2 - atan(z/r_cyl)
-    )
+    r_sph = sqrt(dot(vec, vec))  # Spherical radius
+    theta = pi/2 - atan2(z, r_cyl)
+    rvec = vec / r_sph
+    Rvec = as_vector([-y, x, 0]) / r_cyl
+    THvec = as_vector([x*z, y*z, -r_cyl**2]) / r_sph / r_cyl
 
     return conditional(  # If we're outside the vortex...
         ge(r_sph, radius),
-        as_vector([0, 0, 0]),
+        zero((3,)),
         conditional(  # If we're at the origin...
             le(r_sph, 1e-13),
             as_vector([0, 0, 2*((besselJ_root/2)**(3/2)/special.gamma(5/2) - besselJ_root_threehalves)]),
             conditional(  # If we're on the z axis...
                 le(r_cyl, 1e-13),
                 as_vector([0, 0, hill_r(r_sph, 0, radius)]),
-                as_vector(  # Else...
-                    hill_r(r_sph, theta, radius) * np.array([x, y, z]) / r_sph
-                  + hill_theta(r_sph, theta, radius) * np.array([x*z, y*z, -r_cyl**2]) / r_sph / r_cyl
-                  + hill_phi(r_sph, theta, radius) * np.array([-y, x, 0]) / r_cyl
+                (  # Else...
+                    hill_r(r_sph, theta, radius) * rvec
+                  + hill_theta(r_sph, theta, radius) * THvec
+                  + hill_phi(r_sph, theta, radius) * Rvec
                 )
             )
         )
@@ -136,20 +135,21 @@ def nse_project_both(msh, order, t, dt, Re, solver_parameters=None):
 
     ufcline = ufc_simplex(1)
 
-    Qhigh = make_quadrature(ufcline, 2*order+2)
-    Qlow = make_quadrature(ufcline, 2*order-2)
+    Qhigh = make_quadrature(ufcline, 3*order-1)
+    Qlow = make_quadrature(ufcline, 2*(order-1))
 
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
 
-    w1 = TimeProjector(u, order-1, Qhigh)
-    w2 = TimeProjector(curl(u), order-1, Qhigh)
+    Qk = make_quadrature(ufcline, order)
+    w1 = TimeProjector(u, order-1, Qk)
+    w2 = TimeProjector(curl(u), order-1, Qk)
 
-    F = (inner(Dt(u), v) * dx
-         - inner(cross(w1, w2), v) * dx
+    F = (Llow(inner(Dt(u), v) * dx) +
+         Lhigh(- inner(cross(w1, w2), v) * dx) + (
          + 1/Re * inner(grad(w1), grad(v)) * dx
          - inner(p, div(v)) * dx
-         + inner(div(u), w) * dx)
+         + inner(div(u), w) * dx))
 
     bcs = DirichletBC(Z.sub(0), Constant((0, 0, 0)), "on_boundary")
 
@@ -179,7 +179,7 @@ t = Constant(0)
 dt = Constant(2**-10)
 msh.coordinates.dat.data[:, :] -= 0.5
 Re = Constant(2**8)
-Q1s, Q2s = nse_project_both(msh, 2, t, dt, Re)
+Q1s, Q2s = nse_naive(msh, 2, t, dt, Re)
 print(Q1s)
 print(Q2s)
 
