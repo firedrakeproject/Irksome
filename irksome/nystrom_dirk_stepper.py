@@ -244,10 +244,10 @@ class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
         # we just have one mass matrix we're reusing for each time step and
         # each stage, so we can nudge this along
         solver_parameters = {} if solver_parameters is None else solver_parameters
-        solver_parameters["snes_lag_jacobian_persists"] = "true"
-        solver_parameters["snes_lag_jacobian"] = -2
-        solver_parameters["snes_lag_preconditioner_persists"] = "true"
-        solver_parameters["snes_lag_preconditioner"] = -2
+        solver_parameters.setdefault("snes_lag_jacobian_persists", True)
+        solver_parameters.setdefault("snes_lag_jacobian", -2)
+        solver_parameters.setdefault("snes_lag_preconditioner_persists", True)
+        solver_parameters.setdefault("snes_lag_preconditioner", -2)
         super(ExplicitNystromTimeStepper, self).__init__(
             F, tableau, t, dt, u0, ut0, bcs=bcs,
             solver_parameters=solver_parameters, appctx=appctx,
