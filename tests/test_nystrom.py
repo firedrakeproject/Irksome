@@ -25,7 +25,7 @@ def wave(n, deg, time_stages, bc_type):
 
     butcher_tableau = GaussLegendre(time_stages)
 
-    u = project(uexact, V)
+    u = Function(V).interpolate(uexact)
     ut = Function(V)
 
     v = TestFunction(V)
@@ -40,12 +40,11 @@ def wave(n, deg, time_stages, bc_type):
         F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params, bc_type=bc_type)
 
     E0 = assemble(E)
-    tf = 1
-    while (float(t) < tf):
-        if (float(t) + float(dt) > tf):
-            dt.assign(tf - float(t))
+    step = 0
+    while step < N:
         stepper.advance()
         t.assign(float(t) + float(dt))
+        step += 1
 
     return assemble(E) / E0, norm(u - uexact)
 
@@ -86,12 +85,11 @@ def dirk_wave(n, deg, bc_type):
         F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params, bc_type=bc_type)
 
     E0 = assemble(E)
-    tf = 1
-    while (float(t) < tf - 1e-12):
-        if (float(t) + float(dt) > tf - 1e-12):
-            dt.assign(tf - float(t))
+    step = 0
+    while (step < 5*N):
         stepper.advance()
         t.assign(float(t) + float(dt))
+        step += 1
 
     return assemble(E) / E0, norm(u - uexact)
 
@@ -116,8 +114,7 @@ def explicit_dirk_wave(n, deg):
 
     tableau = ClassicNystrom4Tableau()
 
-    u0 = project(uexact, V)
-    u = Function(u0)  # copy
+    u = Function(V).interpolate(uexact)
     ut = Function(V)
 
     v = TestFunction(V)
