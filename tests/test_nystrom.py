@@ -40,11 +40,9 @@ def wave(n, deg, time_stages, bc_type):
         F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params, bc_type=bc_type)
 
     E0 = assemble(E)
-    step = 0
-    while step < N:
+    for step in range(N):
         stepper.advance()
         t.assign(float(t) + float(dt))
-        step += 1
 
     return assemble(E) / E0, norm(u - uexact)
 
@@ -69,8 +67,7 @@ def dirk_wave(n, deg, bc_type):
 
     butcher_tableau = WSODIRK(6, 4, 3)
 
-    u0 = project(uexact, V)
-    u = Function(u0)  # copy
+    u = Function(V).interpolate(uexact)
     ut = Function(V)
 
     v = TestFunction(V)
@@ -85,11 +82,9 @@ def dirk_wave(n, deg, bc_type):
         F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params, bc_type=bc_type)
 
     E0 = assemble(E)
-    step = 0
-    while (step < 5*N):
+    for step in range(5*N):
         stepper.advance()
         t.assign(float(t) + float(dt))
-        step += 1
 
     return assemble(E) / E0, norm(u - uexact)
 
@@ -129,11 +124,9 @@ def explicit_dirk_wave(n, deg):
         F, tableau, t, dt, u, ut, bcs=bc, solver_parameters=params)
 
     E0 = assemble(E)
-    step = 0
-    while (step < 5*N):
+    for step in range(5*N):
         stepper.advance()
         t.assign(float(t) + float(dt))
-        step += 1
 
     return assemble(E) / E0, norm(u - uexact)
 
