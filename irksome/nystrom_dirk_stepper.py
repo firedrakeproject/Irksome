@@ -152,16 +152,7 @@ class DIRKNystromTimeStepper:
         k = self.kgac[0]
         self.bcnew = bcnew
 
-        appctx_irksome = {"F": F,
-                          "stage_type": "dirk",
-                          "nystrom_tableau": tableau,
-                          "t": t,
-                          "dt": dt,
-                          "u0": u0,
-                          "ut0": ut0,
-                          "bcs": bcs,
-                          "bc_type": bc_type,
-                          "nullspace": nullspace}
+        appctx_irksome = {"stepper": self}
         if appctx is None:
             appctx = appctx_irksome
         else:
