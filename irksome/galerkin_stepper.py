@@ -161,7 +161,8 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
         u0_sub = bc2space(bc, u0)
         g0 = as_ufl(bc._original_arg)
         Vg_np = np.array([replace(g0, {t: t + c * dt}) for c in qpts])
-        Vg_np -= u0_sub * trial_vals[0]
+        for i in range(Vg_np.shape[0]):
+            Vg_np[i] -= u0_sub * trial_vals[0, i]
         g_np = proj @ Vg_np
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
