@@ -15,7 +15,7 @@ from ufl.core.ufl_type import ufl_type
 from ufl.corealg.multifunction import MultiFunction
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.algorithms import expand_derivatives
-from firedrake import Constant, Function, TestFunction, VectorFunctionSpace, diff
+from firedrake import Constant, Function, TestFunction, TensorFunctionSpace, VectorFunctionSpace, diff, dx, inner
 
 
 ufc_line = ufc_simplex(1)
@@ -289,14 +289,12 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
     inherit_indices_from_operand=0,
 )
 class TimeProjector(Operator):
-    __slots__ = ("form", "order", "quadrature")
+    __slots__ = ("order", "quadrature")
 
-    def __init__(self, F, order, Q):
-        self.form = expand_derivatives(F)
+    def __init__(self, expression, order, Q):
         self.order = order
         self.quadrature = Q
-        c = Coefficient(F.arguments()[0].function_space())
-        Operator.__init__(self, operands=(c,))
+        Operator.__init__(self, operands=(expression,))
 
 
 class TimeProjectorDispatcher(MultiFunction):
@@ -312,10 +310,13 @@ class TimeProjectorDispatcher(MultiFunction):
 
     def time_projector(self, o):
         # use the internal copy of the state, so it does not get updated again in the outer quadrature
-        F = replace(o.form, {self.u0: self.u1})
         order = o.order
         Q = o.quadrature
         assert order+1 <= len(self.phi)
+        f, = o.ufl_operands
+        R = TensorFunctionSpace(self.u0.function_space().mesh(), "DG", 0, shape=f.ufl_shape)
+        F = inner(f, TestFunction(R))*dx
+        F = replace(F, {self.u0: self.u1})
 
         # compute the hierarchical mass matrix (always the identity)
         ref_el = self.L_trial.get_reference_element()
@@ -325,7 +326,7 @@ class TimeProjectorDispatcher(MultiFunction):
         Minv = vecconst(np.linalg.inv(M))
 
         # compute modal expansion tested against c
-        c, = o.ufl_operands
+        c = Coefficient(R)
         test = np.outer(Minv[:order+1] @ self.phi, np.asarray(c, dtype=object)) / self.dt
         Fc = getTermGalerkin(F, self.L_trial, L_test, Q, self.t, self.dt, self.u1, self.stages, test)
 

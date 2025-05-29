@@ -344,8 +344,9 @@ def kepler_projector(V, order, t, dt, u0, solver_parameters):
     u = Function(V)
     u.interpolate(u0)
 
-    p = as_vector([u[k] for k in range(dim)])
-    q = as_vector([u[k] for k in range(dim, 2*dim)])
+    uv = variable(u)
+    p = as_vector([uv[k] for k in range(dim)])
+    q = as_vector([uv[k] for k in range(dim, 2*dim)])
 
     T = 0.5*dot(p, p)
     U = -1/sqrt(dot(q, q))
@@ -357,9 +358,9 @@ def kepler_projector(V, order, t, dt, u0, solver_parameters):
     invariants = [H*dx, L*dx, A1*dx, A2*dx]
 
     v = TestFunction(V)
-    dHdu = derivative(H*dx, u, v)
-    dA1du = derivative(A1*dx, u, v)
-    dA2du = derivative(A2*dx, u, v)
+    dHdu = diff(H, uv)
+    dA1du = diff(A1, uv)
+    dA2du = diff(A2, uv)
 
     Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
