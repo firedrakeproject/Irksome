@@ -16,7 +16,7 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
     if bc_type is None:
         bc_type = "DAE"
 
-    v = F.arguments()[0]
+    v, = F.arguments()
     V = v.function_space()
     msh = V.mesh()
     assert V == u0.function_space()
@@ -138,7 +138,8 @@ class DIRKNystromTimeStepper:
         else:
             raise NotImplementedError(f"No implementation for bc_type {bc_type} for DIRK-Nystrom or Explicit-Nystrom methods")
 
-        self.V = V = u0.function_space()
+        V = u0.function_space()
+        self.V = V
         self.u0 = u0
         self.ut0 = ut0
         self.t = t
@@ -234,7 +235,7 @@ class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
 
         # we just have one mass matrix we're reusing for each time step and
         # each stage, so we can nudge this along
-        solver_parameters = {} if solver_parameters is None else solver_parameters
+        solver_parameters = {} if solver_parameters is None else dict(solver_parameters)
         solver_parameters.setdefault("snes_lag_jacobian_persists", True)
         solver_parameters.setdefault("snes_lag_jacobian", -2)
         solver_parameters.setdefault("snes_lag_preconditioner_persists", True)
