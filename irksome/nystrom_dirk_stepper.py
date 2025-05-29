@@ -4,7 +4,7 @@ from firedrake import (Function,
                        NonlinearVariationalSolver)
 from ufl.constantvalue import as_ufl
 
-from .deriv import Dt, TimeDerivative, expand_time_derivatives
+from .deriv import Dt, expand_time_derivatives
 from .tools import replace, MeshConstant, vecconst
 from .bcs import bc2space
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
@@ -40,8 +40,8 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
 
     repl = {t: t + c * dt,
             u0: g1 + k * (abar * dt**2),
-            TimeDerivative(u0): g2 + k * (a * dt),
-            TimeDerivative(TimeDerivative(u0)): k}
+            Dt(u0): g2 + k * (a * dt),
+            Dt(u0, 2): k}
     stage_F = replace(F, repl)
 
     # BC's
@@ -82,7 +82,7 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
                 # Homogeneous BC, just zero out stage dofs
                 bcnew.append(bc)
             else:
-                bcprime = expand_time_derivatives(Dt(as_ufl(bcarg), 1), t=t, timedep_coefs=(u0,))
+                bcprime = expand_time_derivatives(Dt(as_ufl(bcarg)), t=t, timedep_coefs=(u0,))
                 bcprime_stage = replace(bcprime, {t: t+c*dt})
                 gdat = bcprime_stage - bc2space(bc, ut0)
                 gdat -= sum(bc2space(bc, ks[i]) * (abar_vals[i] * dt) for i in range(num_stages))
