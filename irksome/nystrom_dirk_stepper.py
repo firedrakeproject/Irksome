@@ -70,9 +70,12 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
                 gdat /= d_val * dt**2
                 bcnew.append(bc.reconstruct(g=gdat))
     elif bc_type == "dDAE":
-        # Here, at each stage, abar_vals should include the
+        # Here, at each implicit stage, abar_vals should include the
         # subdiagonal values from A in the Nystrom Tableau and
         # d_val should include the diagonal value from A
+        # If explicit, we omit the first stage from this calculation,
+        # and augment with the final time reconstruction; this is
+        # handled by AABbar and CCone in the later code
         for bc in bcs:
             bcarg = bc._original_arg
             if bcarg == 0:
