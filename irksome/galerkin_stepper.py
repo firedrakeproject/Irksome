@@ -74,7 +74,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices=
     # set up the pieces we need to work with to do our substitutions
     v_np = np.reshape(test, (-1, *v.ufl_shape))
     w_np = np.reshape(stages, (-1, *u0.ufl_shape))
-    u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
+    u_np = np.concatenate((vecconst(np.zeros((1, *u0.ufl_shape))), w_np))
 
     vsub = test_vals_w.T @ v_np
     usub = trial_vals.T @ u_np
@@ -86,7 +86,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices=
     for q in range(len(qpts)):
         repl[q] = {t: t + qpts[q] * dt,
                    v: vsub[q] * dt,
-                   u0: usub[q],
+                   u0: u0 + usub[q],
                    dtu0: dtu0sub[q] / dt,
                    u1: u0,
                    phi: phisub[q]}
@@ -157,15 +157,18 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
         bcs = []
     bcsnew = []
     for bc in bcs:
-        u0_sub = bc2space(bc, u0)
-        g0 = as_ufl(bc._original_arg)
-        Vg_np = np.array([replace(g0, {t: t + c * dt}) - u0_sub * phi
-                          for c, phi in zip(qpts, trial_vals[0])])
-        g_np = proj @ Vg_np
+        if bc._original_arg == 0:
+            gbig = [bc._original_arg] * num_stages
+        else:
+            g0 = as_ufl(bc._original_arg)
+            u0_sub = bc2space(bc, u0)
+            Vg_np = np.array([replace(g0, {t: t + q * dt}) - u0_sub * phi
+                              for q, phi in zip(qpts, trial_vals[0])])
+            gbig = as_tensor(proj @ Vg_np)
+
         for i in range(num_stages):
-            gcur = as_tensor(g_np[i])
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=gcur))
+            bcsnew.append(bc.reconstruct(V=Vbigi, g=gbig[i]))
 
     return Fnew, bcsnew
 
@@ -233,7 +236,6 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
 
         self.aux_indices = aux_indices
         super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
-        self.set_initial_guess()
 
     def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
         if basis_type is None:
@@ -254,33 +256,7 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
     def _update(self):
         k1, = self.trial_el.entity_dofs()[0][1]
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(self.stages.subfunctions[self.num_fields*(k1-1)+i])
-
-    def set_initial_guess(self):
-        # Set a constant-in-time initial guess
-        ref_el = self.test_el.get_reference_element()
-        P0 = DiscontinuousLagrange(ref_el, 0)
-        P0 = P0.get_nodal_basis()
-        B = P0.get_coeffs()
-
-        test_dual = self.test_el.get_dual_set()
-        test_dofs = np.dot(test_dual.to_riesz(P0), B)
-
-        trial_dual = self.trial_el.get_dual_set()
-        trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
-
-        dof = Constant(0)
-        for k in range(self.num_stages):
-            for i, u0bit in enumerate(self.u0.subfunctions):
-                sbit = self.stages.subfunctions[self.num_fields*k+i]
-                if self.aux_indices and i in self.aux_indices:
-                    dof.assign(test_dofs[k])
-                else:
-                    dof.assign(trial_dofs[k+1])
-                if abs(float(dof)) < 1E-12:
-                    sbit.zero()
-                else:
-                    sbit.assign(u0bit * dof)
+            u0bit.assign(u0bit + self.stages.subfunctions[self.num_fields*(k1-1)+i])
 
 
 @ufl_type(
