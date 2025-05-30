@@ -6,6 +6,11 @@ from FIAT import ufc_simplex
 from FIAT.quadrature_schemes import create_quadrature
 import math
 from scipy import special
+from firedrake.petsc import PETSc
+
+print = PETSc.Sys.Print
+
+ufcline = ufc_simplex(1)
 
 '''
 Thanks to Boris Andrews for providing the Hill vortex functions
@@ -14,7 +19,9 @@ Thanks to Boris Andrews for providing the Hill vortex functions
 Hill vortex functions
 '''
 # UFL-compatible Bessel function
-def besselJ(x, alpha, layers=10):
+besselJ = bessel_J
+
+def besselJ(alpha, x, layers=10):
     return sum([
         (-1)**m / math.factorial(m) / special.gamma(m + alpha + 1)
       * (x/2)**(2*m+alpha)
@@ -22,50 +29,49 @@ def besselJ(x, alpha, layers=10):
     ])
 
 
-
 # Bessel function parameters
 besselJ_root = 5.7634591968945506
-besselJ_root_threehalves = besselJ(besselJ_root, 3/2)
-
+besselJ_root_threehalves = besselJ(3/2, besselJ_root)
 
 
 # (r, theta, phi) components of Hill vortex
 def hill_r(r, theta, radius):
     rho = r / radius
     return 2 * (
-        besselJ(besselJ_root*rho, 3/2) / rho**(3/2)
+        besselJ(3/2, besselJ_root*rho) / rho**(3/2)
       - besselJ_root_threehalves
     ) * cos(theta)
+
 
 def hill_theta(r, theta, radius):
     rho = r / radius
     return (
-        besselJ_root * besselJ(besselJ_root*rho, 5/2) / rho**(1/2)
+        besselJ_root * besselJ(5/2, besselJ_root*rho) / rho**(1/2)
       + 2 * besselJ_root_threehalves
-      - 2 * besselJ(besselJ_root*rho, 3/2) / rho**(3/2)
+      - 2 * besselJ(3/2, besselJ_root*rho) / rho**(3/2)
     ) * sin(theta)
+
 
 def hill_phi(r, theta, radius):
     rho = r / radius
     return besselJ_root * (
-        besselJ(besselJ_root*rho, 3/2) / rho**(3/2)
+        besselJ(3/2, besselJ_root*rho) / rho**(3/2)
       - besselJ_root_threehalves
     ) * rho * sin(theta)
-
 
 
 # Hill vortex (Cartesian)
 def hill(vec, radius):
     (x, y, z) = vec
+    rho = sqrt(x*x + y*y)
 
-    # Cylindrical/spherical coordinates
-    rho = sqrt(x*x + y*y)    # Cylindrical radius
-    r = sqrt(dot(vec, vec))  # Spherical radius
-    theta = pi/2 - atan2(z, rho)
+    r = sqrt(dot(vec, vec))
+    theta = pi/2-atan2(z, rho)
+    phi = atan2(y, x)
 
-    r_dir = vec / r
-    theta_dir = as_vector([x*z/rho, y*z/rho, -rho/r])
-    phi_dir = as_vector([-y, x, 0]) / rho
+    r_dir = as_vector([cos(phi)*sin(theta), sin(phi)*sin(theta), cos(theta)])
+    theta_dir = as_vector([cos(phi)*cos(theta), sin(phi)*cos(theta), -sin(theta)])
+    phi_dir = as_vector([-sin(phi), cos(phi), 0])
 
     return conditional(  # If we're outside the vortex...
         ge(r, radius),
@@ -73,181 +79,148 @@ def hill(vec, radius):
         conditional(  # If we're at the origin...
             le(r, 1e-13),
             as_vector([0, 0, 2*((besselJ_root/2)**(3/2)/special.gamma(5/2) - besselJ_root_threehalves)]),
-            conditional(  # If we're on the z axis...
-                le(rho, 1e-13),
-                as_vector([0, 0, hill_r(r, 0, radius)]),
-                (  # Else...
-                    hill_r(r, theta, radius) * r_dir
-                  + hill_theta(r, theta, radius) * theta_dir
-                  + hill_phi(r, theta, radius) * phi_dir
-                )
-            )
+            (hill_r(r, theta, radius) * r_dir
+             + hill_theta(r, theta, radius) * theta_dir
+             + hill_phi(r, theta, radius) * phi_dir)
         )
     )
 
 
+def stokes_pair(msh):
+    V = VectorFunctionSpace(msh, "CG", 2)
+    Q = FunctionSpace(msh, "CG", 1)
+    return V, Q
+
+
 def nse_naive(msh, order, t, dt, Re, solver_parameters=None):
     hill_expr = hill(SpatialCoordinate(msh), 0.25)
-    V = VectorFunctionSpace(msh, "CG", 2)
-    W = FunctionSpace(msh, "CG", 1)
-    Z = V * W
+    V, Q = stokes_pair(msh)
+    Z = V * Q
     up = Function(Z)
     up.subfunctions[0].interpolate(hill_expr)
+    # VTKFile("output/hill.pvd").write(up.subfunctions[0])
 
-    v, w = TestFunctions(Z)
+    v, q = TestFunctions(Z)
     u, p = split(up)
 
-    F = (inner(Dt(u), v) * dx
-         - inner(cross(u, curl(u)), v) * dx
-         + 1/Re * inner(grad(u), grad(v)) * dx
-         - inner(p, div(v)) * dx
-         + inner(div(u), w) * dx)
-
-    bcs = DirichletBC(Z.sub(0), Constant((0, 0, 0)), "on_boundary")
-
-    stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs)
-
-    Q1 = inner(u, u) * dx
-    Q2 = inner(u, curl(u)) * dx
-
-    Q1s = [assemble(Q1)]
-    Q2s = [assemble(Q2)]
-
-    print(f"{float(t):.4e}, {assemble(Q1):.4e}, {assemble(Q2):.4e}")
-    #while float(t) < 3 * 2**(-6):
-    for k in range(2):
-        stepper.advance()
-        t.assign(float(t) + float(dt))
-        Q1s.append(assemble(Q1))
-        Q2s.append(assemble(Q2))
-        print(f"{float(t):.4e}, {assemble(Q1):.4e}, {assemble(Q2):.4e}")
-
-    return np.array(Q1s), np.array(Q2s)
-
-
-def nse_project_both(msh, order, t, dt, Re, solver_parameters=None):
-    hill_expr = hill(SpatialCoordinate(msh), 0.25)
-    V = VectorFunctionSpace(msh, "CG", 2)
-    W = FunctionSpace(msh, "CG", 1)
-    Z = V * W
-    up = Function(Z)
-    up.subfunctions[0].interpolate(hill_expr)
-
-    v, w = TestFunctions(Z)
-    u, p = split(up)
-
-    ufcline = ufc_simplex(1)
-
-    Qhigh = create_quadrature(ufcline, 3*(order-1))
+    Qhigh = create_quadrature(ufcline, 3*order-1)
     Qlow = create_quadrature(ufcline, 2*(order-1))
-
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
 
-    Qproj = create_quadrature(ufcline, 2*order-1)
-    w1 = TimeProjector(u, order-1, Qproj)
-    w2 = TimeProjector(curl(u), order-1, Qproj)
-
-    F = (Llow(inner(Dt(u), v) * dx) +
-         Lhigh(-inner(cross(w1, w2), v) * dx) + (
-         1/Re * inner(grad(w1), grad(v)) * dx
+    F = (Llow(inner(Dt(u), v) * dx)
+         + Lhigh(-inner(cross(u, curl(u)), v) * dx)
+         + 1/Re * inner(grad(u), grad(v)) * dx
          - inner(p, div(v)) * dx
-         + inner(div(u), w) * dx))
+         - inner(div(u), q) * dx)
 
-    bcs = DirichletBC(Z.sub(0), Constant((0, 0, 0)), "on_boundary")
+    bcs = DirichletBC(Z.sub(0), 0, "on_boundary")
 
     stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs)
-
     Q1 = inner(u, u) * dx
     Q2 = inner(u, curl(u)) * dx
-
-    Q1s = [assemble(Q1)]
-    Q2s = [assemble(Q2)]
-
-    print(f"{float(t):.4e}, {assemble(Q1):.4e}, {assemble(Q2):.4e}")
-    #while float(t) < 3 * 2**(-6):
-    for k in range(2):
-        stepper.advance()
-        t.assign(float(t) + float(dt))
-        Q1s.append(assemble(Q1))
-        Q2s.append(assemble(Q2))
-        print(f"{float(t):.4e}, {assemble(Q1):.4e}, {assemble(Q2):.4e}")
-
-    return np.array(Q1s), np.array(Q2s)
+    invariants = [Q1, Q2]
+    return stepper, invariants
 
 
 def nse_aux_variable(msh, order, t, dt, Re, solver_parameters=None):
     hill_expr = hill(SpatialCoordinate(msh), 0.25)
-    V = VectorFunctionSpace(msh, "CG", 2)
-    W = FunctionSpace(msh, "CG", 1)
-    Z = V * V * V * W
+    V, Q = stokes_pair(msh)
+    Z = V * V * V * Q
     up = Function(Z)
     up.subfunctions[0].interpolate(hill_expr)
 
     v, v1, v2, q = TestFunctions(Z)
     u, w1, w2, p = split(up)
 
-    ufcline = ufc_simplex(1)
-
     Qhigh = create_quadrature(ufcline, 3*(order-1))
     Qlow = create_quadrature(ufcline, 2*(order-1))
-
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
 
-    F = (Llow(inner(Dt(u), v) * dx) +
-         Lhigh(-inner(cross(w1, w2), v) * dx) + (
-         1/Re * inner(grad(w1), grad(v)) * dx
+    F = (Llow(inner(Dt(u), v) * dx)
+         + Lhigh(-inner(cross(w1, w2), v) * dx)
+         + Llow(1/Re * inner(grad(w1), grad(v)) * dx)
          - inner(p, div(v)) * dx
-         + inner(div(u), q) * dx
-         + inner(w1 - u, v1)*dx
-         + inner(w2 - curl(u), v2)*dx
-         ))
+         - inner(div(u), q) * dx
+         + inner(w1 - u, v1) * dx
+         + inner(w2 - curl(u), v2) * dx
+         )
 
-    bcs = [DirichletBC(Z.sub(0), Constant((0, 0, 0)), "on_boundary")]
+    bcs = [DirichletBC(Z.sub(i), 0, "on_boundary") for i in range(len(Z)-1)]
 
     stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs, aux_indices=(1, 2))
-
     Q1 = inner(u, u) * dx
     Q2 = inner(u, curl(u)) * dx
+    invariants = [Q1, Q2]
+    return stepper, invariants
 
-    Q1s = [assemble(Q1)]
-    Q2s = [assemble(Q2)]
 
-    print(f"{float(t):.4e}, {assemble(Q1):.4e}, {assemble(Q2):.4e}")
-    #while float(t) < 3 * 2**(-6):
-    for k in range(2):
+def nse_project(msh, order, t, dt, Re, solver_parameters=None):
+    hill_expr = hill(SpatialCoordinate(msh), 0.25)
+    V, Q = stokes_pair(msh)
+    Z = V * Q
+    up = Function(Z)
+    up.subfunctions[0].interpolate(hill_expr)
+
+    v, q = TestFunctions(Z)
+    u, p = split(up)
+
+    Qhigh = create_quadrature(ufcline, 3*(order-1))
+    Qlow = create_quadrature(ufcline, 2*(order-1))
+    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+
+    Qproj = create_quadrature(ufcline, 2*order)
+    w1 = TimeProjector(u, order-1, Qproj)
+    w2 = TimeProjector(curl(u), order-1, Qproj)
+
+    F = (Llow(inner(Dt(u), v) * dx)
+         + Lhigh(-inner(cross(w1, w2), v) * dx)
+         + Llow(1/Re * inner(grad(w1), grad(v)) * dx)
+         - inner(p, div(v)) * dx
+         - inner(div(u), q) * dx
+         )
+
+    bcs = DirichletBC(Z.sub(0), 0, "on_boundary")
+
+    stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs)
+    Q1 = inner(u, u) * dx
+    Q2 = inner(u, curl(u)) * dx
+    invariants = [Q1, Q2]
+    return stepper, invariants
+
+
+def run_nse(stepper, invariants):
+    t = stepper.t
+    dt = stepper.dt
+    row = [float(t), *map(assemble, invariants)]
+    print(*(f"{r:.8e}" for r in row))
+    while float(t) < 3 * 2**(-6):
+    # for k in range(2):
         stepper.advance()
-        t.assign(float(t) + float(dt))
-        Q1s.append(assemble(Q1))
-        Q2s.append(assemble(Q2))
-        print(f"{float(t):.4e}, {assemble(Q1):.4e}, {assemble(Q2):.4e}")
+        t.assign(t + dt)
 
-    return np.array(Q1s), np.array(Q2s)
-
+        row = [float(t), *map(assemble, invariants)]
+        print(*(f"{r:.8e}" for r in row))
 
 
 order = 2
 N = 8
 msh = UnitCubeMesh(N, N, N)
+msh.coordinates.dat.data[:, :] -= 0.5
+
 t = Constant(0)
 dt = Constant(2**-10)
-msh.coordinates.dat.data[:, :] -= 0.5
-Re = Constant(2**8)
-print("naive")
-t.assign(0)
-Q1s, Q2s = nse_naive(msh, order, t, dt, Re)
+Re = Constant(2**16)
 
-print("aux")
-t.assign(0)
-Q1s, Q2s = nse_aux_variable(msh, order, t, dt, Re)
+solvers = {
+    #"naive": nse_naive,
+    "project": nse_project,
+    #"aux": nse_aux_variable,
+}
 
-
-
-print("project")
-t.assign(0)
-Q1s, Q2s = nse_project_both(msh, order, t, dt, Re)
-#print(Q1s)
-#print(Q2s)
-
-
+for name, solver in solvers.items():
+    print(name)
+    t.assign(0)
+    run_nse(*solver(msh, order, t, dt, Re))
