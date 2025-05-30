@@ -1,7 +1,6 @@
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange, Legendre, ufc_simplex)
 from FIAT.quadrature_schemes import create_quadrature
-from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
@@ -9,7 +8,7 @@ from .labeling import split_quadrature
 from .tools import replace, vecconst, replace_auxiliary_variables
 import numpy as np
 
-from ufl import Coefficient
+from ufl import as_tensor, as_ufl, Coefficient
 from ufl.core.operator import Operator
 from ufl.core.ufl_type import ufl_type
 from ufl.corealg.multifunction import MultiFunction
@@ -160,13 +159,13 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
     for bc in bcs:
         u0_sub = bc2space(bc, u0)
         g0 = as_ufl(bc._original_arg)
-        Vg_np = np.array([replace(g0, {t: t + c * dt}) for c in qpts])
-        for i in range(Vg_np.shape[0]):
-            Vg_np[i] -= u0_sub * trial_vals[0, i]
+        Vg_np = np.array([replace(g0, {t: t + c * dt}) - u0_sub * phi
+                          for c, phi in zip(qpts, trial_vals[0])])
         g_np = proj @ Vg_np
         for i in range(num_stages):
+            gcur = as_tensor(g_np[i])
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
+            bcsnew.append(bc.reconstruct(V=Vbigi, g=gcur))
 
     return Fnew, bcsnew
 
