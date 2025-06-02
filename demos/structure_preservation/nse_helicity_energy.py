@@ -148,8 +148,9 @@ def nse_aux_variable(msh, order, t, dt, Re, solver_parameters=None):
          )
 
     bcs = [DirichletBC(Z.sub(i), 0, "on_boundary") for i in range(len(Z)-1)]
+    aux_indices = tuple(range(1, len(Z)-1))
 
-    stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs, aux_indices=(1, 2))
+    stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs, aux_indices=aux_indices)
     Q1 = inner(u, u) * dx
     Q2 = inner(u, curl(u)) * dx
     invariants = [Q1, Q2]
@@ -159,32 +160,34 @@ def nse_aux_variable(msh, order, t, dt, Re, solver_parameters=None):
 def nse_project(msh, order, t, dt, Re, solver_parameters=None):
     hill_expr = hill(SpatialCoordinate(msh), 0.25)
     V, Q = stokes_pair(msh)
-    Z = V * Q
+    Z = V * V * Q
     up = Function(Z)
     up.subfunctions[0].interpolate(hill_expr)
 
-    v, q = TestFunctions(Z)
-    u, p = split(up)
+    v, v2, q = TestFunctions(Z)
+    u, w2, p = split(up)
 
     Qhigh = create_quadrature(ufcline, 3*(order-1))
     Qlow = create_quadrature(ufcline, 2*(order-1))
     Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
     Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
 
-    Qproj = create_quadrature(ufcline, 2*order)
+    # Eliminate w1 only
+    Qproj = create_quadrature(ufcline, 2*order-1)
     w1 = TimeProjector(u, order-1, Qproj)
-    w2 = TimeProjector(curl(u), order-1, Qproj)
 
     F = (Llow(inner(Dt(u), v) * dx)
          + Lhigh(-inner(cross(w1, w2), v) * dx)
          + Llow(1/Re * inner(grad(w1), grad(v)) * dx)
          - inner(p, div(v)) * dx
          - inner(div(u), q) * dx
+         + inner(w2 - curl(u), v2)*dx
          )
 
-    bcs = DirichletBC(Z.sub(0), 0, "on_boundary")
+    bcs = [DirichletBC(Z.sub(i), 0, "on_boundary") for i in range(len(Z)-1)]
+    aux_indices = tuple(range(1, len(Z)-1))
 
-    stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs)
+    stepper = GalerkinTimeStepper(F, order, t, dt, up, bcs=bcs, aux_indices=aux_indices)
     Q1 = inner(u, u) * dx
     Q2 = inner(u, curl(u)) * dx
     invariants = [Q1, Q2]
@@ -215,9 +218,9 @@ dt = Constant(2**-10)
 Re = Constant(2**16)
 
 solvers = {
-    #"naive": nse_naive,
+    "naive": nse_naive,
     "project": nse_project,
-    #"aux": nse_aux_variable,
+    "aux": nse_aux_variable,
 }
 
 for name, solver in solvers.items():
