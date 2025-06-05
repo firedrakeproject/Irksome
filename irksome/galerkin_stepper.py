@@ -14,7 +14,7 @@ from ufl.core.ufl_type import ufl_type
 from ufl.corealg.multifunction import MultiFunction
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.algorithms import expand_derivatives
-from firedrake import Constant, Function, TestFunction, TensorFunctionSpace, VectorFunctionSpace, diff, dx, inner
+from firedrake import Function, TestFunction, TensorFunctionSpace, VectorFunctionSpace, diff, dx, inner
 
 
 ufc_line = ufc_simplex(1)
