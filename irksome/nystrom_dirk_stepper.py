@@ -232,7 +232,7 @@ class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
         assert tableau.is_explicit
         if bc_type is None:
             bc_type = "dDAE"
-
+        solver_parameters = {} if solver_parameters is None else dict(solver_parameters)
         # we just have one mass matrix we're reusing for each time step and
         # each stage, so we can nudge this along
         solver_parameters = {} if solver_parameters is None else dict(solver_parameters)
