@@ -232,7 +232,6 @@ class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
         assert tableau.is_explicit
         if bc_type is None:
             bc_type = "dDAE"
-        solver_parameters = {} if solver_parameters is None else dict(solver_parameters)
         # we just have one mass matrix we're reusing for each time step and
         # each stage, so we can nudge this along
         solver_parameters = {} if solver_parameters is None else dict(solver_parameters)
@@ -240,6 +239,8 @@ class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
         solver_parameters.setdefault("snes_lag_jacobian", -2)
         solver_parameters.setdefault("snes_lag_preconditioner_persists", True)
         solver_parameters.setdefault("snes_lag_preconditioner", -2)
+        solver_parameters.setdefault("is_linear", True)
+        solver_parameters.setdefault("constant_jacobian", True)
         super(ExplicitNystromTimeStepper, self).__init__(
             F, tableau, t, dt, u0, ut0, bcs=bcs,
             solver_parameters=solver_parameters, appctx=appctx,
