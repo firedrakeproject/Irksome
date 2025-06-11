@@ -239,7 +239,6 @@ class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
         solver_parameters.setdefault("snes_lag_jacobian", -2)
         solver_parameters.setdefault("snes_lag_preconditioner_persists", True)
         solver_parameters.setdefault("snes_lag_preconditioner", -2)
-        solver_parameters.setdefault("is_linear", True)
         solver_parameters.setdefault("constant_jacobian", True)
         super(ExplicitNystromTimeStepper, self).__init__(
             F, tableau, t, dt, u0, ut0, bcs=bcs,
