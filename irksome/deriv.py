@@ -7,19 +7,9 @@ from ufl.algorithms.map_integrands import map_integrands
 from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
 from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl.form import BaseForm
-from ufl.classes import (
-    Coefficient,
-    Conj,
-    ConstantValue,
-    Derivative,
-    Expr,
-    Grad,
-    Indexed,
-    ReferenceGrad,
-    ReferenceValue,
-    SpatialCoordinate,
-    Variable,
-)
+from ufl.classes import (Coefficient, Conj, Curl, ConstantValue, Derivative,
+                         Div, Expr, Grad, Indexed, ReferenceGrad,
+                         ReferenceValue, SpatialCoordinate, Variable)
 
 
 @ufl_type(num_ops=1,
@@ -93,7 +83,9 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
             return self(f)
 
     @process.register(Conj)
+    @process.register(Curl)
     @process.register(Derivative)
+    @process.register(Div)
     @process.register(Grad)
     @process.register(Indexed)
     @process.register(ReferenceGrad)
