@@ -12,7 +12,7 @@ from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, is_ode, replace, vecconst
+from .tools import AI, is_ode, replace, vecconst, get_stage_function
 from .base_time_stepper import StageCoupledTimeStepper
 
 
@@ -32,7 +32,7 @@ def to_value(u0, stages, vandermonde):
     return vandermonde[1:] @ u_np
 
 
-def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None):
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None, stage_functions=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -83,6 +83,10 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     V = v.function_space()
     assert V == u0.function_space()
 
+    if stage_functions is None:
+        stage_functions = {}
+    stage_functions[u0] = stages
+
     c = vecconst(butch.c)
     bA1, bA2 = splitting(butch.A)
     try:
@@ -99,7 +103,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
 
     # set up the pieces we need to work with to do our substitutions
     v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
-    w_np = to_value(u0, stages, vandermonde)
+    w_np = {w: to_value(w, stage_functions[w], vandermonde)
+            for w in stage_functions}
+
     A1Tv = A1.T @ v_np
     A2invTv = A2inv.T @ v_np
 
@@ -107,7 +113,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=tuple(stage_functions))
     split_form = extract_terms(F)
     F_dtless = strip_dt_form(split_form.time)
     F_remainder = split_form.remainder
@@ -116,16 +122,18 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     # Terms with time derivatives
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
-                v: A2invTv[i],
-                u0: w_np[i] - u0}
+                v: A2invTv[i]}
+        for w in w_np:
+            repl[w] = w_np[w][i] - w
         Fnew += replace(F_dtless, repl)
 
     # Handle the rest of the terms
     for i in range(num_stages):
         # replace the solution with stage values
         repl = {t: t + c[i] * dt,
-                v: A1Tv[i] * dt,
-                u0: w_np[i]}
+                v: A1Tv[i] * dt}
+        for w in w_np:
+            repl[w] = w_np[w][i]
         Fnew += replace(F_remainder, repl)
 
     if bcs is None:
@@ -156,6 +164,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None,
                  update_solver_parameters=None,
+                 stage_functions=None,
                  splitting=AI, basis_type=None,
                  appctx=None, bounds=None,
                  use_collocation_update=False,
@@ -169,6 +178,11 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.basis_type = basis_type
 
         degree = butcher_tableau.num_stages
+        num_stages = butcher_tableau.num_stages
+        if stage_functions is not None:
+            stage_functions = {w: get_stage_function(w, num_stages)
+                               for w in stage_functions}
+        self.stage_functions = stage_functions
 
         if basis_type is None or basis_type == 'Lagrange':
             vandermonde = None
@@ -184,7 +198,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             vandermonde = vecconst(vandermonde)
         self.vandermonde = vandermonde
 
-        super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
@@ -266,4 +280,5 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                             self.t, self.dt, self.u0,
                             stages, bcs=self.orig_bcs,
                             splitting=self.splitting,
+                            stage_functions=self.stage_functions,
                             vandermonde=self.vandermonde)

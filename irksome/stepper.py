@@ -12,7 +12,7 @@ valid_base_kwargs = ("form_compiler_parameters", "is_linear", "restrict", "solve
 
 valid_kwargs_per_stage_type = {
     "deriv": ["stage_type", "bc_type", "splitting", "adaptive_parameters"],
-    "value": ["stage_type", "basis_type",
+    "value": ["stage_type", "basis_type", "stage_functions",
               "update_solver_parameters", "splitting", "bounds", "use_collocation_update"],
     "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
     "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
@@ -135,12 +135,14 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     elif stage_type == "value":
         splitting = kwargs.get("splitting", AI)
         basis_type = kwargs.get("basis_type")
+        stage_functions = kwargs.get("stage_functions")
         update_solver_parameters = kwargs.get("update_solver_parameters")
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
         return StageValueTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs=bcs,
             splitting=splitting, basis_type=basis_type,
+            stage_functions=stage_functions,
             update_solver_parameters=update_solver_parameters,
             bounds=bounds, use_collocation_update=use_collocation_update,
             **base_kwargs)

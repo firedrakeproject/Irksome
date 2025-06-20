@@ -24,6 +24,11 @@ def get_stage_space(V, num_stages):
     return reduce(mul, (V for _ in range(num_stages)))
 
 
+def get_stage_function(w, num_stages):
+    Wbig = get_stage_space(w.function_space(), num_stages)
+    return Function(Wbig)
+
+
 def getNullspace(V, Vbig, num_stages, nullspace):
     """
     Computes the nullspace for a multi-stage method.
