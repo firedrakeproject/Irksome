@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 from petsc4py import PETSc
-from .tools import AI, flatten_dats, split_stages
+from .tools import AI, flatten_dats, split_stages, get_stage_function
 try:
     from .labeling import as_form
 except ImportError:
@@ -104,6 +104,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                  splitting=None, bc_type=None,
                  scheme_F=None, scheme_J=None, scheme_Jp=None,
                  bounds=None, sample_points=None,
+                 stage_functions=None,
                  backend="firedrake", **kwargs):
 
         super().__init__(F, t, dt, u0,
@@ -122,6 +123,11 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.splitting = splitting
         self.bc_type = bc_type
         self.sample_points = sample_points
+
+        if stage_functions is not None:
+            stage_functions = {w: get_stage_function(w, num_stages, backend=backend)
+                               for w in stage_functions}
+        self.stage_functions = stage_functions
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0

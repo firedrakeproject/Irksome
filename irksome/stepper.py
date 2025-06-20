@@ -18,7 +18,7 @@ valid_base_kwargs = ("bcs", "J", "Jp", "form_compiler_parameters",
                      "appctx", "options_prefix", "pre_apply_bcs")
 
 valid_kwargs_per_stage_type = {
-    "deriv": ["stage_type", "scheme_J", "scheme_Jp", "bc_type", "splitting", "adaptive_parameters", "aux_indices", "sample_points"],
+    "deriv": ["stage_type", "scheme_J", "scheme_Jp", "bc_type", "splitting", "adaptive_parameters", "aux_indices", "sample_points", "stage_functions"],
     "value": ["stage_type", "scheme_J", "scheme_Jp", "basis_type", "stage_functions",
               "update_solver_parameters", "splitting", "bounds", "use_collocation_update", "sample_points"],
     "dirk": ["stage_type"],
@@ -167,12 +167,14 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         splitting = kwargs.get("splitting", AI)
         aux_indices = kwargs.get("aux_indices", None)
         sample_points = kwargs.get("sample_points", None)
+        stage_functions = kwargs.get("stage_functions")
 
         if adapt_params is None:
             return StageDerivativeTimeStepper(
                 F, method, t, dt, u0, bcs,
                 scheme_J=scheme_J, scheme_Jp=scheme_Jp,
-                bc_type=bc_type, splitting=splitting, aux_indices=aux_indices, sample_points=sample_points, **base_kwargs)
+                bc_type=bc_type, splitting=splitting, aux_indices=aux_indices,
+                sample_points=sample_points, stage_functions=stage_functions, **base_kwargs)
         else:
             for param in adapt_params:
                 assert param in valid_adapt_parameters
@@ -195,11 +197,11 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
     elif stage_type == "value":
         splitting = kwargs.get("splitting", AI)
         basis_type = kwargs.get("basis_type")
-        stage_functions = kwargs.get("stage_functions")
         update_solver_parameters = kwargs.get("update_solver_parameters")
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
         sample_points = kwargs.get("sample_points", None)
+        stage_functions = kwargs.get("stage_functions")
         return StageValueTimeStepper(
             F, method, t, dt, u0, bcs=bcs,
             splitting=splitting, basis_type=basis_type,

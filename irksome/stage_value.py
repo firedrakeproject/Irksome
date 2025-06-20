@@ -12,7 +12,7 @@ from .ufl.manipulation import (has_nonlinear_time_derivative,
                                split_time_derivative_terms,
                                remove_time_derivatives)
 
-from .tools import AI, extract_timedep_arguments, dot, reshape, replace, get_stage_function
+from .tools import AI, extract_timedep_arguments, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 from .backend import get_backend
@@ -168,11 +168,11 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None,
                  update_solver_parameters=None,
-                 stage_functions=None,
                  splitting=AI, basis_type=None,
                  appctx=None, bounds=None,
                  use_collocation_update=False,
                  sample_points=None,
+                 stage_functions=None,
                  backend: str = "firedrake",
                  **kwargs):
 
@@ -180,10 +180,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.basis_type = basis_type
 
         num_stages = butcher_tableau.num_stages
-        if stage_functions is not None:
-            stage_functions = {w: get_stage_function(w, num_stages, backend=backend)
-                               for w in stage_functions}
-        self.stage_functions = stage_functions
 
         if basis_type is None or basis_type == 'Lagrange':
             vandermonde = None
@@ -198,6 +194,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx,
                          splitting=splitting, scheme_F=butcher_tableau, bounds=bounds,
                          sample_points=sample_points, backend=backend,
+                         stage_functions=stage_functions,
                          **kwargs)
         self.num_fields = len(self._backend.get_function_space(u0))
 
