@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationalSolver
 from firedrake.petsc import PETSc
-from .tools import AI, get_stage_space, getNullspace, flatten_dats
+from .tools import AI, get_stage_space, getNullspace, flatten_dats, get_stage_function
 
 
 class BaseTimeStepper:
@@ -84,6 +84,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                  transpose_nullspace=None, near_nullspace=None,
                  splitting=None, bc_type=None,
                  butcher_tableau=None, bounds=None,
+                 stage_functions=None,
                  **kwargs):
 
         super().__init__(F, t, dt, u0,
@@ -96,6 +97,11 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             splitting = AI
         self.splitting = splitting
         self.bc_type = bc_type
+
+        if stage_functions is not None:
+            stage_functions = {w: get_stage_function(w, self.num_stages)
+                               for w in stage_functions}
+        self.stage_functions = stage_functions
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0

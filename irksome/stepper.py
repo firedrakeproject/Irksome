@@ -11,7 +11,7 @@ valid_base_kwargs = ("form_compiler_parameters", "is_linear", "restrict", "solve
                      "appctx", "options_prefix", "pre_apply_bcs")
 
 valid_kwargs_per_stage_type = {
-    "deriv": ["stage_type", "bc_type", "splitting", "adaptive_parameters"],
+    "deriv": ["stage_type", "bc_type", "splitting", "adaptive_parameters", "stage_functions"],
     "value": ["stage_type", "basis_type", "stage_functions",
               "update_solver_parameters", "splitting", "bounds", "use_collocation_update"],
     "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
@@ -109,10 +109,13 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     if stage_type == "deriv":
         bc_type = kwargs.get("bc_type", "DAE")
         splitting = kwargs.get("splitting", AI)
+        stage_functions = kwargs.get("stage_functions")
         if adapt_params is None:
             return StageDerivativeTimeStepper(
                 F, butcher_tableau, t, dt, u0, bcs,
-                bc_type=bc_type, splitting=splitting, **base_kwargs)
+                bc_type=bc_type, splitting=splitting,
+                stage_functions=stage_functions,
+                **base_kwargs)
         else:
             for param in adapt_params:
                 assert param in valid_adapt_parameters
@@ -135,16 +138,16 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     elif stage_type == "value":
         splitting = kwargs.get("splitting", AI)
         basis_type = kwargs.get("basis_type")
-        stage_functions = kwargs.get("stage_functions")
         update_solver_parameters = kwargs.get("update_solver_parameters")
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
+        stage_functions = kwargs.get("stage_functions")
         return StageValueTimeStepper(
             F, butcher_tableau, t, dt, u0, bcs=bcs,
             splitting=splitting, basis_type=basis_type,
-            stage_functions=stage_functions,
             update_solver_parameters=update_solver_parameters,
             bounds=bounds, use_collocation_update=use_collocation_update,
+            stage_functions=stage_functions,
             **base_kwargs)
     elif stage_type == "dirk":
         return DIRKTimeStepper(

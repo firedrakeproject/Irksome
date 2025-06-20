@@ -12,7 +12,7 @@ from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, is_ode, replace, vecconst, get_stage_function
+from .tools import AI, is_ode, replace, vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
 
@@ -164,10 +164,10 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None,
                  update_solver_parameters=None,
-                 stage_functions=None,
                  splitting=AI, basis_type=None,
                  appctx=None, bounds=None,
                  use_collocation_update=False,
+                 stage_functions=None,
                  **kwargs):
 
         # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
@@ -179,10 +179,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         degree = butcher_tableau.num_stages
         num_stages = butcher_tableau.num_stages
-        if stage_functions is not None:
-            stage_functions = {w: get_stage_function(w, num_stages)
-                               for w in stage_functions}
-        self.stage_functions = stage_functions
 
         if basis_type is None or basis_type == 'Lagrange':
             vandermonde = None
@@ -201,7 +197,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx,
-                         splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
+                         splitting=splitting, butcher_tableau=butcher_tableau,
+                         bounds=bounds, stage_functions=stage_functions,
                          **kwargs)
 
         if use_collocation_update:
