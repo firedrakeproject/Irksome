@@ -19,7 +19,7 @@ valid_base_kwargs = ("bcs", "J", "Jp", "form_compiler_parameters",
 
 valid_kwargs_per_stage_type = {
     "deriv": ["stage_type", "scheme_J", "scheme_Jp", "bc_type", "splitting", "adaptive_parameters", "aux_indices", "sample_points"],
-    "value": ["stage_type", "scheme_J", "scheme_Jp", "basis_type",
+    "value": ["stage_type", "scheme_J", "scheme_Jp", "basis_type", "stage_functions",
               "update_solver_parameters", "splitting", "bounds", "use_collocation_update", "sample_points"],
     "dirk": ["stage_type"],
     "explicit": ["stage_type"],
@@ -195,6 +195,7 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
     elif stage_type == "value":
         splitting = kwargs.get("splitting", AI)
         basis_type = kwargs.get("basis_type")
+        stage_functions = kwargs.get("stage_functions")
         update_solver_parameters = kwargs.get("update_solver_parameters")
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
@@ -203,6 +204,7 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
             F, method, t, dt, u0, bcs=bcs,
             splitting=splitting, basis_type=basis_type,
             scheme_J=scheme_J, scheme_Jp=scheme_Jp,
+            stage_functions=stage_functions,
             update_solver_parameters=update_solver_parameters,
             bounds=bounds, use_collocation_update=use_collocation_update,
             sample_points=sample_points,

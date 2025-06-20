@@ -35,6 +35,12 @@ def get_stage_space(V, num_stages, backend="firedrake"):
     return backend_cls.get_stage_space(V, num_stages)
 
 
+def get_stage_function(w, num_stages, backend="firedrake"):
+    backend_cls = get_backend(backend)
+    W = backend_cls.get_function_space(w)
+    return backend_cls.get_stages(W, num_stages)
+
+
 def split_stages(V, stages):
     """Reconstruct the stages as a list of Function(V)"""
     num_fields = len(V)
