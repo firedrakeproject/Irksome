@@ -52,7 +52,8 @@ def heat(n, deg, time_stages, **kwargs):
 
 
 @pytest.mark.parametrize("kwargs", ({"stage_type": "deriv"},
-                                    {"stage_type": "value"}))
+                                    {"stage_type": "value"}),
+                         ids=("deriv", "value"))
 @pytest.mark.parametrize(('deg', 'convrate', 'time_stages'),
                          [(1, 1.78, i) for i in (1, 2)]
                          + [(2, 2.8, i) for i in (2, 3)])
