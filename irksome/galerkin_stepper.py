@@ -169,9 +169,10 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
             instance to be passed to a
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
+    :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     """
     def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None, **kwargs):
+                 quadrature=None, bounds=None, **kwargs):
         assert order >= 1
         self.order = order
         self.basis_type = basis_type
@@ -186,7 +187,10 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order
 
-        super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
+        if bounds is not None:
+            assert (basis_type is None) or (basis_type == "Lagrange") or (basis_type == "Bernstein")
+
+        super().__init__(F, t, dt, u0, order, bcs=bcs, bounds=bounds, **kwargs)
 
     def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, F=None):
         if basis_type is None:

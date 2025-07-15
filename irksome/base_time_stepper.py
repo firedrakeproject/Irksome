@@ -167,7 +167,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         if upper is None:
             sub = Function(Vbig).assign(PETSc.INFINITY)
 
-        if bounds_type == "stage":
+        if (bounds_type == "stage") or (bounds_type == "galerkin"):
             if lower is not None:
                 dats = [lower.dat] * (self.num_stages)
                 slb = Function(Vbig, val=flatten_dats(dats))
