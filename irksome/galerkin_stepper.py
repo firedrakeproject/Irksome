@@ -1,14 +1,20 @@
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange, Legendre, ufc_simplex)
 from FIAT.quadrature_schemes import create_quadrature
-from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .tools import replace, vecconst, replace_auxiliary_variables
 import numpy as np
-from firedrake import TestFunction, Constant
+
+from ufl import as_tensor, as_ufl, Coefficient
+from ufl.core.operator import Operator
+from ufl.core.ufl_type import ufl_type
+from ufl.corealg.multifunction import MultiFunction
+from ufl.algorithms.map_integrands import map_integrand_dags
+from ufl.algorithms import expand_derivatives
+from firedrake import Function, TestFunction, TensorFunctionSpace, VectorFunctionSpace, diff, dx, inner
 
 
 ufc_line = ufc_simplex(1)
@@ -34,15 +40,26 @@ def getElements(basis_type, order):
     return trial_el, test_el
 
 
-def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
+def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices=None):
+    qpts = Q.get_points()
+    qwts = Q.get_weights()
+
+    # internal state to be used inside projected expressions
+    u1 = Function(u0)
+    # symbolic Coefficient with the temporal test function
+    mesh = u0.function_space().mesh()
+    R = VectorFunctionSpace(mesh, "Real", 0, dim=L_test.space_dimension())
+    phi = Coefficient(R)
+    # apply time projectors
+    F = expand_time_projectors(F, L_trial, t, dt, u0, u1, stages, phi)
+    # tabulate the temporal test function
+    ref_el = L_test.get_reference_element()
+    phisub = vecconst(Legendre(ref_el, L_test.degree()).tabulate(0, qpts)[(0,)].T)
+
     # preprocess time derivatives
     F = replace_auxiliary_variables(F, u0, aux_indices)
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
-    assert v.function_space() == u0.function_space()
-
-    qpts = Q.get_points()
-    qwts = Q.get_weights()
     tabulate_trials = L_trial.tabulate(1, qpts)
     trial_vals = tabulate_trials[(0,)]
     trial_dvals = tabulate_trials[(1,)]
@@ -55,10 +72,10 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     qpts = vecconst(np.reshape(qpts, (-1,)))
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = np.reshape(test, (-1, *u0.ufl_shape))
+    v_np = np.reshape(test, (-1, *v.ufl_shape))
     w_np = np.reshape(stages, (-1, *u0.ufl_shape))
+    u_np = np.concatenate((vecconst(np.zeros((1, *u0.ufl_shape))), w_np))
 
-    u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
     vsub = test_vals_w.T @ v_np
     usub = trial_vals.T @ u_np
     dtu0sub = trial_dvals.T @ u_np
@@ -69,8 +86,11 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     for q in range(len(qpts)):
         repl[q] = {t: t + qpts[q] * dt,
                    v: vsub[q] * dt,
-                   u0: usub[q],
-                   dtu0: dtu0sub[q] / dt}
+                   u0: u0 + usub[q],
+                   dtu0: dtu0sub[q] / dt,
+                   u1: u0,
+                   phi: phisub[q]}
+
     Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
@@ -82,7 +102,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
 
     :arg F: UFL form for the semidiscrete ODE/DAE
     :arg L_trial: A :class:`FIAT.FiniteElement` for the trial functions in time
-    :arg L_test: A :class:`FIAT.FinteElement` for the test functions in time
+    :arg L_test: A :class:`FIAT.FiniteElement` for the test functions in time
     :arg Q: A :class:`FIAT.QuadratureRule` for the time integration
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
@@ -137,14 +157,18 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
         bcs = []
     bcsnew = []
     for bc in bcs:
-        u0_sub = bc2space(bc, u0)
-        g0 = as_ufl(bc._original_arg)
-        Vg_np = np.array([replace(g0, {t: t + c * dt}) for c in qpts])
-        Vg_np -= u0_sub * trial_vals[0]
-        g_np = proj @ Vg_np
+        if bc._original_arg == 0:
+            gbig = [bc._original_arg] * num_stages
+        else:
+            g0 = as_ufl(bc._original_arg)
+            u0_sub = bc2space(bc, u0)
+            Vg_np = np.array([replace(g0, {t: t + q * dt}) - u0_sub * phi
+                              for q, phi in zip(qpts, trial_vals[0])])
+            gbig = as_tensor(proj @ Vg_np)
+
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
+            bcsnew.append(bc.reconstruct(V=Vbigi, g=gbig[i]))
 
     return Fnew, bcsnew
 
@@ -212,7 +236,6 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
 
         self.aux_indices = aux_indices
         super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
-        self.set_initial_guess()
 
     def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
         if basis_type is None:
@@ -233,30 +256,64 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
     def _update(self):
         k1, = self.trial_el.entity_dofs()[0][1]
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(self.stages.subfunctions[self.num_fields*(k1-1)+i])
+            u0bit.assign(u0bit + self.stages.subfunctions[self.num_fields*(k1-1)+i])
 
-    def set_initial_guess(self):
-        # Set a constant-in-time initial guess
-        ref_el = self.test_el.get_reference_element()
-        P0 = DiscontinuousLagrange(ref_el, 0)
-        P0 = P0.get_nodal_basis()
-        B = P0.get_coeffs()
 
-        test_dual = self.test_el.get_dual_set()
-        test_dofs = np.dot(test_dual.to_riesz(P0), B)
+@ufl_type(
+    num_ops=1,
+    inherit_shape_from_operand=0,
+    inherit_indices_from_operand=0,
+)
+class TimeProjector(Operator):
+    __slots__ = ("order", "quadrature")
 
-        trial_dual = self.trial_el.get_dual_set()
-        trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
+    def __init__(self, expression, order, Q):
+        self.order = order
+        self.quadrature = Q
+        Operator.__init__(self, operands=(expression,))
 
-        dof = Constant(0)
-        for k in range(self.num_stages):
-            for i, u0bit in enumerate(self.u0.subfunctions):
-                sbit = self.stages.subfunctions[self.num_fields*k+i]
-                if self.aux_indices and i in self.aux_indices:
-                    dof.assign(test_dofs[k])
-                else:
-                    dof.assign(trial_dofs[k+1])
-                if abs(float(dof)) < 1E-12:
-                    sbit.zero()
-                else:
-                    sbit.assign(u0bit * dof)
+
+class TimeProjectorDispatcher(MultiFunction):
+    def __init__(self, element, t, dt, u0, u1, stages, phi):
+        MultiFunction.__init__(self)
+        self.L_trial = element
+        self.t = t
+        self.dt = dt
+        self.u0 = u0
+        self.u1 = u1
+        self.stages = stages
+        self.phi = np.reshape(phi, (-1,))
+
+    def time_projector(self, o):
+        # use the internal copy of the state, so it does not get updated again in the outer quadrature
+        order = o.order
+        Q = o.quadrature
+        assert order+1 <= len(self.phi)
+        f, = o.ufl_operands
+        R = TensorFunctionSpace(self.u0.function_space().mesh(), "DG", 0, shape=f.ufl_shape)
+        F = inner(f, TestFunction(R))*dx
+        F = replace(F, {self.u0: self.u1})
+
+        # compute the hierarchical mass matrix (always the identity)
+        ref_el = self.L_trial.get_reference_element()
+        L_test = Legendre(ref_el, order)
+        test_vals = L_test.tabulate(0, Q.get_points())[(0,)]
+        M = np.multiply(test_vals, Q.get_weights()) @ test_vals.T
+        Minv = vecconst(np.linalg.inv(M))
+
+        # compute modal expansion tested against c
+        c = Coefficient(R)
+        test = np.outer(Minv[:order+1] @ self.phi, np.asarray(c, dtype=object)) / self.dt
+        Fc = getTermGalerkin(F, self.L_trial, L_test, Q, self.t, self.dt, self.u1, self.stages, test)
+
+        # compute the L2-Riesz representation by undoing the integral against the test coefficient
+        fc = sum(it.integrand() for it in Fc.integrals())
+        fproj = expand_derivatives(diff(fc, c))
+        return fproj
+
+    expr = MultiFunction.reuse_if_untouched
+
+
+def expand_time_projectors(expression, element, t, dt, u0, u1, stages, phi):
+    rules = TimeProjectorDispatcher(element, t, dt, u0, u1, stages, phi)
+    return map_integrand_dags(rules, expression)
