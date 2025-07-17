@@ -200,7 +200,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         self.update_b = vecconst(self.el.tabulate(0, (1.0,))[(0,)])
 
         if bounds is not None:
-            assert (basis_type is None) or (basis_type != "integral")
+            assert (basis_type is None) or (basis_type != "integral"), "The Bernstein basis or a pointwise basis is required for bounds constraints"
 
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bounds=bounds, **kwargs)
 

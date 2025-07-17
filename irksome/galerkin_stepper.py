@@ -188,7 +188,7 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
         assert np.size(quadrature.get_points()) >= order
 
         if bounds is not None:
-            assert (basis_type is None) or (basis_type == "Lagrange") or (basis_type == "Bernstein")
+            assert (basis_type is None) or (basis_type != "integral"), "The Bernstein basis or a pointwise basis is required for bounds constraints"
 
         super().__init__(F, t, dt, u0, order, bcs=bcs, bounds=bounds, **kwargs)
 

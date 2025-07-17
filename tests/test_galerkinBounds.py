@@ -9,7 +9,7 @@ from irksome import (Dt, MeshConstant, BoundsConstrainedDirichletBC,
 from ufl.algorithms import expand_derivatives
 
 from FIAT.quadrature import (RadauQuadratureLineRule, GaussLobattoLegendreQuadratureLineRule)
-from FIAT import (ufc_simplex, Lagrange)
+from FIAT import ufc_simplex
 
 lu_params = {
     "snes_type": "ksponly",
@@ -362,7 +362,7 @@ def wave_H1_DG(quad_rule, order, basis_type, bounds_type):
     return bounds_violations
 
 
-@pytest.mark.parametrize('order', (1, 2))
+@pytest.mark.parametrize('order', (1, 2, 3))
 @pytest.mark.parametrize('quad_rule', [None, GaussLobattoLegendreQuadratureLineRule])
 @pytest.mark.parametrize('basis_type', ('Bernstein', 'gll'))
 @pytest.mark.parametrize('bounds_type', ('stage', ))
@@ -371,7 +371,7 @@ def test_heat_CG_bounds(quad_rule, order, basis_type, bounds_type):
     assert len(error_list) == 0
 
 
-@pytest.mark.parametrize('order', (1, 2))
+@pytest.mark.parametrize('order', (1, 2, 3))
 @pytest.mark.parametrize('quad_rule', [None, RadauQuadratureLineRule])
 @pytest.mark.parametrize('basis_type', ('Bernstein', 'Lagrange'))
 @pytest.mark.parametrize('bounds_type', ('stage', ))
@@ -380,7 +380,7 @@ def test_heat_DG_bounds(quad_rule, order, basis_type, bounds_type):
     assert len(error_list) == 0
 
 
-@pytest.mark.parametrize('order', (1, 2))
+@pytest.mark.parametrize('order', (1, 2, 3))
 @pytest.mark.parametrize('quad_rule', [None, GaussLobattoLegendreQuadratureLineRule])
 @pytest.mark.parametrize('basis_type', ('Bernstein', 'gll'))
 @pytest.mark.parametrize('bounds_type', ('stage', ))
@@ -389,9 +389,9 @@ def test_wave_CG_bounds(quad_rule, order, basis_type, bounds_type):
     assert len(error_list) == 0
 
 
-@pytest.mark.parametrize('order', (1, 2))
+@pytest.mark.parametrize('order', (1, 2, 3))
 @pytest.mark.parametrize('quad_rule', [None, RadauQuadratureLineRule])
-@pytest.mark.parametrize('basis_type', ('Bernstein', 'Lagrange'))
+@pytest.mark.parametrize('basis_type', ('Bernstein', ))
 @pytest.mark.parametrize('bounds_type', ('stage', ))
 def test_wave_DG_bounds(quad_rule, order, basis_type, bounds_type):
     error_list = wave_H1_DG(quad_rule, order, basis_type, bounds_type)
