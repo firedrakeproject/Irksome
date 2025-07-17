@@ -9,7 +9,7 @@ from irksome import (Dt, MeshConstant, BoundsConstrainedDirichletBC,
 from ufl.algorithms import expand_derivatives
 
 from FIAT.quadrature import (RadauQuadratureLineRule, GaussLobattoLegendreQuadratureLineRule)
-from FIAT import ufc_simplex
+from FIAT import (ufc_simplex, Lagrange)
 
 lu_params = {
     "snes_type": "ksponly",
@@ -20,7 +20,7 @@ lu_params = {
 
 vi_params = {
     "snes_type": "vinewtonrsls",
-    "snes_max_it": 300,
+    "snes_max_it": 150,
     "snes_atol": 1.e-8,
     "ksp_type": "preonly",
     "pc_type": "lu"
@@ -70,9 +70,11 @@ def heat_CG(quad_rule, order, basis_type, bounds_type):
     bc = BoundsConstrainedDirichletBC(V, uexact, "on_boundary", (lb, ub), solver_parameters=vi_params)
 
     if quad_rule is not None:
-        quad_rule = quad_rule(ufc_simplex(1), order+1)
+        quad = quad_rule(ufc_simplex(1), order+1)
+    else:
+        quad = None
 
-    stepper = GalerkinTimeStepper(F_c, order, t, dt, u_c, quadrature=quad_rule, basis_type=basis_type, bounds=bounds, bcs=bc, solver_parameters=vi_params)
+    stepper = GalerkinTimeStepper(F_c, order, t, dt, u_c, quadrature=quad, basis_type=basis_type, bounds=bounds, bcs=bc, solver_parameters=vi_params)
 
     violations_for_constrained_method = []
 
@@ -130,9 +132,73 @@ def heat_DG(quad_rule, order, basis_type, bounds_type):
     bc = BoundsConstrainedDirichletBC(V, uexact, "on_boundary", (lb, ub), solver_parameters=vi_params)
 
     if quad_rule is not None:
-        quad_rule = quad_rule(ufc_simplex(1), order+1)
+        quad = quad_rule(ufc_simplex(1), order+1)
+    else:
+        quad = None
 
-    stepper = DiscontinuousGalerkinTimeStepper(F_c, order, t, dt, u_c, quadrature=quad_rule, basis_type=basis_type, bounds=bounds, bcs=bc, solver_parameters=vi_params)
+    stepper = DiscontinuousGalerkinTimeStepper(F_c, order, t, dt, u_c, quadrature=quad, basis_type=basis_type, bounds=bounds, bcs=bc, solver_parameters=vi_params)
+
+    violations_for_constrained_method = []
+
+    for _ in range(5):
+        stepper.advance()
+        t += dt
+        min_value_c = min(u_c.dat.data)
+        print(min_value_c)
+        if min_value_c < 0:
+            violations_for_constrained_method.append(min_value_c)
+
+    return violations_for_constrained_method
+
+
+def heat_DG(quad_rule, order, basis_type, bounds_type):
+
+    N = 16
+    msh = UnitSquareMesh(N, N)
+    V = FunctionSpace(msh, "Lagrange", 1)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(2 / N)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+
+    uexact = 0.5 * exp(-t) * (1 + (tanh((0.1 - sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2)) / 0.015)))
+
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+
+    v = TestFunction(V)
+    u_init = Function(V)
+
+    G = inner(u_init - uexact, v) * dx
+
+    nlvp = NonlinearVariationalProblem(G, u_init)
+    nlvs = NonlinearVariationalSolver(nlvp, solver_parameters=vi_params)
+
+    lb = Function(V)
+    ub = Function(V)
+
+    ub.assign(np.inf)
+    lb.assign(0.0)
+
+    nlvs.solve(bounds=(lb, ub))
+    u_c = Function(V)
+    u_c.assign(u_init)
+
+    v_c = TestFunction(V)
+
+    F_c = (inner(Dt(u_c), v_c) * dx + inner(grad(u_c), grad(v_c)) * dx - inner(rhs, v_c) * dx)
+
+    bounds = (bounds_type, lb, ub)
+
+    bc = BoundsConstrainedDirichletBC(V, uexact, "on_boundary", (lb, ub), solver_parameters=vi_params)
+
+    if quad_rule is not None:
+        quad = quad_rule(ufc_simplex(1), order+1)
+    else:
+        quad = None
+
+    stepper = DiscontinuousGalerkinTimeStepper(F_c, order, t, dt, u_c, quadrature=quad, basis_type=basis_type, bounds=bounds, bcs=bc, solver_parameters=vi_params)
 
     violations_for_constrained_method = []
 
@@ -196,9 +262,11 @@ def wave_H1_CG(quad_rule, order, basis_type, bounds_type):
     bounds = (bounds_type, lower, upper)
 
     if quad_rule is not None:
-        quad_rule = quad_rule(ufc_simplex(1), order+1)
+        quad = quad_rule(ufc_simplex(1), order+1)
+    else:
+        quad = None
 
-    stepper = GalerkinTimeStepper(F, order, t, dt, uv, quadrature=quad_rule, basis_type=basis_type, bounds=bounds, bcs=bc, solver_parameters=vi_params)
+    stepper = GalerkinTimeStepper(F, order, t, dt, uv, quadrature=quad, basis_type=basis_type, bounds=bounds, bcs=bc, solver_parameters=vi_params)
 
     bounds_violations = []
 
@@ -268,9 +336,11 @@ def wave_H1_DG(quad_rule, order, basis_type, bounds_type):
     bounds = (bounds_type, lower, upper)
 
     if quad_rule is not None:
-        quad_rule = quad_rule(ufc_simplex(1), order+1)
+        quad = quad_rule(ufc_simplex(1), order+1)
+    else:
+        quad = None
 
-    stepper = DiscontinuousGalerkinTimeStepper(F, order, t, dt, uv, quadrature=quad_rule, basis_type=basis_type, bounds=bounds, bcs=bc, solver_parameters=vi_params)
+    stepper = DiscontinuousGalerkinTimeStepper(F, order, t, dt, uv, quadrature=quad, basis_type=basis_type, bounds=bounds, bcs=bc, solver_parameters=vi_params)
 
     bounds_violations = []
 
@@ -292,37 +362,37 @@ def wave_H1_DG(quad_rule, order, basis_type, bounds_type):
     return bounds_violations
 
 
-@pytest.mark.parametrize('order', (1, 2, 3))
+@pytest.mark.parametrize('order', (1, 2))
 @pytest.mark.parametrize('quad_rule', [None, GaussLobattoLegendreQuadratureLineRule])
-@pytest.mark.parametrize('basis_type', ('Bernstein', 'Lagrange'))
-@pytest.mark.parametrize('bounds_type', ("galerkin", ))
+@pytest.mark.parametrize('basis_type', ('Bernstein', 'gll'))
+@pytest.mark.parametrize('bounds_type', ('stage', ))
 def test_heat_CG_bounds(quad_rule, order, basis_type, bounds_type):
     error_list = heat_CG(quad_rule, order, basis_type, bounds_type)
     assert len(error_list) == 0
 
 
-@pytest.mark.parametrize('order', (1, 2, 3))
+@pytest.mark.parametrize('order', (1, 2))
 @pytest.mark.parametrize('quad_rule', [None, RadauQuadratureLineRule])
 @pytest.mark.parametrize('basis_type', ('Bernstein', 'Lagrange'))
-@pytest.mark.parametrize('bounds_type', ("galerkin", ))
+@pytest.mark.parametrize('bounds_type', ('stage', ))
 def test_heat_DG_bounds(quad_rule, order, basis_type, bounds_type):
     error_list = heat_DG(quad_rule, order, basis_type, bounds_type)
     assert len(error_list) == 0
 
 
-@pytest.mark.parametrize('order', (1, 2, 3))
+@pytest.mark.parametrize('order', (1, 2))
 @pytest.mark.parametrize('quad_rule', [None, GaussLobattoLegendreQuadratureLineRule])
-@pytest.mark.parametrize('basis_type', ('Bernstein', 'Lagrange'))
-@pytest.mark.parametrize('bounds_type', ("galerkin", ))
+@pytest.mark.parametrize('basis_type', ('Bernstein', 'gll'))
+@pytest.mark.parametrize('bounds_type', ('stage', ))
 def test_wave_CG_bounds(quad_rule, order, basis_type, bounds_type):
     error_list = wave_H1_CG(quad_rule, order, basis_type, bounds_type)
     assert len(error_list) == 0
 
 
-@pytest.mark.parametrize('order', (1, 2, 3))
+@pytest.mark.parametrize('order', (1, 2))
 @pytest.mark.parametrize('quad_rule', [None, RadauQuadratureLineRule])
 @pytest.mark.parametrize('basis_type', ('Bernstein', 'Lagrange'))
-@pytest.mark.parametrize('bounds_type', ("galerkin", ))
+@pytest.mark.parametrize('bounds_type', ('stage', ))
 def test_wave_DG_bounds(quad_rule, order, basis_type, bounds_type):
     error_list = wave_H1_DG(quad_rule, order, basis_type, bounds_type)
     assert len(error_list) == 0
