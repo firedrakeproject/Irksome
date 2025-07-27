@@ -105,7 +105,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
 
     for cur_kwarg in kwargs.keys():
         if cur_kwarg not in valid_kwargs_per_stage_type[stage_type]:
-            raise ValueError(f"kwarg {cur_kwarg} is not allowable for stage_type {stage_type})"
+            raise ValueError(f"kwarg {cur_kwarg} is not allowable for stage_type {stage_type}")
 
     if stage_type == "deriv":
         bc_type = kwargs.get("bc_type", "DAE")
