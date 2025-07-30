@@ -60,7 +60,7 @@ class ClassicNystrom4Tableau(NystromTableau):
 
         Abar[1, 0] = 1./8
         Abar[2, 0] = 1./8
-        Abar[3, 2] = 1.0
+        Abar[3, 2] = 1./2
 
         b = numpy.array([1, 2, 2, 1]) / 6.
         bbar = numpy.array([1, 1, 1, 0]) / 6.
