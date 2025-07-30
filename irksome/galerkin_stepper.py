@@ -83,7 +83,10 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
     :arg F: UFL form for the semidiscrete ODE/DAE
     :arg L_trial: A :class:`FIAT.FiniteElement` for the trial functions in time
     :arg L_test: A :class:`FIAT.FinteElement` for the test functions in time
-    :arg Q: A :class:`FIAT.QuadratureRule` for the time integration
+    :arg Qdefault: A :class:`FIAT.QuadratureRule` for the time integration.
+         This rule will be used for all terms in the semidiscrete
+         variational form that aren't specifically tagged with another
+         quadrature rule.
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
