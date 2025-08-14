@@ -106,7 +106,7 @@ class KronPC(PCBase):
         # --- Sub-PC for K^{-1} (by default using LU for now) ---
         sub_pc = PETSc.PC().create(comm=pc.comm)
         sub_pc.incrementTabLevel(1, parent=pc)
-        sub_pc.setOptionsPrefix(self._prefix + "sub_")
+        # sub_pc.setOptionsPrefix(self._prefix + "sub_")
         sub_pc.setOperators(K.M.handle)   # use K for both A and P
         sub_pc.setFromOptions()           # allow overrides
         # Force LU unless the user overrides via options:
@@ -246,7 +246,6 @@ if __name__ == "__main__":
     parameters = {
         # make the global operator mat-free so P is a python Mat
         "mat_type": "matfree",
-        "pmat_type": "matfree",
 
         # outer solve
         "ksp_type": "fgmres",
@@ -257,7 +256,6 @@ if __name__ == "__main__":
         "pc_type": "fieldsplit",
         "pc_fieldsplit_type": "schur",
         "pc_fieldsplit_schur_factorization_type": "upper",
-        "pc_fieldsplit_schur_precondition": "selfp",
 
         # Map fields
         "pc_fieldsplit_0_fields": velocity_fields,   # (1,1) velocity stages
@@ -279,12 +277,13 @@ if __name__ == "__main__":
             "ksp_rtol": 1e-10,
             "ksp_converged_reason": None,
             "pc_type": "python",
-            "pc_python_type": "__main__.KronPC",   # adjust if KronPC is imported
-            # KronPC options:
-            "kron_operator": "mass",               # K = mass matrix on single-stage space
-            "kron_pow": 0,                         # A^0 = I  => I \otimes (sub_pc) (MassInv-like)
-            # nested sub-PC on K:
-            "kron_sub_pc_type": "lu",
+            # "pc_python_type": "firedrake.MassInvPC",
+            "pc_python_type": "__main__.KronPC",
+            "kron": {
+                "operator": "mass",
+                "pow": 0,
+                "pc_type": "lu"
+            }
         },
     }
 
@@ -303,6 +302,7 @@ if __name__ == "__main__":
 
     # Advance in time
     while float(t) < T - 1e-10:
+    # for _ in range(1):
         stepper.advance()
         t.assign(float(t) + float(dt))
 
