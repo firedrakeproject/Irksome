@@ -4,3 +4,4 @@
 __pycache__/
 IRKsome.egg-info/
 /demos/*/*.py
+.DS_Store
