@@ -7,7 +7,7 @@ from firedrake import *
 from irksome import RadauIIA
 import numpy as np
 
-__all__ = ("KronPC",)
+__all__ = ("KronPC","MassKronPC", "StiffnessKronPC")
 
 # -----------------------------
 # KronPC definition
@@ -16,21 +16,17 @@ class KronPC(PCBase):
     r"""
     Preconditioner applying: y = coef * (A^{-p} \otimes K^{-1}) x
       - A is the Butcher matrix (RadauIIA(s)), p >= 0 (p=0 => I)
-      - K is assembled on the single-stage space via kron_operator \in {mass, stiffness}
-      - K^{-1} is approximated by a PETSc PC with prefix 'kron_sub_*'
+      - K is assembled on the single-stage space by subclasses via "form(trial, test)"
+      - K^{-1} is approximated by a PETSc PC with prefix 
     """
 
     needs_python_pmat = True
 
-    def form(self, trial, test, operator_kind):
-        if operator_kind == "mass":
-            a = inner(trial, test) * dx
-        elif operator_kind == "stiffness":
-            a = inner(grad(trial), grad(test)) * dx + 1e-12 * inner(trial, test) * dx
-        else:
-            raise ValueError(f"Unknown kron_operator '{operator_kind}' (use 'mass' or 'stiffness').")
-        bcs = None
-        return a, bcs
+
+    def form(self, trial, test):
+        """Return (a, bcs) for the single-stage operator K."""
+        raise NotImplementedError("KronPC.form() is abstract. Use MassKronPC or StiffnessKronPC (or a custom subclass).\
+                                  Subclass must implement 'form(trial, test)'.")
 
     def stage_mat(self, s, pow_):
         if pow_ == 0:
@@ -58,7 +54,6 @@ class KronPC(PCBase):
             raise ValueError("kron_pow must be a nonnegative integer.")
         self._pow = pow_
 
-        operator_kind = opts.getString(self._prefix + "operator", "mass")
         mat_type = opts.getString(self._prefix + "mat_type", "aij")
 
         _, P = pc.getOperators()
@@ -72,13 +67,15 @@ class KronPC(PCBase):
         Vstage = Vbig.sub(0)
         trial = TrialFunction(Vstage)
         test  = TestFunction(Vstage)
-        a, bcs = self.form(trial, test, operator_kind)
+        a, bcs = self.form(trial, test)
 
         fc_params = getattr(context, "fc_params", None)
         K = assemble(a, bcs=bcs, mat_type=mat_type, form_compiler_parameters=fc_params)
         self.K = K
 
         sub_pc = PETSc.PC().create(comm=pc.comm)
+        # Allow users to set options like kron_sub_pc_type hypre
+        sub_pc.setOptionsPrefix(self._prefix + "sub_")
         sub_pc.incrementTabLevel(1, parent=pc)
         sub_pc.setOperators(K.M.handle)
         sub_pc.setFromOptions()
@@ -130,8 +127,8 @@ class KronPC(PCBase):
         viewer.printfASCII("KronPC:\n")
         viewer.printfASCII(f"  stages        : {self.num_stages}\n")
         viewer.printfASCII(f"  coef          : {self.coef}\n")
-        viewer.printfASCII(f"  power (p)     : {self._pow}  [A^{-p}]\n")
-        viewer.printfASCII("  sub-PC for K^{-1} (kron_sub_*) options:\n")
+        viewer.printfASCII(f"  power (p)     : {self._pow}  [A^{{-p}}]\n")
+        viewer.printfASCII("  sub-PC for K^{-1} options:\n")
         if hasattr(self, "sub_pc") and self.sub_pc is not None:
             self.sub_pc.view(viewer)
 
@@ -139,3 +136,18 @@ class KronPC(PCBase):
         if hasattr(self, "sub_pc") and self.sub_pc is not None:
             self.sub_pc.destroy()
             self.sub_pc = None
+
+class MassKronPC(KronPC):
+    """K built from the mass form."""
+    def form(self, trial, test):
+        a = inner(trial, test) * dx
+        bcs = None
+        return a, bcs
+
+
+class StiffnessKronPC(KronPC):
+    """K built from the (regularized) stiffness form."""
+    def form(self, trial, test):
+        a = inner(grad(trial), grad(test)) * dx + 1e-12 * inner(trial, test) * dx
+        bcs = None
+        return a, bcs
