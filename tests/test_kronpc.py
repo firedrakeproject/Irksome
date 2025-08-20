@@ -72,7 +72,7 @@ def test_mass_kron_pc(ns):
         solver_parameters={
             "ksp_type": "preonly",
             "pc_type": "python",
-            "pc_python_type": "irksome.MassKronPC",  # per professor
+            "pc_python_type": "irksome.MassKronPC", 
             "mat_type": "matfree",
             "kron": {
                 "pow": 1,
