@@ -28,14 +28,13 @@ class KronPC(PCBase):
         raise NotImplementedError("KronPC.form() is abstract. Use MassKronPC or StiffnessKronPC (or a custom subclass).\
                                   Subclass must implement 'form(trial, test)'.")
 
-    def stage_mat(self, s, pow_):
-        if pow_ == 0:
+    def stage_mat(self, s):
+        p = getattr(self, "_pow", 0)
+        if p == 0:
             return np.eye(s)
         A = RadauIIA(s).A
         Ainv = np.linalg.inv(A)
-        if pow_ == 1:
-            return Ainv
-        return np.linalg.matrix_power(Ainv, pow_)
+        return Ainv if p == 1 else np.linalg.matrix_power(Ainv, p)
 
     @property
     def num_stages(self):
@@ -85,7 +84,7 @@ class KronPC(PCBase):
         self.sub_pc = sub_pc
 
         self._s = Vbig.num_sub_spaces()
-        self.L = self.stage_mat(self._s, self._pow)
+        self.L = self.stage_mat(self._s)
 
     def update(self, pc):
         pass
