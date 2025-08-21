@@ -4,7 +4,6 @@
 from firedrake.preconditioners.base import PCBase
 from firedrake.petsc import PETSc
 from firedrake import *
-from irksome import RadauIIA
 import numpy as np
 
 __all__ = ("KronPC","MassKronPC", "StiffnessKronPC")
@@ -32,7 +31,9 @@ class KronPC(PCBase):
         p = getattr(self, "_pow", 0)
         if p == 0:
             return np.eye(s)
-        A = RadauIIA(s).A
+        if not hasattr(self, "_A") or self._A is None:
+            raise ValueError("KronPC: stage matrix A not set.")
+        A = self._A
         Ainv = np.linalg.inv(A)
         return Ainv if p == 1 else np.linalg.matrix_power(Ainv, p)
 
@@ -82,8 +83,34 @@ class KronPC(PCBase):
             sub_pc.setType("lu")
         sub_pc.setUp()
         self.sub_pc = sub_pc
-
         self._s = Vbig.num_sub_spaces()
+        
+        # --- discover A from user-provided context (prefer appctx) ---
+        self._A = None
+        appctx = getattr(context, "appctx", None) or {}
+
+        A_src = None
+        bt = appctx.get("butcher_tableau", None)
+        if bt is not None and hasattr(bt, "A"):
+            A_src = bt.A
+        elif "A" in appctx:
+            A_src = appctx["A"]
+        elif hasattr(context, "A"):
+            A_src = context.A
+        else:
+            bt = getattr(context, "butcher_tableau", None)
+            if bt is not None and hasattr(bt, "A"):
+                A_src = bt.A
+
+        self._A = None if A_src is None else np.asarray(A_src, dtype=float)   
+        # validate only if we actually need A
+        if self._pow > 0:
+            if self._A is None:
+                raise ValueError("KronPC: no stage matrix A found. "
+                                "Set context.butcher_tableau.A or context.A before solve.")
+            if self._A.shape != (self._s, self._s):
+                raise ValueError(f"KronPC: A has shape {self._A.shape}, but s={self._s}.")
+    
         self.L = self.stage_mat(self._s)
 
     def update(self, pc):
