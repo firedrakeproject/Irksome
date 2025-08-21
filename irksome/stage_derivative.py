@@ -13,7 +13,7 @@ from .manipulation import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
 
-def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
+def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, stage_functions=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -54,8 +54,13 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     if bc_type is None:
         bc_type = "DAE"
 
+    if stage_functions is None:
+        stage_functions = {}
+    stage_functions[u0] = stages
+
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    timedep_coeffs = tuple(stage_functions)
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=timedep_coeffs)
     v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
@@ -76,17 +81,18 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
 
     # set up the pieces we need to work with to do our substitutions
     v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
-    w_np = numpy.reshape(stages, (num_stages, *u0.ufl_shape))
-    A1w = A1 @ w_np
-    A2invw = A2inv @ w_np
+    w_np = {w: numpy.reshape(stage_functions[w], (num_stages, *w.ufl_shape))
+            for w in stage_functions}
+    A1w = {w: A1 @ w_np[w] for w in w_np}
+    A2invw = {w: A2inv @ w_np[w] for w in w_np}
 
-    dtu = TimeDerivative(u0)
     repl = {}
     for i in range(num_stages):
         repl[i] = {t: t + c[i] * dt,
-                   v: v_np[i],
-                   u0: u0 + A1w[i] * dt,
-                   dtu: A2invw[i]}
+                   v: v_np[i]}
+        for w in w_np:
+            repl[i][w] = w + A1w[w][i] * dt
+            repl[i][TimeDerivative(w)] = A2invw[w][i]
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 
@@ -99,7 +105,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
             if isinstance(bc, EquationBCSplit):
                 raise NotImplementedError("EquationBC not implemented for ODE formulation")
             gorig = as_ufl(bc._original_arg)
-            gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u0,))
+            gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=timedep_coeffs)
             gcur = replace(gfoo, {t: t + c[i] * dt})
             return BCStageData(bc, gcur, u0, stages, i)
 
@@ -112,7 +118,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
 
         def bc2stagebc(bc, i):
             if isinstance(bc, EquationBCSplit):
-                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u0,))
+                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=timedep_coeffs)
                 F_bc_new = replace(F_bc_orig, repl[i])
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
                 return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
@@ -179,11 +185,12 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             associated with the Runge-Kutta method
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
-                 solver_parameters=None, splitting=AI,
+                 solver_parameters=None, splitting=AI, stage_functions=None,
                  appctx=None, bc_type="DAE", **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
+
         A1, A2 = splitting(butcher_tableau.A)
         try:
             self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b))
@@ -195,7 +202,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
-                         butcher_tableau=butcher_tableau, **kwargs)
+                         butcher_tableau=butcher_tableau,
+                         stage_functions=stage_functions,
+                         **kwargs)
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -216,7 +225,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                        tableau or self.butcher_tableau,
                        self.t, self.dt,
                        self.u0, stages, self.orig_bcs, self.bc_type,
-                       self.splitting)
+                       self.splitting,
+                       self.stage_functions)
 
 
 class AdaptiveTimeStepper(StageDerivativeTimeStepper):
