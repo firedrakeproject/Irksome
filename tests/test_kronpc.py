@@ -29,6 +29,7 @@ def random_rhs(Vbig, seed: int = 1234):
         v.assemble()
     return L
 
+
 @pytest.mark.parametrize("ns", [2,3,4,5]) # meaningful cases are ns >= 2
 def test_mass_kron_pc(ns):
     """
@@ -80,7 +81,7 @@ def test_mass_kron_pc(ns):
                 "sub":{
                     "pc_type": "lu"
                     },
-        }
+            }
         },
         appctx={"A": A_np},
     )
