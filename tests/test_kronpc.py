@@ -75,13 +75,8 @@ def test_mass_kron_pc(ns):
             "pc_type": "python",
             "pc_python_type": "irksome.MassKronPC", 
             "mat_type": "matfree",
-            "kron": {
-                "pow": 1,
-                "coef": 1.0,
-                "sub":{
-                    "pc_type": "lu"
-                    },
-            }
+            "kron_sub_pc_type": "lu"
+            
         },
         appctx={"A": A_np},
     )
