@@ -13,33 +13,17 @@ __all__ = ("KronPC","MassKronPC", "StiffnessKronPC")
 # -----------------------------
 class KronPC(PCBase):
     r"""
-    Preconditioner applying: y = coef * (A^{-p} \otimes K^{-1}) x
-      - A is the Butcher matrix (RadauIIA(s)), p >= 0 (p=0 => I)
+    Preconditioner applying: y =  (L \otimes K^{-1}) x
+      - L is the stage matrix, provided by the user. If A is provided, we set L = A^{-1}. If neither provided, L = I_s.
       - K is assembled on the single-stage space by subclasses via "form(trial, test)"
       - K^{-1} is approximated by a PETSc PC with prefix 
     """
-
     needs_python_pmat = True
-
 
     def form(self, trial, test):
         """Return (a, bcs) for the single-stage operator K."""
         raise NotImplementedError("KronPC.form() is abstract. Use MassKronPC or StiffnessKronPC (or a custom subclass).\
                                   Subclass must implement 'form(trial, test)'.")
-
-    def stage_mat(self, s):
-        p = getattr(self, "_pow", 0)
-        if p == 0:
-            return np.eye(s)
-        if not hasattr(self, "_A") or self._A is None:
-            raise ValueError("KronPC: stage matrix A not set.")
-        A = self._A
-        Ainv = np.linalg.inv(A)
-        return Ainv if p == 1 else np.linalg.matrix_power(Ainv, p)
-
-    @property
-    def num_stages(self):
-        return self._s
 
     def initialize(self, pc):
         if pc.getType() != "python":
@@ -47,12 +31,6 @@ class KronPC(PCBase):
 
         self._prefix = (pc.getOptionsPrefix() or "") + "kron_"
         opts = PETSc.Options()
-
-        self.coef = opts.getReal(self._prefix + "coef", 1.0)
-        pow_ = opts.getInt(self._prefix + "pow", 1)
-        if pow_ < 0:
-            raise ValueError("kron_pow must be a nonnegative integer.")
-        self._pow = pow_
 
         mat_type = opts.getString(self._prefix + "mat_type", "aij")
 
@@ -74,7 +52,6 @@ class KronPC(PCBase):
         self.K = K
 
         sub_pc = PETSc.PC().create(comm=pc.comm)
-        # Allow users to set options like kron_sub_pc_type hypre
         sub_pc.setOptionsPrefix(self._prefix + "sub_")
         sub_pc.incrementTabLevel(1, parent=pc)
         sub_pc.setOperators(K.M.handle)
@@ -84,53 +61,64 @@ class KronPC(PCBase):
         sub_pc.setUp()
         self.sub_pc = sub_pc
         self._s = Vbig.num_sub_spaces()
+        self.L = self._build_stage_L(self._s, context, pc)
+
         
-        # --- discover A from user-provided context (prefer appctx) ---
-        self._A = None
+# --- discover A from user-provided context (prefer appctx) ---
+    def _build_stage_L(self, s, context, pc):
+        """
+        Build the stage coupling matrix L.
+            - If appctx/context supplies A, set L = A^{-1}.
+            - If appctx/context supplies butcher_tableau with .A, use that.
+            - Else default to I_s.
+        """
+        # Look in appctx first
         appctx = getattr(context, "appctx", None) or {}
-
-        A_src = None
-        bt = appctx.get("butcher_tableau", None)
-        if bt is not None and hasattr(bt, "A"):
-            A_src = bt.A
-        elif "A" in appctx:
-            A_src = appctx["A"]
-        elif hasattr(context, "A"):
-            A_src = context.A
-        else:
-            bt = getattr(context, "butcher_tableau", None)
+        A = appctx.get("A", None)
+        if A is None:
+            bt = appctx.get("butcher_tableau", None)
             if bt is not None and hasattr(bt, "A"):
-                A_src = bt.A
+                A = bt.A
 
-        self._A = None if A_src is None else np.asarray(A_src, dtype=float)   
-        # validate only if we actually need A
-        if self._pow > 0:
-            if self._A is None:
-                raise ValueError("KronPC: no stage matrix A found. "
-                                "Set context.butcher_tableau.A or context.A before solve.")
-            if self._A.shape != (self._s, self._s):
-                raise ValueError(f"KronPC: A has shape {self._A.shape}, but s={self._s}.")
-    
-        self.L = self.stage_mat(self._s)
+        # Fall back to direct attributes
+        if A is None:
+            if hasattr(context, "A"):
+                A = context.A
+            else:
+                bt = getattr(context, "butcher_tableau", None)
+                if bt is not None and hasattr(bt, "A"):
+                    A = bt.A
+
+        if A is not None:
+            A = np.asarray(A, dtype=float)
+            if A.shape != (s, s):
+                raise ValueError(f"KronPC: A has shape {A.shape}, expected {(s, s)}.")
+            return np.linalg.inv(A)
+
+        # Default: identity
+        return np.eye(s)
 
     def update(self, pc):
         pass
 
     def apply(self, pc, x, y):
-        s = self.num_stages
+        s = self._s
 
         with self.work_in.dat.vec_wo as vin:
             x.copy(vin)
 
+        # Stagewise K^{-1}
         for i in range(s):
             with self.work_in.subfunctions[i].dat.vec_ro as xin_i, \
                  self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
                 mid_i.set(0.0)
                 self.sub_pc.apply(xin_i, mid_i)
 
+        # Zero outputs
         for j in range(s):
             self.work_out.subfunctions[j].assign(0.0)
 
+         # y_stage[j] += sum_i L[j,i] * mid[i]
         for j in range(s):
             row = self.L[j, :]
             with self.work_out.subfunctions[j].dat.vec_wo as yj:
@@ -139,7 +127,7 @@ class KronPC(PCBase):
                     if lij == 0.0:
                         continue
                     with self.work_mid.subfunctions[i].dat.vec_ro as ui:
-                        yj.axpy(self.coef * lij, ui)
+                        yj.axpy(lij, ui)
 
         with self.work_out.dat.vec_ro as vout:
             vout.copy(y)
@@ -151,9 +139,7 @@ class KronPC(PCBase):
         if viewer is None:
             viewer = PETSc.Viewer.STDOUT(pc.comm)
         viewer.printfASCII("KronPC:\n")
-        viewer.printfASCII(f"  stages        : {self.num_stages}\n")
-        viewer.printfASCII(f"  coef          : {self.coef}\n")
-        viewer.printfASCII(f"  power (p)     : {self._pow}  [A^{{-p}}]\n")
+        viewer.printfASCII(f"  stages        : {self._s}\n")
         viewer.printfASCII("  sub-PC for K^{-1} options:\n")
         if hasattr(self, "sub_pc") and self.sub_pc is not None:
             self.sub_pc.view(viewer)
