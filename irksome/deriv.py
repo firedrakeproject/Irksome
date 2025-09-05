@@ -116,9 +116,9 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
     div = _linear_op
 
 
-# mapping rules to splat out time derivatives so that replacement should
-# work on more complex problems.
 class TimeDerivativeRuleDispatcher(DAGTraverser):
+    """This provides mapping rules to spat out time derivatives so that
+    replacement should work on more complex problems."""
     def __init__(self, t=None, timedep_coeffs=None, **kwargs):
         super().__init__(**kwargs)
         self.rules = TimeDerivativeRuleset(t=t, timedep_coeffs=timedep_coeffs)
@@ -127,6 +127,14 @@ class TimeDerivativeRuleDispatcher(DAGTraverser):
     # see https://bugs.python.org/issue36457.
     @singledispatchmethod
     def process(self, o):
+        """Process a UFL expression for time derivative rules.
+
+        Args:
+            o: The UFL expression to process.
+
+        Returns:
+            The processed expression.
+        """
         return super().process(o)
 
     @process.register(TimeDerivative)

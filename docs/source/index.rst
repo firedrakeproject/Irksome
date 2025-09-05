@@ -30,7 +30,15 @@ Acknowledgements
 ================
 
 The Irksome team is deeply grateful to David Ham for setting up our initial documentation and Jack Betteridge for initializing the CI.  Ivan Yashchuk set up the GitHub Actions.
-Lawrence Mitchell provided early assistance on some UFL manipulation and documentation
+Lawrence Mitchell provided early assistance on some UFL manipulation and documentation.
+
+.. image:: images/nsf.png
+   :alt: NSF Logo
+   :width: 20%
+   :align: center
+
+
+We also acknowledge support from the National Science Foundation project 2410408.
 
 
 Getting started
