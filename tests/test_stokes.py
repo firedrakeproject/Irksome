@@ -45,7 +45,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
          - inner(p_rhs, q)*dx)
 
     bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
-    nsp = [(1, VectorSpaceBasis(constant=True))]
+    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=mesh.comm)])
 
     u, p = z.subfunctions
     u.interpolate(uexact)
@@ -130,7 +130,7 @@ def NSETest(butch, stage_type, splitting):
     bcs = [DirichletBC(Z.sub(0), Constant((1, 0)), (4,)),
            DirichletBC(Z.sub(0), 0, (1, 2, 3))]
 
-    nullspace = [(1, VectorSpaceBasis(constant=True))]
+    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=M.comm)])
 
     ns = butch.num_stages
     ind_pressure = ",".join([str(2*i+1) for i in range(ns)])
@@ -174,7 +174,7 @@ def NSETest(butch, stage_type, splitting):
                           bcs=bcs,
                           stage_type="value",
                           solver_parameters=solver_params,
-                          nullspace=nullspace)
+                          nullspace=nsp)
 
     tfinal = 1.0
     u, p = up.subfunctions

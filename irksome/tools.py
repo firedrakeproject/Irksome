@@ -1,7 +1,7 @@
 from operator import mul
 from functools import reduce
 import numpy
-from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant, split
+from firedrake import Function, FunctionSpace, VectorSpaceBasis, MixedVectorSpaceBasis, Constant, split
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor, zero
 from ufl import replace as ufl_replace
@@ -41,6 +41,9 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     if nullspace is None:
         nspnew = None
     else:
+        if isinstance(nullspace, (MixedVectorSpaceBasis, VectorSpaceBasis)):
+            nullspace = [(field, basis) for field, basis in enumerate(nullspace)
+                         if isinstance(basis, VectorSpaceBasis)]
         try:
             nullspace.sort()
         except AttributeError:
