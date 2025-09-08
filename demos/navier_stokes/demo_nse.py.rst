@@ -100,15 +100,9 @@ will assemble into a PETSc MatNest otherwise)::
               }
 
 Since this problem is ill-posed, we specify a nullspace vector to
-remove the possible constant "shift" in the pressure. Irksome
-specifies nullspaces a bit differently than Firedrake, as a list of
-tuples of the form ``(index, VSB)`` giving an index into the mixed
-function space ``Z`` and a :class:`firedrake.VectorSpaceBasis` that
-gets used to compute a basis for the nullspace over the function space
-associated with the Runge-Kutta stages.  Here we have a nullspace for
-the constant function over the pressure space, which is ``Z.sub(1)``::
+remove the possible constant "shift" in the pressure::
 
-  nsp = [(1, VectorSpaceBasis(constant=True))]
+  nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=msh.comm)])
 
 
 Most of Irksome's magic happens in the :class:`.TimeStepper`.  It
