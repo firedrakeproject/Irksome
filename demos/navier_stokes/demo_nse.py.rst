@@ -29,7 +29,7 @@ that
 
    (u_t, v) + (u \cdot \nabla u, v) + \frac{1}{Re}(\nabla u, \nabla v) - (p, \nabla\cdot v) & = 0
 
-   (\nabla u, w) & = 0
+   (\nabla \cdot u, w) & = 0
 
 As usual, we need to import firedrake::
 
@@ -89,15 +89,15 @@ will assemble into a PETSc MatNest otherwise)::
 
   luparams = {"mat_type": "aij",
               "snes_type": "newtonls",
-	      "snes_monitor": None,
-	      "ksp_type": "preonly",
-	      "pc_type": "lu",
-	      "pc_factor_mat_solver_type": "mumps",
-	      "snes_linesearch_type": "l2",
-	      "snes_force_iteration": 1,
-	      "snes_rtol": 1e-8,
-	      "snes_atol": 1e-8,
-	      }
+              "snes_monitor": None,
+              "ksp_type": "preonly",
+              "pc_type": "lu",
+              "pc_factor_mat_solver_type": "mumps",
+              "snes_linesearch_type": "l2",
+              "snes_force_iteration": 1,
+              "snes_rtol": 1e-8,
+              "snes_atol": 1e-8,
+              }
 
 Since this problem is ill-posed, we specify a nullspace vector to
 remove the possible constant "shift" in the pressure. Irksome
@@ -124,9 +124,7 @@ This logic is pretty self-explanatory.  We use the
 solves the variational problem to compute the Runge-Kutta stage values
 and then updates the solution.::
 
-  while (float(t) < 1.0):
-      if (float(t) + float(dt) > 1.0):
-          dt.assign(1.0 - float(t))
+  for _ in range(N):
       print(f"Stepping from time {float(t)}")
       stepper.advance()
       t.assign(float(t) + float(dt))
