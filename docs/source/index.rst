@@ -70,6 +70,14 @@ The best place to start are with some simple heat and wave equations:
    demos/demo_mixed_heat.py
    demos/demo_RTwave.py
 
+To see a nonlinear problem in action, we have a simple lid-driven
+cavity example, too:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_nse.py
+
 Since those demos invariably rely on the non-scalable LU factorization,
 we have several demos showing how to work with Firedrake solver options
 to deploy more efficient methods:
