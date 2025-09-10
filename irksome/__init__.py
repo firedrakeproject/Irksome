@@ -31,5 +31,5 @@ from .tools import MeshConstant             # noqa: F401
 from .wso_dirk_tableaux import WSODIRK      # noqa: F401
 from .galerkin_stepper import GalerkinTimeStepper  # noqa: F401
 from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper  # noqa: F401
-from .KronPC import KronPC, MassKronPC, StiffnessKronPC # noqa: F401
+from .KronPC import KronPC, MassKronPC, StiffnessKronPC, SIPGStiffnessKronPC # noqa: F401
 
