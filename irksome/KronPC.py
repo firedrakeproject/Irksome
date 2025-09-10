@@ -6,7 +6,8 @@ from firedrake.petsc import PETSc
 from firedrake import *
 import numpy as np
 
-__all__ = ("KronPC","MassKronPC", "StiffnessKronPC")
+
+__all__ = ("KronPC","MassKronPC", "StiffnessKronPC", "SIPGStiffnessKronPC")
 
 # -----------------------------
 # KronPC definition
@@ -161,5 +162,37 @@ class StiffnessKronPC(KronPC):
     """K built from the (regularized) stiffness form."""
     def form(self, trial, test):
         a = inner(grad(trial), grad(test)) * dx + 1e-12 * inner(trial, test) * dx
+        bcs = None
+        return a, bcs
+    
+class SIPGStiffnessKronPC(KronPC):
+    r"""
+    Discontinuous Galerkin (SIPG) pressure "stiffness" for DG spaces (e.g., P_{k}^{\mathrm{disc}}).
+    Implementation details:
+    - The trial/test must belong to a scalar DG space (e.g., DG(k)).
+    - The sub-solve for \(K^{-1}\) is handled by a PETSc PC with options prefix ``kron_sub_*``.
+    """
+
+    def form(self, trial, test):
+        mesh = trial.ufl_domain()
+        n    = FacetNormal(mesh)
+        h    = CellDiameter(mesh)
+
+        # Polynomial degree k of the DG space
+        k = trial.ufl_function_space().ufl_element().degree()
+
+        # Read base penalty C from PETSc options; default C=10
+        C = PETSc.Options().getReal(self._prefix + "sipg_C", 10.0)
+
+        # \alpha = C * (k+1)(k+2)
+        alpha = Constant(C * (k + 1) * (k + 2))
+        a = (inner(grad(test), grad(trial)) * dx
+             - inner(avg(grad(trial)), jump(test, n)) * dS
+             - inner(avg(grad(test)), jump(trial, n)) * dS
+             + (alpha / avg(h)) * inner(jump(trial), jump(test)) * dS
+             - inner(grad(test), trial * n) * ds
+             - inner(grad(trial), test * n) * ds
+             + (alpha / h) * inner(trial, test) * ds)
+
         bcs = None
         return a, bcs
