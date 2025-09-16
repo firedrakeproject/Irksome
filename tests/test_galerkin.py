@@ -323,7 +323,7 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     determinant_forms = [test_u, w0, w1, w2]
     tensor = as_tensor(determinant_forms)
 
-    F = Llow(inner(Dt(u), test_u)*dx) + Lhigh(-(det(tensor) / (2*L*H))*dx)
+    F = Llow(inner(Dt(u), test_u)*dx - (det(tensor) / (2*L*H))*dx)
     F += Llow(inner(w0, v0)*dx) + Lhigh(-inner(dHdu, v0)*dx)
     F += Llow(inner(w1, v1)*dx) + Lhigh(-inner(dA1du, v1)*dx)
     F += Llow(inner(w2, v2)*dx) + Lhigh(-inner(dA2du, v2)*dx)
