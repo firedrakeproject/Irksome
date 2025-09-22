@@ -5,6 +5,7 @@ from firedrake.preconditioners.base import PCBase
 from firedrake.petsc import PETSc
 from firedrake import *
 import numpy as np
+from firedrake.dmhooks import get_appctx, get_function_space
 
 
 __all__ = ("KronPC","MassKronPC", "StiffnessKronPC", "SIPGStiffnessKronPC")
@@ -19,7 +20,7 @@ class KronPC(PCBase):
       - K is assembled on the single-stage space by subclasses via "form(trial, test)"
       - K^{-1} is approximated by a PETSc PC with prefix 
     """
-    needs_python_pmat = True
+    needs_python_pmat = False
 
     def form(self, trial, test):
         """Return (a, bcs) for the single-stage operator K."""
@@ -35,9 +36,14 @@ class KronPC(PCBase):
 
         mat_type = opts.getString(self._prefix + "mat_type", "aij")
 
-        _, P = pc.getOperators()
-        context = P.getPythonContext()
-        Vbig = context.a.arguments()[0].function_space()
+        # _, P = pc.getOperators()
+        # context = P.getPythonContext()
+        dm = pc.getDM()
+        context = get_appctx(dm)
+        # print(type(get_appctx(pc.getDM())), getattr(get_appctx(pc.getDM()), "appctx", None))
+
+        # Vbig = context.a.arguments()[0].function_space()
+        Vbig = get_function_space(dm)
 
         self.work_in  = Cofunction(Vbig.dual(), name="kron_work_in")
         self.work_mid = Function(Vbig,          name="kron_work_mid")
