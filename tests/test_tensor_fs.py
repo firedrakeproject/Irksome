@@ -3,7 +3,7 @@ from firedrake import *
 import pytest
 
 
-@pytest.mark.parametrize("stage_type", ["stage_value", "stage_derivative"])
+@pytest.mark.parametrize("stage_type", ["deriv", "value"])
 def test_tensor(stage_type):
     butcher_tableau = GaussLegendre(1)
 
@@ -25,3 +25,4 @@ def test_tensor(stage_type):
     stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                           stage_type=stage_type,
                           solver_parameters=luparams)
+    stepper.advance()

@@ -5,7 +5,7 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
-from ufl import zero
+from ufl import as_tensor, zero
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
@@ -117,7 +117,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: A2invTv[i],
-                u0: w_np[i] - u0}
+                u0: as_tensor(w_np[i]) - u0}
         Fnew += replace(F_dtless, repl)
 
     # Handle the rest of the terms
@@ -175,7 +175,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         elif basis_type == "Bernstein":
             assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
             bern = Bernstein(ufc_simplex(1), degree)
-            pts = reshape(numpy.append(0, butcher_tableau.c), (-1, 1))
+            pts = numpy.reshape(numpy.append(0, butcher_tableau.c), (-1, 1))
             vandermonde = bern.tabulate(0, pts)[(0, )].T
         else:
             raise ValueError("Unknown or unimplemented basis transformation type")

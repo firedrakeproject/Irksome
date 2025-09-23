@@ -8,7 +8,7 @@ from ufl import zero
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative, expand_time_derivatives
 from .stage_value import getFormStage
-from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, getNullspace, get_stage_space
+from .tools import AI, ConstantOrZero, IA, MeshConstant, reshape, replace, getNullspace, get_stage_space
 from .bcs import bc2space
 
 

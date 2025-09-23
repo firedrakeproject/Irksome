@@ -77,8 +77,8 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *u0.ufl_shape))
     w_np = reshape(stages, (num_stages, *u0.ufl_shape))
-    A1w = dot(A1, test)
-    A2invw = dot(A2inv, stages)
+    A1w = dot(A1, w_np)
+    A2invw = dot(A2inv, w_np)
 
     dtu = TimeDerivative(u0)
     repl = {}
