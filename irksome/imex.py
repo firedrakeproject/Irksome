@@ -52,8 +52,8 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     Ait = vecconst(butch.A)
     C = vecconst(butch.c)
 
-    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
-    u_np = np.reshape(UU, (num_stages, *u0.ufl_shape))
+    v_np = reshape(VV, (num_stages, *u0.ufl_shape))
+    u_np = reshape(UU, (num_stages, *u0.ufl_shape))
 
     Fit = zero()
     Fprop = zero()

@@ -1,0 +1,27 @@
+from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
+from firedrake import *
+import pytest
+
+
+@pytest.mark.parametrize("stage_type", ["stage_value", "stage_derivative"])
+def test_tensor(stage_type):
+    butcher_tableau = GaussLegendre(1)
+
+    msh = UnitSquareMesh(1, 1)
+    V = TensorFunctionSpace(msh, "CG", 1)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1.0)
+    t = MC.Constant(0.0)
+
+    u = Function(V)
+    v = TestFunction(V)
+
+    F = inner(Dt(u), v)*dx + inner(u, v)*dx
+    luparams = {"mat_type": "aij",
+                "ksp_type": "preonly",
+                "pc_type": "lu"}
+    bc = []
+    stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
+                          stage_type=stage_type,
+                          solver_parameters=luparams)

@@ -6,7 +6,7 @@ from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
-from .tools import replace, vecconst
+from .tools import reshape, replace, vecconst
 import numpy as np
 from firedrake import TestFunction
 
@@ -95,9 +95,9 @@ def getFormGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, bcs=None):
     qpts = vecconst(qpts.reshape((-1,)))
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = np.reshape(test, (num_stages, *u0.ufl_shape))
-    w_np = np.reshape(stages, (num_stages, *u0.ufl_shape))
-    u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
+    v_np = reshape(test, (num_stages, *u0.ufl_shape))
+    w_np = reshape(stages, (num_stages, *u0.ufl_shape))
+    u_np = np.concatenate((reshape(u0, (1, *u0.ufl_shape)), w_np))
     vsub = test_vals_w.T @ v_np
     usub = trial_vals.T @ u_np
     dtu0sub = trial_dvals.T @ u_np

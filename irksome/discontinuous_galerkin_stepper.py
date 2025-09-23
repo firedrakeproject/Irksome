@@ -7,7 +7,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
-from .tools import replace, vecconst
+from .tools import reshape, replace, vecconst
 import numpy as np
 from firedrake import TestFunction
 
@@ -95,8 +95,8 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     F_remainder = split_form.remainder
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = np.reshape(test, (num_stages, *u0.ufl_shape))
-    u_np = np.reshape(stages, (num_stages, *u0.ufl_shape))
+    v_np = reshape(test, (num_stages, *u0.ufl_shape))
+    u_np = reshape(stages, (num_stages, *u0.ufl_shape))
     vsub = test_vals_w.T @ v_np
     usub = trial_vals.T @ u_np
     dtu0sub = trial_dvals.T @ u_np
