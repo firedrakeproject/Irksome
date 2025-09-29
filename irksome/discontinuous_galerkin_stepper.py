@@ -177,9 +177,10 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             instance to be passed to a
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
+    :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     """
     def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None, **kwargs):
+                 quadrature=None, bounds=None, **kwargs):
         assert order >= 0
         self.order = order
         self.basis_type = basis_type
@@ -198,7 +199,10 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
 
         self.update_b = vecconst(self.el.tabulate(0, (1.0,))[(0,)])
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
+        if bounds is not None:
+            assert (basis_type is None) or (basis_type != "integral"), "The Bernstein basis or a pointwise basis is required for bounds constraints"
+
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bounds=bounds, **kwargs)
 
     def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, F=None):
         if basis_type is None:
