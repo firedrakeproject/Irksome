@@ -167,7 +167,6 @@ class MassKronPC(KronPC):
 class StiffnessKronPC(KronPC):
     """K built from the (regularized) stiffness form."""
     def form(self, trial, test):
-        print("Yes I am using non SIPG")
         a = inner(grad(trial), grad(test)) * dx + 1e-12 * inner(trial, test) * dx
         bcs = None
         return a, bcs
