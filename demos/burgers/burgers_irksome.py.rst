@@ -154,4 +154,4 @@ outputting each result. ::
           print(f"t = {float(t):.6f}")
           outfile.write(project(u, V_out, name="Velocity"))
 
-A python script version of this demo can be found :demo:`here <burgers.py>`.
+
