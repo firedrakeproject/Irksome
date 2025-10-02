@@ -49,9 +49,6 @@ We then imoprt Irksome which gives us access to our time stepper and use our exp
       warning("This demo requires Irksome to be installed.")
       sys.exit(0)
 
-  butcher_tableau = SSPButcherTableau(3, 3)
-
-  ns = butcher_tableau.num_stages
 
 We now set up a square mesh. ::
 
