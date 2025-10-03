@@ -49,17 +49,20 @@ We then imoprt Irksome which gives us access to our time stepper and use our exp
       warning("This demo requires Irksome to be installed.")
       sys.exit(0)
 
+We also import time for calculating the runtime. ::
+  
+  from time import perf_counter
 
 We now set up a square mesh. ::
 
   n = 40
-  mesh = UnitSquareMesh(n, n,quadrilateral=True)
+  mesh = UnitSquareMesh(n, n)
 
 We choose degree 2 continuous Lagrange polynomials. We also need a
 piecewise linear space for output purposes::
 
-  V = VectorFunctionSpace(mesh, "DQ", 2)
-  V_out = VectorFunctionSpace(mesh, "DQ", 1)
+  V = VectorFunctionSpace(mesh, "CG", 2)
+  V_out = VectorFunctionSpace(mesh, "CG", 1)
 
 We also need solution functions. Note that, since this is a nonlinear problem, we don't
 define trial functions::
@@ -163,13 +166,24 @@ Finally, we loop over the timesteps solving the equation each time and
 outputting each result. ::
 
   step = 0
+  t0 = perf_counter()
   while float(t) < T - 0.5*dt:
       stepper.advance()                      # advance u in time
       t.assign(float(t) + dt)                # update physical time
-      print(step, float(t), norm(u, 'L2'))
+      # print(step, float(t), norm(u, 'L2'))
       step += 1
-      if step % 20 == 0:
+      if step % 5 == 0:
           print(f"t = {float(t):.6f}")
           outfile.write(project(u, V_out, name="Velocity"))
+  t1 = perf_counter()
+
+Now we calculate the code runtime. ::
+    
+  print(f"Total Wall-clock runtime: {t1 - t0:.3f} s") 
+
+We Also retrieve the average number of linear iteration per time-step using stepper stats. ::
+
+  (steps, nl_its, linear_its) = stepper.solver_stats()
+  print(f"The average number of linear iterations per nonlinear iteration is {linear_its/nl_its}.") 
 
 
