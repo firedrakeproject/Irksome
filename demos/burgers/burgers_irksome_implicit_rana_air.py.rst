@@ -80,7 +80,9 @@ We start with  value of u set to the initial condition::
 
   nu = 0.005
 
-The timestep is set based on CFL limit, We choose a safe CFL factor for advection-diffusion::
+We use an implicit  (A/L-stable), so we are not constrained
+by an explicit CFL condition. For reproducibility we take a uniform step
+dt = 1/n  and run to T = 1.0.::
 
   dt = 1.0/n      
   T = 1.0
