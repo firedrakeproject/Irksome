@@ -36,13 +36,9 @@ class KronPC(PCBase):
 
         mat_type = opts.getString(self._prefix + "mat_type", "aij")
 
-        # _, P = pc.getOperators()
-        # context = P.getPythonContext()
         dm = pc.getDM()
         context = get_appctx(dm)
-        # print(type(get_appctx(pc.getDM())), getattr(get_appctx(pc.getDM()), "appctx", None))
 
-        # Vbig = context.a.arguments()[0].function_space()
         Vbig = get_function_space(dm)
 
         self.work_in  = Cofunction(Vbig.dual(), name="kron_work_in")
@@ -58,17 +54,6 @@ class KronPC(PCBase):
         K = assemble(a, bcs=bcs, mat_type=mat_type, form_compiler_parameters=fc_params)
         self.K = K
 
-        # sub_pc = PETSc.PC().create(comm=pc.comm)
-        # sub_pc.setOptionsPrefix(self._prefix + "sub_")
-        # sub_pc.incrementTabLevel(1, parent=pc)
-        # sub_pc.setOperators(K.M.handle)
-        # sub_pc.setFromOptions()
-        # if sub_pc.getType() is None:
-        #     sub_pc.setType("lu")
-        # sub_pc.setUp()
-        # self.sub_pc = sub_pc
-        # self._s = Vbig.num_sub_spaces()
-        # self.L = self._build_stage_L(self._s, context, pc)
 
         # NEW: create a sub-KSP (instead of a raw PC) so we can use python PCs with DM/appctx
         sub_ksp = PETSc.KSP().create(comm=pc.comm)
@@ -86,7 +71,7 @@ class KronPC(PCBase):
         sub_ksp.setOperators(K.M.handle)
         sub_ksp.setFromOptions()
 
-        # Sensible defaults if the user didn't set anything:
+        # defaults if the user didn't set anything:
         if sub_ksp.getType() is None:
             sub_ksp.setType("preonly")
         if sub_ksp.getPC().getType() is None:
@@ -95,7 +80,7 @@ class KronPC(PCBase):
         sub_ksp.setUp()
 
         self.sub_ksp = sub_ksp
-        self.sub_pc  = sub_ksp.getPC()   # keep for .view() convenience
+        self.sub_pc  = sub_ksp.getPC()   
         self._s = Vbig.num_sub_spaces()
         self.L = self._build_stage_L(self._s, context, pc)
 
@@ -139,6 +124,7 @@ class KronPC(PCBase):
 
     def apply(self, pc, x, y):
         s = self._s
+        y.set(0.0)
 
         with self.work_in.dat.vec_wo as vin:
             x.copy(vin)
@@ -169,7 +155,38 @@ class KronPC(PCBase):
             vout.copy(y)
 
     def applyTranspose(self, pc, x, y):
-        self.apply(pc, x, y)
+        s = self._s
+        y.set(0.0)
+
+        with self.work_in.dat.vec_wo as vin:
+            x.copy(vin)
+
+        # Stagewise K^{-T}
+        for i in range(s):
+            with self.work_in.subfunctions[i].dat.vec_ro as rhs_i, \
+                self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
+                mid_i.set(0.0)
+                # requires the sub-KSP (PC) to support transpose solves
+                self.sub_ksp.solveTranspose(rhs_i, mid_i)
+
+        # Zero outputs
+        for j in range(s):
+            self.work_out.subfunctions[j].assign(0.0)
+
+        # y_stage[j] = sum_i L^T[j,i] * mid[i]
+        LT = self.L.T
+        for j in range(s):
+            row = LT[j, :]
+            with self.work_out.subfunctions[j].dat.vec_wo as yj:
+                for i in range(s):
+                    lij = float(row[i])
+                    if lij != 0.0:
+                        with self.work_mid.subfunctions[i].dat.vec_ro as ui:
+                            yj.axpy(lij, ui)
+
+        with self.work_out.dat.vec_ro as vout:
+            vout.copy(y)
+
 
     def view(self, pc, viewer=None):
         if viewer is None:
@@ -223,7 +240,6 @@ class SIPGStiffnessKronPC(KronPC):
         # penal = C * (k+1)(k+2)
         penal = Constant(C * (k + 1) * (k + 2))
         a = (inner(grad(test), grad(trial)) * dx
-            #  + 1e-12 * inner(trial, test) * dx
              - inner(avg(grad(trial)), jump(test, n)) * dS
              - inner(avg(grad(test)), jump(trial, n)) * dS
              + (penal / avg(h)) * inner(jump(trial), jump(test)) * dS
