@@ -58,15 +58,44 @@ class KronPC(PCBase):
         K = assemble(a, bcs=bcs, mat_type=mat_type, form_compiler_parameters=fc_params)
         self.K = K
 
-        sub_pc = PETSc.PC().create(comm=pc.comm)
-        sub_pc.setOptionsPrefix(self._prefix + "sub_")
-        sub_pc.incrementTabLevel(1, parent=pc)
-        sub_pc.setOperators(K.M.handle)
-        sub_pc.setFromOptions()
-        if sub_pc.getType() is None:
-            sub_pc.setType("lu")
-        sub_pc.setUp()
-        self.sub_pc = sub_pc
+        # sub_pc = PETSc.PC().create(comm=pc.comm)
+        # sub_pc.setOptionsPrefix(self._prefix + "sub_")
+        # sub_pc.incrementTabLevel(1, parent=pc)
+        # sub_pc.setOperators(K.M.handle)
+        # sub_pc.setFromOptions()
+        # if sub_pc.getType() is None:
+        #     sub_pc.setType("lu")
+        # sub_pc.setUp()
+        # self.sub_pc = sub_pc
+        # self._s = Vbig.num_sub_spaces()
+        # self.L = self._build_stage_L(self._s, context, pc)
+
+        # NEW: create a sub-KSP (instead of a raw PC) so we can use python PCs with DM/appctx
+        sub_ksp = PETSc.KSP().create(comm=pc.comm)
+        sub_ksp.setOptionsPrefix(self._prefix + "sub_")
+        sub_ksp.incrementTabLevel(1, parent=pc)
+
+        # Propagate DM (and its python context) to the sub-KSP
+        dmK = K.M.handle.getDM() or pc.getDM()
+        if dmK is not None:
+            sub_ksp.setDM(dmK)
+            # Let the sub-KSP use the DM for matrix-free PCs if needed
+            sub_ksp.setDMActive(False)
+
+        # Operators and options
+        sub_ksp.setOperators(K.M.handle)
+        sub_ksp.setFromOptions()
+
+        # Sensible defaults if the user didn't set anything:
+        if sub_ksp.getType() is None:
+            sub_ksp.setType("preonly")
+        if sub_ksp.getPC().getType() is None:
+            sub_ksp.getPC().setType("lu")
+
+        sub_ksp.setUp()
+
+        self.sub_ksp = sub_ksp
+        self.sub_pc  = sub_ksp.getPC()   # keep for .view() convenience
         self._s = Vbig.num_sub_spaces()
         self.L = self._build_stage_L(self._s, context, pc)
 
@@ -116,10 +145,10 @@ class KronPC(PCBase):
 
         # Stagewise K^{-1}
         for i in range(s):
-            with self.work_in.subfunctions[i].dat.vec_ro as xin_i, \
+            with self.work_in.subfunctions[i].dat.vec_ro as rhs_i, \
                  self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
                 mid_i.set(0.0)
-                self.sub_pc.apply(xin_i, mid_i)
+                self.sub_ksp.solve(rhs_i, mid_i)
 
         # Zero outputs
         for j in range(s):
@@ -147,14 +176,15 @@ class KronPC(PCBase):
             viewer = PETSc.Viewer.STDOUT(pc.comm)
         viewer.printfASCII("KronPC:\n")
         viewer.printfASCII(f"  stages        : {self._s}\n")
-        viewer.printfASCII("  sub-PC for K^{-1} options:\n")
-        if hasattr(self, "sub_pc") and self.sub_pc is not None:
-            self.sub_pc.view(viewer)
+        viewer.printfASCII("  sub-KSP for K^{-1} options:\n")
+        if hasattr(self, "sub_ksp") and self.sub_ksp is not None:
+            self.sub_ksp.view(viewer)
 
     def destroy(self, pc):
-        if hasattr(self, "sub_pc") and self.sub_pc is not None:
-            self.sub_pc.destroy()
-            self.sub_pc = None
+        if hasattr(self, "sub_ksp") and self.sub_ksp is not None:
+            self.sub_ksp.destroy()
+            self.sub_ksp = None
+        self.sub_pc = None    
 
 class MassKronPC(KronPC):
     """K built from the mass form."""
@@ -193,7 +223,7 @@ class SIPGStiffnessKronPC(KronPC):
         # penal = C * (k+1)(k+2)
         penal = Constant(C * (k + 1) * (k + 2))
         a = (inner(grad(test), grad(trial)) * dx
-             + 1e-12 * inner(trial, test) * dx
+            #  + 1e-12 * inner(trial, test) * dx
              - inner(avg(grad(trial)), jump(test, n)) * dS
              - inner(avg(grad(test)), jump(trial, n)) * dS
              + (penal / avg(h)) * inner(jump(trial), jump(test)) * dS
