@@ -5,14 +5,14 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
-from ufl import zero
+from ufl import as_tensor, zero
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
 from .ButcherTableaux import CollocationButcherTableau
 from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, is_ode, replace, vecconst
+from .tools import AI, is_ode, dot, reshape, replace, vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
 
@@ -24,12 +24,12 @@ def to_value(u0, stages, vandermonde):
     Since u0 is not part of the unknown vector of stages, we disassemble
     the Vandermonde matrix (first row is [1, 0, ...]).
     """
-    ZZ_np = numpy.reshape(stages, (-1, *u0.ufl_shape))
+    ZZ_np = reshape(stages, (-1, *u0.ufl_shape))
     if vandermonde is None:
         return ZZ_np
-    u0_np = numpy.reshape(u0, (-1, *u0.ufl_shape))
+    u0_np = reshape(u0, (-1, *u0.ufl_shape))
     u_np = numpy.concatenate((u0_np, ZZ_np))
-    return vandermonde[1:] @ u_np
+    return dot(vandermonde[1:], u_np)
 
 
 def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None):
@@ -98,10 +98,10 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     test = TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
+    v_np = reshape(test, (num_stages, *u0.ufl_shape))
     w_np = to_value(u0, stages, vandermonde)
-    A1Tv = A1.T @ v_np
-    A2invTv = A2inv.T @ v_np
+    A1Tv = dot(A1.T, v_np)
+    A2invTv = dot(A2inv.T, v_np)
 
     # first, process terms with a time derivative.  I'm
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
@@ -117,7 +117,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: A2invTv[i],
-                u0: w_np[i] - u0}
+                u0: as_tensor(w_np[i]) - u0}
         Fnew += replace(F_dtless, repl)
 
     # Handle the rest of the terms

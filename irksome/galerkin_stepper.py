@@ -6,7 +6,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
-from .tools import replace, vecconst, replace_auxiliary_variables
+from .tools import dot, reshape, replace, vecconst, replace_auxiliary_variables
 import numpy as np
 from firedrake import TestFunction, Constant
 
@@ -55,13 +55,13 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     qpts = vecconst(np.reshape(qpts, (-1,)))
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = np.reshape(test, (-1, *u0.ufl_shape))
-    w_np = np.reshape(stages, (-1, *u0.ufl_shape))
+    v_np = reshape(test, (-1, *u0.ufl_shape))
+    w_np = reshape(stages, (-1, *u0.ufl_shape))
 
     u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
-    vsub = test_vals_w.T @ v_np
-    usub = trial_vals.T @ u_np
-    dtu0sub = trial_dvals.T @ u_np
+    vsub = dot(test_vals_w.T, v_np)
+    usub = dot(trial_vals.T, u_np)
+    dtu0sub = dot(trial_dvals.T, u_np)
     dtu0 = TimeDerivative(u0)
 
     # now loop over quadrature points

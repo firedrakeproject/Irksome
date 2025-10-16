@@ -10,6 +10,14 @@ from pyop2.types import MixedDat
 from irksome.deriv import TimeDerivative
 
 
+def dot(A, B):
+    return numpy.tensordot(A, B, (-1, 0))
+
+
+def reshape(expr, shape):
+    return numpy.reshape([expr[i] for i in numpy.ndindex(expr.ufl_shape)], shape)
+
+
 def flatten_dats(dats):
     flat_dat = []
     for dat in dats:
