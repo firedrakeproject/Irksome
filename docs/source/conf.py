@@ -21,6 +21,9 @@
 # If your documentation needs a minimal Sphinx version, state it here.
 #needs_sphinx = '1.0'
 
+# Cuz UFL is sloppy and puts **kwargs in their docstrings
+suppress_warnings = ["docutils"]
+
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.autodoc',
