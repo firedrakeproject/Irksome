@@ -106,9 +106,11 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
     div = _linear_op
 
 
-# mapping rules to splat out time derivatives so that replacement should
-# work on more complex problems.
 class TimeDerivativeRuleDispatcher(DAGTraverser):
+    '''
+    Mapping rules to splat out time derivatives so that replacement should
+    work on more complex problems.
+    '''
     def __init__(self, t=None, timedep_coeffs=None, **kwargs):
         super().__init__(**kwargs)
         self.rules = TimeDerivativeRuleset(t=t, timedep_coeffs=timedep_coeffs)
