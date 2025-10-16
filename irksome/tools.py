@@ -1,7 +1,7 @@
 from operator import mul
 from functools import reduce
 import numpy
-from firedrake import Function, FunctionSpace, VectorSpaceBasis, MixedVectorSpaceBasis, Constant
+from firedrake import Function, FunctionSpace, VectorSpaceBasis, MixedVectorSpaceBasis, Constant, split
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor, zero
 from ufl import replace as ufl_replace
@@ -77,6 +77,19 @@ def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
     return ufl_replace(e, cmapping)
+
+
+def replace_auxiliary_variables(F, u0, aux_indices):
+    """Discretize the fields corresponding to aux_indices in Dt(V)."""
+    if aux_indices is None:
+        return F
+
+    components = []
+    for i, usub in enumerate(split(u0)):
+        if i in aux_indices:
+            usub = TimeDerivative(usub)
+        components.extend(usub[i] for i in numpy.ndindex(usub.ufl_shape))
+    return replace(F, {u0: numpy.reshape(components, u0.ufl_shape)})
 
 
 # Utility functions that help us refactor
