@@ -58,8 +58,9 @@ def test_delta(msh, vom):
 
     # Test replacement assembly
     resultc = assemble(dc)
+    expected *= (float(c0) + float(c1))
     assert resultc.function_space() == V.dual()
-    assert np.allclose(result.dat.data_ro, float(c0 + c1)*expected)
+    assert np.allclose(result.dat.data_ro, expected)
 
     # Test stage replacement
     Vbig = V * V
