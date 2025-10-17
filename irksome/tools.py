@@ -1,13 +1,21 @@
 from operator import mul
 from functools import reduce
 import numpy
-from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
+from firedrake import Function, FunctionSpace, VectorSpaceBasis, MixedVectorSpaceBasis, Constant
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor, zero
 from ufl import replace as ufl_replace
 from pyop2.types import MixedDat
 
 from irksome.deriv import TimeDerivative
+
+
+def dot(A, B):
+    return numpy.tensordot(A, B, (-1, 0))
+
+
+def reshape(expr, shape):
+    return numpy.reshape([expr[i] for i in numpy.ndindex(expr.ufl_shape)], shape)
 
 
 def flatten_dats(dats):
@@ -41,6 +49,9 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     if nullspace is None:
         nspnew = None
     else:
+        if isinstance(nullspace, (MixedVectorSpaceBasis, VectorSpaceBasis)):
+            nullspace = [(field, basis) for field, basis in enumerate(nullspace)
+                         if isinstance(basis, VectorSpaceBasis)]
         try:
             nullspace.sort()
         except AttributeError:

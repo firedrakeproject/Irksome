@@ -1,7 +1,7 @@
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
-from .tools import replace, vecconst
+from .tools import dot, reshape, replace, vecconst
 from firedrake import TestFunction, as_ufl
 import numpy
 from ufl import zero
@@ -60,7 +60,7 @@ class ClassicNystrom4Tableau(NystromTableau):
 
         Abar[1, 0] = 1./8
         Abar[2, 0] = 1./8
-        Abar[3, 2] = 1.0
+        Abar[3, 2] = 1./2
 
         b = numpy.array([1, 2, 2, 1]) / 6.
         bbar = numpy.array([1, 1, 1, 0]) / 6.
@@ -89,11 +89,11 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     Vbig = stages.function_space()
     test = TestFunction(Vbig)
 
-    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
-    k_np = numpy.reshape(stages, (num_stages, *u0.ufl_shape))
+    v_np = reshape(test, (num_stages, *u0.ufl_shape))
+    k_np = reshape(stages, (num_stages, *u0.ufl_shape))
 
-    Ak = A @ k_np
-    Abark = Abar @ k_np
+    Ak = dot(A, k_np)
+    Abark = dot(Abar, k_np)
 
     dtu = TimeDerivative(u0)
     dt2u = TimeDerivative(dtu)
