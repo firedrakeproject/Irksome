@@ -19,9 +19,8 @@ def vom(msh):
 
 def delta(v, vom):
     P0 = FunctionSpace(vom, "DG", 0)
-    v_vom = TestFunction(P0)
-    F_vom = inner(1, v_vom) * dx
-    return Interpolate(v, F_vom)
+    Fvom = Cofunction(P0.dual()).assign(1)
+    return interpolate(v, Fvom)
 
 
 def test_delta(msh, vom):
