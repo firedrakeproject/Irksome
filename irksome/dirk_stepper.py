@@ -1,5 +1,5 @@
 import numpy
-from firedrake import (Constant, Function,
+from firedrake import (Function,
                        NonlinearVariationalProblem,
                        NonlinearVariationalSolver)
 from ufl.constantvalue import as_ufl
@@ -45,7 +45,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     # stage.
     a_vals = numpy.array([MC.Constant(0.0) for i in range(num_stages)],
                          dtype=object)
-    d_val = Constant(1.0)
+    d_val = MC.Constant(1.0)
     for bc in bcs:
         bcarg = bc._original_arg
         if bcarg == 0:
