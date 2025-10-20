@@ -80,7 +80,9 @@ class KronPC(PCBase):
         sub_ksp.setUp()
 
         self.sub_ksp = sub_ksp
-        self.sub_pc  = sub_ksp.getPC()   
+        self.sub_pc  = sub_ksp.getPC()
+        A, _ = self.sub_ksp.getOperators()
+        self._tmp_stage = A.createVecRight()   
         self._s = Vbig.num_sub_spaces()
         self.L = self._build_stage_L(self._s, context, pc)
 
@@ -229,7 +231,7 @@ class SIPGStiffnessKronPC(KronPC):
     def form(self, trial, test):
         mesh = trial.ufl_domain()
         n    = FacetNormal(mesh)
-        h    = CellDiameter(mesh)
+        h    = CellVolume(mesh)
 
         # Polynomial degree k of the DG space
         k = trial.ufl_function_space().ufl_element().degree()
@@ -251,24 +253,86 @@ class SIPGStiffnessKronPC(KronPC):
         bcs = None
         return a, bcs
     
+    # def initialize(self, pc):
+    #     # Assemble K and build the sub-KSP using the base class logic
+    #     super().initialize(pc)
+
+    #     # If your form is *truly* pure Neumann (constant kernel), attach a constant nullspace:
+    #     # Find the stage scalar space
+    #     Vbig   = get_function_space(pc.getDM())
+    #     Vstage = Vbig.sub(0)
+
+    #     # Build a constant Function on DG space
+    #     self._ns_vector = Function(Vstage, name="kron_sipg_const")  # keep a ref!
+    #     self._ns_vector.assign(1.0)
+
+    #     with self._ns_vector.dat.vec_ro as v:
+    #         # constant=True lets PETSc treat it as a constant field; we also provide the vector
+    #         self._ns = PETSc.NullSpace().create(constant=True, vectors=[v])
+
+    #     # Attach to the assembled operator(s) used by the sub-KSP (A and P)
+    #     A, P = self.sub_ksp.getOperators()
+    #     A.setNullSpace(self._ns)
+    #     P.setNullSpace(self._ns)
+    
     def initialize(self, pc):
         # Assemble K and build the sub-KSP using the base class logic
         super().initialize(pc)
 
-        # If your form is *truly* pure Neumann (constant kernel), attach a constant nullspace:
-        # Find the stage scalar space
-        Vbig   = get_function_space(pc.getDM())
-        Vstage = Vbig.sub(0)
 
-        # Build a constant Function on DG space
-        self._ns_vector = Function(Vstage, name="kron_sipg_const")  # keep a ref!
-        self._ns_vector.assign(1.0)
+        S = get_function_space(pc.getDM())   # what the sub-KSP actually solves on
+        Q = S.sub(1)
 
-        with self._ns_vector.dat.vec_ro as v:
-            # constant=True lets PETSc treat it as a constant field; we also provide the vector
-            ns = PETSc.NullSpace().create(constant=True, vectors=[v])
+        self._ns_vec = Function(Q, name="sipg_const")
+        self._ns_vec.assign(1.0)
 
-        # Attach to the assembled operator(s) used by the sub-KSP (A and P)
+        with self._ns_vec.dat.vec_ro as v:
+            self._ns = PETSc.NullSpace().create(constant=True, vectors=[v])
+
         A, P = self.sub_ksp.getOperators()
-        A.setNullSpace(ns)
-        P.setNullSpace(ns)
+        A.setNullSpace(self._ns)
+        P.setNullSpace(self._ns)
+
+   
+
+    def apply(self, pc, x, y):
+        s = self._s
+        y.set(0.0)
+
+        # copy input into work_in
+        with self.work_in.dat.vec_wo as vin:
+            x.copy(vin)
+
+        # stagewise K^{-1} with per-stage projections
+        for i in range(s):
+            with self.work_in.subfunctions[i].dat.vec_ro as rhs_i_ro, \
+                 self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
+
+                # tmp = self._tmp_stage
+                # tmp.copy(rhs_i_ro)
+                self._ns.remove(rhs_i_ro)          # project RHS off constant mode
+
+                mid_i.set(0.0)
+                self.sub_ksp.solve(rhs_i_ro, mid_i)
+
+                # self._ns.remove(mid_i)        # keep solution in mean-free subspace
+
+        # zero outputs
+        for j in range(s):
+            self.work_out.subfunctions[j].assign(0.0)
+
+        # y_j = sum_i L[j,i] * mid_i (with projection)
+        for j in range(s):
+            row = self.L[j, :]
+            with self.work_out.subfunctions[j].dat.vec_wo as yj:
+                for i in range(s):
+                    lij = row[i]
+                    if lij != 0.0:
+                        with self.work_mid.subfunctions[i].dat.vec_ro as ui:
+                            yj.axpy(lij, ui)
+
+
+        with self.work_out.dat.vec_ro as vout:
+            vout.copy(y)
+
+
