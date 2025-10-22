@@ -36,7 +36,7 @@ Standard Gauss-Legendre and continuous Petrov-Galerkin (cPG) methods conserve
 the first two invariants exactly (up to roundoff and solver tolerances).  They
 do quite well, but are inexact for the cubic one.  Here, we consider the
 reformulation in Andrews and Farrell, "Enforcing conservation laws and dissipation
-inequalities numerically via auxiliary variables" (arXiv:2407.11904, to appear
+inequalities numerically via auxiliary variables" (`arXiv:2407.11904 <https://arxiv.org/abs/2407.11904>`_, to appear
 in SIAM J. Scientific Computing) that preserves the third invariant at
 the expense of the second.  This method has an auxiliary variable in the system
 and requires a continuously differentiable spatial discretization (1D Hermite
