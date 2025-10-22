@@ -140,10 +140,10 @@ but forces a higher-order method on the nonlinear term::
   u, wHtilde = split(uwHtilde)
   v, vH = split(TestFunction(Z))
 
-  lhs = h1inner(Dt(u) + wHtilde.dx(0), v) * dx + h1inner(wHtilde, vH) * dx
-  rhs = replace(Finit, {uinit: u})
+  Flow = h1inner(Dt(u) + wHtilde.dx(0), v) * dx + h1inner(wHtilde, vH) * dx
+  Fhigh = replace(Finit, {uinit: u})
 
-  F = Llow(lhs) - Lhigh(rhs(vH))
+  F = Llow(Flow) - Lhigh(Fhigh(vH))
 
 
 This sets up the cPG time stepper.  There are two fields in the unknown, we
@@ -182,10 +182,20 @@ Visualize invariant preservation::
 
   axes.clear()
   invariants = numpy.array(invariants)
-  plt.plot(*[x for i in (0, 1, 2) for x in (times, invariants[:, i])])
+
+  lbls = ("I1", "I2", "I3")
+
+  for i in (0, 1, 2):
+      plt.plot(times, invariants[:, i], label=lbls[i])
+  axes.set_title("Invariants over time")
+  axes.legend()
   plt.savefig("invariants.png")
   axes.clear()
-  plt.plot(*[x for i in (0, 1, 2) for x in (times, 1.0 - invariants[:, i] / invariants[0, i])])
+
+  for i in (0, 1, 2):
+      plt.plot(times, 1.0 - invariants[:, i]/invariants[0, i], label=lbls[i])
+  axes.set_title("Relative error in invariants over time")
+  axes.legend()  
   plt.savefig("invariant_errors.png")
 
 Visualize the solution at final time step::
