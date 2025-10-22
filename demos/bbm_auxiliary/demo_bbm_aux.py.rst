@@ -108,8 +108,8 @@ Output the initial condition to disk::
 Create temporal quadrature rules in FIAT::
   
   ufc_line = ufc_simplex(1)
-  time_order_low = 2* time_deg
-  time_order_high = 20
+  time_order_low = 2 * (time_deg - 1)
+  time_order_high = 3 * time_deg - 1
   Qlow = create_quadrature(ufc_line, time_order_low)
   Qhigh = create_quadrature(ufc_line, time_order_high)
 
