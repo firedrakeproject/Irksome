@@ -13,20 +13,23 @@ BBM is known to have a Hamiltonian structure, and there are several canonical po
 
 .. math::
 
-   I_1 & = \int u \, dx
+   I_1 & = \int u \, \mathrm{d}x
 
-   I_2 & = \int u^2 + (u_x)^2 \, dx
+   I_2 & = \int u^2 + (u_x)^2 \, \mathrm{d}x
 
-   I_3 & = \int \frac{u^2}{2} + \frac{u^3}{6} \, dx
+   I_3 & = \int \frac{u^2}{2} + \frac{u^3}{6} \, \mathrm{d}x
 
 The BBM invariants are the total momentum :math:`I_1`, the :math:`H^1`-energy
 norm :math:`I_2`, and the Hamiltonian :math:`I_3`.  
-The Hamiltonian formulation reads
+The Hamiltonian variational formulation reads
 
 .. math::
 
-   \partial_t (u - u_{xx}) + \partial_x \frac{\delta I_3}{\delta u} = 0
+   (\partial_t u + \partial_x \tilde{w}_H, v)_{H^1} & = 0
 
+   (\tilde{w}_H, v_H)_{H^1} & = \langle \frac{\delta I_3}{\delta u}, v_H \rangle 
+
+For all test functions :math:`v, v_H` in a suitable discrete space.
 The numerical scheme in this demo introduces
 the :math:`H^1`-Riesz representative of the Fréchet derivative of the
 Hamiltonian :math:`\frac{\delta I_3}{\delta u}` 
@@ -130,7 +133,10 @@ Visualize the initial condition::
   plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(uinit), axes=axes)
   axes.set_title("Initial condition")
   plt.savefig("bbm_init.png")
-  
+
+.. figure:: bbm_init.png
+   :align: center  
+
 Create time quadrature labels::
   
   time_order_low = 2 * (time_deg - 1)
@@ -201,9 +207,18 @@ Visualize invariant preservation::
   axes.legend()  
   plt.savefig("invariant_errors.png")
 
+.. figure:: invariants.png
+   :align: center
+
+.. figure:: invariant_errors.png
+   :align: center
+
 Visualize the solution at final time step::
 
   axes.clear()
   plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(uwHtilde.subfunctions[0]), axes=axes)
   axes.set_title(f"Solution at time {tfinal}")
   plt.savefig("bbm_final.png") 
+
+.. figure:: bbm_final.png
+   :align: center
