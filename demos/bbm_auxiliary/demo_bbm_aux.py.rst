@@ -5,7 +5,7 @@ This demo solves the Benjamin-Bona-Mahony equation:
 
 .. math::
 
-   u_t + u_x + u u_x - u_{txx} = 0
+   u_t - u_{txx} + u_x + u u_x = 0
 
 posed on a bounded interval with periodic boundaries.
 
