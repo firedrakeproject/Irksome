@@ -1,5 +1,5 @@
-Halmiltonian-structure-preserving implementation of the Benjamin-Bona-Mahoney equation
-======================================================================================
+Hamiltonian-structure-preserving implementation of the Benjamin-Bona-Mahoney equation
+=====================================================================================
 
 This demo solves the Benjamin-Bona-Mahony equation:
 
@@ -25,12 +25,12 @@ The Hamiltonian formulation reads
 
 .. math::
 
-   \partial_t (u - u_{xx}) & = - \partial_x \frac{\delta I_3}{\delta u}
+   \partial_t (u - u_{xx}) + \partial_x \frac{\delta I_3}{\delta u} = 0
 
 The numerical scheme in this demo introduces
 the :math:`H^1`-Riesz representative of the Fréchet derivative of the
 Hamiltonian :math:`\frac{\delta I_3}{\delta u}` 
-as the auxiliary variable :math:`\tilde{wH}`.
+as the auxiliary variable :math:`\tilde{w}_H`.
 
 Standard Gauss-Legendre and continuous Petrov-Galerkin (cPG) methods conserve
 the first two invariants exactly (up to roundoff and solver tolerances).  They
@@ -58,43 +58,39 @@ Firedrake, Irksome, and other imports::
   import matplotlib.pyplot as plt
   import numpy
 
-
-  def sech(x):
-      return 2 / (exp(x) + exp(-x))
-
+Next, we define the domain and the exact solution ::
 
   N = 8000
   L = 100
   h = L / N
   msh = PeriodicIntervalMesh(N, L)
-
-  c = Constant(0.5)
+  x, = SpatialCoordinate(msh)
 
   t = Constant(0)
   dt = Constant(10*h)
 
-  x, = SpatialCoordinate(msh)
-
-  center = 40.0
+  c = Constant(0.5)
+  center = Constant(40.0)
   delta = -c * center
 
+  def sech(x):
+      return 2 / (exp(x) + exp(-x))
+  
   uexact = 3 * c**2 / (1-c**2) \
       * sech(0.5 * (c * x - c * t / (1 - c ** 2) + delta))**2
+
+This sets up the function space for the unknown :math:`u` and
+auxiliary variable :math:`\tilde{w}_H`::
 
   space_deg = 3
   time_deg = 1
 
-This sets up the function space for the unknown :math:`u` and
-auxiliary variable :math:`\tilde{wH}`::
-
   V = FunctionSpace(msh, "Hermite", space_deg)
   Z = V * V
 
-We project the initial condition on :math:`u`, but we also need a consistent initial condition for the auxiliary variable. 
-
-Let :math:`F = \frac{\delta I_3}{\delta u}` be the Fréchet derivative of the
-Hamiltonian. We need to find :math:`\tilde{wH}` such that :math:`(\tilde{wH}, v)_{H^1} = F(v)`.
-::
+We next define the BBM invariants. Again, the discrete formulation preserves 
+:math:`I_1` and :math:`I_3` up to solver tolerances and roundoff errors, 
+but :math:`I_2` is preserved up to a bounded oscillation ::
 
   def h1inner(u, v):
       return inner(u, v) + inner(grad(u), grad(v))
@@ -108,16 +104,25 @@ Hamiltonian. We need to find :math:`\tilde{wH}` such that :math:`(\tilde{wH}, v)
   def I3(u):
       return (u**2 / 2 + u**3 / 6) * dx
 
+We project the initial condition on :math:`u`, but we also need a consistent
+initial condition for the auxiliary variable.  We need to find :math:`\tilde{w}_H \in V` such that
+
+.. math::
+
+   (\tilde{w}_H, v)_{H^1} = \langle \frac{\delta I_3}{\delta u}, v \rangle \text{ for all } v \in V
+
+::
+
   uwHtilde = Function(Z)
   uinit, wHinit = uwHtilde.subfunctions
   
   v = TestFunction(V)
   w = TrialFunction(V)
   a = h1inner(w, v) * dx
-  Finit = derivative(I3(uinit), uinit, v)
+  dHdu = derivative(I3(uinit), uinit, v)
 
   solve(a == h1inner(uexact, v)*dx, uinit)
-  solve(a == Finit, wHinit)
+  solve(a == dHdu, wHinit)
 
 Visualize the initial condition::
 
@@ -141,10 +146,9 @@ but forces a higher-order method on the nonlinear term::
   v, vH = split(TestFunction(Z))
 
   Flow = h1inner(Dt(u) + wHtilde.dx(0), v) * dx + h1inner(wHtilde, vH) * dx
-  Fhigh = replace(Finit, {uinit: u})
+  Fhigh = replace(dHdu, {uinit: u})
 
   F = Llow(Flow) - Lhigh(Fhigh(vH))
-
 
 This sets up the cPG time stepper.  There are two fields in the unknown, we
 indicate the second one is an auxiliary and hence to be discretized in the DG
@@ -161,10 +165,9 @@ through time steps::
   invariants = [tuple(map(assemble, functionals))]
   I1ex, I2ex, I3ex = invariants[0]
 
-  tfinal = 18.0
-
 Do the time-stepping::
 
+  tfinal = 18.0
   while (float(t) < tfinal):
       if float(t) + float(dt) > tfinal:
           dt.assign(tfinal - float(t))
@@ -203,5 +206,4 @@ Visualize the solution at final time step::
   axes.clear()
   plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(uwHtilde.subfunctions[0]), axes=axes)
   axes.set_title(f"Solution at time {tfinal}")
-  plt.savefig("bbm_final.png")
-  
+  plt.savefig("bbm_final.png") 
