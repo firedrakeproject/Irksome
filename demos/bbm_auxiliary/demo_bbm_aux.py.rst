@@ -1,5 +1,5 @@
-Invariant preserving implementation of the Benjamin-Bona-Mahoney equation
-=========================================================================
+Halmiltonian-structure-preserving implementation of the Benjamin-Bona-Mahoney equation
+======================================================================================
 
 This demo solves the Benjamin-Bona-Mahony equation:
 
@@ -19,15 +19,28 @@ BBM is known to have a Hamiltonian structure, and there are several canonical po
 
    I_3 & = \int \frac{u^2}{2} + \frac{u^3}{6} \, dx
 
+The BBM invariants are the total momentum :math:`I_1`, the :math:`H^1`-energy
+norm :math:`I_2`, and the Hamiltonian :math:`I_3`.  
+The Hamiltonian formulation reads
+
+.. math::
+
+   \partial_t (u - u_{xx}) & = - \partial_x \frac{\delta I_3}{\delta u}
+
+The numerical scheme in this demo introduces
+the :math:`H^1`-Riesz representative of the Fréchet derviative of the
+Hamiltonian :math:`\frac{\delta I_3}{\delta u}` 
+as the auxiliary variable :math:`\tilde{wH}`.
+
 Standard Gauss-Legendre and continuous Petrov-Galerkin (cPG) methods conserve
 the first two invariants exactly (up to roundoff and solver tolerances.  They
-do quite well, but are inexact for the cubic one.
-Here, we consider the reformulation in Boris Andrews' thesis that in fact
-preserves the third one at the expense of the second.
-This method has an auxiliary variable in the system and requires a continuously differentiable spatial discretization (1d Hermite elements in this case).
-The time discretization puts the main unknown in a continuous space and the
-auxiliary variable in a discontinuous one.  See equation (7.17) of Andrews'
-thesis for the particular formulation.
+do quite well, but are inexact for the cubic one.  Here, we consider the
+reformulation in Boris Andrews' thesis that in fact preserves the third one at
+the expense of the second.  This method has an auxiliary variable in the system
+and requires a continuously differentiable spatial discretization (1D Hermite
+elements in this case).  The time discretization puts the main unknown in a
+continuous space and the auxiliary variable in a discontinuous one.  See
+equation (7.17) of Andrews' thesis for the particular formulation.
 
 
 Firedrake and Irksome imports::
@@ -71,21 +84,19 @@ auxiliary variable :math:`\tilde{wH}`::
   V = FunctionSpace(msh, "Hermite", space_deg)
   Z = V * V
 
+We need a consistent initial condition for :math:`\tilde{wH}`. ::
 
-We need a consistent initial condition for :math:`\tilde{wH}`.
-The auxiliary variable is the :math:`H^1`-Riesz representative of the Fréchet derviative of :math:`I_3` ::
+  def h1inner(u, v):
+      return inner(u, v) + inner(grad(u), grad(v))
 
   def I1(u):
       return u * dx
 
   def I2(u):
-      return (u**2 + (u.dx(0))**2) * dx
+      return h1inner(u, u) * dx
 
   def I3(u):
       return (u**2 / 2 + u**3 / 6) * dx
-
-  def h1inner(u, v):
-      return inner(u, v) + inner(grad(u), grad(v))
 
   uwHtilde = Function(Z)
   uinit, wHinit = uwHtilde.subfunctions
