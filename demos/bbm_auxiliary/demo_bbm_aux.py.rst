@@ -30,18 +30,15 @@ auxiliary variable in a discontinuous one.  See equation (7.17) of Andrews'
 thesis for the particular formulation.
 
 
-Firedrake imports::
+Firedrake and Irksome imports::
 
-  from firedrake import (
-      Constant, Function, FunctionSpace,
-      PeriodicIntervalMesh, SpatialCoordinate, TestFunction, TestFunctions,
-      assemble, dx, errornorm, exp, grad, inner, interpolate, norm, project,
-      solve, split
+  from firedrake import (Constant, Function, FunctionSpace,
+      PeriodicIntervalMesh, SpatialCoordinate, TestFunction, TrialFunction,
+      assemble, derivative, dx, errornorm, exp, grad, inner,
+      interpolate, norm, project, replace, solve, split,
   )
 
-
-  from irksome import Dt, GalerkinTimeStepper
-  from irksome.labeling import TimeQuadratureLabel
+  from irksome import Dt, GalerkinTimeStepper, TimeQuadratureLabel
 
   def sech(x):
       return 2 / (exp(x) + exp(-x))
@@ -74,34 +71,43 @@ auxiliary variable :math:`\tilde{wH}`::
   V = FunctionSpace(msh, "Hermite", space_deg)
   Z = V * V
 
+
+We need a consistent initial condition for :math:`\tilde{wH}`.
+The auxiliary variable is the :math:`H^1`-Riesz representative of the Fréchet derviative of :math:`I_3` ::
+
+  def I1(u):
+      return u * dx
+
+  def I2(u):
+      return (u**2 + (u.dx(0))**2) * dx
+
+  def I3(u):
+      return (u**2 / 2 + u**3 / 6) * dx
+
+  def h1inner(u, v):
+      return inner(u, v) + inner(grad(u), grad(v))
+
   uwHtilde = Function(Z)
-  uwHtilde.subfunctions[0].project(uexact)
-
-  wHtilde = Function(V)
-
-We need a consistent initial condition for :math:`\tilde{wH}`::
+  uinit, wHinit = uwHtilde.subfunctions
   
   v = TestFunction(V)
-  Finit = (inner(wHtilde, v) * dx
-           + inner(wHtilde.dx(0), v.dx(0)) * dx
-           - inner(uexact + 0.5 * uexact**2, v) * dx)
-  solve(Finit==0, wHtilde)
-  uwHtilde.subfunctions[1].assign(wHtilde)
+  w = TrialFunction(V)
+  a = h1inner(w, v) * dx
+  Finit = derivative(I3(uinit), uinit, v)
 
-  u, wHtilde = split(uwHtilde)
+  solve(a == h1inner(uexact, v)*dx, uinit)
+  solve(a == Finit, wHinit)
 
 Output the initial condition to disk::
 
-  xs = msh.coordinates.dat.data[::2]
+  xs = msh.coordinates.dat.data
 
   with open("bbm_aux_init.csv", "w") as outfile:
       outfile.write("x,u\n")
-      for xcur, ucur in zip(xs, uwHtilde.subfunctions[0].dat.data):
+      for xcur, ucur in zip(xs, uwHtilde.subfunctions[0].dat.data[::2]):
           outfile.write("%f,%f\n" % (xcur, ucur))
 
-  v, vH = TestFunctions(Z)
-
-Create temporal quadrature rules in FIAT::
+Create time quadrature labels::
   
   time_order_low = 2 * (time_deg - 1)
   time_order_high = 3 * time_deg - 1
@@ -109,23 +115,21 @@ Create temporal quadrature rules in FIAT::
   Llow = TimeQuadratureLabel(time_order_low)
   Lhigh = TimeQuadratureLabel(time_order_high)
 
-
-  def h1inner(u, v):
-      return inner(u, v) + inner(grad(u), grad(v))
-
-
 This tags several of the terms with a low-order time integration scheme,
 but forces a higher-order method on the nonlinear term::
 
-  F = Llow(h1inner(Dt(u), v) * dx
-         - 0.5 * h1inner(wHtilde, v.dx(0)) * dx
-         + 0.5 * h1inner(wHtilde.dx(0), v) * dx
-         + h1inner(wHtilde, vH) * dx) \
-         - Lhigh(inner(u + 0.5 * u**2, vH) * dx)
+  u, wHtilde = split(uwHtilde)
+  v, vH = split(TestFunction(Z))
+
+  lhs = h1inner(Dt(u) + wHtilde.dx(0), v) * dx + h1inner(wHtilde, vH) * dx
+  rhs = replace(Finit, {uinit: u})
+
+  F = Llow(lhs) - Lhigh(rhs(vH))
 
 
-This sets up the cPG time stepper.  There are two fields in the unknown, we indicate the second one is an auxiliary and hence to be discretized in the DG
-space instead by passing the `aux_indices` keyword::
+This sets up the cPG time stepper.  There are two fields in the unknown, we
+indicate the second one is an auxiliary and hence to be discretized in the DG
+test space instead by passing the `aux_indices` keyword::
             
   stepper = GalerkinTimeStepper(
       F, time_deg, t, dt, uwHtilde,
@@ -134,13 +138,9 @@ space instead by passing the `aux_indices` keyword::
 UFL expressions for the invariants, which we are going to track as we go
 through time steps::
   
-  I1 = u * dx
-  I2 = (u**2 + (u.dx(0))**2) * dx
-  I3 = (u**2 / 2 + u**3 / 6) * dx
-
-  I1s = []
-  I2s = []
-  I3s = []
+  functionals = (I1(u), I2(u), I3(u))
+  invariants = [tuple(map(assemble, functionals))]
+  I1ex, I2ex, I3ex = invariants[0]
 
   tfinal = 18.0
 
@@ -148,39 +148,32 @@ Do the time-stepping::
 
   with open("bbm_aux_invariants.csv", "w") as outfile:
       outfile.write("t,I1,I2,I3,relI1,relI2,relI3\n")
-      outfile.write("%f,%f,%f,%f,%e,%e,%e\n" % (float(t), assemble(I1),
-                                                assemble(I2), assemble(I3),
+      outfile.write("%f,%f,%f,%f,%e,%e,%e\n" % (float(t), *invariants[0],
                                                 0, 0, 0))
       while (float(t) < tfinal):
           if float(t) + float(dt) > tfinal:
               dt.assign(tfinal - float(t))
           stepper.advance()
 
-          I1s.append(assemble(I1))
-          I2s.append(assemble(I2))
-          I3s.append(assemble(I3))
+          invariants.append(tuple(map(assemble, functionals)))
 
-          i1 = I1s[-1]
-          i2 = I2s[-1]
-          i3 = I3s[-1]
+          i1, i2, i3 = invariants[-1]
           t.assign(float(t) + float(dt))
 
-          print(
-              f'{float(t):.15f}, {i1:.15f}, {i2:.15f}, {i3:.15f}')
+          print(f'{float(t):.15f}, {i1:.15f}, {i2:.15f}, {i3:.15f}')
          
           outfile.write("%f,%f,%f,%f,%e,%e,%e\n"
-                        % (float(t),
-                           I1s[-1], I2s[-1], I3s[-1],
-                           1-I1s[-1]/I1s[0],
-                           1-I2s[-1]/I2s[0],
-                           1-I3s[-1]/I3s[0]))
+                        % (float(t), i1, i2, i3,
+                           1-i1/I1ex, 1-i2/I2ex, 1-i3/I3ex))
 
   print(errornorm(uexact, uwHtilde.subfunctions[0]) / norm(uexact))
 
 Dump out the solution at the final time step::
 
   with open("bbm_aux_final.csv", "w") as outfile:
-      uex_final = project(uexact, V)
+      uex_final = Function(V)
+      v, w = a.arguments()
+      solve(a == h1inner(uexact, v) * dx, uex_final)
       outfile.write("x,uex,u,err\n")
-      for xcur, uexcur, ucur in zip(xs, uex_final.dat.data, uwHtilde.subfunctions[0].dat.data):
+      for xcur, uexcur, ucur in zip(xs, uex_final.dat.data[::2], uwHtilde.subfunctions[0].dat.data[::2]):
           outfile.write("%f,%f,%f,%e\n" % (xcur, uexcur, ucur, uexcur-ucur))
