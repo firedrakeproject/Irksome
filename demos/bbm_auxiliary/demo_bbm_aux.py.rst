@@ -39,8 +39,6 @@ Firedrake imports::
       solve, split
   )
 
-  from FIAT import make_quadrature, ufc_simplex
-  from FIAT.quadrature_schemes import create_quadrature
 
   from irksome import Dt, GalerkinTimeStepper
   from irksome.labeling import TimeQuadratureLabel
@@ -105,15 +103,11 @@ Output the initial condition to disk::
 
 Create temporal quadrature rules in FIAT::
   
-  ufc_line = ufc_simplex(1)
   time_order_low = 2 * (time_deg - 1)
   time_order_high = 3 * time_deg - 1
-  Qlow = create_quadrature(ufc_line, time_order_low)
-  Qhigh = create_quadrature(ufc_line, time_order_high)
 
-
-  Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
-  Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+  Llow = TimeQuadratureLabel(time_order_low)
+  Lhigh = TimeQuadratureLabel(time_order_high)
 
 
   def h1inner(u, v):
