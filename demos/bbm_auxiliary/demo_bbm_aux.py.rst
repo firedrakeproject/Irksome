@@ -33,7 +33,7 @@ Hamiltonian :math:`\frac{\delta I_3}{\delta u}`
 as the auxiliary variable :math:`\tilde{wH}`.
 
 Standard Gauss-Legendre and continuous Petrov-Galerkin (cPG) methods conserve
-the first two invariants exactly (up to roundoff and solver tolerances.  They
+the first two invariants exactly (up to roundoff and solver tolerances).  They
 do quite well, but are inexact for the cubic one.  Here, we consider the
 reformulation in Andrews and Farrell, "Enforcing conservation laws and dissipation
 inequalities numerically via auxiliary variables" (arXiv:2407.11904, to appear
@@ -42,18 +42,22 @@ the expense of the second.  This method has an auxiliary variable in the system
 and requires a continuously differentiable spatial discretization (1D Hermite
 elements in this case).  The time discretization puts the main unknown in a
 continuous space and the auxiliary variable in a discontinuous one.  See
-equation (7.17) of Andrews' thesis for the particular formulation.
+equation (7.17) of Boris Andrews' thesis for the particular formulation.
 
 
-Firedrake and Irksome imports::
+Firedrake, Irksome, and other imports::
 
   from firedrake import (Constant, Function, FunctionSpace,
       PeriodicIntervalMesh, SpatialCoordinate, TestFunction, TrialFunction,
       assemble, derivative, dx, errornorm, exp, grad, inner,
-      interpolate, norm, project, replace, solve, split,
+      interpolate, norm, plot, project, replace, solve, split
   )
 
   from irksome import Dt, GalerkinTimeStepper, TimeQuadratureLabel
+
+  import matplotlib.pyplot as plt
+  import numpy
+
 
   def sech(x):
       return 2 / (exp(x) + exp(-x))
@@ -111,15 +115,13 @@ We need a consistent initial condition for :math:`\tilde{wH}`. ::
   solve(a == h1inner(uexact, v)*dx, uinit)
   solve(a == Finit, wHinit)
 
-Output the initial condition to disk::
+Visualize the initial condition::
 
-  xs = msh.coordinates.dat.data
-
-  with open("bbm_aux_init.csv", "w") as outfile:
-      outfile.write("x,u\n")
-      for xcur, ucur in zip(xs, uwHtilde.subfunctions[0].dat.data[::2]):
-          outfile.write("%f,%f\n" % (xcur, ucur))
-
+  fig, axes = plt.subplots(1)
+  plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(uinit), axes=axes)
+  axes.set_title("Initial condition")
+  plt.savefig("bbm_init.png")
+  
 Create time quadrature labels::
   
   time_order_low = 2 * (time_deg - 1)
@@ -145,48 +147,47 @@ indicate the second one is an auxiliary and hence to be discretized in the DG
 test space instead by passing the `aux_indices` keyword::
             
   stepper = GalerkinTimeStepper(
-      F, time_deg, t, dt, uwHtilde,
-      aux_indices=[1])
+      F, time_deg, t, dt, uwHtilde, aux_indices=[1])
 
 UFL expressions for the invariants, which we are going to track as we go
 through time steps::
-  
+
+  times = [float(t)]
   functionals = (I1(u), I2(u), I3(u))
   invariants = [tuple(map(assemble, functionals))]
   I1ex, I2ex, I3ex = invariants[0]
 
-  tfinal = 18.0
+  tfinal = 1.0
 
 Do the time-stepping::
 
-  with open("bbm_aux_invariants.csv", "w") as outfile:
-      outfile.write("t,I1,I2,I3,relI1,relI2,relI3\n")
-      outfile.write("%f,%f,%f,%f,%e,%e,%e\n" % (float(t), *invariants[0],
-                                                0, 0, 0))
-      while (float(t) < tfinal):
-          if float(t) + float(dt) > tfinal:
-              dt.assign(tfinal - float(t))
-          stepper.advance()
+  while (float(t) < tfinal):
+      if float(t) + float(dt) > tfinal:
+          dt.assign(tfinal - float(t))
+      stepper.advance()
 
-          invariants.append(tuple(map(assemble, functionals)))
+      invariants.append(tuple(map(assemble, functionals)))
 
-          i1, i2, i3 = invariants[-1]
-          t.assign(float(t) + float(dt))
+      i1, i2, i3 = invariants[-1]
+      t.assign(float(t) + float(dt))
+      times.append(float(t))
 
-          print(f'{float(t):.15f}, {i1:.15f}, {i2:.15f}, {i3:.15f}')
-         
-          outfile.write("%f,%f,%f,%f,%e,%e,%e\n"
-                        % (float(t), i1, i2, i3,
-                           1-i1/I1ex, 1-i2/I2ex, 1-i3/I3ex))
+      print(f'{float(t):.15f}, {i1:.15f}, {i2:.15f}, {i3:.15f}')
 
-  print(errornorm(uexact, uwHtilde.subfunctions[0]) / norm(uexact))
+Visualize invariant preservation::
 
-Dump out the solution at the final time step::
+  axes.clear()
+  invariants = numpy.array(invariants)
+  plt.plot(*[x for i in (0, 1, 2) for x in (times, invariants[:, i])])
+  plt.savefig("invariants.png")
+  axes.clear()
+  plt.plot(*[x for i in (0, 1, 2) for x in (times, 1.0 - invariants[:, i] / invariants[0, i])])
+  plt.savefig("invariant_errors.png")
 
-  with open("bbm_aux_final.csv", "w") as outfile:
-      uex_final = Function(V)
-      v, w = a.arguments()
-      solve(a == h1inner(uexact, v) * dx, uex_final)
-      outfile.write("x,uex,u,err\n")
-      for xcur, uexcur, ucur in zip(xs, uex_final.dat.data[::2], uwHtilde.subfunctions[0].dat.data[::2]):
-          outfile.write("%f,%f,%f,%e\n" % (xcur, uexcur, ucur, uexcur-ucur))
+Visualize the solution at final time step::
+
+  axes.clear()
+  plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(uwHtilde.subfunctions[0]), axes=axes)
+  axes.set_title(f"Solution at time {tfinal}")
+  plt.savefig("bbm_final.png")
+  
