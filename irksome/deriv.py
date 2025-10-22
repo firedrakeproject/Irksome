@@ -2,10 +2,8 @@ from functools import singledispatchmethod
 
 from ufl.constantvalue import as_ufl
 from ufl.core.ufl_type import ufl_type
-
 from ufl.corealg.dag_traverser import DAGTraverser
 from ufl.algorithms.map_integrands import map_integrands
-
 from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
 from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl.form import BaseForm
@@ -56,24 +54,21 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
         return super().process(o)
 
     @process.register(ConstantValue)
-    def _terminal(self, o):
+    def constant(self, o):
         if self.t is not None and o is self.t:
             return self._Id
         else:
             return self.independent_terminal(o)
 
     @process.register(Coefficient)
-    def coefficient(self, o):
+    @process.register(SpatialCoordinate)
+    def terminal(self, o):
         if self.t is not None and o is self.t:
             return self._Id
         elif self.timedep_coeffs is None or o in self.timedep_coeffs:
             return TimeDerivative(o)
         else:
             return self.independent_terminal(o)
-
-    @process.register(SpatialCoordinate)
-    def spatial_coordinate(self, o):
-        return self.independent_terminal(o)
 
     @process.register(TimeDerivative)
     @DAGTraverser.postorder
@@ -93,17 +88,8 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
     @process.register(ReferenceValue)
     @process.register(Variable)
     @DAGTraverser.postorder
-    def _linear_op(self, o, *operands):
+    def terminal_modifier(self, o, *operands):
         return o._ufl_expr_reconstruct_(*operands)
-
-    # TODO MultiFunction backwards compatibility
-    constant_value = _terminal
-    variable = _terminal
-    indexed = _linear_op
-    derivative = _linear_op
-    grad = _linear_op
-    curl = _linear_op
-    div = _linear_op
 
 
 class TimeDerivativeRuleDispatcher(DAGTraverser):
@@ -130,9 +116,6 @@ class TimeDerivativeRuleDispatcher(DAGTraverser):
     @process.register(BaseForm)
     def _generic(self, o):
         return self.reuse_if_untouched(o)
-
-    # TODO MultiFunction backwards compatibility
-    ufl_type = DAGTraverser.reuse_if_untouched
 
 
 def apply_time_derivatives(expression, t=None, timedep_coeffs=None):
