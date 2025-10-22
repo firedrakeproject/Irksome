@@ -23,7 +23,7 @@ forms and boundary conditions and provide a method to advance by a
 time step.  The underlying variational problem for the (possibly
 implicit!) Runge-Kutta stages composes fully with advanced
 Firedrake/PETSc solver technology, so you can use block
-preconditioners, multigrid with patch smooters, and more -- and in
+preconditioners, multigrid with patch smoothers, and more -- and in
 parallel, too!
  
 Acknowledgements
@@ -155,12 +155,13 @@ There's also an example solving a Sobolev-type equation with symplectic RK metho
 
    demos/demo_bbm.py
 
-and with a Galerkin-in-Time approach:
+and with a Galerkin-in-Time approach, in standard form or with auxiliary variables for alternate conservation properties:
 
 .. toctree::
    :maxdepth: 1
 
    demos/demo_bbm_galerkin.py
+   demos/demo_bbm_aux.py
 
 Finally, if you feel you must bypass the :py:class:`.TimeStepper`
 abstraction, we have some examples how to interact with Irksome at a
