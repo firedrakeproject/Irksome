@@ -17,15 +17,13 @@ BBM is known to have a Hamiltonian structure, and there are several canonical po
 
    I_2 & = \int u^2 + (u_x)^2 \, dx
 
-   I_3 & = \int (u_x)^2 - \tfrac{1}{3} u^3 \, dx
-
-   I_4 & = \int \frac{u^2}{2} + \frac{u^3}{6} \, dx
+   I_3 & = \int \frac{u^2}{2} + \frac{u^3}{6} \, dx
 
 Standard Gauss-Legendre and continuous Petrov-Galerkin (cPG) methods conserve
 the first two invariants exactly (up to roundoff and solver tolerances.  They
-do quite well, but are inexact for the cubic ones.
+do quite well, but are inexact for the cubic one.
 Here, we consider the reformulation in Boris Andrews' thesis that in fact
-preserves the fourth one at the expense of the second.
+preserves the third one at the expense of the second.
 This method has an auxiliary variable in the system and requires a continuously differentiable spatial discretization (1d Hermite elements in this case).
 The time discretization puts the main unknown in a continuous space and the
 auxiliary variable in a discontinuous one.  See equation (7.17) of Andrews'
@@ -132,19 +130,11 @@ but forces a higher-order method on the nonlinear term::
          - Lhigh(inner(u + 0.5 * u**2, vH) * dx)
 
 
-  params = {"mat_type": "aij",
-            "snes_rtol": 1.e-10,
-            "snes_type": "newtonls",
-            "ksp_type": "preonly",
-            "pc_type": "lu",
-            "pc_factor_mat_solver_type": "umfpack"}
-
 This sets up the cPG time stepper.  There are two fields in the unknown, we indicate the second one is an auxiliary and hence to be discretized in the DG
 space instead by passing the `aux_indices` keyword::
             
   stepper = GalerkinTimeStepper(
       F, time_deg, t, dt, uwHtilde,
-      solver_parameters=params,
       aux_indices=[1])
 
 UFL expressions for the invariants, which we are going to track as we go
@@ -152,24 +142,21 @@ through time steps::
   
   I1 = u * dx
   I2 = (u**2 + (u.dx(0))**2) * dx
-  I3 = ((u.dx(0))**2 - u**3 / 3) * dx
-  I4 = (u**2 / 2 + u**3 / 6) * dx
+  I3 = (u**2 / 2 + u**3 / 6) * dx
 
   I1s = []
   I2s = []
   I3s = []
-  I4s = []
 
   tfinal = 18.0
 
 Do the time-stepping::
 
   with open("bbm_aux_invariants.csv", "w") as outfile:
-      outfile.write("t,I1,I2,I3,I4,relI1,relI2,relI3,relI4\n")
-      outfile.write("%f,%f,%f,%f,%f,%e,%e,%e, %e\n" % (float(t), assemble(I1),
+      outfile.write("t,I1,I2,I3,relI1,relI2,relI3\n")
+      outfile.write("%f,%f,%f,%f,%e,%e,%e\n" % (float(t), assemble(I1),
                                                 assemble(I2), assemble(I3),
-                                                   assemble(I4),
-                                                   0, 0, 0, 0))
+                                                0, 0, 0))
       while (float(t) < tfinal):
           if float(t) + float(dt) > tfinal:
               dt.assign(tfinal - float(t))
@@ -178,24 +165,21 @@ Do the time-stepping::
           I1s.append(assemble(I1))
           I2s.append(assemble(I2))
           I3s.append(assemble(I3))
-          I4s.append(assemble(I4))
 
           i1 = I1s[-1]
           i2 = I2s[-1]
           i3 = I3s[-1]
-          i4 = I4s[-1]
           t.assign(float(t) + float(dt))
 
           print(
-              f'{float(t):.15f}, {i1:.15f}, {i2:.15f}, {i3:.15f}, {i4:.15f}')
+              f'{float(t):.15f}, {i1:.15f}, {i2:.15f}, {i3:.15f}')
          
-          outfile.write("%f,%f,%f,%f,%f,%e,%e,%e, %e\n"
+          outfile.write("%f,%f,%f,%f,%e,%e,%e\n"
                         % (float(t),
-                           I1s[-1], I2s[-1], I3s[-1],I4s[-1],
+                           I1s[-1], I2s[-1], I3s[-1],
                            1-I1s[-1]/I1s[0],
                            1-I2s[-1]/I2s[0],
-                           1-I3s[-1]/I3s[0],
-                           1-I4s[-1]/I4s[0]))
+                           1-I3s[-1]/I3s[0]))
 
   print(errornorm(uexact, uwHtilde.subfunctions[0]) / norm(uexact))
 
