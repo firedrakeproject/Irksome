@@ -90,7 +90,11 @@ auxiliary variable :math:`\tilde{wH}`::
   V = FunctionSpace(msh, "Hermite", space_deg)
   Z = V * V
 
-We need a consistent initial condition for :math:`\tilde{wH}`. ::
+We project the initial condition on :math:`u`, but we also need a consistent initial condition for the auxiliary variable. 
+
+Let :math:`F = \frac{\delta I_3}{\delta u}` be the Fréchet derivative of the
+Hamiltonian. We need to find :math:`\tilde{wH}` such that :math:`(\tilde{wH}, v)_{H^1} = F(v)`.
+::
 
   def h1inner(u, v):
       return inner(u, v) + inner(grad(u), grad(v))
