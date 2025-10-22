@@ -5,7 +5,7 @@ This demo solves the Benjamin-Bona-Mahony equation:
 
 .. math::
 
-   u_t + u_x + u u_x - u_{txx} = 0
+   u_t - u_{txx} + u_x + u u_x = 0
 
 posed on a bounded interval with periodic boundaries.
 
@@ -28,7 +28,7 @@ The Hamiltonian formulation reads
    \partial_t (u - u_{xx}) & = - \partial_x \frac{\delta I_3}{\delta u}
 
 The numerical scheme in this demo introduces
-the :math:`H^1`-Riesz representative of the Fréchet derviative of the
+the :math:`H^1`-Riesz representative of the Fréchet derivative of the
 Hamiltonian :math:`\frac{\delta I_3}{\delta u}` 
 as the auxiliary variable :math:`\tilde{wH}`.
 
