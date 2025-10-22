@@ -157,7 +157,7 @@ through time steps::
   invariants = [tuple(map(assemble, functionals))]
   I1ex, I2ex, I3ex = invariants[0]
 
-  tfinal = 1.0
+  tfinal = 18.0
 
 Do the time-stepping::
 
