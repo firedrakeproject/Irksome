@@ -70,7 +70,10 @@ Next, we define the domain and the exact solution ::
   x, = SpatialCoordinate(msh)
 
   t = Constant(0)
-  dt = Constant(10*h)
+  inv_dt = N // (10 * L)
+  tfinal = 18
+  Nt = tfinal * inv_dt
+  dt = Constant(tfinal / Nt)
 
   c = Constant(0.5)
   center = Constant(40.0)
@@ -117,21 +120,23 @@ initial condition for the auxiliary variable.  We need to find :math:`\tilde{w}_
 ::
 
   uwHtilde = Function(Z)
-  uinit, wHinit = uwHtilde.subfunctions
+  u0, wH0 = uwHtilde.subfunctions
   
   v = TestFunction(V)
   w = TrialFunction(V)
   a = h1inner(w, v) * dx
-  dHdu = derivative(I3(uinit), uinit, v)
+  dHdu = derivative(I3(u0), u0, v)
 
-  solve(a == h1inner(uexact, v)*dx, uinit)
-  solve(a == dHdu, wHinit)
+  solve(a == h1inner(uexact, v)*dx, u0)
+  solve(a == dHdu, wH0)
 
 Visualize the initial condition::
 
   fig, axes = plt.subplots(1)
-  plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(uinit), axes=axes)
+  plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(u0), axes=axes)
   axes.set_title("Initial condition")
+  axes.set_xlabel("x")
+  axes.set_ylabel("u")
   plt.savefig("bbm_init.png")
 
 .. figure:: bbm_init.png
@@ -152,7 +157,7 @@ but forces a higher-order method on the nonlinear term::
   v, vH = split(TestFunction(Z))
 
   Flow = h1inner(Dt(u) + wHtilde.dx(0), v) * dx + h1inner(wHtilde, vH) * dx
-  Fhigh = replace(dHdu, {uinit: u})
+  Fhigh = replace(dHdu, {u0: u})
 
   F = Llow(Flow) - Lhigh(Fhigh(vH))
 
@@ -173,10 +178,7 @@ through time steps::
 
 Do the time-stepping::
 
-  tfinal = 18.0
-  while (float(t) < tfinal):
-      if float(t) + float(dt) > tfinal:
-          dt.assign(tfinal - float(t))
+  for _ in range(Nt):
       stepper.advance()
 
       invariants.append(tuple(map(assemble, functionals)))
@@ -197,6 +199,8 @@ Visualize invariant preservation::
   for i in (0, 1, 2):
       plt.plot(times, invariants[:, i], label=lbls[i])
   axes.set_title("Invariants over time")
+  axes.set_xlabel("Time")
+  axes.set_ylabel("I(t)")
   axes.legend()
   plt.savefig("invariants.png")
   axes.clear()
@@ -204,6 +208,8 @@ Visualize invariant preservation::
   for i in (0, 1, 2):
       plt.plot(times, 1.0 - invariants[:, i]/invariants[0, i], label=lbls[i])
   axes.set_title("Relative error in invariants over time")
+  axes.set_xlabel("Time")
+  axes.set_ylabel("|1-I/I(0)|")  
   axes.legend()  
   plt.savefig("invariant_errors.png")
 
@@ -218,6 +224,8 @@ Visualize the solution at final time step::
   axes.clear()
   plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(uwHtilde.subfunctions[0]), axes=axes)
   axes.set_title(f"Solution at time {tfinal}")
+  axes.set_xlabel("x")
+  axes.set_ylabel("u")  
   plt.savefig("bbm_final.png") 
 
 .. figure:: bbm_final.png
