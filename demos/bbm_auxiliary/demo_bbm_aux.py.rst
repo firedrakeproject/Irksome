@@ -29,7 +29,7 @@ The Hamiltonian variational formulation reads
 
    (\tilde{w}_H, v_H)_{H^1} & = \langle \frac{\delta I_3}{\delta u}, v_H \rangle 
 
-For all test functions :math:`v, v_H` in a suitable discrete space.
+For all test functions :math:`v, v_H` in a suitable function space.
 The numerical scheme in this demo introduces
 the :math:`H^1`-Riesz representative of the Fréchet derivative of the
 Hamiltonian :math:`\frac{\delta I_3}{\delta u}` 
@@ -119,8 +119,8 @@ initial condition for the auxiliary variable.  We need to find :math:`\tilde{w}_
 
 ::
 
-  uwHtilde = Function(Z)
-  u0, wH0 = uwHtilde.subfunctions
+  uwH = Function(Z)
+  u0, wH0 = uwH.subfunctions
   
   v = TestFunction(V)
   w = TrialFunction(V)
@@ -153,10 +153,10 @@ Create time quadrature labels::
 This tags several of the terms with a low-order time integration scheme,
 but forces a higher-order method on the nonlinear term::
 
-  u, wHtilde = split(uwHtilde)
+  u, wH = split(uwH)
   v, vH = split(TestFunction(Z))
 
-  Flow = h1inner(Dt(u) + wHtilde.dx(0), v) * dx + h1inner(wHtilde, vH) * dx
+  Flow = h1inner(Dt(u) + wH.dx(0), v) * dx + h1inner(wH, vH) * dx
   Fhigh = replace(dHdu, {u0: u})
 
   F = Llow(Flow) - Lhigh(Fhigh(vH))
@@ -166,7 +166,7 @@ indicate the second one is an auxiliary and hence to be discretized in the DG
 test space instead by passing the `aux_indices` keyword::
             
   stepper = GalerkinTimeStepper(
-      F, time_deg, t, dt, uwHtilde, aux_indices=[1])
+      F, time_deg, t, dt, uwH, aux_indices=[1])
 
 UFL expressions for the invariants, which we are going to track as we go
 through time steps::
@@ -174,7 +174,6 @@ through time steps::
   times = [float(t)]
   functionals = (I1(u), I2(u), I3(u))
   invariants = [tuple(map(assemble, functionals))]
-  I1ex, I2ex, I3ex = invariants[0]
 
 Do the time-stepping::
 
@@ -222,7 +221,7 @@ Visualize invariant preservation::
 Visualize the solution at final time step::
 
   axes.clear()
-  plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(uwHtilde.subfunctions[0]), axes=axes)
+  plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(u0), axes=axes)
   axes.set_title(f"Solution at time {tfinal}")
   axes.set_xlabel("x")
   axes.set_ylabel("u")  
