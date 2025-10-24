@@ -52,8 +52,7 @@ Firedrake, Irksome, and other imports::
 
   from firedrake import (Constant, Function, FunctionSpace,
       PeriodicIntervalMesh, SpatialCoordinate, TestFunction, TrialFunction,
-      assemble, derivative, dx, exp, grad, inner,
-      norm, plot, project, replace, solve, split
+      assemble, derivative, dx, exp, grad, inner, plot, replace, solve, split
   )
 
   from irksome import Dt, GalerkinTimeStepper, TimeQuadratureLabel
