@@ -84,14 +84,14 @@ Next, we define the domain and the exact solution ::
   uexact = 3 * c**2 / (1-c**2) \
       * sech(0.5 * (c * x - c * t / (1 - c ** 2) + delta))**2
 
-This sets up the function space for the unknown :math:`u` and
+This sets up the mixed function space for the unknown :math:`u` and
 auxiliary variable :math:`\tilde{w}_H`::
 
   space_deg = 1
   time_deg = 1
 
   V = FunctionSpace(msh, "CG", space_deg)
-  Z = V*V
+  Z = V * V
 
 We next define the BBM invariants. Again, the discrete formulation preserves 
 :math:`I_1` and :math:`I_3` up to solver tolerances and roundoff errors, 
@@ -109,12 +109,12 @@ but :math:`I_2` is preserved up to a bounded oscillation ::
   def I3(u):
       return (u**2 / 2 + u**3 / 6) * dx
 
-We project the initial condition on :math:`u`, but we also need a consistent
+We project the initial condition on :math:`u` in the :math:`H^1` norm, but we also need a consistent
 initial condition for the auxiliary variable.  We need to find :math:`\tilde{w}_H \in V` such that
 
 .. math::
 
-   (\tilde{w}_H, v)_{H^1} = \langle \frac{\delta I_3}{\delta u}, v \rangle \text{ for all } v \in V
+   (\tilde{w}_H, v)_{L^2} = \langle \frac{\delta I_3}{\delta u}, v \rangle \text{ for all } v \in V
 
 ::
 
@@ -123,12 +123,11 @@ initial condition for the auxiliary variable.  We need to find :math:`\tilde{w}_
   
   v = TestFunction(V)
   w = TrialFunction(V)
-  a0 = inner(w, v) * dx
-  a1 = h1inner(w, v) * dx
-  dHdu = derivative(I3(u0), u0, v)
 
-  solve(a1 == h1inner(uexact, v)*dx, u0)
-  solve(a0 == dHdu, w0)
+  solve(h1inner(w, v)*dx == h1inner(uexact, v)*dx, u0)
+
+  dHdu = derivative(I3(u0), u0, v)
+  solve(inner(w, v)*dx == dHdu, w0)
 
 Visualize the initial condition::
 
