@@ -1,5 +1,5 @@
-Hamiltonian-structure-preserving implementation of the Benjamin-Bona-Mahoney equation
-=====================================================================================
+Mixed Hamiltonian-preserving formulation of the Benjamin-Bona-Mahoney equation
+==============================================================================
 
 This demo solves the Benjamin-Bona-Mahony equation:
 
@@ -20,18 +20,18 @@ BBM is known to have a Hamiltonian structure, and there are several canonical po
    I_3 & = \int \frac{u^2}{2} + \frac{u^3}{6} \, \mathrm{d}x
 
 The BBM invariants are the total momentum :math:`I_1`, the :math:`H^1`-energy
-norm :math:`I_2`, and the Hamiltonian :math:`I_3`.  
-The Hamiltonian variational formulation reads
+:math:`I_2`, and the Hamiltonian :math:`I_3`.  
+The Hamiltonian mixed variational formulation reads
 
 .. math::
 
-   (\partial_t u + \partial_x \tilde{w}_H, v)_{H^1} & = 0
+   (\partial_t u, v)_{H^1} - (\tilde{w}_H, \partial_x v_H)_{L^2} & = 0
 
-   (\tilde{w}_H, v_H)_{H^1} & = \langle \frac{\delta I_3}{\delta u}, v_H \rangle 
+   (\tilde{w}_H, v_H)_{L^2} & = \langle \frac{\delta I_3}{\delta u}, v_H \rangle 
 
 For all test functions :math:`v, v_H` in a suitable function space.
 The numerical scheme in this demo introduces
-the :math:`H^1`-Riesz representative of the Fréchet derivative of the
+the :math:`L^2`-Riesz representative of the Fréchet derivative of the
 Hamiltonian :math:`\frac{\delta I_3}{\delta u}` 
 as the auxiliary variable :math:`\tilde{w}_H`.
 
@@ -52,8 +52,8 @@ Firedrake, Irksome, and other imports::
 
   from firedrake import (Constant, Function, FunctionSpace,
       PeriodicIntervalMesh, SpatialCoordinate, TestFunction, TrialFunction,
-      assemble, derivative, dx, errornorm, exp, grad, inner,
-      interpolate, norm, plot, project, replace, solve, split
+      assemble, derivative, dx, exp, grad, inner,
+      norm, plot, project, replace, solve, split
   )
 
   from irksome import Dt, GalerkinTimeStepper, TimeQuadratureLabel
@@ -88,11 +88,11 @@ Next, we define the domain and the exact solution ::
 This sets up the function space for the unknown :math:`u` and
 auxiliary variable :math:`\tilde{w}_H`::
 
-  space_deg = 3
+  space_deg = 1
   time_deg = 1
 
-  V = FunctionSpace(msh, "Hermite", space_deg)
-  Z = V * V
+  V = FunctionSpace(msh, "CG", space_deg)
+  Z = V*V
 
 We next define the BBM invariants. Again, the discrete formulation preserves 
 :math:`I_1` and :math:`I_3` up to solver tolerances and roundoff errors, 
@@ -119,27 +119,28 @@ initial condition for the auxiliary variable.  We need to find :math:`\tilde{w}_
 
 ::
 
-  uwH = Function(Z)
-  u0, wH0 = uwH.subfunctions
+  uw = Function(Z)
+  u0, w0 = uw.subfunctions
   
   v = TestFunction(V)
   w = TrialFunction(V)
-  a = h1inner(w, v) * dx
+  a0 = inner(w, v) * dx
+  a1 = h1inner(w, v) * dx
   dHdu = derivative(I3(u0), u0, v)
 
-  solve(a == h1inner(uexact, v)*dx, u0)
-  solve(a == dHdu, wH0)
+  solve(a1 == h1inner(uexact, v)*dx, u0)
+  solve(a0 == dHdu, w0)
 
 Visualize the initial condition::
 
   fig, axes = plt.subplots(1)
-  plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(u0), axes=axes)
+  plot(u0, axes=axes)
   axes.set_title("Initial condition")
   axes.set_xlabel("x")
   axes.set_ylabel("u")
-  plt.savefig("bbm_init.png")
+  plt.savefig("bbm_aux_init.png")
 
-.. figure:: bbm_init.png
+.. figure:: bbm_aux_init.png
    :align: center  
 
 Create time quadrature labels::
@@ -153,10 +154,9 @@ Create time quadrature labels::
 This tags several of the terms with a low-order time integration scheme,
 but forces a higher-order method on the nonlinear term::
 
-  u, wH = split(uwH)
+  u, w = split(uw)
   v, vH = split(TestFunction(Z))
-
-  Flow = h1inner(Dt(u) + wH.dx(0), v) * dx + h1inner(wH, vH) * dx
+  Flow = h1inner(Dt(u), v) * dx + inner(w.dx(0), v)*dx + inner(w, vH)*dx
   Fhigh = replace(dHdu, {u0: u})
 
   F = Llow(Flow) - Lhigh(Fhigh(vH))
@@ -165,8 +165,7 @@ This sets up the cPG time stepper.  There are two fields in the unknown, we
 indicate the second one is an auxiliary and hence to be discretized in the DG
 test space instead by passing the `aux_indices` keyword::
             
-  stepper = GalerkinTimeStepper(
-      F, time_deg, t, dt, uwH, aux_indices=[1])
+  stepper = GalerkinTimeStepper(F, time_deg, t, dt, uw, aux_indices=[1])
 
 UFL expressions for the invariants, which we are going to track as we go
 through time steps::
@@ -201,7 +200,7 @@ Visualize invariant preservation::
   axes.set_xlabel("Time")
   axes.set_ylabel("I(t)")
   axes.legend()
-  plt.savefig("invariants.png")
+  plt.savefig("bbm_aux_invariants.png")
   axes.clear()
 
   for i in (0, 1, 2):
@@ -210,22 +209,22 @@ Visualize invariant preservation::
   axes.set_xlabel("Time")
   axes.set_ylabel("|1-I/I(0)|")  
   axes.legend()  
-  plt.savefig("invariant_errors.png")
+  plt.savefig("bbm_aux_errors.png")
 
-.. figure:: invariants.png
+.. figure:: bbm_aux_invariants.png
    :align: center
 
-.. figure:: invariant_errors.png
+.. figure:: bbm_aux_errors.png
    :align: center
 
 Visualize the solution at final time step::
 
   axes.clear()
-  plot(Function(FunctionSpace(msh, "CG", 1)).interpolate(u0), axes=axes)
+  plot(u0, axes=axes)
   axes.set_title(f"Solution at time {tfinal}")
   axes.set_xlabel("x")
   axes.set_ylabel("u")  
-  plt.savefig("bbm_final.png") 
+  plt.savefig("bbm_aux_final.png") 
 
-.. figure:: bbm_final.png
+.. figure:: bbm_aux_final.png
    :align: center
