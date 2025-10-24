@@ -21,31 +21,34 @@ BBM is known to have a Hamiltonian structure, and there are several canonical po
 
 The BBM invariants are the total momentum :math:`I_1`, the :math:`H^1`-energy
 :math:`I_2`, and the Hamiltonian :math:`I_3`.  
-The Hamiltonian mixed variational formulation reads
-
-.. math::
-
-   (\partial_t u, v)_{H^1} - (\tilde{w}_H, \partial_x v_H)_{L^2} & = 0
-
-   (\tilde{w}_H, v_H)_{L^2} & = \langle \frac{\delta I_3}{\delta u}, v_H \rangle 
-
-For all test functions :math:`v, v_H` in a suitable function space.
-The numerical scheme in this demo introduces
-the :math:`L^2`-Riesz representative of the Fréchet derivative of the
-Hamiltonian :math:`\frac{\delta I_3}{\delta u}` 
-as the auxiliary variable :math:`\tilde{w}_H`.
 
 Standard Gauss-Legendre and continuous Petrov-Galerkin (cPG) methods conserve
 the first two invariants exactly (up to roundoff and solver tolerances).  They
-do quite well, but are inexact for the cubic one.  Here, we consider the
-reformulation in Andrews and Farrell, "Enforcing conservation laws and dissipation
-inequalities numerically via auxiliary variables" (`arXiv:2407.11904 <https://arxiv.org/abs/2407.11904>`_, to appear
-in SIAM J. Scientific Computing) that preserves the third invariant at
-the expense of the second.  This method has an auxiliary variable in the system
-and requires a continuously differentiable spatial discretization (1D Hermite
-elements in this case).  The time discretization puts the main unknown in a
-continuous space and the auxiliary variable in a discontinuous one.  See
-equation (7.17) of Boris Andrews' thesis for the particular formulation.
+do quite well, but are inexact for the cubic one.  In this demo, we consider a
+mixed Hamiltonian formulation that preserves the third invariant at the expense
+of the second. The mixed formulation solves
+
+.. math::
+
+   (\partial_t u, v)_{H^1} & = (\tilde{w}_H, \partial_x v)_{L^2}
+
+   (\tilde{w}_H, v_H)_{L^2} & = \langle \frac{\delta I_3}{\delta u}, v_H \rangle 
+
+for all test functions :math:`v, v_H` in a suitable function space :math:`V \times V`.
+In this demo we choose to discretize :math:`V` with :math:`C^0`
+Lagrange elements by introducing the auxiliary variable :math:`\tilde{w}_H \in V`
+that holds the :math:`L^2`-Riesz representative of the Fréchet derivative of the
+Hamiltonian :math:`\frac{\delta I_3}{\delta u}`.
+
+.. note::
+
+   Here, we consider the framework in Andrews and Farrell, "Enforcing conservation laws and dissipation
+   inequalities numerically via auxiliary variables" (`arXiv:2407.11904 <https://arxiv.org/abs/2407.11904>`_, to appear
+   in SIAM J. Scientific Computing).  Their method has an auxiliary variable in the system
+   and requires a continuously differentiable spatial discretization (1D Hermite
+   elements in their case).  The time discretization puts the main unknown in a
+   continuous space and the auxiliary variable in a discontinuous one. See
+   equation (7.17) of Boris Andrews' thesis for their particular formulation.
 
 
 Firedrake, Irksome, and other imports::
@@ -154,7 +157,7 @@ but forces a higher-order method on the nonlinear term::
 
   u, w = split(uw)
   v, vH = split(TestFunction(Z))
-  Flow = h1inner(Dt(u), v) * dx + inner(w.dx(0), v)*dx + inner(w, vH)*dx
+  Flow = h1inner(Dt(u), v) * dx - inner(w, v.dx(0))*dx + inner(w, vH)*dx
   Fhigh = replace(dHdu, {u0: u})
 
   F = Llow(Flow) - Lhigh(Fhigh(vH))
