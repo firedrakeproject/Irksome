@@ -155,12 +155,13 @@ There's also an example solving a Sobolev-type equation with symplectic RK metho
 
    demos/demo_bbm.py
 
-and with a Galerkin-in-Time approach, in standard form or with auxiliary variables for alternate conservation properties:
+and with a Galerkin-in-Time approach, in standard form, in Hamiltonian form, or with auxiliary variables for alternate conservation properties:
 
 .. toctree::
    :maxdepth: 1
 
    demos/demo_bbm_galerkin.py
+   demos/demo_bbm_hamiltonian.py
    demos/demo_bbm_aux.py
 
 Finally, if you feel you must bypass the :py:class:`.TimeStepper`
