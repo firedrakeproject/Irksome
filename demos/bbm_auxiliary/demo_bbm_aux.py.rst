@@ -15,7 +15,7 @@ BBM is known to have a Hamiltonian structure, and there are several canonical po
 
    I_1 & = \int u \, \mathrm{d}x
 
-   I_2 & = \int u^2 + (u_x)^2 \, \mathrm{d}x
+   I_2 & = \int \frac{u^2 + (u_x)^2}{2} \, \mathrm{d}x
 
    I_3 & = \int \frac{u^2}{2} + \frac{u^3}{6} \, \mathrm{d}x
 
@@ -104,7 +104,7 @@ but :math:`I_2` is preserved up to a bounded oscillation ::
       return u * dx
 
   def I2(u):
-      return h1inner(u, u) * dx
+      return 0.5 * h1inner(u, u) * dx
 
   def I3(u):
       return (u**2 / 2 + u**3 / 6) * dx
