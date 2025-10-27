@@ -137,8 +137,11 @@ but forces a higher-order method on the nonlinear term::
   F = Llow(Flow) - Lhigh(dHdu(v.dx(0)))
 
 This sets up the cPG time stepper. ::
-            
-  stepper = GalerkinTimeStepper(F, time_deg, t, dt, u)
+
+  sparams = {"snes_atol": 0, "snes_rtol": 1E-14}
+  stepper = GalerkinTimeStepper(F, time_deg, t, dt, u,
+                                solver_parameters=sparams)
+
 
 UFL expressions for the invariants, which we are going to track as we go
 through time steps::

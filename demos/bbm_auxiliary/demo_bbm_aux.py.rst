@@ -166,7 +166,10 @@ This sets up the cPG time stepper.  There are two fields in the unknown, we
 indicate the second one is an auxiliary and hence to be discretized in the DG
 test space instead by passing the `aux_indices` keyword::
             
-  stepper = GalerkinTimeStepper(F, time_deg, t, dt, uw, aux_indices=[1])
+  sparams = {"snes_atol": 0, "snes_rtol": 1E-14}
+  stepper = GalerkinTimeStepper(F, time_deg, t, dt, uw,
+                                aux_indices=[1],
+                                solver_parameters=sparams)
 
 UFL expressions for the invariants, which we are going to track as we go
 through time steps::
