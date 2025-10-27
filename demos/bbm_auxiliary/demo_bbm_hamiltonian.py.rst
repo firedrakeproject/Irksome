@@ -1,5 +1,5 @@
-Mixed Hamiltonian-preserving formulation of the Benjamin-Bona-Mahoney equation
-==============================================================================
+Primal Hamiltonian-preserving formulation of the Benjamin-Bona-Mahoney equation
+===============================================================================
 
 This demo solves the Benjamin-Bona-Mahony equation:
 
@@ -24,38 +24,25 @@ The BBM invariants are the total momentum :math:`I_1`, the :math:`H^1`-energy
 
 Standard Gauss-Legendre and continuous Petrov-Galerkin (cPG) methods conserve
 the first two invariants exactly (up to roundoff and solver tolerances).  They
-do quite well, but are inexact for the cubic one.  In this demo, we consider a
-mixed Hamiltonian formulation that preserves the third invariant at the expense
-of the second. The mixed formulation solves
+do quite well, but are inexact for the cubic one. 
+In this demo, we consider a primal Hamiltonian formulation that preserves the third invariant at
+the expense of the second. The problem is to find :math:`u \in V` such that
 
 .. math::
 
-   (\partial_t u, v)_{H^1} & = (\tilde{w}_H, \partial_x v)_{L^2}
+   \langle \partial_t \frac{\delta I_2}{\delta u}, v \rangle = \langle \frac{\delta I_3}{\delta u}, \partial_x v \rangle 
 
-   (\tilde{w}_H, v_H)_{L^2} & = \langle \frac{\delta I_3}{\delta u}, v_H \rangle 
-
-for all test functions :math:`v, v_H` in a suitable function space :math:`V \times V`.
-In this demo we choose to discretize :math:`V` with :math:`C^0`
-Lagrange elements by introducing the auxiliary variable :math:`\tilde{w}_H \in V`
-that holds the :math:`L^2`-Riesz representative of the Fréchet derivative of the
-Hamiltonian :math:`\frac{\delta I_3}{\delta u}`.
-
-.. note::
-
-   Here, we consider the framework in Andrews and Farrell, "Enforcing conservation laws and dissipation
-   inequalities numerically via auxiliary variables" (`arXiv:2407.11904 <https://arxiv.org/abs/2407.11904>`_, to appear
-   in SIAM J. Scientific Computing).  Their method has an auxiliary variable in the system
-   and requires a continuously differentiable spatial discretization (1D Hermite
-   elements in their case).  The time discretization puts the main unknown in a
-   continuous space and the auxiliary variable in a discontinuous one. See
-   equation (7.17) of Boris Andrews' thesis for their particular formulation.
-
+for all test functions :math:`v \in V`.
+Here :math:`\frac{\delta I_3}{\delta u} : V \to \mathbb{R}` is the  Fréchet derivative of the
+Hamiltonian. A primal conforming discretization requires that :math:`\partial_x V \subset V`, 
+hence we use :math:`C^1` Hermite elements. A mixed reformulation using
+:math:`C^0` Lagrange elements with the same conservation properties is found in :doc:`this demo <demo_bbm_aux.py>`.
 
 Firedrake, Irksome, and other imports::
 
   from firedrake import (Constant, Function, FunctionSpace,
       PeriodicIntervalMesh, SpatialCoordinate, TestFunction, TrialFunction,
-      assemble, derivative, dx, exp, grad, inner, plot, replace, solve, split
+      assemble, derivative, dx, exp, grad, inner, plot, solve,
   )
 
   from irksome import Dt, GalerkinTimeStepper, TimeQuadratureLabel
@@ -87,14 +74,12 @@ Next, we define the domain and the exact solution ::
   uexact = 3 * c**2 / (1-c**2) \
       * sech(0.5 * (c * x - c * t / (1 - c ** 2) + delta))**2
 
-This sets up the mixed function space for the unknown :math:`u` and
-auxiliary variable :math:`\tilde{w}_H`::
+This sets up the function space for the unknown :math:`u` ::
 
-  space_deg = 1
+  space_deg = 3
   time_deg = 1
 
-  V = FunctionSpace(msh, "CG", space_deg)
-  Z = V * V
+  V = FunctionSpace(msh, "Hermite", space_deg)
 
 We next define the BBM invariants. Again, the discrete formulation preserves 
 :math:`I_1` and :math:`I_3` up to solver tolerances and roundoff errors, 
@@ -112,36 +97,27 @@ but :math:`I_2` is preserved up to a bounded oscillation ::
   def I3(u):
       return (u**2 / 2 + u**3 / 6) * dx
 
-We project the initial condition on :math:`u` in the :math:`H^1` norm, but we also need a consistent
-initial condition for the auxiliary variable.  We need to find :math:`\tilde{w}_H \in V` such that
+We project the initial condition on :math:`u`. ::
 
-.. math::
-
-   (\tilde{w}_H, v)_{L^2} = \langle \frac{\delta I_3}{\delta u}, v \rangle \text{ for all } v \in V
-
-::
-
-  uw = Function(Z)
-  u0, w0 = uw.subfunctions
+  u = Function(V)
   
   v = TestFunction(V)
   w = TrialFunction(V)
 
-  solve(h1inner(w, v)*dx == h1inner(uexact, v)*dx, u0)
+  a = h1inner(w, v) * dx
 
-  dHdu = derivative(I3(u0), u0, v)
-  solve(inner(w, v)*dx == dHdu, w0)
+  solve(a == h1inner(uexact, v)*dx, u)
 
 Visualize the initial condition::
 
   fig, axes = plt.subplots(1)
-  plot(u0, axes=axes)
+  plot(Function(FunctionSpace(msh, "CG", space_deg)).interpolate(u), axes=axes)
   axes.set_title("Initial condition")
   axes.set_xlabel("x")
   axes.set_ylabel("u")
-  plt.savefig("bbm_aux_init.png")
+  plt.savefig("bbm_hamiltonian_init.png")
 
-.. figure:: bbm_aux_init.png
+.. figure:: bbm_hamiltonian_init.png
    :align: center  
 
 Create time quadrature labels::
@@ -155,21 +131,17 @@ Create time quadrature labels::
 This tags several of the terms with a low-order time integration scheme,
 but forces a higher-order method on the nonlinear term::
 
-  u, w = split(uw)
-  v, vH = split(TestFunction(Z))
-  Flow = h1inner(Dt(u), v) * dx - inner(w, v.dx(0))*dx + inner(w, vH)*dx
-  Fhigh = replace(dHdu, {u0: u})
+  dHdu = derivative(I3(u), u, v)
+  Flow = h1inner(Dt(u), v)*dx
+   
+  F = Llow(Flow) - Lhigh(dHdu(v.dx(0)))
 
-  F = Llow(Flow) - Lhigh(Fhigh(vH))
+This sets up the cPG time stepper. ::
 
-This sets up the cPG time stepper.  There are two fields in the unknown, we
-indicate the second one is an auxiliary and hence to be discretized in the DG
-test space instead by passing the `aux_indices` keyword::
-            
   sparams = {"snes_atol": 0, "snes_rtol": 1E-14}
-  stepper = GalerkinTimeStepper(F, time_deg, t, dt, uw,
-                                aux_indices=[1],
+  stepper = GalerkinTimeStepper(F, time_deg, t, dt, u,
                                 solver_parameters=sparams)
+
 
 UFL expressions for the invariants, which we are going to track as we go
 through time steps::
@@ -204,7 +176,7 @@ Visualize invariant preservation::
   axes.set_xlabel("Time")
   axes.set_ylabel("I(t)")
   axes.legend()
-  plt.savefig("bbm_aux_invariants.png")
+  plt.savefig("bbm_hamiltonian_invariants.png")
   axes.clear()
 
   for i in (0, 1, 2):
@@ -213,22 +185,22 @@ Visualize invariant preservation::
   axes.set_xlabel("Time")
   axes.set_ylabel("|1-I/I(0)|")  
   axes.legend()  
-  plt.savefig("bbm_aux_errors.png")
+  plt.savefig("bbm_hamiltonian_errors.png")
 
-.. figure:: bbm_aux_invariants.png
+.. figure:: bbm_hamiltonian_invariants.png
    :align: center
 
-.. figure:: bbm_aux_errors.png
+.. figure:: bbm_hamiltonian_errors.png
    :align: center
 
 Visualize the solution at final time step::
 
   axes.clear()
-  plot(u0, axes=axes)
+  plot(Function(FunctionSpace(msh, "CG", space_deg)).interpolate(u), axes=axes)
   axes.set_title(f"Solution at time {tfinal}")
   axes.set_xlabel("x")
   axes.set_ylabel("u")  
-  plt.savefig("bbm_aux_final.png") 
+  plt.savefig("bbm_hamiltonian_final.png") 
 
-.. figure:: bbm_aux_final.png
+.. figure:: bbm_hamiltonian_final.png
    :align: center
