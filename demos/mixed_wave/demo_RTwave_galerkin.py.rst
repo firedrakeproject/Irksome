@@ -36,7 +36,7 @@ Here is some typical Firedrake boilerplate and the construction of a simple
 mesh and the approximating spaces.  We are going to use a multigrid preconditioner for each timestep, so we create a MeshHierarchy as well::
 
   from firedrake import *
-  from irksome import Dt, MeshConstant, GalerkinTimeStepper
+  from irksome import Dt, MeshConstant, TimeStepper, CPGDescriptor
 
   N = 10
 
@@ -101,9 +101,8 @@ Here, we experiment with a multigrid preconditioner for the CG(2)-in-time discre
                   "pc_factor_mat_solver_type": "mumps"}
               }
   
-
-  stepper = GalerkinTimeStepper(F, 2, t, dt, up0,
-                                solver_parameters=mgparams)
+  scheme = CPGDescriptor(2)
+  stepper = TimeStepper(F, scheme, t, dt, up0, solver_parameters=mgparams)
 
 
 And, as with the heat equation, our time-stepping logic is quite simple.  At easch time step, we print out the energy in the system::

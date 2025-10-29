@@ -146,8 +146,8 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` is the
             :class:firedrake.TestFunction`.
-    :arg order: an integer indicating the order of the DG space to use
-         (with order == 0 corresponding to DG(0)-in-time)
+    :arg scheme: a :class:`DGDescriptor` instance describing the order,
+         basis type, and default quadrature scheme.
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
@@ -159,11 +159,6 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the method.
-    :arg basis_type: A string indicating the finite element family (either
-            `'Lagrange'` or `'Bernstein'`) or the Lagrange variant for the
-            test/trial spaces. Defaults to equispaced Lagrange elements.
-    :arg quadrature: A :class:`FIAT.QuadratureRule` indicating the quadrature
-            to be used in time, defaulting to GL with order+1 points
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
@@ -178,11 +173,13 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
     """
-    def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
+    def __init__(self, F, scheme, t, dt, u0, bcs=None, basis_type=None,
                  quadrature=None, **kwargs):
-        assert order >= 0
-        self.order = order
-        self.basis_type = basis_type
+        order = self.order = scheme.order
+        assert order >= 0, "DG must be order >= 0"
+
+        self.basis_type = basis_type = scheme.basis_type
+        quadrature = scheme.quadrature
 
         V = u0.function_space()
         self.num_fields = len(V)

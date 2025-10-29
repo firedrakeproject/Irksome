@@ -160,8 +160,8 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` is the
             :class:firedrake.TestFunction`.
-    :arg order: an integer indicating the order of the DG space to use
-         (with order == 1 corresponding to CG(1)-in-time for the trial space)
+    :arg scheme: :class:`CPGDescriptor` encoding the order,
+         basis type, and default quadrature rule of the method.
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
@@ -173,13 +173,6 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the method.
-    :kwarg basis_type: A string indicating the finite element family (either
-            `'Lagrange'` or `'Bernstein'`) or the Lagrange variant for the
-            test/trial spaces. Defaults to equispaced Lagrange elements.
-    :kwarg quadrature: A :class:`FIAT.QuadratureRule` indicating the quadrature
-            to be used in time, defaulting to GL with order points
-    :kwarg aux_indices: a list of field indices to be discretized in the test space
-            rather than trial space.
     :kwarg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
@@ -196,11 +189,11 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
     :kwarg aux_indices: a list of field indices to be discretized in the test space
             rather than trial space.
     """
-    def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None, aux_indices=None, **kwargs):
-        assert order >= 1
-        self.order = order
-        self.basis_type = basis_type
+    def __init__(self, F, scheme, t, dt, u0, bcs=None,
+                 aux_indices=None, **kwargs):
+        order = self.order = scheme.order
+        basis_type = self.basis_type = scheme.basis_type
+        quadrature = scheme.quadrature
 
         V = u0.function_space()
         self.num_fields = len(V)
