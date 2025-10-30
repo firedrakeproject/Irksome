@@ -107,7 +107,7 @@ def heat_delta_galerkin(msh, vom, scheme):
 
     dt = Constant(1/N)
 
-    stepper = TimeStepper(F, descriptor, t, dt, u, bcs=bcs,
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs,
                           solver_parameters={"snes_lag_jacobian": -2})
 
     stepper.advance()
