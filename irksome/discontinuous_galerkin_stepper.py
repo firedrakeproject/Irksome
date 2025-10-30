@@ -1,7 +1,7 @@
 from FIAT import (Bernstein, DiscontinuousElement,
                   DiscontinuousLagrange,
                   Legendre,
-                  make_quadrature, ufc_simplex)
+                  create_quadrature, ufc_simplex)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
@@ -179,15 +179,15 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         assert order >= 0, "DG must be order >= 0"
 
         self.basis_type = basis_type = scheme.basis_type
-        quadrature = scheme.quadrature
 
         V = u0.function_space()
         self.num_fields = len(V)
 
         self.el = getElement(basis_type, order)
 
-        if quadrature is None:
-            quadrature = make_quadrature(ufc_line, order+1)
+        quad_degree = scheme.quadrature_degree or 2 * (order+1)
+        quadrature = create_quadrature(ufc_line, quad_degree,
+                                       scheme.quadrature_scheme)
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order+1
 

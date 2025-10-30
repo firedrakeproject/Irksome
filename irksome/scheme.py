@@ -10,21 +10,27 @@ class GalerkinScheme:
     :kwarg quadrature: A :class:`FIAT.QuadratureRule` indicating the quadrature
             to be used in time, defaulting to GL with order points
     """
-    def __init__(self, order, basis_type, quadrature):
+    def __init__(self, order, basis_type,
+                 quadrature_degree, quadrature_scheme):
         self.order = order
         self.basis_type = basis_type
-        self.quadrature = quadrature
+        self.quadrature_degree = quadrature_degree
+        self.quadrature_scheme = quadrature_scheme
 
 
 class DiscontinuousGalerkinScheme(GalerkinScheme):
     """Class for describing DG-in-time methods"""
-    def __init__(self, order, basis_type=None, quadrature=None):
+    def __init__(self, order, basis_type=None,
+                 quadrature_degree=None, quadrature_scheme="default"):
         assert order >= 0, "DG must have order >= 1"
-        super().__init__(order, basis_type, quadrature)
+        super().__init__(order, basis_type,
+                         quadrature_degree, quadrature_scheme)
 
 
 class ContinuousPetrovGalerkinScheme(GalerkinScheme):
     """Class for describing cPG-in-time methods"""
-    def __init__(self, order, basis_type=None, quadrature=None):
+    def __init__(self, order, basis_type=None,
+                 quadrature_degree=None, quadrature_scheme="default"):
         assert order >= 1, "CPG must have order >= 1"
-        super().__init__(order, basis_type, quadrature)
+        super().__init__(order, basis_type,
+                         quadrature_degree, quadrature_scheme)
