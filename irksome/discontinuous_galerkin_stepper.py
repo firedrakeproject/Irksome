@@ -185,7 +185,9 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
 
         self.el = getElement(basis_type, order)
 
-        quad_degree = scheme.quadrature_degree or 2 * (order+1)
+        quad_degree = scheme.quadrature_degree
+        if quad_degree is None:
+            quad_degree = 2 * (order+1)
         quadrature = create_quadrature(ufc_line, quad_degree,
                                        scheme.quadrature_scheme)
         self.quadrature = quadrature
