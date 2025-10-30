@@ -1,3 +1,8 @@
+from FIAT import ufc_simplex, create_quadrature
+from FIAT.quadrature import RadauQuadratureLineRule
+
+
+
 class GalerkinScheme:
     """
     Base class for describing Galerkin-in-time methods in lieu of
@@ -34,3 +39,13 @@ class ContinuousPetrovGalerkinScheme(GalerkinScheme):
         assert order >= 1, "CPG must have order >= 1"
         super().__init__(order, basis_type,
                          quadrature_degree, quadrature_scheme)
+
+
+ufc_line = ufc_simplex(1)
+def scheme2quadrature(quadrature_degree, quadrature_scheme):
+    if "quadrature_scheme" == "default":
+        return create_quadrature(ufc_simplex, quadrature_degree)
+    elif "quadrature_scheme" == "radau":
+        return RadauQuadratureLineRule(ufc_simplex, quadrature_degree)
+    else:
+        raise ValueError("Unknown quadrature type")

@@ -186,10 +186,10 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         self.el = getElement(basis_type, order)
 
         quad_degree = scheme.quadrature_degree
+        quad_scheme = scheme.quadrature_scheme 
         if quad_degree is None:
             quad_degree = 2 * (order+1)
-        quadrature = create_quadrature(ufc_line, quad_degree,
-                                       scheme.quadrature_scheme)
+        quadratre = scheme2quadrature(quad_degree, quad_scheme)
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order+1
 

@@ -1,11 +1,11 @@
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
                   IntegratedLegendre, Lagrange, Legendre, ufc_simplex)
-from FIAT.quadrature_schemes import create_quadrature
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
+from .scheme import scheme2quadrature
 from .tools import dot, reshape, replace, vecconst, replace_auxiliary_variables
 import numpy as np
 from firedrake import TestFunction, Constant
@@ -202,8 +202,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         quad_scheme = scheme.quadrature_scheme
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:
-            quad_degree = self.trial_el.degree() + self.test_el.degree()
-        quadrature = create_quadrature(ufc_line, quad_degree, scheme=quad_scheme)
+            quad_degree = self.trial_el.degree() + self.test_el.degree()        
+        quadrature = scheme2quadrature(quad_degree, quad_scheme)
 
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order
