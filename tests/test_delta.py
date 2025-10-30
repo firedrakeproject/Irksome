@@ -147,6 +147,6 @@ def test_wave(msh, vom, num_stages):
     wave_delta(msh, vom, GaussLegendre(num_stages))
 
 
-@pytest.mark.parametrize('descriptor', (DiscontinuousGalerkinScheme(1), ContinuousPetrovGalerkinScheme(2)))
-def test_heat_galerkin(msh, vom, descriptor):
-    heat_delta_galerkin(msh, vom, descriptor)
+@pytest.mark.parametrize('scheme', (DiscontinuousGalerkinScheme(1), ContinuousPetrovGalerkinScheme(2)))
+def test_heat_galerkin(msh, vom, scheme):
+    heat_delta_galerkin(msh, vom, scheme)
