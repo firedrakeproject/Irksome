@@ -152,7 +152,7 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     ufc_line = FIAT.ufc_simplex(1)
     quadrature = FIAT.quadrature.RadauQuadratureLineRule(ufc_line, order+1)
 
-    scheme = DiscontinuousGalerkinScheme(order, None, quadrature)
+    scheme = DiscontinuousGalerkinScheme(order, quadrature_scheme=quadrature)
 
     stepper = TimeStepper(
         F, scheme, t, dt, u, bcs=bcs, quadrature=quadrature,
