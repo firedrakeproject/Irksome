@@ -1,4 +1,4 @@
-class GalerkinDescriptor:
+class GalerkinScheme:
     """
     Base class for describing Galerkin-in-time methods in lieu of
     a Butcher tableau.
@@ -16,14 +16,14 @@ class GalerkinDescriptor:
         self.quadrature = quadrature
 
 
-class DGDescriptor(GalerkinDescriptor):
+class DiscontinuousGalerkinScheme(GalerkinScheme):
     """Class for describing DG-in-time methods"""
     def __init__(self, order, basis_type=None, quadrature=None):
         assert order >= 0, "DG must have order >= 1"
         super().__init__(order, basis_type, quadrature)
 
 
-class CPGDescriptor(GalerkinDescriptor):
+class ContinuousPetrovGalerkinScheme(GalerkinScheme):
     """Class for describing cPG-in-time methods"""
     def __init__(self, order, basis_type=None, quadrature=None):
         assert order >= 1, "CPG must have order >= 1"

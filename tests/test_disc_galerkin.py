@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, TimeStepper, DGDescriptor, RadauIIA
+from irksome import Dt, MeshConstant, TimeStepper, DiscontinuousGalerkinScheme, RadauIIA
 
 import FIAT
 
@@ -51,7 +51,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    scheme = DGDescriptor(order, basis_type)
+    scheme = DiscontinuousGalerkinScheme(order, basis_type)
 
     stepper = TimeStepper(
         F, scheme, t, dt, u, bcs=bc, basis_type=basis_type,
@@ -101,7 +101,7 @@ def test_1d_heat_neumannbc(order):
     ufc_line = FIAT.ufc_simplex(1)
     quadrature = FIAT.quadrature.RadauQuadratureLineRule(ufc_line, order+1)
 
-    scheme = DGDescriptor(order, None, quadrature)
+    scheme = DiscontinuousGalerkinScheme(order, None, quadrature)
     stepper = TimeStepper(
         F, scheme, t, dt, u, quadrature=quadrature,
         solver_parameters=luparams
@@ -152,7 +152,7 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     ufc_line = FIAT.ufc_simplex(1)
     quadrature = FIAT.quadrature.RadauQuadratureLineRule(ufc_line, order+1)
 
-    scheme = DGDescriptor(order, None, quadrature)
+    scheme = DiscontinuousGalerkinScheme(order, None, quadrature)
 
     stepper = TimeStepper(
         F, scheme, t, dt, u, bcs=bcs, quadrature=quadrature,

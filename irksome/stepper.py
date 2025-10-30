@@ -1,4 +1,4 @@
-from .descriptor import CPGDescriptor, DGDescriptor
+from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 from .dirk_stepper import DIRKTimeStepper
 from .explicit_stepper import ExplicitTimeStepper
 from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
@@ -96,9 +96,9 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         supported.
     """
     # first pluck out the cases for Galerkin in time...
-    if isinstance(butcher_tableau, CPGDescriptor):
+    if isinstance(butcher_tableau, ContinuousPetrovGalerkinScheme):
         return GalerkinTimeStepper(F, butcher_tableau, t, dt, u0, **kwargs)
-    elif isinstance(butcher_tableau, DGDescriptor):
+    elif isinstance(butcher_tableau, DiscontinuousGalerkinScheme):
         return DiscontinuousGalerkinTimeStepper(F, butcher_tableau, t, dt, u0, **kwargs)
 
     stage_type = kwargs.pop("stage_type", "deriv")

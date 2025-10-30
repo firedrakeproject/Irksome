@@ -29,7 +29,7 @@ from .stage_value import StageValueTimeStepper  # noqa: F401
 from .stepper import TimeStepper            # noqa: F401
 from .tools import MeshConstant             # noqa: F401
 from .wso_dirk_tableaux import WSODIRK      # noqa: F401
-from .descriptor import CPGDescriptor, DGDescriptor  # noqa: F401
+from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme  # noqa: F401
 from .galerkin_stepper import GalerkinTimeStepper  # noqa: F401
 from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper  # noqa: F401
 from .labeling import TimeQuadratureLabel  # noqa: F401

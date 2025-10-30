@@ -160,7 +160,7 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` is the
             :class:firedrake.TestFunction`.
-    :arg scheme: :class:`CPGDescriptor` encoding the order,
+    :arg scheme: :class:`ContinuousPetrovGalerkinScheme` encoding the order,
          basis type, and default quadrature rule of the method.
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.

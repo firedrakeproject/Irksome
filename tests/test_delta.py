@@ -1,5 +1,5 @@
 from firedrake import *
-from irksome import Alexander, Dt, RadauIIA, TimeStepper, GaussLegendre, StageDerivativeNystromTimeStepper, CPGDescriptor, DGDescriptor
+from irksome import Alexander, Dt, RadauIIA, TimeStepper, GaussLegendre, StageDerivativeNystromTimeStepper, ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 import pytest
 import ufl
 
@@ -147,6 +147,6 @@ def test_wave(msh, vom, num_stages):
     wave_delta(msh, vom, GaussLegendre(num_stages))
 
 
-@pytest.mark.parametrize('descriptor', (DGDescriptor(1), CPGDescriptor(2)))
+@pytest.mark.parametrize('descriptor', (DiscontinuousGalerkinScheme(1), ContinuousPetrovGalerkinScheme(2)))
 def test_heat_galerkin(msh, vom, descriptor):
     heat_delta_galerkin(msh, vom, descriptor)

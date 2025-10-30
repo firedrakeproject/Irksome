@@ -36,7 +36,7 @@ Here is some typical Firedrake boilerplate and the construction of a simple
 mesh and the approximating spaces.  We are going to use a multigrid preconditioner for each timestep, so we create a MeshHierarchy as well::
 
   from firedrake import *
-  from irksome import Dt, MeshConstant, TimeStepper, CPGDescriptor
+  from irksome import Dt, MeshConstant, TimeStepper, ContinuousPetrovGalerkinScheme
 
   N = 10
 
@@ -101,7 +101,7 @@ Here, we experiment with a multigrid preconditioner for the CG(2)-in-time discre
                   "pc_factor_mat_solver_type": "mumps"}
               }
   
-  scheme = CPGDescriptor(2)
+  scheme = ContinuousPetrovGalerkinScheme(2)
   stepper = TimeStepper(F, scheme, t, dt, up0, solver_parameters=mgparams)
 
 

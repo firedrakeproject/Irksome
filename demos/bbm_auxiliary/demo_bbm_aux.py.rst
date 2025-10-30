@@ -56,7 +56,7 @@ Firedrake, Irksome, and other imports::
       interpolate, norm, plot, project, replace, solve, split
   )
 
-  from irksome import Dt, TimeStepper, TimeQuadratureLabel, CPGDescriptor
+  from irksome import Dt, TimeStepper, TimeQuadratureLabel, ContinuousPetrovGalerkinScheme
 
   import matplotlib.pyplot as plt
   import numpy
@@ -165,7 +165,7 @@ This sets up the cPG time stepper.  There are two fields in the unknown, we
 indicate the second one is an auxiliary and hence to be discretized in the DG
 test space instead by passing the `aux_indices` keyword::
 
-  scheme = CPGDescriptor(time_deg)
+  scheme = ContinuousPetrovGalerkinScheme(time_deg)
   
   stepper = TimeStepper(F, scheme, t, dt, uwH, aux_indices=[1])
 

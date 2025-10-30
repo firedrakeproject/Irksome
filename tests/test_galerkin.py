@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, CPGDescriptor, TimeStepper, GaussLegendre
+from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, TimeStepper, GaussLegendre
 from irksome.labeling import TimeQuadratureLabel
 from FIAT import make_quadrature, ufc_simplex
 from FIAT.quadrature_schemes import create_quadrature
@@ -52,7 +52,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
 
-    scheme = CPGDescriptor(order, basis_type)
+    scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
     stepper = TimeStepper(
         F, scheme, t, dt, u, bcs=bc,
         solver_parameters=luparams
@@ -102,7 +102,7 @@ def test_1d_heat_neumannbc(order, num_quad_points):
     ufc_line = ufc_simplex(1)
     quadrature = make_quadrature(ufc_line, num_quad_points)
 
-    scheme = CPGDescriptor(order, quadrature=quadrature)
+    scheme = ContinuousPetrovGalerkinScheme(order, quadrature=quadrature)
 
     stepper = TimeStepper(
         F, scheme, t, dt, u,
@@ -151,7 +151,7 @@ def test_1d_heat_homogeneous_dirichletbc(order):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    scheme = CPGDescriptor(order)
+    scheme = ContinuousPetrovGalerkinScheme(order)
     stepper = TimeStepper(
         F, scheme, t, dt, u, bcs=bcs,
         solver_parameters=luparams
@@ -201,7 +201,7 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    scheme = CPGDescriptor(order)
+    scheme = ContinuousPetrovGalerkinScheme(order)
     stepper = TimeStepper(
         F, scheme, t, dt, u, bcs=bcs,
         solver_parameters=luparams
@@ -247,7 +247,7 @@ def galerkin_wave(n, deg, alpha, order):
 
     E = 0.5 * (inner(u, u)*dx + inner(p, p)*dx)
 
-    scheme = CPGDescriptor(order)
+    scheme = ContinuousPetrovGalerkinScheme(order)
 
     stepper = TimeStepper(F, scheme, t, dt, up,
                           solver_parameters=params)
@@ -288,7 +288,7 @@ def kepler(V, order, t, dt, u0, solver_parameters):
     test = TestFunction(V)
     dHdu = derivative(H, u, test)
     F = inner(Dt(u), test)*dx + Lhigh(-replace(dHdu, {test: dot(J.T, test)}))
-    scheme = CPGDescriptor(order)
+    scheme = ContinuousPetrovGalerkinScheme(order)
     stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=solver_parameters)
     return stepper, [H]
 
@@ -338,7 +338,7 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     # Auxiliary variable subspaces
     aux_indices = list(range(1, len(Z)))
 
-    scheme = CPGDescriptor(order)
+    scheme = ContinuousPetrovGalerkinScheme(order)
     stepper = TimeStepper(F, scheme, t, dt, z,
                           solver_parameters=solver_parameters,
                           aux_indices=aux_indices)
