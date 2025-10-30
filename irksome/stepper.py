@@ -2,7 +2,7 @@ from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 from .dirk_stepper import DIRKTimeStepper
 from .explicit_stepper import ExplicitTimeStepper
 from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
-from .galerkin_stepper import GalerkinTimeStepper
+from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
 from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
 from .labeling import split_explicit
 from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
@@ -97,7 +97,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     """
     # first pluck out the cases for Galerkin in time...
     if isinstance(butcher_tableau, ContinuousPetrovGalerkinScheme):
-        return GalerkinTimeStepper(F, butcher_tableau, t, dt, u0, **kwargs)
+        return ContinuousPetrovGalerkinTimeStepper(F, butcher_tableau, t, dt, u0, **kwargs)
     elif isinstance(butcher_tableau, DiscontinuousGalerkinScheme):
         return DiscontinuousGalerkinTimeStepper(F, butcher_tableau, t, dt, u0, **kwargs)
 

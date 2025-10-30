@@ -152,7 +152,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
     return Fnew, bcsnew
 
 
-class GalerkinTimeStepper(StageCoupledTimeStepper):
+class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
     """Front-end class for advancing a time-dependent PDE via a Galerkin
     in time method
 
