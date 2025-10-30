@@ -200,13 +200,10 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         self.trial_el, self.test_el = getElements(basis_type, order)
 
         quad_scheme = scheme.quadrature_scheme
-        if isinstance(quad_scheme, str):
-            quad_degree = scheme.quadrature_degree
-            if quad_degree is None:
-                quad_degree = self.trial_el.degree() + self.test_el.degree()
-            quadrature = create_quadrature(ufc_line, quad_degree, scheme=quad_scheme)
-        else:
-            quadrature = quad_scheme
+        quad_degree = scheme.quadrature_degree
+        if quad_degree is None:
+            quad_degree = self.trial_el.degree() + self.test_el.degree()
+        quadrature = create_quadrature(ufc_line, quad_degree, scheme=quad_scheme)
 
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order
