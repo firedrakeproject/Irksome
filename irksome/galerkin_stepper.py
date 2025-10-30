@@ -199,7 +199,6 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
 
         self.trial_el, self.test_el = getElements(basis_type, order)
 
-        quad_degree = scheme.quadrature_degree or self.trial_el.degree() + self.test_el.degree()
         quadrature = create_quadrature(ufc_line, quad_degree, scheme.quadrature_scheme)
 
         self.quadrature = quadrature
