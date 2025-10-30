@@ -94,7 +94,7 @@ def heat_delta(msh, vom, bt, stage_type):
     stepper.advance()
 
 
-def heat_delta_galerkin(msh, vom, descriptor):
+def heat_delta_galerkin(msh, vom, scheme):
     V = FunctionSpace(msh, "CG", 1)
     u = Function(V, name="u")
     v = TestFunction(V)
