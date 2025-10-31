@@ -50,7 +50,6 @@ def test_1d_heat_dirichletbc(order, basis_type):
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = DiscontinuousGalerkinScheme(order, basis_type)
-
     stepper = TimeStepper(
         F, scheme, t, dt, u, bcs=bc, basis_type=basis_type,
         solver_parameters=luparams
