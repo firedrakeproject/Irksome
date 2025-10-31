@@ -94,7 +94,7 @@ class CollocationButcherTableau(ButcherTableau):
 
         num_stages = len(c)
 
-        Q = create_quadrature(L.ref_complex, 2*num_stages)
+        Q = create_quadrature(L.ref_complex, L.degree())
         qpts = Q.get_points()
         qwts = Q.get_weights()
 
