@@ -310,7 +310,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     # implicit variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constants a and chat are
     # used similarly in the variational forms
-    msh = V[0].mesh()
+    msh = V.mesh()
     MC = MeshConstant(msh)
     c = MC.Constant(1.0)
     chat = MC.Constant(1.0)
