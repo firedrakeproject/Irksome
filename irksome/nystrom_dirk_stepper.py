@@ -5,7 +5,7 @@ from firedrake import (Function,
 from ufl.constantvalue import as_ufl
 
 from .deriv import Dt, expand_time_derivatives
-from .tools import replace, MeshConstant, vecconst
+from .tools import replace, vecconst
 from .bcs import bc2space
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
 
@@ -18,7 +18,7 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
 
     v, = F.arguments()
     V = v.function_space()
-    msh = V.mesh()
+
     assert V == u0.function_space()
 
     num_stages = tableau.num_stages
@@ -30,10 +30,9 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constants a
     # and abar are used similarly in the variational form
-    MC = MeshConstant(msh)
-    c = MC.Constant(1.0)
-    a = MC.Constant(1.0)
-    abar = MC.Constant(1.0)
+    c = Constant(1.0)
+    a = Constant(1.0)
+    abar = Constant(1.0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
@@ -51,9 +50,9 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
     # than one per stage), but we need a `Function` inside of each BC
     # and a rule for computing that function at each time for each
     # stage.
-    abar_vals = numpy.array([MC.Constant(0) for i in range(num_stages)],
+    abar_vals = numpy.array([Constant(0) for i in range(num_stages)],
                             dtype=object)
-    d_val = MC.Constant(1.0)
+    d_val = Constant(1.0)
     if bc_type == "DAE":
         # Here, at each stage, abar_vals should include the
         # subdiagonal values from Abar in the Nystrom Tableau and

@@ -1,7 +1,7 @@
 import pytest
 from firedrake import *
 from math import isclose
-from irksome import GaussLegendre, RadauIIA, Dt, MeshConstant, TimeStepper
+from irksome import GaussLegendre, RadauIIA, Dt, TimeStepper
 
 
 @pytest.mark.parametrize("stage_type", ["deriv"])
@@ -17,9 +17,8 @@ def test_1d_heat_equationbc(butcher_tableau, stage_type):
     x1 = 10.0
     msh = IntervalMesh(N, x1)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(10.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(10.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     # Method of manufactured solutions copied from Heat equation demo.
@@ -82,9 +81,8 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
 
     x, y = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1 / N)
+    t = Constant(0.0)
 
     uexact = sin(t) * cos(x + y + t)
     sigmaexact = -grad(uexact)
@@ -129,9 +127,8 @@ def test_2d_equation_and_dirichlet_bc(butcher_tableau, stage_type):
 
     x, y = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(0.01)
-    t = MC.Constant(0.0)
+    dt = Constant(0.01)
+    t = Constant(0.0)
 
     uexact = cos(t) * cos(x + y + t)
     rhs = Dt(uexact) - div(grad(uexact))

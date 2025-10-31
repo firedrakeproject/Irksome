@@ -29,7 +29,7 @@ Note that this gives us a differential-algebraic system at the fully discrete le
 Standard imports, although we're using a different RK scheme this time::
 
   from firedrake import *
-  from irksome import LobattoIIIC, Dt, MeshConstant, TimeStepper
+  from irksome import LobattoIIIC, Dt, TimeStepper
   from ufl.algorithms.ad import expand_derivatives
 
   butcher_tableau = LobattoIIIC(2)
@@ -49,9 +49,8 @@ Build the mesh and approximating spaces::
 
 Create time and time-step variables::
 
-  MC = MeshConstant(msh)
-  dt = MC.Constant(10.0 / N)
-  t = MC.Constant(0.0)
+  dt = Constant(10.0 / N)
+  t = Constant(0.0)
 
 As in the first heat demo, we build the RHS via the method of
 manufactured solutions::

@@ -36,7 +36,7 @@ Here is some typical Firedrake boilerplate and the construction of a simple
 mesh and the approximating spaces::
 
   from firedrake import *
-  from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
+  from irksome import GaussLegendre, Dt, TimeStepper
 
   N = 10
 
@@ -65,9 +65,8 @@ UFL expression and evaluating it at each time step::
 
 The time and time step variables::
 
-  MC = MeshConstant(msh)
-  t = MC.Constant(0.0)
-  dt = MC.Constant(1.0/N)
+  t = Constant(0.0)
+  dt = Constant(1.0/N)
 
 The two-stage Gauss-Legendre method is, like all instances of that family,
 A-stable and symplectic.  This gives us a fourth order method in time, although

@@ -1,6 +1,6 @@
 import pytest
 from firedrake import *
-from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
+from irksome import GaussLegendre, Dt, TimeStepper
 from irksome.tools import AI, IA
 from ufl.algorithms.ad import expand_derivatives
 
@@ -17,9 +17,8 @@ def RTCFtest(N, deg, butcher_tableau, splitting=AI):
     Ve = FiniteElement("RTCF", msh.ufl_cell(), 2)
     V = FunctionSpace(msh, Ve)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(0.1 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(0.1 / N)
+    t = Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
 

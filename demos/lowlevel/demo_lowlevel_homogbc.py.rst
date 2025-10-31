@@ -14,7 +14,7 @@ Imports::
   from firedrake import *
   from ufl.algorithms.ad import expand_derivatives
 
-  from irksome import GaussLegendre, getForm, Dt, MeshConstant
+  from irksome import GaussLegendre, getForm, Dt
   from irksome.tools import get_stage_space
 
 Note that we imported :func:`.getForm` rather than :class:`.TimeStepper`.  That's the
@@ -34,9 +34,8 @@ Continuing::
   V = FunctionSpace(msh, "CG", 1)
   x, y = SpatialCoordinate(msh)
 
-  MC = MeshConstant(msh)
-  dt = MC.Constant(10 / N)
-  t = MC.Constant(0.0)
+  dt = Constant(10 / N)
+  t = Constant(0.0)
   
   S = Constant(2.0)
   C = Constant(1000.0)

@@ -29,7 +29,7 @@ As usual, we need to import firedrake::
 
 We will also need to import certain items from irksome::
 
-  from irksome import Dt, MeshConstant, StageDerivativeNystromTimeStepper, ClassicNystrom4Tableau
+  from irksome import Dt, StageDerivativeNystromTimeStepper, ClassicNystrom4Tableau
 
 Here, we will use the "classic" Nystrom method, a 4-stage explicit time-stepper::
 

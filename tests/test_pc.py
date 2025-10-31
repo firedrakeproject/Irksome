@@ -3,8 +3,7 @@ import pytest
 from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitSquareMesh, diff, div, dx, errornorm,
                        grad, inner)
-from irksome import (Dt, IRKAuxiliaryOperatorPC, LobattoIIIC, MeshConstant,
-                     RadauIIA, TimeStepper)
+from irksome import (Dt, IRKAuxiliaryOperatorPC, LobattoIIIC, RadauIIA, TimeStepper)
 from ufl.algorithms.ad import expand_derivatives
 
 # Tests that various PCs are actually getting the right answer.
@@ -34,9 +33,8 @@ def rd(butcher_tableau):
     N = 4
     msh = UnitSquareMesh(N, N)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
 
     deg = 2
     V = FunctionSpace(msh, "CG", deg)

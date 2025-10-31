@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, DiscontinuousGalerkinTimeStepper
+from irksome import Dt, DiscontinuousGalerkinTimeStepper
 from irksome import TimeStepper, RadauIIA
 import FIAT
 
@@ -19,9 +19,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
     x1 = 10.0
     msh = IntervalMesh(N, x1)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     # Method of manufactured solutions copied from Heat equation demo.
@@ -73,9 +72,8 @@ def test_1d_heat_neumannbc(order):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
     butcher_tableau = RadauIIA(order+1)
 
@@ -122,9 +120,8 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
     butcher_tableau = RadauIIA(order+1)
 

@@ -10,9 +10,8 @@ def test_tensor(stage_type):
     msh = UnitSquareMesh(1, 1)
     V = TensorFunctionSpace(msh, "CG", 1)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0)
+    t = Constant(0.0)
 
     u = Function(V)
     v = TestFunction(V)

@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import PEPRK, Dt, MeshConstant, TimeStepper, SSPButcherTableau
+from irksome import PEPRK, Dt, TimeStepper, SSPButcherTableau
 from ufl.algorithms.ad import expand_derivatives
 
 peprks = [PEPRK(*x) for x in ((4, 2, 5), (5, 2, 6))]
@@ -28,9 +28,8 @@ def test_1d_heat_dirichletbc(butcher_tableau):
     x1 = 10.0
     msh = IntervalMesh(N, x1)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     # Method of manufactured solutions copied from Heat equation demo.

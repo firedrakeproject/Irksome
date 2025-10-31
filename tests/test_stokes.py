@@ -1,6 +1,6 @@
 import pytest
 from firedrake import *
-from irksome import Dt, LobattoIIIC, MeshConstant, RadauIIA, TimeStepper
+from irksome import Dt, LobattoIIIC, RadauIIA, TimeStepper
 from irksome.tools import AI, IA
 from ufl.algorithms import expand_derivatives
 
@@ -22,9 +22,8 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     Ze = MixedElement([Ve, Pe])
     Z = FunctionSpace(mesh, Ze)
 
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
     (x, y) = SpatialCoordinate(mesh)
 
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
@@ -166,9 +165,8 @@ def NSETest(butch, stage_type, splitting):
             "mat_mumps_icntl_14": 200}
     }
 
-    MC = MeshConstant(M)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
     stepper = TimeStepper(F, butch,
                           t, dt, up,
                           bcs=bcs,

@@ -2,17 +2,14 @@ import pytest
 from firedrake import (DirichletBC, Function, FunctionSpace,
                        TestFunction, UnitIntervalMesh,
                        inner, dx, grad, norm)
-
-
-from irksome import Dt, MeshConstant, TimeStepper, RadauIIA, LobattoIIIC
+from irksome import Dt, TimeStepper, RadauIIA, LobattoIIIC
 
 
 def run_heat(N, deg, bt, bc_type):
     msh = UnitIntervalMesh(N)
-    MC = MeshConstant(msh)
     V = FunctionSpace(msh, "CG", deg)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1 / N)
+    t = Constant(0.0)
+    dt = Constant(1 / N)
 
     u = Function(V)
     v = TestFunction(V)

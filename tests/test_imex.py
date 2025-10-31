@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, TimeStepper, ARS_DIRK_IMEX, SSPK_DIRK_IMEX
+from irksome import Dt, TimeStepper, ARS_DIRK_IMEX, SSPK_DIRK_IMEX
 from irksome.labeling import explicit
 from ufl.algorithms.ad import expand_derivatives
 
@@ -10,9 +10,8 @@ from ufl.algorithms.ad import expand_derivatives
 def convdiff_neumannbc(butcher_tableau, order, N, labeled=False):
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", order)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(0.1 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(0.1 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     # Choose uexact so rhs is nonzero
@@ -82,9 +81,8 @@ def heat_dirichletbc(butcher_tableau):
     x1 = 10.0
     msh = IntervalMesh(N, x1)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     # Method of manufactured solutions copied from Heat equation demo.
@@ -147,9 +145,8 @@ def test_1d_heat_dirichletbc(bt):
 def vecconvdiff_neumannbc(butcher_tableau, order, N):
     msh = UnitIntervalMesh(N)
     V = VectorFunctionSpace(msh, "CG", order, dim=2)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(0.1 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(0.1 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     # Choose uexact so rhs is nonzero
@@ -208,9 +205,8 @@ def mixed_convdiff(butcher_tableau, order, N):
     u, p = split(up)
     v, w = TestFunctions(Z)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(0.1 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(0.1 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     pexact = exp(-t)*cos(2*pi*x)

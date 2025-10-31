@@ -4,8 +4,7 @@ from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitSquareMesh,
                        div, dx, errornorm, exp, grad, inner, pi, sin)
 from irksome import (Dt, NystromAuxiliaryOperatorPC,
-                     StageDerivativeNystromTimeStepper, RadauIIA, MeshConstant,
-                     GaussLegendre)
+                     StageDerivativeNystromTimeStepper, RadauIIA, GaussLegendre)
 
 
 def Fubc(V, t, uexact):
@@ -32,9 +31,8 @@ def rd(butcher_tableau):
     N = 4
     msh = UnitSquareMesh(N, N)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
 
     deg = 2
     V = FunctionSpace(msh, "CG", deg)

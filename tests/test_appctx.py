@@ -1,5 +1,5 @@
 from firedrake import dx, inner, Function, FunctionSpace, TestFunction, UnitIntervalMesh
-from irksome import Dt, GaussLegendre, MeshConstant, TimeStepper
+from irksome import Dt, GaussLegendre, TimeStepper
 
 
 def test_appctx():
@@ -12,9 +12,8 @@ def test_appctx():
 
     bt = GaussLegendre(1)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(0.1)
+    t = Constant(0.0)
+    dt = Constant(0.1)
 
     stepper = TimeStepper(F, bt, t, dt, u, appctx={"hello": "world"})
     assert "hello" in stepper.solver._ctx.appctx

@@ -11,7 +11,7 @@ Imports::
   from firedrake import *
   from ufl.algorithms.ad import expand_derivatives
 
-  from irksome import GaussLegendre, getForm, Dt, MeshConstant
+  from irksome import GaussLegendre, getForm, Dt
   from irksome.tools import get_stage_space
   
   butcher_tableau = GaussLegendre(2)
@@ -19,9 +19,8 @@ Imports::
 
   msh = UnitSquareMesh(N, N)
 
-  MC = MeshConstant(msh)
-  dt = MC.Constant(10 / N)
-  t = MC.Constant(0.0)
+  dt = Constant(10 / N)
+  t = Constant(0.0)
   
   V = FunctionSpace(msh, "CG", 1)
   x, y = SpatialCoordinate(msh)

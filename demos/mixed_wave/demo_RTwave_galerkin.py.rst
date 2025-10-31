@@ -36,7 +36,7 @@ Here is some typical Firedrake boilerplate and the construction of a simple
 mesh and the approximating spaces.  We are going to use a multigrid preconditioner for each timestep, so we create a MeshHierarchy as well::
 
   from firedrake import *
-  from irksome import Dt, MeshConstant, GalerkinTimeStepper
+  from irksome import Dt, GalerkinTimeStepper
 
   N = 10
 
@@ -67,9 +67,8 @@ UFL expression and evaluating it at each time step::
 
 The time and time step variables::
 
-  MC = MeshConstant(msh)
-  t = MC.Constant(0.0)
-  dt = MC.Constant(1.0/N)
+  t = Constant(0.0)
+  dt = Constant(1.0/N)
 
 Here, we experiment with a multigrid preconditioner for the CG(2)-in-time discretization::
 

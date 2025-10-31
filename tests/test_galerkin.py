@@ -2,7 +2,7 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, GalerkinTimeStepper
+from irksome import Dt, GalerkinTimeStepper
 from irksome import TimeStepper, GaussLegendre
 from irksome.labeling import TimeQuadratureLabel
 from FIAT import make_quadrature, ufc_simplex
@@ -21,9 +21,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
     x1 = 10.0
     msh = IntervalMesh(N, x1)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     # Method of manufactured solutions copied from Heat equation demo.
@@ -76,9 +75,8 @@ def test_1d_heat_neumannbc(order, num_quad_points):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
     butcher_tableau = GaussLegendre(order)
 
@@ -125,9 +123,8 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
     butcher_tableau = GaussLegendre(order)
 
@@ -172,9 +169,8 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
@@ -229,9 +225,8 @@ def galerkin_wave(n, deg, alpha, order):
 
     x, = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(alpha / N)
+    t = Constant(0.0)
+    dt = Constant(alpha / N)
 
     up = project(as_vector([0, sin(pi*x)]), Z)
     u, p = split(up)
@@ -340,9 +335,8 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
 @pytest.mark.parametrize('problem', (kepler, kepler_aux_variable))
 def test_kepler(problem, order):
     msh = UnitIntervalMesh(1)
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(pi/100)
+    t = Constant(0.0)
+    dt = Constant(pi/100)
     Nsteps = 2
 
     dim = 2

@@ -42,7 +42,7 @@ Common set-up for the problem::
 
   from firedrake import *  # noqa: F403
   from ufl.algorithms.ad import expand_derivatives
-  from irksome import LobattoIIIC, TimeStepper, Dt, MeshConstant
+  from irksome import LobattoIIIC, TimeStepper, Dt
 
   butcher_tableau = LobattoIIIC(3)
 
@@ -55,9 +55,8 @@ Common set-up for the problem::
 
   msh = RectangleMesh(N, N, x1, y1)
 
-  MC = MeshConstant(msh)
-  dt = MC.Constant(10. / N)
-  t = MC.Constant(0.0)
+  dt = Constant(10. / N)
+  t = Constant(0.0)
 
   V = FunctionSpace(msh, "CG", 1)
   x, y = SpatialCoordinate(msh)

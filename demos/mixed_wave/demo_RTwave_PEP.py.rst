@@ -36,7 +36,7 @@ Here is some typical Firedrake boilerplate and the construction of a simple
 mesh and the approximating spaces::
 
   from firedrake import *
-  from irksome import Dt, MeshConstant, TimeStepper, PEPRK
+  from irksome import Dt, TimeStepper, PEPRK
 
   N = 10
 
@@ -65,9 +65,8 @@ UFL expression and evaluating it at each time step::
 
 The time and time step variables::
 
-  MC = MeshConstant(msh)
-  t = MC.Constant(0.0)
-  dt = MC.Constant(0.2/N)
+  t = Constant(0.0)
+  dt = Constant(0.2/N)
 
 The PEP RK methods of de Leon, Ketcheson, and Ranoch offer explicit RK methods
 that preserve the energy up to a given order in step size.  They have more

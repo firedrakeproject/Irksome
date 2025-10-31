@@ -8,7 +8,7 @@ from ufl import zero
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative, expand_time_derivatives
 from .stage_value import getFormStage
-from .tools import AI, ConstantOrZero, IA, MeshConstant, reshape, replace, getNullspace, get_stage_space
+from .tools import AI, ConstantOrZero, IA, reshape, replace, getNullspace, get_stage_space
 from .bcs import bc2space
 
 
@@ -296,7 +296,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
 
     v = F.arguments()[0]
     V = v.function_space()
-    msh = V.mesh()
+
     assert V == u0.function_space()
 
     num_stages = butch.num_stages
@@ -311,10 +311,9 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     # implicit variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constants a and chat are
     # used similarly in the variational forms
-    MC = MeshConstant(msh)
-    c = MC.Constant(1.0)
-    chat = MC.Constant(1.0)
-    a = MC.Constant(1.0)
+    c = Constant(1.0)
+    chat = Constant(1.0)
+    a = Constant(1.0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
@@ -339,11 +338,11 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     # each BC and a rule for computing that function at each time for
     # each stage.
 
-    a_vals = np.array([MC.Constant(0) for i in range(num_stages)],
+    a_vals = np.array([Constant(0) for i in range(num_stages)],
                       dtype=object)
-    ahat_vals = np.array([MC.Constant(0) for i in range(num_stages)],
+    ahat_vals = np.array([Constant(0) for i in range(num_stages)],
                          dtype=object)
-    d_val = MC.Constant(1.0)
+    d_val = Constant(1.0)
 
     for bc in bcs:
         bcarg = as_ufl(bc._original_arg)

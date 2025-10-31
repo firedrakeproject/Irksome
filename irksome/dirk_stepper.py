@@ -5,7 +5,7 @@ from firedrake import (Function,
 from ufl.constantvalue import as_ufl
 
 from .deriv import TimeDerivative, expand_time_derivatives
-from .tools import replace, vecconst, MeshConstant
+from .tools import replace, vecconst
 from .bcs import bc2space
 
 
@@ -25,9 +25,8 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constant a is
     # used similarly in the variational form
-    MC = MeshConstant(V.mesh())
-    c = MC.Constant(1.0)
-    a = MC.Constant(1.0)
+    c = Constant(1.0)
+    a = Constant(1.0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
@@ -43,9 +42,9 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     # than one per stage), but we need a `Function` inside of each BC
     # and a rule for computing that function at each time for each
     # stage.
-    a_vals = numpy.array([MC.Constant(0.0) for i in range(num_stages)],
+    a_vals = numpy.array([Constant(0.0) for i in range(num_stages)],
                          dtype=object)
-    d_val = MC.Constant(1.0)
+    d_val = Constant(1.0)
     for bc in bcs:
         bcarg = bc._original_arg
         if bcarg == 0:

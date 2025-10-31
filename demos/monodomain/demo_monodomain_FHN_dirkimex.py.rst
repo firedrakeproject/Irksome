@@ -30,7 +30,7 @@ We start with standard Firedrake/Irksome imports::
   from firedrake import (And, Constant, File, Function, FunctionSpace,
                          RectangleMesh, SpatialCoordinate, TestFunctions,
                          as_matrix, conditional, dx, grad, inner, split)
-  from irksome import Dt, MeshConstant, TimeStepper, ARS_DIRK_IMEX
+  from irksome import Dt, TimeStepper, ARS_DIRK_IMEX
   from irksome.labeling import explicit
 
 And we set up the mesh and function space.::
@@ -42,9 +42,8 @@ And we set up the mesh and function space.::
   Z = V * V
 
   x, y = SpatialCoordinate(mesh)
-  MC = MeshConstant(mesh)
-  dt = MC.Constant(0.05)
-  t = MC.Constant(0.0)
+  dt = Constant(0.05)
+  t = Constant(0.0)
 
 Specify the physical constants and initial conditions::
 

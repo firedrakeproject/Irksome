@@ -30,7 +30,7 @@ We start with standard Firedrake/Irksome imports::
   from firedrake import (And, Constant, File, Function, FunctionSpace,
                          RectangleMesh, SpatialCoordinate, TestFunctions,
                          as_matrix, conditional, dx, grad, inner, split)
-  from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
+  from irksome import Dt, RadauIIA, TimeStepper
 
 And we set up the mesh and function space.  Note this demo uses serendipity elements, but could just as easily use Lagrange on quads or triangles.::
   
@@ -41,9 +41,8 @@ And we set up the mesh and function space.  Note this demo uses serendipity elem
   Z = V * V
 
   x, y = SpatialCoordinate(mesh)
-  MC = MeshConstant(mesh)
-  dt = MC.Constant(0.05)
-  t = MC.Constant(0.0)
+  dt = Constant(0.05)
+  t = Constant(0.0)
 
 Specify the physical constants and initial conditions::
 

@@ -32,7 +32,7 @@ We are mainly interested in accuracy and in conserving these quantities reasonab
 Firedrake imports::
 
   from firedrake import *
-  from irksome import Dt, GalerkinTimeStepper, MeshConstant
+  from irksome import Dt, GalerkinTimeStepper
 
 This function seems to be left out of UFL, but solitary wave solutions for BBM need it::
 
@@ -46,9 +46,8 @@ Set up problem parameters, etc::
   h = L / N
   msh = PeriodicIntervalMesh(N, L)
 
-  MC = MeshConstant(msh)
-  t = MC.Constant(0)
-  dt = MC.Constant(10*h)
+  t = Constant(0)
+  dt = Constant(10*h)
 
   x, = SpatialCoordinate(msh)
 

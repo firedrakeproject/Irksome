@@ -15,7 +15,7 @@ We consider the telegraph equation on :math:`\Omega = [0,1]
 We perform similar imports and setup as before::
 
   from firedrake import *
-  from irksome import GaussLegendre, Dt, MeshConstant, StageDerivativeNystromTimeStepper
+  from irksome import GaussLegendre, Dt, StageDerivativeNystromTimeStepper
   tableau = GaussLegendre(2)
 
 

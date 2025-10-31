@@ -1,6 +1,6 @@
 import pytest
 from ufl.algorithms import expand_derivatives
-from irksome import MeshConstant, Dt, expand_time_derivatives
+from irksome import Dt, expand_time_derivatives
 from firedrake import Cofunction, Constant, diff, dot, dx, FunctionSpace, Function, inner, sin, TestFunction, UnitIntervalMesh, VectorFunctionSpace
 
 
@@ -23,8 +23,7 @@ def test_second_derivative(V):
 
 
 def test_diff(mesh):
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
+    t = Constant(0.0)
     q = sin(t**2)
     expr = Dt(q)
     expected = expand_derivatives(diff(q, t))
@@ -33,8 +32,7 @@ def test_diff(mesh):
 
 
 def test_nested_derivative_expression(mesh):
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
+    t = Constant(0.0)
     q = sin(t**2)
 
     expr = Dt(Dt(q) + q)

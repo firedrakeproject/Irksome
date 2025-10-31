@@ -37,7 +37,7 @@ As usual, we need to import firedrake::
 
 We will also need to import certain items from irksome::
 
-  from irksome import RadauIIA, Dt, MeshConstant, TimeStepper
+  from irksome import RadauIIA, Dt, TimeStepper
 
 We will create the Butcher tableau for the two-stage RadauIIA
 Runge-Kutta method::
@@ -57,10 +57,9 @@ standard Firedrake fashion::
 We define variables to store the time step and current time value, as
 well as the Reynolds number::
 
-  MC = MeshConstant(msh)
-  dt = MC.Constant(1.0 / N)
-  t = MC.Constant(0.0)
-  Re = MC.Constant(10.0)
+  dt = Constant(1.0 / N)
+  t = Constant(0.0)
+  Re = Constant(10.0)
 
 
 We define the solution over the product space, which will get

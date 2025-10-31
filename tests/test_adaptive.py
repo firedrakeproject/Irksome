@@ -1,15 +1,14 @@
 import pytest
 from firedrake import *
 from ufl.algorithms.ad import expand_derivatives
-from irksome import Dt, MeshConstant, TimeStepper, RadauIIA, LobattoIIIC
+from irksome import Dt, TimeStepper, RadauIIA, LobattoIIIC
 
 
 def adapt_scalar_heat(N, butcher_tableau):
     msh = UnitSquareMesh(N, N)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
 
     V = FunctionSpace(msh, "CG", 1)
     x, y = SpatialCoordinate(msh)
@@ -46,9 +45,8 @@ def adapt_scalar_heat(N, butcher_tableau):
 def compare_scalar_heat(N, butcher_tableau):
     msh = UnitSquareMesh(N, N)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
 
     V = FunctionSpace(msh, "CG", 1)
     x, y = SpatialCoordinate(msh)
@@ -105,9 +103,8 @@ def compare_scalar_heat(N, butcher_tableau):
 def adapt_vector_heat(N, butcher_tableau):
     msh = UnitSquareMesh(N, N)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
 
     V = VectorFunctionSpace(msh, "CG", 1)
     x, y = SpatialCoordinate(msh)
@@ -148,9 +145,8 @@ def adapt_vector_heat(N, butcher_tableau):
 def adapt_mixed_heat(N, butcher_tableau):
     msh = UnitSquareMesh(N, N)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
 
     V = FunctionSpace(msh, "CG", 1)
     Z = VectorFunctionSpace(msh, "CG", 2)

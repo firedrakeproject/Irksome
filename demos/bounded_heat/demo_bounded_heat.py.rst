@@ -40,7 +40,7 @@ approach to uniformly enforced bounds constraints in both space and time.
 First, we must import firedrake and certain items from Irksome: ::
 
     from firedrake import *
-    from irksome import Dt, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC
+    from irksome import Dt, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC
 
 We also need some UFL tools in order to manufacture a solution: ::
 
@@ -66,10 +66,9 @@ time step, current time, and final time: ::
 
     butcher_tableau = RadauIIA(2)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(2 / N)
-    t = MC.Constant(0.0)
-    Tf = MC.Constant(1.0)
+    dt = Constant(2 / N)
+    t = Constant(0.0)
+    Tf = Constant(1.0)
 
 We will find an approximate solution at time :math:`t=1.0` with and without 
 enforcing a constraint on the lower bound. We will need the following pair of solver 

@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
-from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
+from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, cos, diff, div, dx,
                        errornorm, exp, grad, inner, norm, pi, project)
-from irksome import Dt, MeshConstant, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
+from irksome import Dt, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
 
 
 # test the accuracy of the 1d heat equation using CG elements
@@ -20,9 +20,8 @@ def heat(n, deg, time_stages, **kwargs):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(2.0 / N)
+    t = Constant(0.0)
+    dt = Constant(2.0 / N)
 
     uexact = exp(-t) * cos(pi * x)
     rhs = Dt(uexact) - div(grad(uexact))
@@ -83,9 +82,8 @@ def telegraph(n, deg, time_stages, **kwargs):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(2.0 / N)
+    t = Constant(0.0)
+    dt = Constant(2.0 / N)
 
     uexact = exp(-t) * cos(pi * x)
     rhs = Dt(uexact, 2) + Dt(uexact) - div(grad(uexact))

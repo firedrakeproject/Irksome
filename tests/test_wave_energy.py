@@ -3,7 +3,7 @@ import pytest
 from firedrake import (FunctionSpace, SpatialCoordinate, TestFunctions,
                        UnitIntervalMesh, as_vector, assemble, dx, inner, pi,
                        project, sin, split)
-from irksome import PEPRK, Dt, GaussLegendre, MeshConstant, TimeStepper
+from irksome import PEPRK, Dt, GaussLegendre, TimeStepper
 from irksome.tools import AI, IA
 
 # test the energy conservation of the 1d wave equation in mixed form
@@ -25,9 +25,8 @@ def wave(n, deg, alpha, butcher_tableau, **kwargs):
 
     x, = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(alpha / N)
+    t = Constant(0.0)
+    dt = Constant(alpha / N)
 
     up = project(as_vector([0, sin(pi*x)]), Z)
     u, p = split(up)

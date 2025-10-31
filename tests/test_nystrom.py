@@ -2,7 +2,7 @@ import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, VectorFunctionSpace, assemble, cos, div, dx,
                        norm, grad, inner, pi, project, sin, split)
-from irksome import Dt, ExplicitNystromTimeStepper, GaussLegendre, MeshConstant, DIRKNystromTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
+from irksome import Dt, ExplicitNystromTimeStepper, GaussLegendre, DIRKNystromTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
 
 
 def wave(n, deg, time_stages, bc_type):
@@ -17,9 +17,8 @@ def wave(n, deg, time_stages, bc_type):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0 / N)
+    t = Constant(0.0)
+    dt = Constant(1.0 / N)
 
     uexact = 0.5*(cos(pi * (x - t)) + cos(pi * (x + t)))
 
@@ -59,9 +58,8 @@ def dirk_wave(n, deg, bc_type):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(0.2 / N)
+    t = Constant(0.0)
+    dt = Constant(0.2 / N)
 
     uexact = 0.5*(cos(pi * (x - t)) + cos(pi * (x + t)))
 
@@ -101,9 +99,8 @@ def explicit_dirk_wave(n, deg):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(0.2 / N)
+    t = Constant(0.0)
+    dt = Constant(0.2 / N)
 
     uexact = 0.5*(cos(pi * (x - t)) + cos(pi * (x + t)))
 

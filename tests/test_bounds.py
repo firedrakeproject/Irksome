@@ -4,7 +4,7 @@ from firedrake import (assemble, ds, cos, DirichletBC, Function, FunctionSpace, 
                        TestFunctions, UnitSquareMesh, diff, div, dx, exp, grad, inner,
                        norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem,
                        NonlinearVariationalSolver)
-from irksome import (Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
+from irksome import (Dt, GaussLegendre, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
 from ufl.algorithms import expand_derivatives, replace
 
 lu_params = {
@@ -28,9 +28,8 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
     msh = UnitSquareMesh(N, N)
     V = FunctionSpace(msh, "Lagrange", 1)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(2 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(2 / N)
+    t = Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
 
@@ -93,10 +92,9 @@ def heat_BC(N, butcher_tableau):
 
     butcher_tableau = butcher_tableau
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1 / N_spat)
-    t = MC.Constant(0.0)
-    Tf = MC.Constant(1.0)
+    dt = Constant(1 / N_spat)
+    t = Constant(0.0)
+    Tf = Constant(1.0)
 
     vi_params = {"snes_type": "vinewtonrsls",
                  "snes_max_it": 300,
@@ -153,10 +151,9 @@ def wave_H1(butcher_tableau):
 
     t_crit = np.sqrt(2) / 10.0
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(t_crit / 16)
-    Tf = MC.Constant(t_crit)
+    t = Constant(0.0)
+    dt = Constant(t_crit / 16)
+    Tf = Constant(t_crit)
 
     u_init = sin(5*pi*x)*sin(5*pi*y)
 
@@ -223,9 +220,8 @@ def wave_HDiv(butcher_tableau):
     up0_coll_update = up0.copy(deepcopy=True)
     F_collocation_update = replace(F, {up0: up0_coll_update})
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
 
     params = {"mat_type": "aij",
               "snes_type": "ksponly",
@@ -265,10 +261,9 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
 
     x, y = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(np.sqrt(2) / 160.0)
-    Tf = MC.Constant(np.sqrt(2) / 10.0)
+    t = Constant(0.0)
+    dt = Constant(np.sqrt(2) / 160.0)
+    Tf = Constant(np.sqrt(2) / 10.0)
 
     u_init = sin(5*pi*x)*sin(5*pi*y)
 

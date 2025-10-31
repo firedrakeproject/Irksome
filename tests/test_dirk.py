@@ -1,7 +1,7 @@
 from math import isclose
 import pytest
 from firedrake import *
-from irksome import WSODIRK, Alexander, Dt, MeshConstant, TimeStepper
+from irksome import WSODIRK, Alexander, Dt, TimeStepper
 from ufl import replace
 
 wsodirks = [WSODIRK(*x) for x in ((4, 3, 2), (4, 3, 3))]
@@ -18,9 +18,8 @@ def test_1d_heat_dirichletbc(butcher_tableau):
     x1 = 10.0
     msh = IntervalMesh(N, x1)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     # Method of manufactured solutions copied from Heat equation demo.
@@ -73,9 +72,8 @@ def test_1d_heat_neumannbc(butcher_tableau):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
@@ -118,9 +116,8 @@ def test_1d_heat_homogdbc(butcher_tableau):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
@@ -166,9 +163,8 @@ def test_1d_vectorheat_componentBC(butcher_tableau):
     N = 20
     msh = UnitIntervalMesh(N)
     V = VectorFunctionSpace(msh, "CG", 1, dim=2)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1.0 / N)
-    t = MC.Constant(0.0)
+    dt = Constant(1.0 / N)
+    t = Constant(0.0)
     (x,) = SpatialCoordinate(msh)
 
     uexact = as_vector([sin(pi*x/2)*exp(-(pi**2)*t/4),
@@ -232,9 +228,8 @@ def test_stokes_bcs(butcher_tableau, bctype):
     Ze = MixedElement([Ve, Pe])
     Z = FunctionSpace(mesh, Ze)
 
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
     (x, y) = SpatialCoordinate(mesh)
 
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])

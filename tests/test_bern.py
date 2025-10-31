@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
-from firedrake import (BrokenElement, DirichletBC, FacetNormal, FiniteElement,
+from firedrake import (BrokenElement, Constant, DirichletBC, FacetNormal, FiniteElement,
                        Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, TestFunctions, UnitIntervalMesh,
                        UnitSquareMesh, cos, diff, div, dot, ds, dx, errornorm,
                        exp, grad, inner, norm, pi, project, sin, split,
                        triangle)
 from firedrake.petsc import PETSc
-from irksome import Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper
+from irksome import Dt, GaussLegendre, RadauIIA, TimeStepper
 from ufl.algorithms import expand_derivatives
 
 lu_params = {
@@ -41,9 +41,8 @@ def heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs):
     else:
         bounds = None
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(2.0 / N)
+    t = Constant(0.0)
+    dt = Constant(2.0 / N)
 
     uexact = exp(-t) * cos(pi * x)**2
     rhs = Dt(uexact) - div(grad(uexact))
@@ -92,9 +91,8 @@ def mixed_heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs
 
     x, y = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0 / N)
+    t = Constant(0.0)
+    dt = Constant(1.0 / N)
 
     pexact = (cos(pi * x) * cos(pi * y))**2 * exp(-t)
     uexact = -grad(pexact)
@@ -160,9 +158,8 @@ def mixed_wave(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs
 
     x, y = SpatialCoordinate(msh)
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0 / N)
+    t = Constant(0.0)
+    dt = Constant(1.0 / N)
 
     pexact = sin(pi * x) * sin(pi * y) * cos(np.sqrt(2) * pi * t)
 
