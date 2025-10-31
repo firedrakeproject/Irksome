@@ -1,4 +1,6 @@
-from firedrake import dx, inner, Function, FunctionSpace, TestFunction, UnitIntervalMesh
+from firedrake import (
+    dx, inner,
+    Constant, Function, FunctionSpace, TestFunction, UnitIntervalMesh)
 from irksome import Dt, GaussLegendre, TimeStepper
 
 

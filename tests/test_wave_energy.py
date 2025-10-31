@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from firedrake import (FunctionSpace, SpatialCoordinate, TestFunctions,
+from firedrake import (Constant, FunctionSpace, SpatialCoordinate, TestFunctions,
                        UnitIntervalMesh, as_vector, assemble, dx, inner, pi,
                        project, sin, split)
 from irksome import PEPRK, Dt, GaussLegendre, TimeStepper

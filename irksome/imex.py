@@ -296,7 +296,6 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
 
     v = F.arguments()[0]
     V = v.function_space()
-
     assert V == u0.function_space()
 
     num_stages = butch.num_stages
@@ -311,9 +310,11 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     # implicit variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constants a and chat are
     # used similarly in the variational forms
-    c = Constant(1.0)
-    chat = Constant(1.0)
-    a = Constant(1.0)
+    msh = V.mesh()
+    MC = MeshConstant(msh)
+    c = MC.Constant(1.0)
+    chat = MC.Constant(1.0)
+    a = MC.Constant(1.0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))

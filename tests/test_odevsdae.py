@@ -1,5 +1,5 @@
 import pytest
-from firedrake import (DirichletBC, Function, FunctionSpace,
+from firedrake import (Constant, DirichletBC, Function, FunctionSpace,
                        TestFunction, UnitIntervalMesh,
                        inner, dx, grad, norm)
 from irksome import Dt, TimeStepper, RadauIIA, LobattoIIIC

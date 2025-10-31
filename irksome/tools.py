@@ -11,9 +11,12 @@ from warnings import warn
 from irksome.deriv import TimeDerivative
 
 
-def MeshConstant(msh):
-    warn("MeshConstant has been forwarded to Constant", DeprecationWarning, stacklevel=2)
-    return Constant(msh)
+def unique_mesh(mesh):
+    try:
+        mesh, = set(mesh)
+    except TypeError:
+        pass
+    return mesh
 
 
 def dot(A, B):
@@ -119,8 +122,19 @@ def is_ode(f, u):
     return set(Dtbits) == set(ubits)
 
 
-def ConstantOrZero(x):
-    return zero() if abs(complex(x)) < 1.e-10 else Constant(x)
+# Utility class for constants on a mesh
+class MeshConstant(object):
+    def __init__(self, msh):
+        self.msh = unique_mesh(msh)
+        self.V = FunctionSpace(self.msh, 'R', 0)
+
+    def Constant(self, val=0.0):
+        return Function(self.V).assign(val)
+
+
+def ConstantOrZero(x, MC=None):
+    const = MC.Constant if MC else Constant
+    return zero() if abs(complex(x)) < 1.e-10 else const(x)
 
 
 vecconst = numpy.vectorize(ConstantOrZero)

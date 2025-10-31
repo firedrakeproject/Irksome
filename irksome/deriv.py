@@ -127,3 +127,10 @@ def expand_time_derivatives(expression, t=None, timedep_coeffs=None):
     expression = apply_algebra_lowering(expression)
     expression = apply_time_derivatives(expression, t=t, timedep_coeffs=timedep_coeffs)
     return expression
+
+
+def ddt(uu, t):
+    """expands TimeDerivative w.r.t. t inside of uu"""
+    return expand_time_derivatives(uu, t=t)
+
+

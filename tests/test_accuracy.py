@@ -3,7 +3,7 @@ import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, cos, diff, div, dx,
                        errornorm, exp, grad, inner, norm, pi, project)
-from irksome import Dt, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
+from irksome import Dt, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper, expand_time_derivatives
 
 
 # test the accuracy of the 1d heat equation using CG elements
@@ -24,7 +24,7 @@ def heat(n, deg, time_stages, **kwargs):
     dt = Constant(2.0 / N)
 
     uexact = exp(-t) * cos(pi * x)
-    rhs = Dt(uexact) - div(grad(uexact))
+    rhs = expand_time_derivatives(Dt(uexact), t=t) - div(grad(uexact))
 
     butcher_tableau = RadauIIA(time_stages)
 
@@ -91,7 +91,7 @@ def telegraph(n, deg, time_stages, **kwargs):
     butcher_tableau = RadauIIA(time_stages)
 
     u = Function(V).interpolate(uexact)
-    ut = Function(V).interpolate(diff(uexact, t))
+    ut = Function(V).interpolate(expand_time_derivatives(Dt(uexact), t=t))
 
     v = TestFunction(V)
 

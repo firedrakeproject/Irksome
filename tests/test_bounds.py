@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
-from firedrake import (assemble, ds, cos, DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction,
+from firedrake import (assemble, ds, cos, Constant,
+                       DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction,
                        TestFunctions, UnitSquareMesh, diff, div, dx, exp, grad, inner,
                        norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem,
                        NonlinearVariationalSolver)

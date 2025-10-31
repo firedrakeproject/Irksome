@@ -1,5 +1,5 @@
 import numpy
-from firedrake import (Function,
+from firedrake import (Constant, Function,
                        NonlinearVariationalProblem,
                        NonlinearVariationalSolver)
 from ufl.constantvalue import as_ufl

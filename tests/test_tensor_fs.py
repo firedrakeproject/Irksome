@@ -1,4 +1,4 @@
-from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
+from irksome import GaussLegendre, Dt, TimeStepper
 from firedrake import *
 import pytest
 
