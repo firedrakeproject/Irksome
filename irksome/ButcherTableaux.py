@@ -2,6 +2,7 @@ import FIAT
 import numpy
 from numpy import vander, zeros
 from numpy.linalg import solve
+from FIAT.quadrature_schemes import create_quadrature
 
 
 class ButcherTableau(object):
@@ -77,7 +78,7 @@ class CollocationButcherTableau(ButcherTableau):
     :arg order: the order of the resulting RK method.
     """
     def __init__(self, L, order):
-        assert L.ref_el == FIAT.ufc_simplex(1)
+        assert L.ref_el.get_spatial_dimension() == 1
 
         points = []
         for ell in L.dual.nodes:
@@ -93,7 +94,7 @@ class CollocationButcherTableau(ButcherTableau):
 
         num_stages = len(c)
 
-        Q = FIAT.make_quadrature(L.ref_el, 2*num_stages)
+        Q = create_quadrature(L.ref_complex, 2*num_stages)
         qpts = Q.get_points()
         qwts = Q.get_weights()
 
