@@ -4,8 +4,6 @@ import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, TimeStepper, GaussLegendre
 from irksome.labeling import TimeQuadratureLabel
-from FIAT import make_quadrature, ufc_simplex
-from FIAT.quadrature_schemes import create_quadrature
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
@@ -71,8 +69,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("quad_degree", [None, 6])
-def test_1d_heat_neumannbc(order, quad_degree):
+@pytest.mark.parametrize("quad_degree_raise", [0, 2])
+def test_1d_heat_neumannbc(order, quad_degree_raise):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
@@ -99,10 +97,8 @@ def test_1d_heat_neumannbc(order, quad_degree):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    ufc_line = ufc_simplex(1)
-
-    scheme = ContinuousPetrovGalerkinScheme(
-        order, quadrature_degree=quad_degree)
+    quad_degree = 2*order-1 + quad_degree_raise
+    scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree=quad_degree)
 
     stepper = TimeStepper(
         F, scheme, t, dt, u,
@@ -188,11 +184,8 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
 
     v = TestFunction(V)
 
-    ufc_line = ufc_simplex(1)
-    Qlow = create_quadrature(ufc_line, 2*order-2)
-    Qhigh = create_quadrature(ufc_line, 2*order+2)
-    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
-    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+    Llow = TimeQuadratureLabel(2*order-2)
+    Lhigh = TimeQuadratureLabel(2*order+2)
 
     F0 = inner(Dt(u), v) * dx
     F1 = inner(grad(u), grad(v)) * dx
@@ -248,7 +241,6 @@ def galerkin_wave(n, deg, alpha, order):
     E = 0.5 * (inner(u, u)*dx + inner(p, p)*dx)
 
     scheme = ContinuousPetrovGalerkinScheme(order)
-
     stepper = TimeStepper(F, scheme, t, dt, up,
                           solver_parameters=params)
 
@@ -282,8 +274,7 @@ def kepler(V, order, t, dt, u0, solver_parameters):
     J = as_matrix(np.kron([[0, -1], [1, 0]], np.eye(dim)))
     H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))*dx
 
-    Qhigh = create_quadrature(ufc_simplex(1), 25)
-    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+    Lhigh = TimeQuadratureLabel(25)
 
     test = TestFunction(V)
     dHdu = derivative(H, u, test)
@@ -320,11 +311,8 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     test = TestFunction(Z)
     test_u, v0, v1, v2 = split(test)
 
-    Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
-    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
-
-    Qhigh = create_quadrature(ufc_simplex(1), 25)
-    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+    Llow = TimeQuadratureLabel(2*order-2)
+    Lhigh = TimeQuadratureLabel(25)
 
     # determinant_forms = [test_u, dHdu, dA1du, dA2du]
     determinant_forms = [test_u, w0, w1, w2]
