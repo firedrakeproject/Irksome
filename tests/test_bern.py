@@ -104,7 +104,7 @@ def mixed_heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs
 
     n = FacetNormal(msh)
 
-    rhs = expand_derivatives(diff(pexact, t) + div(uexact))
+    rhs = Dt(pexact) + div(uexact)
 
     F = (inner(Dt(p), w) * dx
          + inner(div(u), w) * dx

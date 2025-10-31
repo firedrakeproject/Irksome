@@ -97,7 +97,7 @@ We now define the right-hand side using the method of manufactured solutions: ::
 
     uexact = 0.5 * exp(-t) * (1 + (tanh((0.1 - sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2)) / 0.015)))
 
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
 Note that the exact solution is uniformly positive in space and time. Using a manufactured 
 solution, one usually interpolates or projects the exact solution at time :math:`t = 0` onto the 

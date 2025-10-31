@@ -70,7 +70,7 @@ This defines the right-hand side using the method of manufactured solutions::
   B = (x-Constant(x0))*(x-Constant(x1))*(y-Constant(y0))*(y-Constant(y1))/C
   R = (x * x + y * y) ** 0.5
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
-  rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+  rhs = Dt(uexact) - div(grad(uexact))
 
 We define the initial condition for the fully discrete problem, which
 will get overwritten at each time step::

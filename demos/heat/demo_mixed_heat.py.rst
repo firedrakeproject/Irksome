@@ -66,7 +66,7 @@ manufactured solutions::
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
   sigexact = -grad(uexact)
 
-  rhs = expand_derivatives(diff(uexact, t) + div(sigexact))
+  rhs = Dt(uexact) + div(sigexact))
 
 
 Set up the initial condition::

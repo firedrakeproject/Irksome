@@ -26,7 +26,7 @@ Imports::
   x, y = SpatialCoordinate(msh)
 
   uexact = exp(-t) * cos(pi * x) * sin(pi * y)
-  rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+  rhs = Dt(uexact) - div(grad(uexact))
 
   u = Function(V)
   u.interpolate(uexact)

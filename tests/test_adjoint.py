@@ -1,6 +1,6 @@
 from firedrake import *
 from firedrake.adjoint import *
-from irksome import Alexander, Dt, RadauIIA, GaussLegendre, TimeStepper, WSODIRK
+from irksome import Alexander, Dt, RadauIIA, GaussLegendre, TimeStepper, WSODIRK, MeshConstant
 import pytest
 
 
@@ -38,8 +38,9 @@ def test_adjoint_diffusivity(nt, stage_type, bt):
     u = Function(V)
     u.interpolate(sin(pi*x))
 
-    dt = Constant(0.1)
-    t = Constant(0)
+    MC = MeshConstant(V.mesh())
+    dt = MC.Constant(0.1)
+    t = MC.Constant(0)
 
     bcs = DirichletBC(V, 0, "on_boundary")
     F = inner(Dt(u), v) * dx + kappa * inner(grad(u), grad(v)) * dx

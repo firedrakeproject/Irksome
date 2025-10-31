@@ -40,7 +40,7 @@ Build the mesh and approximating spaces::
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
   sigexact = -grad(uexact)
 
-  rhs = expand_derivatives(diff(uexact, t) + div(sigexact))
+  rhs = Dt(uexact) + div(sigexact)
 
   sigu = project(as_vector([0, 0, uexact]), Z)
   sigma, u = split(sigu)
