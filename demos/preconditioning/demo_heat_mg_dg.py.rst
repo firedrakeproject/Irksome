@@ -19,8 +19,6 @@ We perform similar imports and setup as before::
 
   from firedrake import *
   from irksome import DiscontinuousGalerkinTimeStepper, Dt, MeshConstant
-  from ufl.algorithms.ad import expand_derivatives
-
 
 However, we need to set up a mesh hierarchy to enable geometric multigrid
 within Firedrake::
@@ -55,7 +53,7 @@ are just as for the regular heat equation demo::
   B = (x-Constant(x0))*(x-Constant(x1))*(y-Constant(y0))*(y-Constant(y1))/C
   R = (x * x + y * y) ** 0.5
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
-  rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+  rhs = Dt(uexact) - div(grad(uexact))
 
   u = Function(V)
   u.interpolate(uexact)

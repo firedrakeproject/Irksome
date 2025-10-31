@@ -2,7 +2,6 @@ import pytest
 from firedrake import *
 from math import isclose
 from irksome import LobattoIIIA, GaussLegendre, Dt, MeshConstant, TimeStepper
-from ufl.algorithms.ad import expand_derivatives
 
 
 @pytest.mark.parametrize("stage_type", ["deriv", "value"])
@@ -34,7 +33,7 @@ def test_1d_heat_dirichletbc(butcher_tableau, stage_type):
         + u_0
         + ((x - x0) / x1) * (u_1 - u_0)
     )
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u = Function(V)
     u.interpolate(uexact)
 
