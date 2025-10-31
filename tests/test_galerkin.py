@@ -99,7 +99,6 @@ def test_1d_heat_neumannbc(order, quad_degree_raise):
 
     quad_degree = 2*order-1 + quad_degree_raise
     scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree=quad_degree)
-
     stepper = TimeStepper(
         F, scheme, t, dt, u,
         solver_parameters=luparams
