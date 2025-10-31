@@ -42,10 +42,9 @@ class ContinuousPetrovGalerkinScheme(GalerkinScheme):
 
 
 ufc_line = ufc_simplex(1)
-def scheme2quadrature(quadrature_degree, quadrature_scheme):
-    if "quadrature_scheme" == "default":
-        return create_quadrature(ufc_simplex, quadrature_degree)
-    elif "quadrature_scheme" == "radau":
-        return RadauQuadratureLineRule(ufc_simplex, quadrature_degree)
+def create_time_quadrature(quadrature_degree, quadrature_scheme):
+    if quadrature_scheme == "radau":
+        return RadauQuadratureLineRule(ufc_line, quadrature_degree)
     else:
-        raise ValueError("Unknown quadrature type")
+        return create_quadrature(ufc_line, quadrature_degree,
+                                 quadrature_scheme)

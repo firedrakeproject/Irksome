@@ -5,7 +5,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
-from .scheme import scheme2quadrature
+from .scheme import create_time_quadrature
 from .tools import dot, reshape, replace, vecconst, replace_auxiliary_variables
 import numpy as np
 from firedrake import TestFunction, Constant
@@ -203,7 +203,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:
             quad_degree = self.trial_el.degree() + self.test_el.degree()        
-        quadrature = scheme2quadrature(quad_degree, quad_scheme)
+        quadrature = create_time_quadrature(quad_degree, quad_scheme)
 
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order

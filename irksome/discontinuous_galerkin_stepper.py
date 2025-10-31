@@ -7,6 +7,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
+from .scheme import create_time_quadrature
 from .tools import dot, reshape, replace, vecconst
 import numpy as np
 from firedrake import TestFunction
@@ -189,7 +190,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         quad_scheme = scheme.quadrature_scheme 
         if quad_degree is None:
             quad_degree = 2 * (order+1)
-        quadratre = scheme2quadrature(quad_degree, quad_scheme)
+        quadrature = create_time_quadrature(quad_degree, quad_scheme)
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order+1
 
