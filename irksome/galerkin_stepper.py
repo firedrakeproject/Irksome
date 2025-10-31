@@ -1,35 +1,32 @@
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
-                  IntegratedLegendre, Lagrange, Legendre, ufc_simplex)
+                  IntegratedLegendre, Lagrange, Legendre)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
-from .scheme import scheme2quadrature
+from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace, vecconst, replace_auxiliary_variables
 import numpy as np
 from firedrake import TestFunction, Constant
 
 
-ufc_line = ufc_simplex(1)
-
-
-def getElements(basis_type, order):
+def getElements(cell, basis_type, order):
     if basis_type == "Bernstein":
-        trial_el = Bernstein(ufc_line, order)
+        trial_el = Bernstein(cell, order)
         if order == 1:
-            test_el = DiscontinuousLagrange(ufc_line, 0)
+            test_el = DiscontinuousLagrange(cell, 0)
         else:
             test_el = DiscontinuousElement(
-                Bernstein(ufc_line, order-1))
+                Bernstein(cell, order-1))
     elif basis_type == "integral":
-        trial_el = IntegratedLegendre(ufc_line, order)
-        test_el = Legendre(ufc_line, order-1)
+        trial_el = IntegratedLegendre(cell, order)
+        test_el = Legendre(cell, order-1)
     else:
         # Let recursivenodes handle the general case
         variant = None if basis_type == "Lagrange" else basis_type
-        trial_el = Lagrange(ufc_line, order, variant=variant)
-        test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
+        trial_el = Lagrange(cell, order, variant=variant)
+        test_el = DiscontinuousLagrange(cell, order-1, variant=variant)
 
     return trial_el, test_el
 
@@ -197,13 +194,12 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         V = u0.function_space()
         self.num_fields = len(V)
 
-        self.trial_el, self.test_el = getElements(basis_type, order)
+        self.trial_el, self.test_el = getElements(ufc_line, basis_type, order)
 
-        quad_scheme = scheme.quadrature_scheme
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:
-            quad_degree = self.trial_el.degree() + self.test_el.degree()        
-        quadrature = scheme2quadrature(quad_degree, quad_scheme)
+            quad_degree = self.trial_el.degree() + self.test_el.degree()
+        quadrature = create_time_quadrature(quad_degree, scheme=scheme.quadrature_scheme)
 
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order

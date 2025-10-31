@@ -1,31 +1,28 @@
 from FIAT import (Bernstein, DiscontinuousElement,
                   DiscontinuousLagrange,
-                  Legendre,
-                  create_quadrature, ufc_simplex)
+                  Legendre)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .deriv import expand_time_derivatives
 from .manipulation import extract_terms, strip_dt_form
+from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace, vecconst
 import numpy as np
 from firedrake import TestFunction
 
 
-ufc_line = ufc_simplex(1)
-
-
-def getElement(basis_type, order):
+def getElement(cell, basis_type, order):
     if order == 0:
-        el = DiscontinuousLagrange(ufc_line, order)
+        el = DiscontinuousLagrange(cell, order)
     elif basis_type == "Bernstein":
-        el = DiscontinuousElement(Bernstein(ufc_line, order))
+        el = DiscontinuousElement(Bernstein(cell, order))
     elif basis_type == "integral":
-        el = Legendre(ufc_line, order)
+        el = Legendre(cell, order)
     else:
         # Let recursivenodes handle the general case
         variant = None if basis_type == "Lagrange" else basis_type
-        el = DiscontinuousLagrange(ufc_line, order, variant=variant)
+        el = DiscontinuousLagrange(cell, order, variant=variant)
     return el
 
 
@@ -183,13 +180,12 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         V = u0.function_space()
         self.num_fields = len(V)
 
-        self.el = getElement(basis_type, order)
+        self.el = getElement(ufc_line, basis_type, order)
 
         quad_degree = scheme.quadrature_degree
-        quad_scheme = scheme.quadrature_scheme 
         if quad_degree is None:
-            quad_degree = 2 * (order+1)
-        quadratre = scheme2quadrature(quad_degree, quad_scheme)
+            quad_degree = 2 * order
+        quadrature = create_time_quadrature(quad_degree, scheme=scheme.quadrature_scheme)
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order+1
 
