@@ -241,7 +241,6 @@ def galerkin_wave(n, deg, alpha, order):
     E = 0.5 * (inner(u, u)*dx + inner(p, p)*dx)
 
     scheme = ContinuousPetrovGalerkinScheme(order)
-
     stepper = TimeStepper(F, scheme, t, dt, up,
                           solver_parameters=params)
 
