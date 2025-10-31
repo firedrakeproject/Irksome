@@ -12,17 +12,17 @@ import numpy as np
 from firedrake import TestFunction
 
 
-def getElement(cell, basis_type, order):
+def getElement(basis_type, order):
     if order == 0:
-        el = DiscontinuousLagrange(cell, order)
+        el = DiscontinuousLagrange(ufc_line, order)
     elif basis_type == "Bernstein":
-        el = DiscontinuousElement(Bernstein(cell, order))
+        el = DiscontinuousElement(Bernstein(ufc_line, order))
     elif basis_type == "integral":
-        el = Legendre(cell, order)
+        el = Legendre(ufc_line, order)
     else:
         # Let recursivenodes handle the general case
         variant = None if basis_type == "Lagrange" else basis_type
-        el = DiscontinuousLagrange(cell, order, variant=variant)
+        el = DiscontinuousLagrange(ufc_line, order, variant=variant)
     return el
 
 
@@ -180,7 +180,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         V = u0.function_space()
         self.num_fields = len(V)
 
-        self.el = getElement(ufc_line, basis_type, order)
+        self.el = getElement(basis_type, order)
 
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:

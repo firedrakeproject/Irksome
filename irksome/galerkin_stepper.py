@@ -11,22 +11,22 @@ import numpy as np
 from firedrake import TestFunction, Constant
 
 
-def getElements(cell, basis_type, order):
+def getElements(basis_type, order):
     if basis_type == "Bernstein":
-        trial_el = Bernstein(cell, order)
+        trial_el = Bernstein(ufc_line, order)
         if order == 1:
-            test_el = DiscontinuousLagrange(cell, 0)
+            test_el = DiscontinuousLagrange(ufc_line, 0)
         else:
             test_el = DiscontinuousElement(
-                Bernstein(cell, order-1))
+                Bernstein(ufc_line, order-1))
     elif basis_type == "integral":
-        trial_el = IntegratedLegendre(cell, order)
-        test_el = Legendre(cell, order-1)
+        trial_el = IntegratedLegendre(ufc_line, order)
+        test_el = Legendre(ufc_line, order-1)
     else:
         # Let recursivenodes handle the general case
         variant = None if basis_type == "Lagrange" else basis_type
-        trial_el = Lagrange(cell, order, variant=variant)
-        test_el = DiscontinuousLagrange(cell, order-1, variant=variant)
+        trial_el = Lagrange(ufc_line, order, variant=variant)
+        test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
 
     return trial_el, test_el
 
@@ -194,7 +194,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         V = u0.function_space()
         self.num_fields = len(V)
 
-        self.trial_el, self.test_el = getElements(ufc_line, basis_type, order)
+        self.trial_el, self.test_el = getElements(basis_type, order)
 
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:
