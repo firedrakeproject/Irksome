@@ -71,8 +71,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("num_quad_points", [3, 4])
-def test_1d_heat_neumannbc(order, num_quad_points):
+@pytest.mark.parametrize("quad_degree_raise", [0, 2])
+def test_1d_heat_neumannbc(order, quad_degree_raise):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
@@ -99,10 +99,8 @@ def test_1d_heat_neumannbc(order, num_quad_points):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    ufc_line = ufc_simplex(1)
-    quadrature = make_quadrature(ufc_line, num_quad_points)
-
-    scheme = ContinuousPetrovGalerkinScheme(order, quadrature=quadrature)
+    quad_degree = 2*order-1 + quad_degree_raise
+    scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree=quad_degree)
 
     stepper = TimeStepper(
         F, scheme, t, dt, u,
