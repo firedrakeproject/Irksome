@@ -2,11 +2,11 @@ import numpy
 from firedrake import Function, TestFunction
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import assemble, dx, inner, norm
+from firedrake import assemble, dx, inner, norm, as_tensor
 from firedrake.bcs import EquationBC, EquationBCSplit
 
 from ufl.constantvalue import as_ufl
-from .tools import AI, replace, vecconst
+from .tools import AI, dot, replace, reshape, vecconst
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
 from .manipulation import extract_terms
@@ -75,17 +75,17 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     test = TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
-    w_np = numpy.reshape(stages, (num_stages, *u0.ufl_shape))
-    A1w = A1 @ w_np
-    A2invw = A2inv @ w_np
+    v_np = reshape(test, (num_stages, *u0.ufl_shape))
+    w_np = reshape(stages, (num_stages, *u0.ufl_shape))
+    A1w = dot(A1, w_np)
+    A2invw = dot(A2inv, w_np)
 
     dtu = TimeDerivative(u0)
     repl = {}
     for i in range(num_stages):
         repl[i] = {t: t + c[i] * dt,
                    v: v_np[i],
-                   u0: u0 + A1w[i] * dt,
+                   u0: u0 + as_tensor(A1w[i]) * dt,
                    dtu: A2invw[i]}
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))

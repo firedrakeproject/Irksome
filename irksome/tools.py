@@ -1,13 +1,29 @@
 from operator import mul
 from functools import reduce
 import numpy
-from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
+from firedrake import Function, FunctionSpace, VectorSpaceBasis, MixedVectorSpaceBasis, Constant, split
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor, zero
 from ufl import replace as ufl_replace
 from pyop2.types import MixedDat
 
 from irksome.deriv import TimeDerivative
+
+
+def unique_mesh(mesh):
+    try:
+        mesh, = set(mesh)
+    except TypeError:
+        pass
+    return mesh
+
+
+def dot(A, B):
+    return numpy.tensordot(A, B, (-1, 0))
+
+
+def reshape(expr, shape):
+    return numpy.reshape([expr[i] for i in numpy.ndindex(expr.ufl_shape)], shape)
 
 
 def flatten_dats(dats):
@@ -41,6 +57,9 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     if nullspace is None:
         nspnew = None
     else:
+        if isinstance(nullspace, (MixedVectorSpaceBasis, VectorSpaceBasis)):
+            nullspace = [(field, basis) for field, basis in enumerate(nullspace)
+                         if isinstance(basis, VectorSpaceBasis)]
         try:
             nullspace.sort()
         except AttributeError:
@@ -68,6 +87,19 @@ def replace(e, mapping):
     return ufl_replace(e, cmapping)
 
 
+def replace_auxiliary_variables(F, u0, aux_indices):
+    """Discretize the fields corresponding to aux_indices in Dt(V)."""
+    if aux_indices is None:
+        return F
+
+    components = []
+    for i, usub in enumerate(split(u0)):
+        if i in aux_indices:
+            usub = TimeDerivative(usub)
+        components.extend(usub[i] for i in numpy.ndindex(usub.ufl_shape))
+    return replace(F, {u0: numpy.reshape(components, u0.ufl_shape)})
+
+
 # Utility functions that help us refactor
 def AI(A):
     return (A, numpy.eye(*A.shape, dtype=A.dtype))
@@ -92,8 +124,8 @@ def is_ode(f, u):
 # Utility class for constants on a mesh
 class MeshConstant(object):
     def __init__(self, msh):
-        self.msh = msh
-        self.V = FunctionSpace(msh, 'R', 0)
+        self.msh = unique_mesh(msh)
+        self.V = FunctionSpace(self.msh, 'R', 0)
 
     def Constant(self, val=0.0):
         return Function(self.V).assign(val)

@@ -1,6 +1,6 @@
 import pytest
 from firedrake import (Constant, DirichletBC, FiniteElement, Function,
-                       FunctionSpace, MixedElement, SpatialCoordinate,
+                       FunctionSpace, MixedElement, MixedVectorSpaceBasis, SpatialCoordinate,
                        TestFunction, TrialFunctions, UnitIntervalMesh,
                        UnitSquareMesh, VectorElement, VectorSpaceBasis, action,
                        as_vector, assemble, derivative, div, dot, dx,
@@ -8,7 +8,6 @@ from firedrake import (Constant, DirichletBC, FiniteElement, Function,
 from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
 from irksome.tools import AI, IA
 from irksome.labeling import explicit
-from pyop2.mpi import COMM_WORLD
 
 
 @pytest.mark.parametrize('splitting', (AI, IA))
@@ -139,7 +138,7 @@ def NavierStokesSplitTest(N, num_stages, Fimp, Fexp):
     bcs = [DirichletBC(Z.sub(0), as_vector([x*(1-x), 0]), (4,)),
            DirichletBC(Z.sub(0), 0, (1, 2, 3))]
 
-    nsp = [(1, VectorSpaceBasis(constant=True, comm=COMM_WORLD))]
+    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=mesh.comm)])
 
     lunl = {
         "snes_type": "newtonls",

@@ -41,7 +41,6 @@ certainly use geometric multigrid or some other technique.
 Common set-up for the problem::
 
   from firedrake import *  # noqa: F403
-  from ufl.algorithms.ad import expand_derivatives
   from irksome import LobattoIIIC, TimeStepper, Dt, MeshConstant
 
   butcher_tableau = LobattoIIIC(3)
@@ -68,7 +67,7 @@ Common set-up for the problem::
   R = (x * x + y * y) ** 0.5
 
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
-  rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+  rhs = Dt(uexact) - div(grad(uexact))
   u = Function(V)
   u.interpolate(uexact)
   v = TestFunction(V)

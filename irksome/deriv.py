@@ -2,20 +2,8 @@ from functools import singledispatchmethod
 
 from ufl.constantvalue import as_ufl
 from ufl.core.ufl_type import ufl_type
-
-# NOTE we support the old MultiFunction and the new DAGTraverser APIs
-# for differentiation. The full switch to DAGTraverser will occur
-# after the new API gets merged into the UFL release branch.
-try:
-    from ufl.corealg.dag_traverser import DAGTraverser
-    from ufl.algorithms.map_integrands import map_integrands
-    apply_rule = lambda rule, expr: rule(expr)
-except ImportError:
-    from ufl.corealg.multifunction import MultiFunction as DAGTraverser
-    from ufl.algorithms.map_integrands import map_integrand_dags as map_integrands
-    from ufl.algorithms.map_integrands import map_expr_dag as apply_rule
-    DAGTraverser.postorder = lambda x: x
-
+from ufl.corealg.dag_traverser import DAGTraverser
+from ufl.algorithms.map_integrands import map_integrands
 from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
 from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl.form import BaseForm
@@ -66,15 +54,15 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
         return super().process(o)
 
     @process.register(ConstantValue)
-    @process.register(Variable)
-    def _terminal(self, o):
+    def constant(self, o):
         if self.t is not None and o is self.t:
             return self._Id
         else:
             return self.independent_terminal(o)
 
     @process.register(Coefficient)
-    def coefficient(self, o):
+    @process.register(SpatialCoordinate)
+    def terminal(self, o):
         if self.t is not None and o is self.t:
             return self._Id
         elif self.timedep_coeffs is None or o in self.timedep_coeffs:
@@ -82,17 +70,13 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
         else:
             return self.independent_terminal(o)
 
-    @process.register(SpatialCoordinate)
-    def spatial_coordinate(self, o):
-        return self.independent_terminal(o)
-
     @process.register(TimeDerivative)
     @DAGTraverser.postorder
     def time_derivative(self, o, f):
         if isinstance(f, TimeDerivative):
             return TimeDerivative(f)
         else:
-            return apply_rule(self, f)
+            return self(f)
 
     @process.register(Conj)
     @process.register(Curl)
@@ -102,23 +86,17 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
     @process.register(Indexed)
     @process.register(ReferenceGrad)
     @process.register(ReferenceValue)
+    @process.register(Variable)
     @DAGTraverser.postorder
-    def _linear_op(self, o, *operands):
+    def terminal_modifier(self, o, *operands):
         return o._ufl_expr_reconstruct_(*operands)
 
-    # TODO MultiFunction backwards compatibility
-    constant_value = _terminal
-    variable = _terminal
-    indexed = _linear_op
-    derivative = _linear_op
-    grad = _linear_op
-    curl = _linear_op
-    div = _linear_op
 
-
-# mapping rules to splat out time derivatives so that replacement should
-# work on more complex problems.
 class TimeDerivativeRuleDispatcher(DAGTraverser):
+    '''
+    Mapping rules to splat out time derivatives so that replacement should
+    work on more complex problems.
+    '''
     def __init__(self, t=None, timedep_coeffs=None, **kwargs):
         super().__init__(**kwargs)
         self.rules = TimeDerivativeRuleset(t=t, timedep_coeffs=timedep_coeffs)
@@ -132,15 +110,12 @@ class TimeDerivativeRuleDispatcher(DAGTraverser):
     @process.register(TimeDerivative)
     def time_derivative(self, o):
         f, = o.ufl_operands
-        return apply_rule(self.rules, f)
+        return self.rules(f)
 
     @process.register(Expr)
     @process.register(BaseForm)
     def _generic(self, o):
         return self.reuse_if_untouched(o)
-
-    # TODO MultiFunction backwards compatibility
-    ufl_type = DAGTraverser.reuse_if_untouched
 
 
 def apply_time_derivatives(expression, t=None, timedep_coeffs=None):

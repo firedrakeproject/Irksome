@@ -4,7 +4,7 @@ Welcome to Irksome
 Irksome is a Python library that adds a temporal discretization layer on top of
 finite element discretizations provided by `Firedrake <https://firedrakeproject.org>`__.  We provide a symbolic
 representation of time derivatives in UFL, allowing users to write weak forms
-of semidiscrete PDE.  Irksome maps this and a Butcher tableau encoding a Runge-Kutta method into a fully discrete variational problem for the stage values.  Irksome then leverages existing advanced solver technology in Firedrake and `PETSc <https://www.mcs.anl.gov/petsc/>`__ to allow for efficient computation of the Runge-Kutta stages.
+of semidiscrete PDE.  Irksome maps this and a Butcher tableau encoding a Runge-Kutta method into a fully discrete variational problem for the stage values.  Irksome then leverages existing advanced solver technology in Firedrake and `PETSc <https://petsc.org>`__ to allow for efficient computation of the Runge-Kutta stages.
 Convenience classes package the underlying lower-level manipulations and present users with a friendly high-level interface time stepping.
 
 
@@ -23,14 +23,21 @@ forms and boundary conditions and provide a method to advance by a
 time step.  The underlying variational problem for the (possibly
 implicit!) Runge-Kutta stages composes fully with advanced
 Firedrake/PETSc solver technology, so you can use block
-preconditioners, multigrid with patch smooters, and more -- and in
+preconditioners, multigrid with patch smoothers, and more -- and in
 parallel, too!
  
 Acknowledgements
 ================
 
 The Irksome team is deeply grateful to David Ham for setting up our initial documentation and Jack Betteridge for initializing the CI.  Ivan Yashchuk set up the GitHub Actions.
-Lawrence Mitchell provided early assistance on some UFL manipulation and documentation
+Lawrence Mitchell provided early assistance on some UFL manipulation and documentation.
+
+.. image:: images/nsf.png
+   :alt: NSF Logo
+   :width: 25%
+   :align: center
+
+We also acknowledge support from NSF 2410408.
 
 
 Getting started
@@ -62,6 +69,14 @@ The best place to start are with some simple heat and wave equations:
    demos/demo_heat.py
    demos/demo_mixed_heat.py
    demos/demo_RTwave.py
+
+To see a nonlinear problem in action, we have a simple lid-driven
+cavity example, too:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_nse.py
 
 Since those demos invariably rely on the non-scalable LU factorization,
 we have several demos showing how to work with Firedrake solver options
@@ -140,12 +155,13 @@ There's also an example solving a Sobolev-type equation with symplectic RK metho
 
    demos/demo_bbm.py
 
-and with a Galerkin-in-Time approach:
+and with a Galerkin-in-Time approach, in standard form or with auxiliary variables for alternate conservation properties:
 
 .. toctree::
    :maxdepth: 1
 
    demos/demo_bbm_galerkin.py
+   demos/demo_bbm_aux.py
 
 Finally, if you feel you must bypass the :py:class:`.TimeStepper`
 abstraction, we have some examples how to interact with Irksome at a
