@@ -1,5 +1,5 @@
 from firedrake import *
-from irksome import Alexander, Dt, RadauIIA, TimeStepper, GaussLegendre, StageDerivativeNystromTimeStepper, GalerkinTimeStepper, DiscontinuousGalerkinTimeStepper
+from irksome import Alexander, Dt, RadauIIA, TimeStepper, GaussLegendre, StageDerivativeNystromTimeStepper, ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 import pytest
 import ufl
 
@@ -94,7 +94,7 @@ def heat_delta(msh, vom, bt, stage_type):
     stepper.advance()
 
 
-def heat_delta_galerkin(msh, vom, stepper, order):
+def heat_delta_galerkin(msh, vom, scheme):
     V = FunctionSpace(msh, "CG", 1)
     u = Function(V, name="u")
     v = TestFunction(V)
@@ -107,7 +107,8 @@ def heat_delta_galerkin(msh, vom, stepper, order):
 
     dt = Constant(1/N)
 
-    stepper = stepper(F, order, t, dt, u, bcs=bcs, solver_parameters={"snes_lag_jacobian": -2})
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs,
+                          solver_parameters={"snes_lag_jacobian": -2})
 
     stepper.advance()
 
@@ -146,7 +147,6 @@ def test_wave(msh, vom, num_stages):
     wave_delta(msh, vom, GaussLegendre(num_stages))
 
 
-@pytest.mark.parametrize('stepper,degree', [(DiscontinuousGalerkinTimeStepper, 1),
-                                            (GalerkinTimeStepper, 2)])
-def test_heat_galerkin(msh, vom, stepper, degree):
-    heat_delta_galerkin(msh, vom, stepper, degree)
+@pytest.mark.parametrize('scheme', (DiscontinuousGalerkinScheme(1), ContinuousPetrovGalerkinScheme(2)))
+def test_heat_galerkin(msh, vom, scheme):
+    heat_delta_galerkin(msh, vom, scheme)

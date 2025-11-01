@@ -56,7 +56,7 @@ Firedrake, Irksome, and other imports::
       interpolate, norm, plot, project, replace, solve, split
   )
 
-  from irksome import Dt, GalerkinTimeStepper, TimeQuadratureLabel
+  from irksome import Dt, TimeStepper, TimeQuadratureLabel, ContinuousPetrovGalerkinScheme
 
   import matplotlib.pyplot as plt
   import numpy
@@ -164,9 +164,10 @@ but forces a higher-order method on the nonlinear term::
 This sets up the cPG time stepper.  There are two fields in the unknown, we
 indicate the second one is an auxiliary and hence to be discretized in the DG
 test space instead by passing the `aux_indices` keyword::
-            
-  stepper = GalerkinTimeStepper(
-      F, time_deg, t, dt, uwH, aux_indices=[1])
+
+  scheme = ContinuousPetrovGalerkinScheme(time_deg)
+  
+  stepper = TimeStepper(F, scheme, t, dt, uwH, aux_indices=[1])
 
 UFL expressions for the invariants, which we are going to track as we go
 through time steps::

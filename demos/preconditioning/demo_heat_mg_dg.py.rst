@@ -18,7 +18,7 @@ of :math:`f` given below
 We perform similar imports and setup as before::
 
   from firedrake import *
-  from irksome import DiscontinuousGalerkinTimeStepper, Dt, MeshConstant
+  from irksome import TimeStepper, Dt, MeshConstant, DiscontinuousGalerkinScheme
 
 However, we need to set up a mesh hierarchy to enable geometric multigrid
 within Firedrake::
@@ -93,10 +93,10 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
                   "pc_factor_mat_solver_type": "mumps"}
               }
   
-These solver parameters work just fine in the :class:`.DiscontinuousGalerkinTimeStepper`::
+These solver parameters work just fine using a :class:`.DiscontinuousGalerkinScheme`::
 
-  stepper = DiscontinuousGalerkinTimeStepper(F, 2, t, dt, u, bcs=bc,
-                                    solver_parameters=mgparams)
+  scheme = DiscontinuousGalerkinScheme(2)
+  stepper = TimeStepper(F, scheme, t, dt, u, bcs=bc, solver_parameters=mgparams)
 
 And we can advance the solution in time in typical fashion::
 
