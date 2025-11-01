@@ -109,7 +109,6 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         assert set(kwargs.keys()).issubset(valid_cpg_kwargs)
         return ContinuousPetrovGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
 
-
     stage_type = kwargs.pop("stage_type", "deriv")
     adapt_params = kwargs.pop("adaptive_parameters", None)
     if adapt_params is not None:
