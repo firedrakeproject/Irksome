@@ -43,7 +43,7 @@ def imex_separation(F, Fexp_kwarg, label):
     return Fimp, Fexp
 
 
-def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
+def TimeStepper(F, method, t, dt, u0, **kwargs):
     """Helper function to dispatch between various back-end classes
        for doing time stepping.  Returns an instance of the
        appropriate class.
@@ -52,8 +52,9 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` iss the
             :class:firedrake.TestFunction`.
-    :arg butcher_tableau: A :class:`ButcherTableau` instance giving
-            the Runge-Kutta method to be used for time marching.
+    :arg method: A :class:`ButcherTableau` instance (for RK methods) or
+            a :class:`GalerkinScheme` instance (for CPG or DG) methods
+            to be used in time marching.
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
@@ -96,10 +97,10 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         supported.
     """
     # first pluck out the cases for Galerkin in time...
-    if isinstance(butcher_tableau, ContinuousPetrovGalerkinScheme):
-        return ContinuousPetrovGalerkinTimeStepper(F, butcher_tableau, t, dt, u0, **kwargs)
-    elif isinstance(butcher_tableau, DiscontinuousGalerkinScheme):
-        return DiscontinuousGalerkinTimeStepper(F, butcher_tableau, t, dt, u0, **kwargs)
+    if isinstance(method, ContinuousPetrovGalerkinScheme):
+        return ContinuousPetrovGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
+    elif isinstance(method, DiscontinuousGalerkinScheme):
+        return DiscontinuousGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
 
     stage_type = kwargs.pop("stage_type", "deriv")
     adapt_params = kwargs.pop("adaptive_parameters", None)
@@ -121,7 +122,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         splitting = kwargs.get("splitting", AI)
         if adapt_params is None:
             return StageDerivativeTimeStepper(
-                F, butcher_tableau, t, dt, u0, bcs,
+                F, method, t, dt, u0, bcs,
                 bc_type=bc_type, splitting=splitting, **base_kwargs)
         else:
             for param in adapt_params:
@@ -136,7 +137,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             safety_factor = adapt_params.get("safety_factor", 0.9)
             gamma0_params = adapt_params.get("gamma0_params")
         return AdaptiveTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs,
+            F, method, t, dt, u0, bcs,
             bc_type=bc_type, splitting=splitting,
             tol=tol, dtmin=dtmin, dtmax=dtmax, KI=KI, KP=KP,
             max_reject=max_reject, onscale_factor=onscale_factor,
@@ -149,17 +150,17 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
         return StageValueTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs=bcs,
+            F, method, t, dt, u0, bcs=bcs,
             splitting=splitting, basis_type=basis_type,
             update_solver_parameters=update_solver_parameters,
             bounds=bounds, use_collocation_update=use_collocation_update,
             **base_kwargs)
     elif stage_type == "dirk":
         return DIRKTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs, **base_kwargs)
+            F, method, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "explicit":
         return ExplicitTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs, **base_kwargs)
+            F, method, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "imex":
         Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
         appctx = base_kwargs.get("appctx")
@@ -171,7 +172,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         num_its_per_step = kwargs.get("num_its_per_step", 0)
 
         return RadauIIAIMEXMethod(
-            Fimp, Fexp, butcher_tableau, t, dt, u0, bcs,
+            Fimp, Fexp, method, t, dt, u0, bcs,
             it_solver_parameters, prop_solver_parameters,
             splitting, appctx, nullspace,
             num_its_initial, num_its_per_step)
@@ -182,5 +183,5 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         solver_parameters = base_kwargs.get("solver_parameters")
         mass_parameters = kwargs.get("mass_parameters")
         return DIRKIMEXMethod(
-            Fimp, Fexp, butcher_tableau, t, dt, u0, bcs,
+            Fimp, Fexp, method, t, dt, u0, bcs,
             solver_parameters, mass_parameters, appctx, nullspace)
