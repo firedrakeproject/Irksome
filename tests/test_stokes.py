@@ -2,7 +2,6 @@ import pytest
 from firedrake import *
 from irksome import Dt, LobattoIIIC, MeshConstant, RadauIIA, TimeStepper
 from irksome.tools import AI, IA
-from ufl.algorithms import expand_derivatives
 
 # test the accuracy of the 2d Stokes heat equation using CG elements
 # and LobattoIIIC time integration.  Particular issue being tested is
@@ -30,7 +29,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
     pexact = x + y * t
 
-    u_rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + grad(pexact)
+    u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
     p_rhs = -div(uexact)
 
     z = Function(Z)
