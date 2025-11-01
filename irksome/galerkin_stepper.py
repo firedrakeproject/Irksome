@@ -193,11 +193,12 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
             instance to be passed to a
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
-    :kwarg aux_indices: a list of field indices to be discretized in the test space
-            rather than trial space.
+    :arg bounds: An optional kwarg used in certain bounds-constrained methods.
+    :kwarg aux_indices: a list of field indices to be discretized in the test space rather than the trial space.
     """
     def __init__(self, F, order, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None, aux_indices=None, **kwargs):
+                 quadrature=None, bounds=None, aux_indices=None,
+                 **kwargs):
         assert order >= 1
         self.order = order
         self.basis_type = basis_type
@@ -214,7 +215,10 @@ class GalerkinTimeStepper(StageCoupledTimeStepper):
         assert np.size(quadrature.get_points()) >= order
 
         self.aux_indices = aux_indices
-        super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
+        if bounds is not None:
+            assert (basis_type is None) or (basis_type != "integral"), "The Bernstein basis or a pointwise basis is required for bounds constraints"
+
+        super().__init__(F, t, dt, u0, order, bcs=bcs, bounds=bounds, **kwargs)
         self.set_initial_guess()
 
     def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
