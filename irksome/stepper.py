@@ -95,12 +95,20 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         enforcing bounds constraints with an RK method that is not stiffly
         accurate. Currently, only constant-in-time boundary conditions are
         supported.
+    :kwarg aux_indices: Only valid for continuous Petrov Galerkin time scheme.  It
+            specifies that some of the variables in `u0` are to be treated as
+            auxiliary, that is, discretized in the lower-order DG space.
     """
     # first pluck out the cases for Galerkin in time...
-    if isinstance(method, ContinuousPetrovGalerkinScheme):
-        return ContinuousPetrovGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
-    elif isinstance(method, DiscontinuousGalerkinScheme):
+    valid_dg_kwargs = ["bcs", "solver_parameters", "appctx", "nullspace"]
+    valid_cpg_kwargs = valid_dg_kwargs + ["aux_indices"]
+    if isinstance(method, DiscontinuousGalerkinScheme):
+        assert set(kwargs.keys()).issubset(valid_dg_kwargs)
         return DiscontinuousGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
+    elif isinstance(method, ContinuousPetrovGalerkinScheme):
+        assert set(kwargs.keys()).issubset(valid_cpg_kwargs)
+        return ContinuousPetrovGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
+
 
     stage_type = kwargs.pop("stage_type", "deriv")
     adapt_params = kwargs.pop("adaptive_parameters", None)
