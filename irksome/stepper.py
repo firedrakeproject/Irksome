@@ -21,7 +21,9 @@ valid_kwargs_per_stage_type = {
     "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
     "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
              "splitting", "num_its_initial", "num_its_per_step"],
-    "dirkimex": ["Fexp", "stage_type", "mass_parameters"]}
+    "dirkimex": ["Fexp", "stage_type", "mass_parameters"],
+    "dg": ["bcs"],
+    "cpg": ["aux_indices", "bcs"]}
 
 valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "max_reject", "onscale_factor",
@@ -100,13 +102,12 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
             auxiliary, that is, discretized in the lower-order DG test space.
     """
     # first pluck out the cases for Galerkin in time...
-    valid_dg_kwargs = ["bcs", "solver_parameters", "appctx", "nullspace"]
-    valid_cpg_kwargs = valid_dg_kwargs + ["aux_indices"]
+
     if isinstance(method, DiscontinuousGalerkinScheme):
-        assert set(kwargs.keys()).issubset(valid_dg_kwargs)
+        assert set(kwargs.keys()).issubset(list(valid_base_kwargs) + valid_kwargs_per_stage_type["dg"])
         return DiscontinuousGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
     elif isinstance(method, ContinuousPetrovGalerkinScheme):
-        assert set(kwargs.keys()).issubset(valid_cpg_kwargs)
+        assert set(kwargs.keys()).issubset(list(valid_base_kwargs) + valid_kwargs_per_stage_type["cpg"])
         return ContinuousPetrovGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
 
     stage_type = kwargs.pop("stage_type", "deriv")
