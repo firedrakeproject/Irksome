@@ -6,37 +6,53 @@ from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .scheme import create_time_quadrature, ufc_line
-from .tools import dot, reshape, replace, vecconst, replace_auxiliary_variables
+from .tools import dot, reshape, replace, vecconst
 import numpy as np
 from firedrake import TestFunction, Constant
 
 
-def getElements(basis_type, order):
+def getTrialElement(basis_type, order):
     if basis_type == "Bernstein":
-        trial_el = Bernstein(ufc_line, order)
-        if order == 1:
-            test_el = DiscontinuousLagrange(ufc_line, 0)
-        else:
-            test_el = DiscontinuousElement(
-                Bernstein(ufc_line, order-1))
+        return Bernstein(ufc_line, order)
     elif basis_type == "integral":
-        trial_el = IntegratedLegendre(ufc_line, order)
-        test_el = Legendre(ufc_line, order-1)
+        return IntegratedLegendre(ufc_line, order)
     else:
         # Let recursivenodes handle the general case
         variant = None if basis_type == "Lagrange" else basis_type
-        trial_el = Lagrange(ufc_line, order, variant=variant)
-        test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
+        return Lagrange(ufc_line, order, variant=variant)
 
-    return trial_el, test_el
+
+def getTestElement(basis_type, order):
+    if basis_type == "Bernstein":
+        if order == 1:
+            return DiscontinuousLagrange(ufc_line, 0)
+        else:
+            return DiscontinuousElement(Bernstein(ufc_line, order-1))
+    elif basis_type == "integral":
+        return Legendre(ufc_line, order-1)
+    else:
+        # Let recursivenodes handle the general case
+        variant = None if basis_type == "Lagrange" else basis_type
+        return DiscontinuousLagrange(ufc_line, order-1, variant=variant)
+
+
+def getElements(basis_type, order):
+    if isinstance(basis_type, (tuple, list)):
+        trial_type, test_type = basis_type
+    else:
+        trial_type = basis_type
+        test_type = basis_type
+    L_trial = getTrialElement(trial_type, order)
+    L_test = getTestElement(test_type, order)
+    return L_trial, L_test
 
 
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
     # preprocess time derivatives
-    F = replace_auxiliary_variables(F, u0, aux_indices)
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
-    assert v.function_space() == u0.function_space()
+    V = v.function_space()
+    assert V == u0.function_space()
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -60,6 +76,16 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     usub = dot(trial_vals.T, u_np)
     dtu0sub = dot(trial_dvals.T, u_np)
     dtu0 = TimeDerivative(u0)
+
+    # Discretize the auxiliary fields in the DG test space
+    if aux_indices is not None:
+        cur = 0
+        aux_components = []
+        for i, Vi in enumerate(V):
+            if i in aux_indices:
+                aux_components.extend(range(cur, cur+Vi.value_size))
+            cur += Vi.value_size
+        usub[:, aux_components] = dot(test_vals_w.T, w_np[:, aux_components])
 
     # now loop over quadrature points
     repl = {}

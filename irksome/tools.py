@@ -87,19 +87,6 @@ def replace(e, mapping):
     return ufl_replace(e, cmapping)
 
 
-def replace_auxiliary_variables(F, u0, aux_indices):
-    """Discretize the fields corresponding to aux_indices in Dt(V)."""
-    if aux_indices is None:
-        return F
-
-    components = []
-    for i, usub in enumerate(split(u0)):
-        if i in aux_indices:
-            usub = TimeDerivative(usub)
-        components.extend(usub[i] for i in numpy.ndindex(usub.ufl_shape))
-    return replace(F, {u0: numpy.reshape(components, u0.ufl_shape)})
-
-
 # Utility functions that help us refactor
 def AI(A):
     return (A, numpy.eye(*A.shape, dtype=A.dtype))
