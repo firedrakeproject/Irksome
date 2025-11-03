@@ -97,7 +97,7 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         supported.
     :kwarg aux_indices: Only valid for continuous Petrov Galerkin time scheme.  It
             specifies that some of the variables in `u0` are to be treated as
-            auxiliary, that is, discretized in the lower-order DG space.
+            auxiliary, that is, discretized in the lower-order DG test space.
     """
     # first pluck out the cases for Galerkin in time...
     valid_dg_kwargs = ["bcs", "solver_parameters", "appctx", "nullspace"]
