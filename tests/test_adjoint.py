@@ -39,9 +39,9 @@ def test_adjoint_diffusivity(nt, stage_type, bt):
     u.interpolate(sin(pi*x))
 
     dt = Constant(0.1)
-    t = Constant(0)
+    t = Constant(0.)
 
-    bcs = DirichletBC(V, 0, "on_boundary")
+    bcs = DirichletBC(V, 0., "on_boundary")
     F = inner(Dt(u), v) * dx + kappa * inner(grad(u), grad(v)) * dx
     stepper = TimeStepper(F, bt, t, dt, u, bcs=bcs, stage_type=stage_type)
 
@@ -52,4 +52,8 @@ def test_adjoint_diffusivity(nt, stage_type, bt):
         J = assemble(inner(u, u) * dx)
         rf = ReducedFunctional(J, Control(kappa), tape=tape)
     pause_annotation()
-    assert taylor_test(rf, kappa, Constant(-1.0)) > 1.9
+
+    taylor = taylor_to_dict(rf, kappa, Constant(-1.0))
+    assert min(taylor['R0']['Rate']) > 0.95
+    assert min(taylor['R1']['Rate']) > 1.95
+    assert min(taylor['R2']['Rate']) > 2.95

@@ -152,7 +152,7 @@ class DIRKTimeStepper:
         for j in range(i):
             a_vals[j].assign(AAb[i, j])
         for j in range(i, ns):
-            a_vals[j].zero()
+            a_vals[j].assign(0.)
         d_val.assign(AAb[i, i])
         c.assign(CCone[i])
 
