@@ -83,7 +83,11 @@ class KronPC(PCBase):
         self.sub_pc  = sub_ksp.getPC()
         A, _ = self.sub_ksp.getOperators()
         self._tmp_stage = A.createVecRight()   
-        self._s = Vbig.num_sub_spaces()
+        try:
+            s = len(self.work_in.subfunctions)
+        except Exception:
+            s = 1
+        self._s = s
         self.L = self._build_stage_L(self._s, context, pc)
 
         
