@@ -3,11 +3,13 @@ from functools import reduce
 import numpy
 from firedrake import Function, FunctionSpace, VectorSpaceBasis, MixedVectorSpaceBasis, Constant, split
 from ufl.algorithms.analysis import extract_type
+from ufl.measure import Measure, MeasureSum, integral_type_to_measure_name, measure_name_to_integral_type
 from ufl import as_tensor, zero
 from ufl import replace as ufl_replace
 from pyop2.types import MixedDat
 
 from irksome.deriv import TimeDerivative
+from irksome.labeling import TimeQuadratureLabel
 
 
 def unique_mesh(mesh):
@@ -137,3 +139,114 @@ def ConstantOrZero(x, MC=None):
 
 
 vecconst = numpy.vectorize(ConstantOrZero)
+
+
+# Measure for space-time integration with Galerkin-in-time
+class TimeMeasure(Measure):
+    """Representation of a space-time integration measure.
+    """
+
+    # Only declare new attributes introduced in this subclass.
+    # Parent Measure already defines slots for domain/integral/metadata/etc.
+    __slots__ = ("time_degree", "quad_rule", "space_measure")
+
+    def __init__(
+        self,
+        integral_type,  # "dx" etc
+        time_degree,
+        domain=None,
+        subdomain_id="everywhere",
+        metadata=None,
+        subdomain_data=None,
+    ):
+        """Initialise.
+
+        Args:
+            integral_type: one of "cell", etc, or short form "dx", etc
+            time_degree: degree of time quadrature
+            domain: an AbstractDomain object (most often a Mesh)
+            subdomain_id: either string "everywhere", a single subdomain id int, or tuple of ints
+            metadata: dict, with additional compiler-specific parameters
+                affecting how code is generated, including parameters
+                for optimization or debugging of generated code
+            subdomain_data: object representing data to interpret subdomain_id with
+        """
+        self.time_degree = time_degree
+        self.quad_rule = TimeQuadratureLabel(time_degree)
+        self.space_measure = Measure(
+            integral_type,
+            domain=domain,
+            subdomain_id=subdomain_id,
+            metadata=metadata,
+            subdomain_data=subdomain_data
+        )
+        super().__init__(
+            integral_type,
+            domain=domain,
+            subdomain_id=subdomain_id,
+            metadata=metadata,
+            subdomain_data=subdomain_data
+        )
+
+    def __add__(self, other):
+        """Add two measures (self+other).
+
+        Creates an intermediate object used for the notation
+          expr * (dx(1) + dx(2)) := expr * dx(1) + expr * dx(2)
+        """
+        if isinstance(other, TimeMeasure):
+            # Let dx(1) + dx(2) equal dx((1,2))
+            return TimeMeasureSum(self, other)
+        else:
+            # Can only add Measures
+            return NotImplemented
+
+    def __mul__(self, other):
+        """Multiply two space-time measures (self*other).
+
+        Not yet functional.
+        """
+        return NotImplemented
+
+    def __rmul__(self, integrand):
+        """Multiply a scalar expression with measure to construct a form with a single integral.
+        """
+        return self.quad_rule(integrand * self.space_measure)
+
+class TimeMeasureSum(MeasureSum):
+    """Represents a sum of space-time measures.
+    """
+
+    def __init__(self, *measures):
+        """Initialise."""
+        super().__init__(*measures)
+
+    def __add__(self, other):
+        """Add."""
+        if isinstance(other, TimeMeasure):
+            return TimeMeasureSum(*(self._measures + (other,)))
+        elif isinstance(other, TimeMeasureSum):
+            return TimeMeasureSum(*(self._measures + other._measures))
+        return NotImplemented
+
+def _make_time_measure_function(name, integral_type):
+    """Convert integral type into function
+    """
+    # e.g. name="dx", integral_type="cell"
+    def _f(time_degree, domain=None, subdomain_id="everywhere",
+           metadata=None, subdomain_data=None):
+        return TimeMeasure(
+            integral_type=integral_type,
+            time_degree=time_degree,
+            domain=domain,
+            subdomain_id=subdomain_id,
+            metadata=metadata,
+            subdomain_data=subdomain_data
+        )
+    _f.__name__ = f"{name}_time"
+    return _f
+
+for _name, _itype in measure_name_to_integral_type.items():
+    """Export all time-measure functions into the module namespace
+    """
+    globals()[f"{_name}_time"] = _make_time_measure_function(_name, _itype)
