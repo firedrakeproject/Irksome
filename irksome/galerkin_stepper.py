@@ -233,6 +233,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         self.aux_indices = aux_indices
         super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
         self.set_initial_guess()
+        self.set_update_expressions()
 
     def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
         if basis_type is None:
@@ -251,12 +252,28 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                                aux_indices or self.aux_indices)
 
     def _update(self):
-        k1, = self.trial_el.entity_dofs()[0][1]
+        for u0bit, expr in zip(self.u0.subfunctions, self.u_update):
+            u0bit.assign(expr)
+
+    def set_update_expressions(self):
+        """Set up symbolic expressions for the update."""
+        # All but the final trial basis function vanish at the endpoints
+        final_dof, = self.trial_el.entity_dofs()[0][1]
+        offset = self.num_fields * (final_dof - 1)
+        final_stage = self.stages.subfunctions[offset:offset+self.num_fields]
+
+        # Tabulate the test basis functions at the final time
+        test_vals = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
+        self.u_update = []
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(self.stages.subfunctions[self.num_fields*(k1-1)+i])
+            if self.aux_indices and i in self.aux_indices:
+                ui = sum(w * f for w, f in zip(test_vals, self.stages.subfunctions[i::self.num_fields]))
+            else:
+                ui = final_stage[i]
+            self.u_update.append(ui)
 
     def set_initial_guess(self):
-        # Set a constant-in-time initial guess
+        """Set a constant-in-time initial guess."""
         ref_el = self.test_el.get_reference_element()
         P0 = DiscontinuousLagrange(ref_el, 0)
         P0 = P0.get_nodal_basis()
