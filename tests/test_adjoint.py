@@ -54,6 +54,6 @@ def test_adjoint_diffusivity(nt, stage_type, bt):
     pause_annotation()
 
     taylor = taylor_to_dict(rf, kappa, Constant(-1.0))
-    assert min(taylor['R0']['Rate']) > 0.95
-    assert min(taylor['R1']['Rate']) > 1.95
-    assert min(taylor['R2']['Rate']) > 2.95
+    assert min(taylor['R0']['Rate']) > 0.95, taylor['R0']
+    assert min(taylor['R1']['Rate']) > 1.95, taylor['R1']
+    assert min(taylor['R2']['Rate']) > 2.95, taylor['R2']
