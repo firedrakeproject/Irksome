@@ -260,16 +260,16 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         # All but the final trial basis function vanish at the endpoints
         final_dof, = self.trial_el.entity_dofs()[0][1]
         offset = self.num_fields * (final_dof - 1)
-        final_stage = self.stages.subfunctions[offset:offset+self.num_fields]
 
         # Tabulate the test basis functions at the final time
-        test_vals = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
+        update_b = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
+        stages = self.stages.subfunctions
         self.u_update = []
         for i, u0bit in enumerate(self.u0.subfunctions):
             if self.aux_indices and i in self.aux_indices:
-                ui = sum(w * f for w, f in zip(test_vals, self.stages.subfunctions[i::self.num_fields]))
+                ui = sum(w * f for w, f in zip(update_b, stages[i::self.num_fields]))
             else:
-                ui = final_stage[i]
+                ui = stages[offset+i]
             self.u_update.append(ui)
 
     def set_initial_guess(self):
