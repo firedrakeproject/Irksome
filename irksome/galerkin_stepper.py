@@ -23,17 +23,16 @@ def getTrialElement(basis_type, order):
 
 
 def getTestElement(basis_type, order):
-    if basis_type == "Bernstein":
-        if order == 1:
-            return DiscontinuousLagrange(ufc_line, 0)
-        else:
-            return DiscontinuousElement(Bernstein(ufc_line, order-1))
+    if order == 0:
+        return DiscontinuousLagrange(ufc_line, order)
+    elif basis_type == "Bernstein":
+        return DiscontinuousElement(Bernstein(ufc_line, order))
     elif basis_type == "integral":
-        return Legendre(ufc_line, order-1)
+        return Legendre(ufc_line, order)
     else:
         # Let recursivenodes handle the general case
         variant = None if basis_type == "Lagrange" else basis_type
-        return DiscontinuousLagrange(ufc_line, order-1, variant=variant)
+        return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
 def getElements(basis_type, order):
@@ -43,7 +42,7 @@ def getElements(basis_type, order):
         trial_type = basis_type
         test_type = basis_type
     L_trial = getTrialElement(trial_type, order)
-    L_test = getTestElement(test_type, order)
+    L_test = getTestElement(test_type, order-1)
     return L_trial, L_test
 
 
@@ -85,7 +84,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
             if i in aux_indices:
                 aux_components.extend(range(cur, cur+Vi.value_size))
             cur += Vi.value_size
-        usub[:, aux_components] = dot(test_vals_w.T, w_np[:, aux_components])
+        usub[:, aux_components] = dot(test_vals.T, w_np[:, aux_components])
 
     # now loop over quadrature points
     repl = {}

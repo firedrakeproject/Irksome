@@ -14,16 +14,15 @@ from firedrake import TestFunction
 
 def getElement(basis_type, order):
     if order == 0:
-        el = DiscontinuousLagrange(ufc_line, order)
+        return DiscontinuousLagrange(ufc_line, order)
     elif basis_type == "Bernstein":
-        el = DiscontinuousElement(Bernstein(ufc_line, order))
+        return DiscontinuousElement(Bernstein(ufc_line, order))
     elif basis_type == "integral":
-        el = Legendre(ufc_line, order)
+        return Legendre(ufc_line, order)
     else:
         # Let recursivenodes handle the general case
         variant = None if basis_type == "Lagrange" else basis_type
-        el = DiscontinuousLagrange(ufc_line, order, variant=variant)
-    return el
+        return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
 def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
