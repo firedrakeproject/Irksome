@@ -6,37 +6,52 @@ from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .scheme import create_time_quadrature, ufc_line
-from .tools import dot, reshape, replace, vecconst, replace_auxiliary_variables
+from .tools import dot, reshape, replace, vecconst
 import numpy as np
 from firedrake import TestFunction, Constant
 
 
-def getElements(basis_type, order):
+def getTrialElement(basis_type, order):
     if basis_type == "Bernstein":
-        trial_el = Bernstein(ufc_line, order)
-        if order == 1:
-            test_el = DiscontinuousLagrange(ufc_line, 0)
-        else:
-            test_el = DiscontinuousElement(
-                Bernstein(ufc_line, order-1))
+        return Bernstein(ufc_line, order)
     elif basis_type == "integral":
-        trial_el = IntegratedLegendre(ufc_line, order)
-        test_el = Legendre(ufc_line, order-1)
+        return IntegratedLegendre(ufc_line, order)
     else:
         # Let recursivenodes handle the general case
         variant = None if basis_type == "Lagrange" else basis_type
-        trial_el = Lagrange(ufc_line, order, variant=variant)
-        test_el = DiscontinuousLagrange(ufc_line, order-1, variant=variant)
+        return Lagrange(ufc_line, order, variant=variant)
 
-    return trial_el, test_el
+
+def getTestElement(basis_type, order):
+    if order == 0:
+        return DiscontinuousLagrange(ufc_line, order)
+    elif basis_type == "Bernstein":
+        return DiscontinuousElement(Bernstein(ufc_line, order))
+    elif basis_type == "integral":
+        return Legendre(ufc_line, order)
+    else:
+        # Let recursivenodes handle the general case
+        variant = None if basis_type == "Lagrange" else basis_type
+        return DiscontinuousLagrange(ufc_line, order, variant=variant)
+
+
+def getElements(basis_type, order):
+    if isinstance(basis_type, (tuple, list)):
+        trial_type, test_type = basis_type
+    else:
+        trial_type = basis_type
+        test_type = basis_type
+    L_trial = getTrialElement(trial_type, order)
+    L_test = getTestElement(test_type, order-1)
+    return L_trial, L_test
 
 
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
     # preprocess time derivatives
-    F = replace_auxiliary_variables(F, u0, aux_indices)
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
-    assert v.function_space() == u0.function_space()
+    V = v.function_space()
+    assert V == u0.function_space()
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -60,6 +75,16 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     usub = dot(trial_vals.T, u_np)
     dtu0sub = dot(trial_dvals.T, u_np)
     dtu0 = TimeDerivative(u0)
+
+    # Discretize the auxiliary fields in the DG test space
+    if aux_indices is not None:
+        cur = 0
+        aux_components = []
+        for i, Vi in enumerate(V):
+            if i in aux_indices:
+                aux_components.extend(range(cur, cur+Vi.value_size))
+            cur += Vi.value_size
+        usub[:, aux_components] = dot(test_vals.T, w_np[:, aux_components])
 
     # now loop over quadrature points
     repl = {}
@@ -207,6 +232,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         self.aux_indices = aux_indices
         super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
         self.set_initial_guess()
+        self.set_update_expressions()
 
     def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
         if basis_type is None:
@@ -225,12 +251,28 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                                aux_indices or self.aux_indices)
 
     def _update(self):
-        k1, = self.trial_el.entity_dofs()[0][1]
+        for u0bit, expr in zip(self.u0.subfunctions, self.u_update):
+            u0bit.assign(expr)
+
+    def set_update_expressions(self):
+        """Set up symbolic expressions for the update."""
+        # All but the final trial basis function vanish at the endpoints
+        final_dof, = self.trial_el.entity_dofs()[0][1]
+        offset = self.num_fields * (final_dof - 1)
+
+        # Tabulate the test basis functions at the final time
+        update_b = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
+        stages = self.stages.subfunctions
+        self.u_update = []
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(self.stages.subfunctions[self.num_fields*(k1-1)+i])
+            if self.aux_indices and i in self.aux_indices:
+                ui = sum(w * f for w, f in zip(update_b, stages[i::self.num_fields]))
+            else:
+                ui = stages[offset+i]
+            self.u_update.append(ui)
 
     def set_initial_guess(self):
-        # Set a constant-in-time initial guess
+        """Set a constant-in-time initial guess."""
         ref_el = self.test_el.get_reference_element()
         P0 = DiscontinuousLagrange(ref_el, 0)
         P0 = P0.get_nodal_basis()
