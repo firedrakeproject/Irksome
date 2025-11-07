@@ -47,15 +47,15 @@ def test_1d_heat_dirichletbc(order, basis_type):
         + inner(grad(u), grad(v)) * dx
         - inner(rhs, v) * dx
     )
-    bc = [
+    bcs = [
         DirichletBC(V, u_1, 2),
         DirichletBC(V, u_0, 1),
     ]
 
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
+
     scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
-    stepper = TimeStepper(
-        F, scheme, t, dt, u, bcs=bc,
-    )
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
     t_end = 2.0
     while float(t) < t_end:
@@ -79,7 +79,6 @@ def test_1d_heat_neumannbc(order, quad_degree):
     dt = MC.Constant(1.0 / N)
     t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(msh)
-    butcher_tableau = GaussLegendre(order)
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
     rhs = Dt(uexact) - div(grad(uexact))
@@ -96,13 +95,13 @@ def test_1d_heat_neumannbc(order, quad_degree):
     )
     F_GL = replace(F, {u: u_GL})
 
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
+
     scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree=quad_degree)
-    stepper = TimeStepper(
-        F, scheme, t, dt, u,
-    )
-    stepper_GL = TimeStepper(
-        F_GL, butcher_tableau, t, dt, u_GL, solver_parameters=luparams
-    )
+    stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=sparams)
+
+    butcher_tableau = GaussLegendre(order)
+    stepper_GL = TimeStepper(F_GL, butcher_tableau, t, dt, u_GL, solver_parameters=sparams)
 
     t_end = 1.0
     while float(t) < t_end:
@@ -123,7 +122,6 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     dt = MC.Constant(1.0 / N)
     t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(msh)
-    butcher_tableau = GaussLegendre(order)
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
     rhs = Dt(uexact) - div(grad(uexact))
@@ -141,16 +139,13 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     )
     F_GL = replace(F, {u: u_GL})
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = ContinuousPetrovGalerkinScheme(order)
-    stepper = TimeStepper(
-        F, scheme, t, dt, u, bcs=bcs,
-        solver_parameters=luparams
-    )
-    stepper_GL = TimeStepper(
-        F_GL, butcher_tableau, t, dt, u_GL, bcs=bcs, solver_parameters=luparams
-    )
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
+
+    butcher_tableau = GaussLegendre(order)
+    stepper_GL = TimeStepper(F_GL, butcher_tableau, t, dt, u_GL, bcs=bcs, solver_parameters=sparams)
 
     t_end = 1.0
     while float(t) < t_end:
@@ -188,13 +183,10 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
     F2 = inner(rhs, v) * dx
     F = Llow(F0) + F1 - Lhigh(F2)
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = ContinuousPetrovGalerkinScheme(order)
-    stepper = TimeStepper(
-        F, scheme, t, dt, u, bcs=bcs,
-        solver_parameters=luparams
-    )
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
     t_end = 1.0
     while float(t) < t_end:
@@ -210,11 +202,6 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
 def galerkin_wave(n, deg, alpha, order):
     N = 2**n
     msh = UnitIntervalMesh(N)
-
-    params = {"snes_type": "ksponly",
-              "ksp_type": "preonly",
-              "mat_type": "aij",
-              "pc_type": "lu"}
 
     V = FunctionSpace(msh, "CG", deg)
     W = FunctionSpace(msh, "DG", deg - 1)
@@ -236,9 +223,10 @@ def galerkin_wave(n, deg, alpha, order):
 
     E = 0.5 * (inner(u, u)*dx + inner(p, p)*dx)
 
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
+
     scheme = ContinuousPetrovGalerkinScheme(order)
-    stepper = TimeStepper(F, scheme, t, dt, up,
-                          solver_parameters=params)
+    stepper = TimeStepper(F, scheme, t, dt, up, solver_parameters=sparams)
 
     energies = []
 
