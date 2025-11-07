@@ -253,11 +253,10 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
 
     def set_update_expressions(self):
         """Set up symbolic expressions for the update."""
-        # Tabulate the trial basis functions at the final time
+        # Tabulate the trial and test basis functions at the final time
         update_trial = vecconst(self.trial_el.tabulate(0, (1.0,))[(0,)])
-
-        # Tabulate the test basis functions at the final time
         update_test = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
+
         stages = self.stages.subfunctions
         self.u_update = []
         for i, u0bit in enumerate(self.u0.subfunctions):

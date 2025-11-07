@@ -58,7 +58,7 @@ class ContinuousPetrovGalerkinScheme(GalerkinScheme):
 
 def create_time_quadrature(degree, scheme="default"):
     if scheme == "radau":
-        num_points = (degree + 1) // 2
+        num_points = (degree + 2) // 2
         return RadauQuadratureLineRule(ufc_line, num_points)
     else:
         return create_quadrature(ufc_line, degree, scheme=scheme)
