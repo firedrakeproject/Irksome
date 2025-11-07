@@ -47,11 +47,9 @@ def test_1d_heat_dirichletbc(order, basis_type):
         DirichletBC(V, u_0, 1),
     ]
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
-
     scheme = DiscontinuousGalerkinScheme(order, basis_type)
     stepper = TimeStepper(
-        F, scheme, t, dt, u, bcs=bc, solver_parameters=luparams
+        F, scheme, t, dt, u, bcs=bc,
     )
 
     t_end = 2.0

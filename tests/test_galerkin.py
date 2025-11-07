@@ -52,13 +52,9 @@ def test_1d_heat_dirichletbc(order, basis_type):
         DirichletBC(V, u_0, 1),
     ]
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
-
-    quad_scheme = "radau" if isinstance(basis_type, tuple) and basis_type[1] == "radau" else "default"
-    scheme = ContinuousPetrovGalerkinScheme(order, basis_type, quadrature_scheme=quad_scheme)
+    scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
     stepper = TimeStepper(
         F, scheme, t, dt, u, bcs=bc,
-        solver_parameters=luparams
     )
 
     t_end = 2.0
@@ -100,13 +96,9 @@ def test_1d_heat_neumannbc(order, quad_degree):
     )
     F_GL = replace(F, {u: u_GL})
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
-
     scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree=quad_degree)
-
     stepper = TimeStepper(
         F, scheme, t, dt, u,
-        solver_parameters=luparams
     )
     stepper_GL = TimeStepper(
         F_GL, butcher_tableau, t, dt, u_GL, solver_parameters=luparams

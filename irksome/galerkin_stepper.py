@@ -1,5 +1,5 @@
 from FIAT import (Bernstein, DiscontinuousLagrange,
-                  IntegratedLegendre, Lagrange,
+                  GaussRadau, IntegratedLegendre, Lagrange,
                   NodalEnrichedElement, RestrictedElement)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
@@ -60,6 +60,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
 
     trial_vals = vecconst(trial_vals)
     trial_dvals = vecconst(trial_dvals)
+    test_vals = vecconst(test_vals)
     test_vals_w = vecconst(test_vals_w)
     qpts = vecconst(np.reshape(qpts, (-1,)))
 
@@ -221,7 +222,10 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:
             quad_degree = self.trial_el.degree() + self.test_el.degree()
-        quadrature = create_time_quadrature(quad_degree, scheme=scheme.quadrature_scheme)
+        quad_scheme = scheme.quadrature_scheme
+        if quad_scheme is None and isinstance(self.test_el, GaussRadau):
+            quad_scheme = "radau"
+        quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
 
         self.quadrature = quadrature
         assert np.size(quadrature.get_points()) >= order

@@ -25,7 +25,7 @@ class GalerkinScheme:
     def __init__(self, order,
                  basis_type=None,
                  quadrature_degree=None,
-                 quadrature_scheme="default"):
+                 quadrature_scheme=None):
         self.order = order
         self.basis_type = basis_type
         self.quadrature_degree = quadrature_degree
@@ -37,7 +37,7 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
     def __init__(self, order,
                  basis_type=None,
                  quadrature_degree=None,
-                 quadrature_scheme="default"):
+                 quadrature_scheme=None):
         assert order >= 0, f"{type(self).__name__} must have order >= 0"
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
@@ -49,16 +49,16 @@ class ContinuousPetrovGalerkinScheme(GalerkinScheme):
     def __init__(self, order,
                  basis_type=None,
                  quadrature_degree=None,
-                 quadrature_scheme="default"):
+                 quadrature_scheme=None):
         assert order >= 1, f"{type(self).__name__} must have order >= 1"
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
                          quadrature_scheme=quadrature_scheme)
 
 
-def create_time_quadrature(degree, scheme="default"):
+def create_time_quadrature(degree, scheme=None):
     if scheme == "radau":
         num_points = (degree + 2) // 2
         return RadauQuadratureLineRule(ufc_line, num_points)
     else:
-        return create_quadrature(ufc_line, degree, scheme=scheme)
+        return create_quadrature(ufc_line, degree, scheme=scheme or "default")
