@@ -1,5 +1,5 @@
 from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
-                  IntegratedLegendre, Lagrange, Legendre)
+                  IntegratedLegendre, Lagrange, Legendre, NodalEnrichedElement, RestrictedElement)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
@@ -41,8 +41,14 @@ def getElements(basis_type, order):
     else:
         trial_type = basis_type
         test_type = basis_type
-    L_trial = getTrialElement(trial_type, order)
+
     L_test = getTestElement(test_type, order-1)
+    if trial_type == "enriched":
+        CG = getTrialElement(None, order)
+        RCG = RestrictedElement(CG, indices=CG.entity_dofs()[0][0])
+        L_trial = NodalEnrichedElement(RCG, L_test)
+    else:
+        L_trial = getTrialElement(trial_type, order)
     return L_trial, L_test
 
 
@@ -256,19 +262,21 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
 
     def set_update_expressions(self):
         """Set up symbolic expressions for the update."""
-        # All but the final trial basis function vanish at the endpoints
-        final_dof, = self.trial_el.entity_dofs()[0][1]
-        offset = self.num_fields * (final_dof - 1)
+        # Tabulate the trial basis functions at the final time
+        update_trial = vecconst(self.trial_el.tabulate(0, (1.0,))[(0,)])
 
         # Tabulate the test basis functions at the final time
-        update_b = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
+        update_test = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
         stages = self.stages.subfunctions
         self.u_update = []
         for i, u0bit in enumerate(self.u0.subfunctions):
             if self.aux_indices and i in self.aux_indices:
-                ui = sum(w * f for w, f in zip(update_b, stages[i::self.num_fields]))
+                ks = stages[i::self.num_fields]
+                weights = update_test
             else:
-                ui = stages[offset+i]
+                ks = (u0bit, *stages[i::self.num_fields])
+                weights = update_trial
+            ui = sum(w * f for w, f in zip(weights, ks))
             self.u_update.append(ui)
 
     def set_initial_guess(self):

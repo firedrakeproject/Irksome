@@ -7,7 +7,7 @@ from irksome.labeling import TimeQuadratureLabel
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral"])
+@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral", ("enriched", "spectral")])
 def test_1d_heat_dirichletbc(order, basis_type):
     # Boundary values
     u_0 = Constant(2.0)
