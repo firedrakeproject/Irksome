@@ -7,7 +7,10 @@ from irksome.labeling import TimeQuadratureLabel
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral", ("enriched", "spectral")])
+@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral",
+                                        ("enriched", "spectral"),
+                                        ("enriched", "radau"),
+                                       ])
 def test_1d_heat_dirichletbc(order, basis_type):
     # Boundary values
     u_0 = Constant(2.0)
@@ -50,7 +53,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
 
-    scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
+    quad_scheme = "radau" if isinstance(basis_type, tuple) and basis_type[1] == "radau" else "default"
+    scheme = ContinuousPetrovGalerkinScheme(order, basis_type, quadrature_scheme=quad_scheme)
     stepper = TimeStepper(
         F, scheme, t, dt, u, bcs=bc,
         solver_parameters=luparams

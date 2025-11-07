@@ -1,6 +1,6 @@
 from FIAT import (Bernstein, DiscontinuousElement,
                   DiscontinuousLagrange,
-                  Legendre)
+                  GaussRadau, Legendre)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
@@ -13,15 +13,19 @@ from firedrake import TestFunction
 
 
 def getElement(basis_type, order):
+    if basis_type is not None:
+        basis_type = basis_type.lower()
     if order == 0:
         return DiscontinuousLagrange(ufc_line, order)
-    elif basis_type == "Bernstein":
+    elif basis_type == "bernstein":
         return DiscontinuousElement(Bernstein(ufc_line, order))
+    elif basis_type == "radau":
+        return GaussRadau(ufc_line, order)
     elif basis_type == "integral":
         return Legendre(ufc_line, order)
     else:
         # Let recursivenodes handle the general case
-        variant = None if basis_type == "Lagrange" else basis_type
+        variant = None if basis_type == "lagrange" else basis_type
         return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 

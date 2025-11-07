@@ -1,5 +1,6 @@
-from FIAT import (Bernstein, DiscontinuousElement, DiscontinuousLagrange,
-                  IntegratedLegendre, Lagrange, Legendre, NodalEnrichedElement, RestrictedElement)
+from FIAT import (Bernstein, DiscontinuousLagrange,
+                  IntegratedLegendre, Lagrange,
+                  NodalEnrichedElement, RestrictedElement)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
@@ -7,32 +8,22 @@ from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace, vecconst
+from .discontinuous_galerkin_stepper import getElement as getTestElement
 import numpy as np
 from firedrake import TestFunction, Constant
 
 
 def getTrialElement(basis_type, order):
-    if basis_type == "Bernstein":
+    if basis_type is not None:
+        basis_type = basis_type.lower()
+    if basis_type == "bernstein":
         return Bernstein(ufc_line, order)
     elif basis_type == "integral":
         return IntegratedLegendre(ufc_line, order)
     else:
         # Let recursivenodes handle the general case
-        variant = None if basis_type == "Lagrange" else basis_type
+        variant = None if basis_type == "lagrange" else basis_type
         return Lagrange(ufc_line, order, variant=variant)
-
-
-def getTestElement(basis_type, order):
-    if order == 0:
-        return DiscontinuousLagrange(ufc_line, order)
-    elif basis_type == "Bernstein":
-        return DiscontinuousElement(Bernstein(ufc_line, order))
-    elif basis_type == "integral":
-        return Legendre(ufc_line, order)
-    else:
-        # Let recursivenodes handle the general case
-        variant = None if basis_type == "Lagrange" else basis_type
-        return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
 def getElements(basis_type, order):
