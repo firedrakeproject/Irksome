@@ -35,7 +35,7 @@ def getElements(basis_type, order):
 
     L_test = getTestElement(test_type, order-1)
     if trial_type == "enriched":
-        CG = getTrialElement(None, order)
+        CG = getTrialElement("spectral", order)
         RCG = RestrictedElement(CG, indices=CG.entity_dofs()[0][0])
         L_trial = NodalEnrichedElement(RCG, L_test)
     else:
