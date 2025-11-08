@@ -185,18 +185,14 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
         bcs = []
     bcsnew = []
     for bc in bcs:
-        if bc._original_arg == 0:
-            gbig = [bc._original_arg] * num_stages
-        else:
-            g0 = as_ufl(bc._original_arg)
-            u0_sub = bc2space(bc, u0)
-            Vg_np = np.array([replace(g0, {t: t + q * dt}) - u0_sub * phi
-                              for q, phi in zip(qpts, trial_vals[0])])
-            gbig = as_tensor(proj @ Vg_np)
-
+        u0_sub = bc2space(bc, u0)
+        g0 = as_ufl(bc._original_arg)
+         Vg_np = np.array([replace(g0, {t: t + c * dt}) for c in qpts])
+         Vg_np -= u0_sub * trial_vals[0]
+         g_np = proj @ Vg_np
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=gbig[i]))
+            bcsnew.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
 
     return Fnew, bcsnew
 
