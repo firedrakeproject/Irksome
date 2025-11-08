@@ -1,11 +1,22 @@
 from firedrake.fml import Label, keep, drop, LabelledForm
+from .scheme import create_time_quadrature
 import numpy as np
 
 explicit = Label("explicit")
 
 
 class TimeQuadratureLabel(Label):
-    def __init__(self, x, w):
+    """If the constructor gets one argument, it's an integer for the
+    order of the quadrature rule.
+    If there are two arguments, assume they are the points and weights."""
+    def __init__(self, *args, scheme="default"):
+        if len(args) == 1:
+            Q = create_time_quadrature(args[0], scheme=scheme)
+            x, w = Q.get_points(), Q.get_weights()
+        elif len(args) == 2:
+            x, w = args
+        else:
+            raise ValueError("Illegal input to TimeQuadratureLabel")
         super().__init__(TimeQuadratureRule(x, w))
 
 

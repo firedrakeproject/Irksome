@@ -2,11 +2,10 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, GalerkinTimeStepper, TimeProjector
-from irksome import TimeStepper, GaussLegendre
+from irksome import Dt, MeshConstant, TimeStepper, GaussLegendre
+from irksome import ContinuousPetrovGalerkinScheme, TimeProjector
 from irksome.labeling import TimeQuadratureLabel
-from FIAT import make_quadrature, ufc_simplex
-from FIAT.quadrature_schemes import create_quadrature
+from irksome.scheme import create_time_quadrature
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
@@ -53,8 +52,9 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
 
-    stepper = GalerkinTimeStepper(
-        F, order, t, dt, u, bcs=bc, basis_type=basis_type,
+    scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
+    stepper = TimeStepper(
+        F, scheme, t, dt, u, bcs=bc,
         solver_parameters=luparams
     )
 
@@ -71,8 +71,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("num_quad_points", [3, 4])
-def test_1d_heat_neumannbc(order, num_quad_points):
+@pytest.mark.parametrize("quad_degree", [None, 6])
+def test_1d_heat_neumannbc(order, quad_degree):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
@@ -99,11 +99,10 @@ def test_1d_heat_neumannbc(order, num_quad_points):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    ufc_line = ufc_simplex(1)
-    quadrature = make_quadrature(ufc_line, num_quad_points)
+    scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree=quad_degree)
 
-    stepper = GalerkinTimeStepper(
-        F, order, t, dt, u, quadrature=quadrature,
+    stepper = TimeStepper(
+        F, scheme, t, dt, u,
         solver_parameters=luparams
     )
     stepper_GL = TimeStepper(
@@ -149,8 +148,9 @@ def test_1d_heat_homogeneous_dirichletbc(order):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    stepper = GalerkinTimeStepper(
-        F, order, t, dt, u, bcs=bcs,
+    scheme = ContinuousPetrovGalerkinScheme(order)
+    stepper = TimeStepper(
+        F, scheme, t, dt, u, bcs=bcs,
         solver_parameters=luparams
     )
     stepper_GL = TimeStepper(
@@ -185,11 +185,8 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
 
     v = TestFunction(V)
 
-    ufc_line = ufc_simplex(1)
-    Qlow = create_quadrature(ufc_line, 2*order-2)
-    Qhigh = create_quadrature(ufc_line, 2*order+2)
-    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
-    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+    Llow = TimeQuadratureLabel(2*order-2)
+    Lhigh = TimeQuadratureLabel(2*order+2)
 
     F0 = inner(Dt(u), v) * dx
     F1 = inner(grad(u), grad(v)) * dx
@@ -198,8 +195,9 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
-    stepper = GalerkinTimeStepper(
-        F, order, t, dt, u, bcs=bcs,
+    scheme = ContinuousPetrovGalerkinScheme(order)
+    stepper = TimeStepper(
+        F, scheme, t, dt, u, bcs=bcs,
         solver_parameters=luparams
     )
 
@@ -243,8 +241,9 @@ def galerkin_wave(n, deg, alpha, order):
 
     E = 0.5 * (inner(u, u)*dx + inner(p, p)*dx)
 
-    stepper = GalerkinTimeStepper(F, order, t, dt, up,
-                                  solver_parameters=params)
+    scheme = ContinuousPetrovGalerkinScheme(order)
+    stepper = TimeStepper(F, scheme, t, dt, up,
+                          solver_parameters=params)
 
     energies = []
 
@@ -276,16 +275,15 @@ def kepler_naive(V, order, t, dt, u0, solver_parameters):
     J = as_matrix(np.kron([[0, -1], [1, 0]], np.eye(dim)))
     H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))
 
-    Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
-    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
-
-    Qhigh = create_quadrature(ufc_simplex(1), 2*order+2)
-    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+    Llow = TimeQuadratureLabel(2*order-2)
+    Lhigh = TimeQuadratureLabel(2*order+2)
 
     test = TestFunction(V)
     dHdu = derivative(H*dx, u, test)
     F = Llow(inner(Dt(u), test)*dx) + Lhigh(-replace(dHdu, {test: dot(J.T, test)}))
-    stepper = GalerkinTimeStepper(F, order, t, dt, u, solver_parameters=solver_parameters)
+
+    scheme = ContinuousPetrovGalerkinScheme(order)
+    stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=solver_parameters)
     return stepper, [H*dx]
 
 
@@ -316,26 +314,24 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     test = TestFunction(Z)
     test_u, v0, v1, v2 = split(test)
 
-    Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
-    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
-
-    Qhigh = create_quadrature(ufc_simplex(1), 2*order+2)
-    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
+    Llow = TimeQuadratureLabel(2*order-2)
+    Lhigh = TimeQuadratureLabel(25)
 
     # determinant_forms = [test_u, dHdu, dA1du, dA2du]
     determinant_forms = [test_u, w0, w1, w2]
     tensor = as_tensor(determinant_forms)
 
-    F = Llow(inner(Dt(u), test_u)*dx) + Lhigh(-(det(tensor) / (2*L*H))*dx)
+    F = Llow(inner(Dt(u), test_u)*dx - (det(tensor) / (2*L*H))*dx)
     F += Llow(inner(w0, v0)*dx) + Lhigh(-inner(dHdu, v0)*dx)
     F += Llow(inner(w1, v1)*dx) + Lhigh(-inner(dA1du, v1)*dx)
     F += Llow(inner(w2, v2)*dx) + Lhigh(-inner(dA2du, v2)*dx)
 
     # Auxiliary variable subspaces
     aux_indices = list(range(1, len(Z)))
-    stepper = GalerkinTimeStepper(F, order, t, dt, z,
-                                  solver_parameters=solver_parameters,
-                                  aux_indices=aux_indices)
+    scheme = ContinuousPetrovGalerkinScheme(order)
+    stepper = TimeStepper(F, scheme, t, dt, z,
+                          solver_parameters=solver_parameters,
+                          aux_indices=aux_indices)
     return stepper, invariants
 
 
@@ -362,21 +358,20 @@ def kepler_projector(V, order, t, dt, u0, solver_parameters):
     dA1du = diff(A1, uv)
     dA2du = diff(A2, uv)
 
-    Qlow = create_quadrature(ufc_simplex(1), 2*order-2)
-    Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+    Llow = TimeQuadratureLabel(2*order-2)
 
-    Qhigh = create_quadrature(ufc_simplex(1), 2*order+2)
-    Lhigh = TimeQuadratureLabel(Qhigh.get_points(), Qhigh.get_weights())
-
-    w0 = TimeProjector(dHdu, order-1, Qhigh)
-    w1 = TimeProjector(dA1du, order-1, Qhigh)
-    w2 = TimeProjector(dA2du, order-1, Qhigh)
+    Qproj = create_time_quadrature(25)
+    w0 = TimeProjector(dHdu, order-1, Qproj)
+    w1 = TimeProjector(dA1du, order-1, Qproj)
+    w2 = TimeProjector(dA2du, order-1, Qproj)
     determinant_forms = [v, w0, w1, w2]
     tensor = as_tensor(determinant_forms)
-    F = Llow(inner(Dt(u), v)*dx) + Lhigh(-(det(tensor) / (2*L*H))*dx)
 
-    stepper = GalerkinTimeStepper(F, order, t, dt, u,
-                                  solver_parameters=solver_parameters)
+    F = Llow(inner(Dt(u), v)*dx) - (det(tensor) / (2*L*H))*dx
+
+    scheme = ContinuousPetrovGalerkinScheme(order)
+    stepper = TimeStepper(F, scheme, t, dt, u,
+                          solver_parameters=solver_parameters)
     return stepper, invariants
 
 
@@ -386,7 +381,7 @@ def test_kepler(problem, order):
     msh = UnitIntervalMesh(1)
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
-    dt = MC.Constant(0.01*pi)
+    dt = MC.Constant(pi/100)
     Nsteps = 2
 
     dim = 2

@@ -17,6 +17,8 @@ from .dirk_stepper import DIRKTimeStepper   # noqa: F401
 from .stage_derivative import getForm       # noqa: F401
 from .imex import RadauIIAIMEXMethod        # noqa: F401
 from .imex import DIRKIMEXMethod            # noqa: F401
+from .nystrom_dirk_stepper import DIRKNystromTimeStepper   # noqa: F401
+from .nystrom_dirk_stepper import ExplicitNystromTimeStepper   # noqa: F401
 from .nystrom_stepper import StageDerivativeNystromTimeStepper   # noqa: F401
 from .nystrom_stepper import ClassicNystrom4Tableau  # noqa: F401
 from .pc import ClinesBase, ClinesLD        # noqa: F401
@@ -27,5 +29,9 @@ from .stage_value import StageValueTimeStepper  # noqa: F401
 from .stepper import TimeStepper            # noqa: F401
 from .tools import MeshConstant             # noqa: F401
 from .wso_dirk_tableaux import WSODIRK      # noqa: F401
-from .galerkin_stepper import GalerkinTimeStepper, TimeProjector  # noqa: F401
+from .scheme import create_time_quadrature  # noqa: F401
+from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme  # noqa: F401
+from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper  # noqa: F401
+from .galerkin_stepper import TimeProjector  # noqa: F401
 from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper  # noqa: F401
+from .labeling import TimeQuadratureLabel  # noqa: F401

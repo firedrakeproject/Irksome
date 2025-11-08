@@ -1,11 +1,10 @@
 import numpy
 import pytest
 from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitSquareMesh, diff, div, dx, errornorm,
+                       TestFunction, UnitSquareMesh, div, dx, errornorm,
                        grad, inner)
 from irksome import (Dt, IRKAuxiliaryOperatorPC, LobattoIIIC, MeshConstant,
                      RadauIIA, TimeStepper)
-from ufl.algorithms.ad import expand_derivatives
 
 # Tests that various PCs are actually getting the right answer.
 
@@ -14,7 +13,7 @@ def Fubc(V, t, uexact):
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) - uexact * (1-uexact)
+    rhs = Dt(uexact) - div(grad(uexact)) - uexact * (1-uexact)
     F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(u*(1-u), v)*dx - inner(rhs, v)*dx
 
     bc = DirichletBC(V, uexact, "on_boundary")

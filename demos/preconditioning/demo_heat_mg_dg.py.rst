@@ -18,9 +18,7 @@ of :math:`f` given below
 We perform similar imports and setup as before::
 
   from firedrake import *
-  from irksome import DiscontinuousGalerkinTimeStepper, Dt, MeshConstant
-  from ufl.algorithms.ad import expand_derivatives
-
+  from irksome import TimeStepper, Dt, MeshConstant, DiscontinuousGalerkinScheme
 
 However, we need to set up a mesh hierarchy to enable geometric multigrid
 within Firedrake::
@@ -55,7 +53,7 @@ are just as for the regular heat equation demo::
   B = (x-Constant(x0))*(x-Constant(x1))*(y-Constant(y0))*(y-Constant(y1))/C
   R = (x * x + y * y) ** 0.5
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
-  rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+  rhs = Dt(uexact) - div(grad(uexact))
 
   u = Function(V)
   u.interpolate(uexact)
@@ -95,10 +93,10 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
                   "pc_factor_mat_solver_type": "mumps"}
               }
   
-These solver parameters work just fine in the :class:`.DiscontinuousGalerkinTimeStepper`::
+These solver parameters work just fine using a :class:`.DiscontinuousGalerkinScheme`::
 
-  stepper = DiscontinuousGalerkinTimeStepper(F, 2, t, dt, u, bcs=bc,
-                                    solver_parameters=mgparams)
+  scheme = DiscontinuousGalerkinScheme(2)
+  stepper = TimeStepper(F, scheme, t, dt, u, bcs=bc, solver_parameters=mgparams)
 
 And we can advance the solution in time in typical fashion::
 
