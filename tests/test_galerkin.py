@@ -62,7 +62,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
         stepper.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
         # Check solution and boundary values
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
         assert isclose(u.at(x0), u_0)
@@ -105,11 +105,11 @@ def test_1d_heat_neumannbc(order, quad_degree):
 
     t_end = 1.0
     while float(t) < t_end:
-        if float(t) + float(dt) > t_end:
-            dt.assign(t_end - float(t))
+        if float(t + dt) > t_end:
+            dt.assign(t_end - t)
         stepper.advance()
         stepper_GL.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
         assert (errornorm(u_GL, u) / norm(u)) < 1.e-10
 
 
@@ -149,11 +149,11 @@ def test_1d_heat_homogeneous_dirichletbc(order):
 
     t_end = 1.0
     while float(t) < t_end:
-        if float(t) + float(dt) > t_end:
-            dt.assign(t_end - float(t))
+        if float(t + dt) > t_end:
+            dt.assign(t_end - t)
         stepper.advance()
         stepper_GL.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
         assert (errornorm(u_GL, u) / norm(u)) < 1.e-10
 
 
@@ -191,8 +191,8 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
     t_end = 1.0
     while float(t) < t_end:
         print(float(t))
-        if float(t) + float(dt) > t_end:
-            dt.assign(t_end - float(t))
+        if float(t + dt) > t_end:
+            dt.assign(t_end - t)
         stepper.advance()
         t += dt
 
@@ -230,11 +230,11 @@ def galerkin_wave(n, deg, alpha, order):
 
     energies = []
 
-    while (float(t) < 1.0):
-        if (float(t) + float(dt) > 1.0):
+    while float(t) < 1.0:
+        if float(t + dt) > 1.0:
             dt.assign(1.0 - float(t))
         stepper.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
         energies.append(assemble(E))
 
     return np.array(energies)
