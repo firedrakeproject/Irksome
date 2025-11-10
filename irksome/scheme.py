@@ -56,6 +56,30 @@ class ContinuousPetrovGalerkinScheme(GalerkinScheme):
                          quadrature_scheme=quadrature_scheme)
 
 
+class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
+    """Class for describing collocation cPG-in-time methods"""
+    def __init__(self, order,
+                 stage_type="value",
+                 quadrature_degree=None,
+                 quadrature_scheme=None):
+        assert order >= 1, f"{type(self).__name__} must have order >= 1"
+        if quadrature_scheme is None:
+            test_type = "spectral"
+        elif quadrature_scheme == "radau":
+            test_type = "radau"
+        else:
+            raise ValueError(f"Unsupported quadrature scheme {quadrature_scheme}.")
+
+        if stage_type not in {"deriv", "value"}:
+            raise ValueError(f"Unsupported stage type {stage_type}.")
+
+        trial_type = {"deriv": "deriv", "value": "enriched"}[stage_type]
+        basis_type = (trial_type, test_type)
+        super().__init__(order, basis_type=basis_type,
+                         quadrature_degree=quadrature_degree,
+                         quadrature_scheme=quadrature_scheme)
+
+
 def create_time_quadrature(degree, scheme=None):
     if scheme == "radau":
         num_points = (degree + 2) // 2

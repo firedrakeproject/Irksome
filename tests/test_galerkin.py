@@ -2,17 +2,11 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, TimeStepper, GaussLegendre
+from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme, TimeStepper, GaussLegendre
 from irksome.labeling import TimeQuadratureLabel
 
 
-@pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("basis_type", [
-    "Lagrange", "Bernstein", "integral",
-    ("enriched", "spectral"),
-    ("enriched", "radau"),
-])
-def test_1d_heat_dirichletbc(order, basis_type):
+def run_1d_heat_dirichletbc(scheme):
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -54,7 +48,6 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
     sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
-    scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
     t_end = 2.0
@@ -67,6 +60,22 @@ def test_1d_heat_dirichletbc(order, basis_type):
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
+
+
+@pytest.mark.parametrize("order", [1, 3])
+@pytest.mark.parametrize("basis_type", ("Lagrange", "Bernstein", "integral"))
+def test_1d_heat_dirichletbc(order, basis_type):
+    scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
+    run_1d_heat_dirichletbc(scheme)
+
+
+@pytest.mark.parametrize("order", [1, 3])
+@pytest.mark.parametrize("quad_scheme", (None, "radau"))
+@pytest.mark.parametrize("stage_type", ("value", "deriv"))
+def test_1d_heat_dirichletbc_collocation(order, stage_type, quad_scheme):
+    scheme = GalerkinCollocationScheme(order, stage_type=stage_type,
+                                       quadrature_scheme=quad_scheme)
+    run_1d_heat_dirichletbc(scheme)
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])

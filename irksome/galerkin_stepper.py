@@ -9,6 +9,7 @@ from .labeling import split_quadrature
 from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace, vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
+from .integrated_lagrange import IntegratedLagrange
 import numpy as np
 from firedrake import TestFunction, Constant
 
@@ -34,7 +35,9 @@ def getElements(basis_type, order):
         test_type = basis_type
 
     L_test = getTestElement(test_type, order-1)
-    if trial_type == "enriched":
+    if trial_type == "deriv":
+        L_trial = IntegratedLagrange(L_test)
+    elif trial_type == "enriched":
         CG = getTrialElement("spectral", order)
         RCG = RestrictedElement(CG, indices=CG.entity_dofs()[0][0])
         L_trial = NodalEnrichedElement(RCG, L_test)
