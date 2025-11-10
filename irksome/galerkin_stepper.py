@@ -8,10 +8,11 @@ from .labeling import split_quadrature
 from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace, vecconst
 
-from ufl import as_tensor, Coefficient
+from ufl import as_tensor, outer, Coefficient
 from ufl.core.operator import Operator
 from ufl.core.ufl_type import ufl_type
 from ufl.corealg.multifunction import MultiFunction
+from ufl.domain import as_domain
 from ufl.algorithms.map_integrands import map_integrand_dags
 from ufl.algorithms import expand_derivatives
 from firedrake import Constant, Function, TestFunction, TensorFunctionSpace, VectorFunctionSpace, diff, dx, inner
@@ -61,7 +62,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices=
     # internal state to be used inside projected expressions
     u1 = Function(u0)
     # symbolic Coefficient with the temporal test function
-    mesh = u0.function_space().mesh()
+    mesh = as_domain(u0.function_space().mesh())
     R = VectorFunctionSpace(mesh, "Real", 0, dim=L_test.space_dimension())
     phi = Coefficient(R)
     # apply time projectors
@@ -88,7 +89,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices=
     qpts = vecconst(np.reshape(qpts, (-1,)))
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = reshape(test, (-1, *u0.ufl_shape))
+    v_np = reshape(test, (-1, *v.ufl_shape))
     w_np = reshape(stages, (-1, *u0.ufl_shape))
 
     u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
@@ -352,7 +353,8 @@ class TimeProjectorDispatcher(MultiFunction):
         Q = o.quadrature
         assert order+1 <= len(self.phi)
         f, = o.ufl_operands
-        R = TensorFunctionSpace(self.u0.function_space().mesh(), "DG", 0, shape=f.ufl_shape)
+        mesh = as_domain(self.u0.function_space().mesh())
+        R = TensorFunctionSpace(mesh, "DG", 0, shape=f.ufl_shape)
         F = inner(f, TestFunction(R))*dx
         F = replace(F, {self.u0: self.u1})
 
@@ -365,7 +367,8 @@ class TimeProjectorDispatcher(MultiFunction):
 
         # compute modal expansion tested against c
         c = Coefficient(R)
-        test = as_tensor(np.outer(Minv[:order+1] @ self.phi, np.asarray(c, dtype=object)) / self.dt)
+
+        test = outer(as_tensor(Minv[:order+1] @ self.phi) / self.dt, c)
         Fc = getTermGalerkin(F, self.L_trial, L_test, Q, self.t, self.dt, self.u1, self.stages, test)
 
         # compute the L2-Riesz representation by undoing the integral against the test coefficient
