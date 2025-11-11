@@ -69,8 +69,9 @@ def test_1d_heat_dirichletbc(order, basis_type):
     run_1d_heat_dirichletbc(scheme)
 
 
-@pytest.mark.parametrize("order", [1, 3])
-@pytest.mark.parametrize("quad_scheme", (None, "radau"))
+@pytest.mark.parametrize("quad_scheme,order", [(scheme, order)
+                                               for scheme in (None, "radau", "lobatto")
+                                               for order in (2 if scheme == "lobatto" else 1, 3)])
 @pytest.mark.parametrize("stage_type", ("value", "deriv"))
 def test_1d_heat_dirichletbc_collocation(order, stage_type, quad_scheme):
     scheme = GalerkinCollocationScheme(order, stage_type=stage_type,
@@ -154,7 +155,8 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
     butcher_tableau = GaussLegendre(order)
-    stepper_GL = TimeStepper(F_GL, butcher_tableau, t, dt, u_GL, bcs=bcs, solver_parameters=sparams)
+    stepper_GL = TimeStepper(F_GL, butcher_tableau, t, dt, u_GL, bcs=bcs,
+                             solver_parameters=sparams)
 
     t_end = 1.0
     while float(t) < t_end:

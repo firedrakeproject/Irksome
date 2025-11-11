@@ -35,15 +35,40 @@ def getElements(basis_type, order):
         test_type = basis_type
 
     L_test = getTestElement(test_type, order-1)
+    # Deal with GalerkinCollocationScheme
     if trial_type == "deriv":
         L_trial = IntegratedLagrange(L_test)
-    elif trial_type == "enriched":
-        CG = getTrialElement("spectral", order)
-        RCG = RestrictedElement(CG, indices=CG.entity_dofs()[0][0])
-        L_trial = NodalEnrichedElement(RCG, L_test)
+    elif trial_type == "value":
+        if len(L_test.entity_dofs()[0][0]) != 0:
+            # Confluent case
+            H = IntegratedLagrange(L_test)
+            indices = [k for k, node in enumerate(H.dual)
+                       if (0.0,) in node.deriv_dict]
+            R = RestrictedElement(H, indices=indices)
+        else:
+            CG = getTrialElement("spectral", order)
+            R = RestrictedElement(CG, indices=CG.entity_dofs()[0][0])
+
+        L_trial = NodalEnrichedElement(R, L_test)
     else:
         L_trial = getTrialElement(trial_type, order)
     return L_trial, L_test
+
+
+def tabulate_sorted(L, order, points):
+    """Return the tabulation of a FIAT element after sorting the DOFs from left to right."""
+    ref_el = L.get_reference_element()
+    top = ref_el.topology
+    entities = [(d, e) for d in top for e in top[d]]
+    perm = []
+    ids = L.entity_dofs()
+    for dim, entity in sorted(entities, key=lambda args: top[args[0]][args[1]]):
+        perm.extend(ids[dim][entity])
+
+    vals = L.tabulate(order, points)
+    for alpha in vals:
+        vals[alpha] = vals[alpha][perm]
+    return vals
 
 
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
@@ -55,10 +80,10 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
-    tabulate_trials = L_trial.tabulate(1, qpts)
+    tabulate_trials = tabulate_sorted(L_trial, 1, qpts)
     trial_vals = tabulate_trials[(0,)]
     trial_dvals = tabulate_trials[(1,)]
-    test_vals = L_test.tabulate(0, qpts)[(0,)]
+    test_vals = tabulate_sorted(L_test, 0, qpts)[(0,)]
     test_vals_w = np.multiply(test_vals, qwts)
 
     trial_vals = vecconst(trial_vals)
@@ -68,16 +93,16 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     qpts = vecconst(np.reshape(qpts, (-1,)))
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = reshape(test, (-1, *u0.ufl_shape))
+    v_np = reshape(test, (-1, *v.ufl_shape))
     w_np = reshape(stages, (-1, *u0.ufl_shape))
-
     u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
+
     vsub = dot(test_vals_w.T, v_np)
     usub = dot(trial_vals.T, u_np)
     dtu0sub = dot(trial_dvals.T, u_np)
     dtu0 = TimeDerivative(u0)
 
-    # Discretize the auxiliary fields in the DG test space
+    # discretize the auxiliary fields in the DG test space
     if aux_indices is not None:
         cur = 0
         aux_components = []
@@ -99,7 +124,6 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
 
 
 def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, aux_indices=None):
-
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
 
@@ -133,7 +157,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
     assert L_test.get_reference_element() == Qdefault.ref_el
     assert L_trial.get_reference_element() == Qdefault.ref_el
     assert Qdefault.ref_el.get_spatial_dimension() == 1
-    assert L_trial.get_order() == L_test.get_order() + 1
+    assert L_trial.space_dimension() == L_test.space_dimension() + 1
 
     num_stages = L_test.space_dimension()
     Vbig = stages.function_space()
@@ -144,15 +168,18 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
                for Q, Fcur in splitting.items())
 
     # mass-ish matrix for BC, based on default quadrature rule
-    qpts = Qdefault.get_points()
-    qwts = Qdefault.get_weights()
-    tabulate_trials = L_trial.tabulate(0, qpts)
-    trial_vals = tabulate_trials[(0,)]
-    test_vals = L_test.tabulate(0, qpts)[(0,)]
+    Qmass = Qdefault
+    if isinstance(L_test, Lagrange):
+        # Be careful not to apply under-integration here
+        Qmass = create_time_quadrature(L_test.degree() + L_trial.degree())
+
+    qpts = Qmass.get_points()
+    qwts = Qmass.get_weights()
+    trial_vals = tabulate_sorted(L_trial, 0, qpts)[(0,)]
+    test_vals = tabulate_sorted(L_test, 0, qpts)[(0,)]
     test_vals_w = np.multiply(test_vals, qwts)
 
     mmat = test_vals_w @ trial_vals[1:].T
-
     proj = vecconst(np.linalg.solve(mmat, test_vals_w))
     trial_vals = vecconst(trial_vals)
     qpts = vecconst(qpts.reshape((-1,)))
@@ -234,7 +261,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         assert np.size(quadrature.get_points()) >= order
 
         self.aux_indices = aux_indices
-        super().__init__(F, t, dt, u0, order, bcs=bcs, **kwargs)
+        num_stages = self.test_el.space_dimension()
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
         self.set_initial_guess()
         self.set_update_expressions()
 
@@ -264,17 +292,14 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         update_trial = vecconst(self.trial_el.tabulate(0, (1.0,))[(0,)])
         update_test = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
 
-        stages = self.stages.subfunctions
+        stage_vals = np.array(self.u0.subfunctions + self.stages.subfunctions, dtype=object)
         self.u_update = []
-        for i, u0bit in enumerate(self.u0.subfunctions):
+        for i in range(self.num_fields):
+            ks = stage_vals[i::self.num_fields]
             if self.aux_indices and i in self.aux_indices:
-                ks = stages[i::self.num_fields]
-                weights = update_test
+                self.u_update.append(ks[1:] @ update_test)
             else:
-                ks = (u0bit, *stages[i::self.num_fields])
-                weights = update_trial
-            ui = sum(w * f for w, f in zip(weights, ks))
-            self.u_update.append(ui)
+                self.u_update.append(ks @ update_trial)
 
     def set_initial_guess(self):
         """Set a constant-in-time initial guess."""

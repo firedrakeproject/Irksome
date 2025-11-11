@@ -9,9 +9,15 @@ class IntegratedLagrangeDualSet(dual_set.DualSet):
         entity_ids = {0: {0: [0], 1: []},
                       1: {0: list(range(1, len(points)+1))}}
 
-        dpts = points
+        dpts = list(points)
+        dpts.sort()
         pt, = ref_el.make_points(0, 0, 1)
-        self.points = [pt, *points]
+        if pt in dpts:
+            basis_pt = ((dpts[0][0] + dpts[1][0])/2,)
+        else:
+            basis_pt = pt
+        self.points = [basis_pt, *dpts]
+        self.points.sort()
 
         nodes = []
         nodes.append(functional.PointEvaluation(ref_el, pt))

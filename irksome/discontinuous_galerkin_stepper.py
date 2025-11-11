@@ -1,6 +1,6 @@
-from FIAT import (Bernstein, DiscontinuousElement,
-                  DiscontinuousLagrange,
-                  GaussRadau, Legendre)
+from FIAT import (Bernstein,
+                  DiscontinuousLagrange, Legendre,
+                  GaussLobattoLegendre, GaussRadau)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
@@ -15,10 +15,14 @@ from firedrake import TestFunction
 def getElement(basis_type, order):
     if basis_type is not None:
         basis_type = basis_type.lower()
-    if order == 0:
+    if basis_type == "lobatto":
+        if order == 0:
+            raise ValueError("Lobatto test element needs degree > 0")
+        return GaussLobattoLegendre(ufc_line, order)
+    elif order == 0:
         return DiscontinuousLagrange(ufc_line, order)
     elif basis_type == "bernstein":
-        return DiscontinuousElement(Bernstein(ufc_line, order))
+        return Bernstein(ufc_line, order)
     elif basis_type == "radau":
         return GaussRadau(ufc_line, order)
     elif basis_type == "integral":

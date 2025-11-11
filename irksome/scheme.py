@@ -1,5 +1,5 @@
 from FIAT import ufc_simplex, create_quadrature
-from FIAT.quadrature import RadauQuadratureLineRule
+from FIAT.quadrature import RadauQuadratureLineRule, GaussLobattoLegendreQuadratureLineRule
 
 
 ufc_line = ufc_simplex(1)
@@ -65,15 +65,18 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
         assert order >= 1, f"{type(self).__name__} must have order >= 1"
         if quadrature_scheme is None:
             test_type = "spectral"
-        elif quadrature_scheme == "radau":
-            test_type = "radau"
+        elif quadrature_scheme in {"radau", "lobatto"}:
+            test_type = quadrature_scheme
+            if quadrature_degree is None and quadrature_scheme == "lobatto":
+                # Default to under-integration
+                quadrature_degree = 2*order-2
         else:
             raise ValueError(f"Unsupported quadrature scheme {quadrature_scheme}.")
 
         if stage_type not in {"deriv", "value"}:
             raise ValueError(f"Unsupported stage type {stage_type}.")
 
-        trial_type = {"deriv": "deriv", "value": "enriched"}[stage_type]
+        trial_type = stage_type
         basis_type = (trial_type, test_type)
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
@@ -82,7 +85,10 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
 
 def create_time_quadrature(degree, scheme=None):
     if scheme == "radau":
-        num_points = (degree + 2) // 2
+        num_points = degree // 2 + 1
         return RadauQuadratureLineRule(ufc_line, num_points)
+    elif scheme == "lobatto":
+        num_points = (degree + 1) // 2 + 1
+        return GaussLobattoLegendreQuadratureLineRule(ufc_line, num_points)
     else:
         return create_quadrature(ufc_line, degree, scheme=scheme or "default")
