@@ -4,7 +4,7 @@ from FIAT import (Bernstein, DiscontinuousLagrange,
 from ufl.constantvalue import as_ufl
 
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import bc2space, stage2spaces4bc
+from .bcs import stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .scheme import create_time_quadrature, ufc_line
@@ -154,39 +154,29 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
     Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
                for Q, Fcur in splitting.items())
 
-    # mass-ish matrix for BC, based on default quadrature rule
-    Qmass = Qdefault
-    if isinstance(L_test, Lagrange):
-        # Be careful not to apply under-integration here
-        Qmass = create_time_quadrature(L_test.degree() + L_trial.degree())
-
-    qpts = Qmass.get_points()
-    qwts = Qmass.get_weights()
-    trial_vals = L_trial.tabulate(0, qpts)[(0,)]
-    test_vals = L_test.tabulate(0, qpts)[(0,)]
-    test_vals_w = np.multiply(test_vals, qwts)
-
-    i0, = L_trial.entity_dofs()[0][0]
-    mmat = test_vals_w @ np.delete(trial_vals, i0, axis=0).T
-    proj = vecconst(np.linalg.solve(mmat, test_vals_w))
-    trial_vals_i0 = vecconst(trial_vals[i0])
-    qpts = vecconst(qpts.reshape((-1,)))
-
     # Oh, honey, is it the boundary conditions?
+    i0, = L_trial.entity_dofs()[0][0]
+    nodes = list(L_trial.dual_basis())
+    del nodes[i0]
+    # list of dictionaries mapping time coordinates to weights to evaluate DOFs
+    pt_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
+                 for (c,), wts in node.pt_dict.items()} for node in nodes]
+    deriv_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
+                    for (c,), wts in node.deriv_dict.items()} for node in nodes]
+
     V = u0.function_space()
     if bcs is None:
         bcs = []
     bcsnew = []
     for bc in bcs:
-        u0_sub = bc2space(bc, u0)
         g0 = as_ufl(bc._original_arg)
-        Vg_np = np.array([replace(g0, {t: t + c * dt}) for c in qpts])
-        Vg_np -= u0_sub * trial_vals_i0
-        g_np = proj @ Vg_np
+        dtg0 = expand_time_derivatives(TimeDerivative(g0), t=t, timedep_coeffs=[u0])
         for i in range(num_stages):
+            # Evaluate the degrees of freedom
+            gi = sum(replace(g0, {t: t + c * dt}) * w for c, w in pt_dicts[i].items())
+            gi += sum(replace(dtg0, {t: t + c * dt}) * w for c, w in deriv_dicts[i].items())
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
-
+            bcsnew.append(bc.reconstruct(V=Vbigi, g=gi))
     return Fnew, bcsnew
 
 
