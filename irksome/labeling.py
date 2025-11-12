@@ -67,3 +67,9 @@ def split_explicit(F):
                            map_if_true=keep, map_if_false=drop)
 
     return imp_part.form, exp_part.form
+
+
+def as_form(form):
+    if isinstance(form, LabelledForm):
+        form = form.form
+    return form

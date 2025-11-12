@@ -4,18 +4,20 @@ from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitSquareMesh, div, dx, errornorm,
                        grad, inner)
 from irksome import (Dt, GalerkinCollocationScheme, IRKAuxiliaryOperatorPC, LobattoIIIC, MeshConstant,
-                     RadauIIA, TimeStepper)
+                     RadauIIA, TimeStepper, TimeQuadratureLabel)
 from irksome.tools import AI, IA
 
 # Tests that various PCs are actually getting the right answer.
 
 
-def Fubc(V, t, uexact):
+def Fubc(V, t, uexact, Lhigh=None):
+    if Lhigh is None:
+        Lhigh = lambda x: x
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)
     rhs = Dt(uexact) - div(grad(uexact)) - uexact * (1-uexact)
-    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(u*(1-u), v)*dx - inner(rhs, v)*dx
+    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx + Lhigh(-inner(u*(1-u), v)*dx) + Lhigh(-inner(rhs, v)*dx)
     bc = DirichletBC(V, uexact, "on_boundary")
     return (F, u, bc)
 
@@ -28,7 +30,7 @@ class myPC(IRKAuxiliaryOperatorPC):
         return F, bcs
 
 
-def rd(scheme, **kwargs):
+def rd(scheme, Lhigh=None, **kwargs):
     N = 4
     msh = UnitSquareMesh(N, N)
 
@@ -50,7 +52,7 @@ def rd(scheme, **kwargs):
                 "pc_type": "lu"}
 
     per_field = {"ksp_type": "preonly",
-                 "pc_type": "lu"}
+                 "pc_type": "gamg"}
 
     ranaLD = {
         "mat_type": "matfree",
@@ -92,7 +94,7 @@ def rd(scheme, **kwargs):
     params = [luparams, ranaLD, ranaDU, mypc_params]
 
     for solver_parameters in params:
-        F, u, bc = Fubc(V, t, uexact)
+        F, u, bc = Fubc(V, t, uexact, Lhigh=Lhigh)
 
         stepper = TimeStepper(F, scheme, t, dt, u, bcs=bc,
                               solver_parameters=solver_parameters, **kwargs)
@@ -124,4 +126,5 @@ def test_pc_acc(butcher_tableau, order, stage_type):
 ])
 def test_pc_galerkin(quad_scheme, order, stage_type):
     scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, stage_type=stage_type)
-    assert rd(scheme) < 1.e-6
+    Lhigh = TimeQuadratureLabel(3*order-1)
+    assert rd(scheme, Lhigh=Lhigh) < 1.e-6
