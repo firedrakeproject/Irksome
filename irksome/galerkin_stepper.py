@@ -2,6 +2,7 @@ from FIAT import (Bernstein, DiscontinuousLagrange,
                   GaussRadau, IntegratedLegendre, Lagrange,
                   NodalEnrichedElement, RestrictedElement)
 from ufl.constantvalue import as_ufl
+
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
@@ -10,6 +11,7 @@ from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace, vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
+
 import numpy as np
 from firedrake import TestFunction, Constant
 
@@ -55,35 +57,20 @@ def getElements(basis_type, order):
     return L_trial, L_test
 
 
-def tabulate_sorted(L, order, points):
-    """Return the tabulation of a FIAT element after sorting the DOFs from left to right."""
-    ref_el = L.get_reference_element()
-    top = ref_el.topology
-    entities = [(d, e) for d in top for e in top[d]]
-    perm = []
-    ids = L.entity_dofs()
-    for dim, entity in sorted(entities, key=lambda args: top[args[0]][args[1]]):
-        perm.extend(ids[dim][entity])
-
-    vals = L.tabulate(order, points)
-    for alpha in vals:
-        vals[alpha] = vals[alpha][perm]
-    return vals
-
-
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
+    i0, = L_trial.entity_dofs()[0][0]
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
-    tabulate_trials = tabulate_sorted(L_trial, 1, qpts)
+    tabulate_trials = L_trial.tabulate(1, qpts)
     trial_vals = tabulate_trials[(0,)]
     trial_dvals = tabulate_trials[(1,)]
-    test_vals = tabulate_sorted(L_test, 0, qpts)[(0,)]
+    test_vals = L_test.tabulate(0, qpts)[(0,)]
     test_vals_w = np.multiply(test_vals, qwts)
 
     trial_vals = vecconst(trial_vals)
@@ -95,7 +82,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (-1, *v.ufl_shape))
     w_np = reshape(stages, (-1, *u0.ufl_shape))
-    u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
+    u_np = np.insert(w_np, i0, reshape(u0, (1, *u0.ufl_shape)), axis=0)
 
     vsub = dot(test_vals_w.T, v_np)
     usub = dot(trial_vals.T, u_np)
@@ -175,13 +162,14 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
 
     qpts = Qmass.get_points()
     qwts = Qmass.get_weights()
-    trial_vals = tabulate_sorted(L_trial, 0, qpts)[(0,)]
-    test_vals = tabulate_sorted(L_test, 0, qpts)[(0,)]
+    trial_vals = L_trial.tabulate(0, qpts)[(0,)]
+    test_vals = L_test.tabulate(0, qpts)[(0,)]
     test_vals_w = np.multiply(test_vals, qwts)
 
-    mmat = test_vals_w @ trial_vals[1:].T
+    i0, = L_trial.entity_dofs()[0][0]
+    mmat = test_vals_w @ np.delete(trial_vals, i0, axis=0).T
     proj = vecconst(np.linalg.solve(mmat, test_vals_w))
-    trial_vals = vecconst(trial_vals)
+    trial_vals_i0 = vecconst(trial_vals[i0])
     qpts = vecconst(qpts.reshape((-1,)))
 
     # Oh, honey, is it the boundary conditions?
@@ -193,7 +181,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
         u0_sub = bc2space(bc, u0)
         g0 = as_ufl(bc._original_arg)
         Vg_np = np.array([replace(g0, {t: t + c * dt}) for c in qpts])
-        Vg_np -= u0_sub * trial_vals[0]
+        Vg_np -= u0_sub * trial_vals_i0
         g_np = proj @ Vg_np
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
@@ -292,14 +280,15 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         update_trial = vecconst(self.trial_el.tabulate(0, (1.0,))[(0,)])
         update_test = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
 
-        stage_vals = np.array(self.u0.subfunctions + self.stages.subfunctions, dtype=object)
+        i0, = self.trial_el.entity_dofs()[0][0]
         self.u_update = []
         for i in range(self.num_fields):
-            ks = stage_vals[i::self.num_fields]
+            ks = list(self.stages.subfunctions[i::self.num_fields])
             if self.aux_indices and i in self.aux_indices:
-                self.u_update.append(ks[1:] @ update_test)
+                self.u_update.append(sum(w * c for w, c in zip(update_test, ks)))
             else:
-                self.u_update.append(ks @ update_trial)
+                ks.insert(i0, self.u0.subfunctions[i])
+                self.u_update.append(sum(w * c for w, c in zip(update_trial, ks)))
 
     def set_initial_guess(self):
         """Set a constant-in-time initial guess."""
@@ -311,8 +300,10 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         test_dual = self.test_el.get_dual_set()
         test_dofs = np.dot(test_dual.to_riesz(P0), B)
 
+        i0, = self.trial_el.entity_dofs()[0][0]
         trial_dual = self.trial_el.get_dual_set()
         trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
+        trial_dofs = np.delete(trial_dofs, i0, axis=0)
 
         dof = Constant(0)
         for k in range(self.num_stages):
@@ -321,7 +312,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                 if self.aux_indices and i in self.aux_indices:
                     dof.assign(test_dofs[k])
                 else:
-                    dof.assign(trial_dofs[k+1])
+                    dof.assign(trial_dofs[k])
                 if abs(float(dof)) < 1E-12:
                     sbit.zero()
                 else:
