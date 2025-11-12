@@ -3,17 +3,23 @@ from FIAT import (Bernstein, DiscontinuousLagrange,
                   NodalEnrichedElement, RestrictedElement)
 from ufl.constantvalue import as_ufl
 
+
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .scheme import create_time_quadrature, ufc_line
-from .tools import dot, reshape, replace, vecconst
+from .tools import AI, dot, reshape, replace, vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
 
+
+from .ButcherTableaux import CollocationButcherTableau
+from .stage_derivative import getForm
+from .stage_value import getFormStage
+
 import numpy as np
-from firedrake import TestFunction, Constant
+from firedrake import TestFunction, Constant, as_tensor
 
 
 def getTrialElement(basis_type, order):
@@ -238,15 +244,44 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         assert np.size(quadrature.get_points()) >= num_stages
 
         self.quadrature = quadrature
-
         self.aux_indices = aux_indices
+        if isinstance(self.basis_type, (tuple, list)) and self.basis_type[0] in {"value", "deriv"}:
+            self.butcher_tableau = CollocationButcherTableau(self.test_el, None)
+        else:
+            self.butcher_tableau = None
+
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
         self.set_initial_guess()
         self.set_update_expressions()
 
-    def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
+    def get_form_and_bcs(self, stages, tableau=None, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
+        F = F or self.F
+        bcs = self.orig_bcs
+        aux_indices = aux_indices or self.aux_indices
         if basis_type is None:
             basis_type = self.basis_type
+
+        if tableau is not None:
+            # Construct the equivalent IRK stage residual
+            stage_type, test_type = basis_type
+            if stage_type == "value":
+                get_rk_form = getFormStage
+            elif stage_type == "deriv":
+                get_rk_form = getForm
+            else:
+                raise ValueError("Expecting a GalerkinCollocationScheme")
+            Fnew, bcnew = get_rk_form(F, tableau, self.t, self.dt, self.u0, stages,
+                                      bcs=bcs, splitting=AI, bc_type="ODE")
+            # Galerkin collocation is equivalent to an IRK up to row scaling
+            v0, = F.arguments()
+            test, = Fnew.arguments()
+            test_new = reshape(test, (-1, *v0.ufl_shape))
+            for i, bi in enumerate(tableau.b):
+                test_new[i] *= Constant(bi)
+            test_new = as_tensor(test_new.reshape(test.ufl_shape))
+            Fnew = replace(Fnew, {test: test_new})
+            return Fnew, bcnew
+
         if order is None:
             order = self.order
         if basis_type == self.basis_type and order == self.order:
@@ -254,11 +289,10 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             test_el = self.test_el
         else:
             trial_el, test_el = getElements(basis_type, order)
-        return getFormGalerkin(F or self.F,
-                               trial_el, test_el,
-                               quadrature or self.quadrature,
-                               self.t, self.dt, self.u0, stages, self.orig_bcs,
-                               aux_indices or self.aux_indices)
+        quadrature = quadrature or self.quadrature
+        return getFormGalerkin(F, trial_el, test_el, quadrature,
+                               self.t, self.dt, self.u0, stages,
+                               bcs=bcs, aux_indices=aux_indices)
 
     def _update(self):
         for u0bit, expr in zip(self.u0.subfunctions, self.u_update):
