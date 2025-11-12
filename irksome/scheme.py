@@ -68,7 +68,7 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
         elif quadrature_scheme in {"radau", "lobatto"}:
             test_type = quadrature_scheme
             if quadrature_degree is None and quadrature_scheme == "lobatto":
-                # Default to under-integration
+                # Default to under-integration!
                 quadrature_degree = 2*order-2
         else:
             raise ValueError(f"Unsupported quadrature scheme {quadrature_scheme}.")

@@ -1,7 +1,13 @@
 import copy
 
 import numpy
-from firedrake import AuxiliaryOperatorPC, derivative
+from ufl import as_tensor
+from .ButcherTableaux import CollocationButcherTableau
+from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
+from .stage_derivative import getForm
+from .stage_value import getFormStage
+from .tools import replace, reshape, AI
+from firedrake import AuxiliaryOperatorPC, Constant, derivative
 from firedrake.dmhooks import get_appctx
 
 
@@ -50,7 +56,12 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         """Implements the interface for AuxiliaryOperatorPC."""
         appctx = self.get_appctx(pc)
         stepper = appctx["stepper"]
-        butcher = stepper.butcher_tableau
+        galerkin = isinstance(stepper, ContinuousPetrovGalerkinTimeStepper)
+        if galerkin:
+            L = stepper.test_el
+            butcher = CollocationButcherTableau(L, None)
+        else:
+            butcher = stepper.butcher_tableau
         F = stepper.F
         u0 = stepper.u0
         bcs = stepper.orig_bcs
@@ -74,7 +85,22 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         ctx = get_appctx(pc.getDM())
         w = ctx._x
 
-        Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F)
+        if galerkin:
+            # Construct the equivalent IRK stage form
+            if stepper.basis_type[0] == "value":
+                Fnew, bcnew = getFormStage(F, butcher, stepper.t, stepper.dt, u0, w, bcs=bcs, splitting=AI)
+            else:
+                Fnew, bcnew = getForm(F, butcher, stepper.t, stepper.dt, u0, w, bcs=bcs, splitting=AI, bc_type="ODE")
+            # GalerkinCollocation is equivalent to a Collocation IRK up to row scaling
+            test, = Fnew.arguments()
+            test_new = reshape(test, (-1, *v0.ufl_shape))
+            for i, bi in enumerate(butcher.b):
+                test_new[i] *= Constant(bi)
+            test_new = as_tensor(test_new.reshape(test.ufl_shape))
+            Fnew = replace(Fnew, {test: test_new})
+        else:
+            Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F)
+
         Jnew = derivative(Fnew, w, du=trial)
 
         return Jnew, bcnew

@@ -219,13 +219,14 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None,
                  aux_indices=None, **kwargs):
-        order = self.order = scheme.order
-        basis_type = self.basis_type = scheme.basis_type
+        self.order = scheme.order
+        self.basis_type = scheme.basis_type
 
         V = u0.function_space()
         self.num_fields = len(V)
 
-        self.trial_el, self.test_el = getElements(basis_type, order)
+        self.trial_el, self.test_el = getElements(scheme.basis_type, scheme.order)
+        num_stages = self.test_el.space_dimension()
 
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:
@@ -234,12 +235,11 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         if quad_scheme is None and isinstance(self.test_el, GaussRadau):
             quad_scheme = "radau"
         quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
+        assert np.size(quadrature.get_points()) >= num_stages
 
         self.quadrature = quadrature
-        assert np.size(quadrature.get_points()) >= order
 
         self.aux_indices = aux_indices
-        num_stages = self.test_el.space_dimension()
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
         self.set_initial_guess()
         self.set_update_expressions()
