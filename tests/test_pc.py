@@ -14,11 +14,8 @@ def Fubc(V, t, uexact):
     u.interpolate(uexact)
     v = TestFunction(V)
     rhs = Dt(uexact) - div(grad(uexact)) - uexact * (1-uexact)
-    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(u*(1-u), v)*dx
-    F -= inner(rhs, v)*dx
-
+    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(u*(1-u), v)*dx - inner(rhs, v)*dx
     bc = DirichletBC(V, uexact, "on_boundary")
-
     return (F, u, bc)
 
 
@@ -52,37 +49,44 @@ def rd(scheme):
                 "pc_type": "lu"}
 
     per_field = {"ksp_type": "preonly",
-                 "pc_type": "lu"}
+                 "pc_type": "gamg"}
 
-    ranaLD = {"mat_type": "aij",
-              "ksp_type": "gmres",
-              "ksp_converged_reason": None,
-              "pc_type": "python",
-              "pc_python_type": "irksome.RanaLD",
-              "aux": {
-                  "pc_type": "fieldsplit",
-                  "pc_fieldsplit_type": "multiplicative",
-                  "fieldsplit": per_field,
-              }}
+    ranaLD = {
+        "mat_type": "matfree",
+        "ksp_type": "gmres",
+        "ksp_converged_reason": None,
+        "pc_type": "python",
+        "pc_python_type": "irksome.RanaLD",
+        "aux": {
+            "pc_type": "fieldsplit",
+            "pc_fieldsplit_type": "multiplicative",
+            "fieldsplit": per_field,
+        }
+    }
 
-    ranaDU = {"mat_type": "aij",
-              "ksp_type": "gmres",
-              "ksp_converged_reason": None,
-              "pc_type": "python",
-              "pc_python_type": "irksome.RanaDU",
-              "aux": {
-                  "pc_type": "fieldsplit",
-                  "pc_fieldsplit_type": "multiplicative",
-                  "fieldsplit": per_field,
-              }}
+    ranaDU = {
+        "mat_type": "matfree",
+        "ksp_type": "gmres",
+        "ksp_converged_reason": None,
+        "pc_type": "python",
+        "pc_python_type": "irksome.RanaDU",
+        "aux": {
+            "pc_type": "fieldsplit",
+            "pc_fieldsplit_type": "multiplicative",
+            "fieldsplit": per_field,
+        }
+    }
 
-    mypc_params = {"mat_type": "aij",
-                   "ksp_type": "gmres",
-                   "ksp_converged_reason": None,
-                   "pc_type": "python",
-                   "pc_python_type": "test_pc.myPC",
-                   "aux": {
-                       "pc_type": "lu"}}
+    mypc_params = {
+        "mat_type": "matfree",
+        "ksp_type": "gmres",
+        "ksp_converged_reason": None,
+        "pc_type": "python",
+        "pc_python_type": "test_pc.myPC",
+        "aux": {
+            "pc_type": "lu",
+        }
+    }
 
     params = [luparams, ranaLD, ranaDU, mypc_params]
 
@@ -93,6 +97,10 @@ def rd(scheme):
                               solver_parameters=solver_parameters)
         stepper.advance()
         sols.append(u)
+
+        num_stages = stepper.num_stages
+        for i in range(num_stages):
+            ranaDU[f"aux_pc_fieldsplit_{i}_fields"] = num_stages-1-i
 
     errs = [errornorm(sols[0], uu) for uu in sols[1:]]
     return numpy.max(errs)
@@ -106,7 +114,7 @@ def test_pc_acc(butcher_tableau, order):
     assert rd(butcher_tableau(order)) < 1.e-6
 
 
-@pytest.mark.parametrize("stage_type", ("deriv",))
+@pytest.mark.parametrize("stage_type", ("deriv", "value"))
 @pytest.mark.parametrize('quad_scheme,order', [
     ("radau", 2),
     # ("lobatto", 3),

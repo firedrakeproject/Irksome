@@ -3,23 +3,21 @@ from FIAT import (Bernstein, DiscontinuousLagrange,
                   NodalEnrichedElement, RestrictedElement)
 from ufl.constantvalue import as_ufl
 
-
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .scheme import create_time_quadrature, ufc_line
-from .tools import AI, dot, reshape, replace, vecconst
+from .tools import AI, IA, dot, reshape, replace, vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
-
 
 from .ButcherTableaux import CollocationButcherTableau
 from .stage_derivative import getForm
 from .stage_value import getFormStage
 
 import numpy as np
-from firedrake import TestFunction, Constant, as_tensor
+from firedrake import TestFunction, Constant
 
 
 def getTrialElement(basis_type, order):
@@ -165,10 +163,12 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
     nodes = list(L_trial.dual_basis())
     del nodes[i0]
     # list of dictionaries mapping time coordinates to weights to evaluate DOFs
-    pt_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
-                 for (c,), wts in node.pt_dict.items()} for node in nodes]
-    deriv_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
+    trial_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
+                   for (c,), wts in node.pt_dict.items()} for node in nodes]
+    dtrial_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
                     for (c,), wts in node.deriv_dict.items()} for node in nodes]
+    aux_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
+                 for (c,), wts in node.pt_dict.items()} for node in L_test.dual_basis()]
 
     V = u0.function_space()
     if bcs is None:
@@ -176,11 +176,14 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
     bcsnew = []
     for bc in bcs:
         g0 = as_ufl(bc._original_arg)
-        dtg0 = expand_time_derivatives(TimeDerivative(g0), t=t, timedep_coeffs=[u0])
+        dtg0 = expand_time_derivatives(TimeDerivative(g0), t=t, timedep_coeffs=(u0,))
         for i in range(num_stages):
             # Evaluate the degrees of freedom
-            gi = sum(replace(g0, {t: t + c * dt}) * w for c, w in pt_dicts[i].items())
-            gi += sum(replace(dtg0, {t: t + c * dt}) * w for c, w in deriv_dicts[i].items())
+            if aux_indices and bc.function_space().index in aux_indices:
+                gi = sum(replace(g0, {t: t + c * dt}) * w for c, w in aux_dicts[i].items())
+            else:
+                gi = sum(replace(g0, {t: t + c * dt}) * w for c, w in trial_dicts[i].items())
+                gi += dt * sum(replace(dtg0, {t: t + c * dt}) * w for c, w in dtrial_dicts[i].items())
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=gi))
     return Fnew, bcsnew
@@ -266,19 +269,21 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             stage_type, test_type = basis_type
             if stage_type == "value":
                 get_rk_form = getFormStage
+                splitting = IA
             elif stage_type == "deriv":
                 get_rk_form = getForm
+                splitting = AI
             else:
                 raise ValueError("Expecting a GalerkinCollocationScheme")
             Fnew, bcnew = get_rk_form(F, tableau, self.t, self.dt, self.u0, stages,
-                                      bcs=bcs, splitting=AI, bc_type="ODE")
+                                      bcs=bcs, splitting=splitting)
             # Galerkin collocation is equivalent to an IRK up to row scaling
             v0, = F.arguments()
             test, = Fnew.arguments()
             test_new = reshape(test, (-1, *v0.ufl_shape))
             for i, bi in enumerate(tableau.b):
                 test_new[i] *= Constant(bi)
-            test_new = as_tensor(test_new.reshape(test.ufl_shape))
+            test_new = test_new.reshape(test.ufl_shape)
             Fnew = replace(Fnew, {test: test_new})
             return Fnew, bcnew
 
