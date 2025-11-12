@@ -5,6 +5,7 @@ from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        grad, inner)
 from irksome import (Dt, GalerkinCollocationScheme, IRKAuxiliaryOperatorPC, LobattoIIIC, MeshConstant,
                      RadauIIA, TimeStepper)
+from irksome.tools import AI, IA
 
 # Tests that various PCs are actually getting the right answer.
 
@@ -27,7 +28,7 @@ class myPC(IRKAuxiliaryOperatorPC):
         return F, bcs
 
 
-def rd(scheme):
+def rd(scheme, **kwargs):
     N = 4
     msh = UnitSquareMesh(N, N)
 
@@ -94,7 +95,7 @@ def rd(scheme):
         F, u, bc = Fubc(V, t, uexact)
 
         stepper = TimeStepper(F, scheme, t, dt, u, bcs=bc,
-                              solver_parameters=solver_parameters)
+                              solver_parameters=solver_parameters, **kwargs)
         stepper.advance()
         sols.append(u)
 
@@ -106,12 +107,14 @@ def rd(scheme):
     return numpy.max(errs)
 
 
+@pytest.mark.parametrize("stage_type", ("deriv", "value"))
 @pytest.mark.parametrize('butcher_tableau,order', [
     (RadauIIA, 2),
     (LobattoIIIC, 3),
 ])
-def test_pc_acc(butcher_tableau, order):
-    assert rd(butcher_tableau(order)) < 1.e-6
+def test_pc_acc(butcher_tableau, order, stage_type):
+    splitting = {"deriv": AI, "value": IA}[stage_type]
+    assert rd(butcher_tableau(order), stage_type=stage_type, splitting=splitting) < 1.e-6
 
 
 @pytest.mark.parametrize("stage_type", ("deriv", "value"))
@@ -119,6 +122,6 @@ def test_pc_acc(butcher_tableau, order):
     ("radau", 2),
     # ("lobatto", 3),
 ])
-def test_rana_galerkin(quad_scheme, order, stage_type):
+def test_pc_galerkin(quad_scheme, order, stage_type):
     scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, stage_type=stage_type)
     assert rd(scheme) < 1.e-6
