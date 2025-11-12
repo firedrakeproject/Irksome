@@ -50,7 +50,7 @@ def rd(scheme, **kwargs):
                 "pc_type": "lu"}
 
     per_field = {"ksp_type": "preonly",
-                 "pc_type": "gamg"}
+                 "pc_type": "lu"}
 
     ranaLD = {
         "mat_type": "matfree",

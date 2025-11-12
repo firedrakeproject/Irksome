@@ -217,8 +217,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def get_update_solver(self, update_solver_parameters):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
+        F = expand_time_derivatives(self.F, t=self.t, timedep_coeffs=(self.u0,))
+        v, = F.arguments()
         unew = Function(self.u0.function_space())
-        v, = self.F.arguments()
         Fupdate = inner(unew - self.u0, v) * dx
 
         C = vecconst(self.butcher_tableau.c)
@@ -226,7 +227,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         t = self.t
         dt = self.dt
         u0 = self.u0
-        split_form = extract_terms(self.F)
+        split_form = extract_terms(F)
         u_np = to_value(self.u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
