@@ -69,6 +69,7 @@ class DIRKTimeStepper:
                  solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
+                 stage_update_callback=None,
                  **kwargs):
         assert butcher_tableau.is_diagonally_implicit
 
@@ -80,6 +81,9 @@ class DIRKTimeStepper:
         self.num_stages = num_stages = butcher_tableau.num_stages
         self.AAb = numpy.vstack((butcher_tableau.A, butcher_tableau.b))
         self.CCone = numpy.append(butcher_tableau.c, 1.0)
+
+        # Store the stage update callback
+        self.stage_update_callback = stage_update_callback
 
         # Need to be able to set BCs for either the DIRK or explicit cases.
 
@@ -168,6 +172,16 @@ class DIRKTimeStepper:
 
             # update BC constants for the variational problem
             self.update_bc_constants(i, c)
+
+            # Call user-provided callback before solving this stage
+            # This allows updating time-dependent forcings or other coefficients
+            if self.stage_update_callback is not None:
+                # Use the Butcher tableau c value directly, not the mutable constant
+                # which has already been updated by update_bc_constants above
+                c_value = self.butcher_tableau.c[i]
+                stage_time = float(self.t) + c_value * float(dt)
+                self.stage_update_callback(i, stage_time)
+
             a.assign(self.AA[i, i])
 
             # solve new variational problem, stash the computed

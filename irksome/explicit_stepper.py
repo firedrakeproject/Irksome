@@ -7,7 +7,7 @@ from .dirk_stepper import DIRKTimeStepper
 class ExplicitTimeStepper(DIRKTimeStepper):
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None,
-                 appctx=None):
+                 appctx=None, stage_update_callback=None):
         assert butcher_tableau.is_explicit
         # we just have one mass matrix we're reusing for each time step and
         # each stage, so we can nudge this along
@@ -19,4 +19,4 @@ class ExplicitTimeStepper(DIRKTimeStepper):
         super(ExplicitTimeStepper, self).__init__(
             F, butcher_tableau, t, dt, u0, bcs=bcs,
             solver_parameters=solver_parameters, appctx=appctx,
-            nullspace=None)
+            nullspace=None, stage_update_callback=stage_update_callback)
