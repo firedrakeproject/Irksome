@@ -40,6 +40,16 @@ def get_stage_space(V, num_stages):
     return reduce(mul, (V for _ in range(num_stages)))
 
 
+def fields_to_components(V, fields):
+    cur = 0
+    components = []
+    for i, Vi in enumerate(V):
+        if i in fields:
+            components.extend(range(cur, cur+Vi.value_size))
+        cur += Vi.value_size
+    return components
+
+
 def getNullspace(V, Vbig, num_stages, nullspace):
     """
     Computes the nullspace for a multi-stage method.

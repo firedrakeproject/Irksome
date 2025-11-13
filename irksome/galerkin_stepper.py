@@ -8,7 +8,7 @@ from .bcs import stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
-from .tools import AI, IA, dot, reshape, replace, vecconst
+from .tools import AI, IA, dot, fields_to_components, reshape, replace, vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
 
@@ -95,12 +95,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
 
     # discretize the auxiliary fields in the DG test space
     if aux_indices is not None:
-        cur = 0
-        aux_components = []
-        for i, Vi in enumerate(V):
-            if i in aux_indices:
-                aux_components.extend(range(cur, cur+Vi.value_size))
-            cur += Vi.value_size
+        aux_components = fields_to_components(V, aux_indices)
         usub[:, aux_components] = dot(test_vals.T, w_np[:, aux_components])
 
     # now loop over quadrature points
@@ -289,13 +284,23 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             Fnew, bcnew = get_rk_form(F, tableau, self.t, self.dt, self.u0, stages,
                                       bcs=bcs, splitting=splitting)
 
-            if trial_type == "deriv":
+            if splitting != scaledIA:
                 v0, = F.arguments()
                 test, = Fnew.arguments()
                 test_np = reshape(test, (-1, *v0.ufl_shape))
-                test_np = np.multiply(vecconst(row_scale), test_np)
+                test_np = np.multiply(vecconst(row_scale).reshape(-1, *(1,)*len(v0.ufl_shape)), test_np)
                 test_np = test_np.reshape(test.ufl_shape)
                 Fnew = replace(Fnew, {test: test_np})
+
+            if aux_indices is not None and trial_type == "deriv":
+                # TODO move this to StageDerivativeTimeStepper
+                aux_components = fields_to_components(self.u0.function_space(), aux_indices)
+                A1, A2 = splitting(tableau.A)
+                A1inv = vecconst(np.linalg.inv(A1))
+                stages_np = reshape(stages, (-1, *self.u0.ufl_shape))
+                stages_np[:, aux_components] = dot(A1inv, stages_np[:, aux_components])
+                stages_np = stages_np.reshape(stages.ufl_shape)
+                Fnew = replace(Fnew, {stages: stages_np})
             return Fnew, bcnew
 
         if order is None:
