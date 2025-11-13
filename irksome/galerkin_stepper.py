@@ -7,7 +7,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
-from .scheme import create_time_quadrature, ufc_line
+from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
 from .tools import AI, IA, dot, reshape, replace, vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
@@ -234,7 +234,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         V = u0.function_space()
         self.num_fields = len(V)
 
-        self.trial_el, self.test_el = getElements(scheme.basis_type, scheme.order)
+        self.trial_el, self.test_el = getElements(self.basis_type, self.order)
         num_stages = self.test_el.space_dimension()
 
         quad_degree = scheme.quadrature_degree
@@ -248,7 +248,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
 
         self.quadrature = quadrature
         self.aux_indices = aux_indices
-        if isinstance(self.basis_type, (tuple, list)) and self.basis_type[0] in {"value", "deriv"}:
+        if isinstance(scheme, GalerkinCollocationScheme):
             self.butcher_tableau = CollocationButcherTableau(self.test_el, None)
         else:
             self.butcher_tableau = None
@@ -265,26 +265,37 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             basis_type = self.basis_type
 
         if tableau is not None:
+            # Galerkin collocation is equivalent to an IRK up to row scaling
+            row_scale = tableau.b
+
+            def scaledIA(A):
+                # For stage-value the splitting exposes row scaling
+                A1, A2 = IA(A)
+                np.multiply(A1, row_scale, out=A1)
+                np.multiply(1/row_scale, A2, out=A2)
+                return A1, A2
+
             # Construct the equivalent IRK stage residual
-            stage_type, test_type = basis_type
-            if stage_type == "value":
+            trial_type, test_type = basis_type
+            if trial_type == "value":
+                splitting = scaledIA
                 get_rk_form = getFormStage
-                splitting = IA
-            elif stage_type == "deriv":
-                get_rk_form = getForm
+            elif trial_type == "deriv":
                 splitting = AI
+                get_rk_form = getForm
             else:
                 raise ValueError("Expecting a GalerkinCollocationScheme")
+
             Fnew, bcnew = get_rk_form(F, tableau, self.t, self.dt, self.u0, stages,
                                       bcs=bcs, splitting=splitting)
-            # Galerkin collocation is equivalent to an IRK up to row scaling
-            v0, = F.arguments()
-            test, = Fnew.arguments()
-            test_new = reshape(test, (-1, *v0.ufl_shape))
-            for i, bi in enumerate(tableau.b):
-                test_new[i] *= Constant(bi)
-            test_new = test_new.reshape(test.ufl_shape)
-            Fnew = replace(Fnew, {test: test_new})
+
+            if trial_type == "deriv":
+                v0, = F.arguments()
+                test, = Fnew.arguments()
+                test_np = reshape(test, (-1, *v0.ufl_shape))
+                test_np = np.multiply(vecconst(row_scale), test_np)
+                test_np = test_np.reshape(test.ufl_shape)
+                Fnew = replace(Fnew, {test: test_np})
             return Fnew, bcnew
 
         if order is None:
