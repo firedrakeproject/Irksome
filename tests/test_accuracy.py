@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from firedrake import (DirichletBC, Constant, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, cos, diff, div, dx,
-                       errornorm, exp, grad, inner, norm, pi, project, solve)
+                       errornorm, exp, grad, inner, norm, pi, solve)
 from irksome import Dt, GalerkinCollocationScheme, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
 
 

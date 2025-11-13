@@ -32,7 +32,7 @@ def to_value(u0, stages, vandermonde):
     return dot(vandermonde[1:], u_np)
 
 
-def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None):
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -82,7 +82,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
     assert is_ode(F, u0) or butch.is_stiffly_accurate
 
-    v = F.arguments()[0]
+    v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
 
@@ -101,7 +101,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     test = TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = reshape(test, (num_stages, *u0.ufl_shape))
+    v_np = reshape(test, (num_stages, *v.ufl_shape))
     w_np = to_value(u0, stages, vandermonde)
     A1Tv = dot(A1.T, v_np)
     A2invTv = dot(A2inv.T, v_np)

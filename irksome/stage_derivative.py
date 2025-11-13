@@ -75,20 +75,19 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     test = TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = reshape(test, (num_stages, *u0.ufl_shape))
+    v_np = reshape(test, (num_stages, *v.ufl_shape))
     w_np = reshape(stages, (num_stages, *u0.ufl_shape))
     A1w = dot(A1, w_np)
     A2invw = dot(A2inv, w_np)
-
     dtu = TimeDerivative(u0)
-    repl = {}
-    for i in range(num_stages):
-        repl[i] = {t: t + c[i] * dt,
-                   v: v_np[i],
-                   u0: u0 + as_tensor(A1w[i]) * dt,
-                   dtu: A2invw[i]}
 
-    Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
+    def repl(i):
+        return {t: t + c[i] * dt,
+                v: v_np[i],
+                u0: u0 + as_tensor(A1w[i]) * dt,
+                dtu: A2invw[i]}
+
+    Fnew = sum(replace(F, repl(i)) for i in range(num_stages))
 
     if bcs is None:
         bcs = []
