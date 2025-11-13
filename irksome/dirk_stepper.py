@@ -166,13 +166,6 @@ class DIRKTimeStepper:
         u0 = self.u0
         dt = self.dt
         for i in range(self.num_stages):
-            # compute the already-known part of the state in the
-            # variational form
-            g.assign(sum((ks[j] * (self.AA[i, j] * dt) for j in range(i)), u0))
-
-            # update BC constants for the variational problem
-            self.update_bc_constants(i, c)
-
             # Call user-provided callback before solving this stage
             # This allows updating time-dependent forcings or other coefficients
             if self.stage_update_callback is not None:
@@ -182,14 +175,13 @@ class DIRKTimeStepper:
                 stage_time = float(self.t) + c_value * float(dt)
                 self.stage_update_callback(i, stage_time)
 
-                # Invalidate form cache to ensure updated Functions are picked up
-                # The form references Functions by identity, so updates should be visible,
-                # but we need to ensure the form cache is invalidated
-                if hasattr(self.problem, '_form_cache'):
-                    self.problem._form_cache.clear()
-                # Also invalidate the solver's form cache if it exists
-                if hasattr(self.solver, '_form_cache'):
-                    self.solver._form_cache.clear()
+            # compute the already-known part of the state in the
+            # variational form
+            g.assign(sum((ks[j] * (self.AA[i, j] * dt) for j in range(i)), u0))
+
+            # update BC constants for the variational problem
+            self.update_bc_constants(i, c)
+
 
             a.assign(self.AA[i, i])
 
