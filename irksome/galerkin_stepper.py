@@ -104,13 +104,13 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
         usub[:, aux_components] = dot(test_vals.T, w_np[:, aux_components])
 
     # now loop over quadrature points
-    repl = {}
-    for q in range(len(qpts)):
-        repl[q] = {t: t + qpts[q] * dt,
-                   v: vsub[q] * dt,
-                   u0: usub[q],
-                   dtu0: dtu0sub[q] / dt}
-    Fnew = sum(replace(F, repl[q]) for q in repl)
+    def repl(q):
+        return {t: t + qpts[q] * dt,
+                v: vsub[q] * dt,
+                u0: usub[q],
+                dtu0: dtu0sub[q] / dt}
+
+    Fnew = sum(replace(F, repl(q)) for q in range(len(qpts)))
     return Fnew
 
 
@@ -159,6 +159,11 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
+    V = u0.function_space()
+    if bcs is None:
+        bcs = []
+    bcsnew = []
+
     i0, = L_trial.entity_dofs()[0][0]
     nodes = list(L_trial.dual_basis())
     del nodes[i0]
@@ -169,11 +174,6 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
                     for (c,), wts in node.deriv_dict.items()} for node in nodes]
     aux_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
                  for (c,), wts in node.pt_dict.items()} for node in L_test.dual_basis()]
-
-    V = u0.function_space()
-    if bcs is None:
-        bcs = []
-    bcsnew = []
     for bc in bcs:
         g0 = as_ufl(bc._original_arg)
         dtg0 = expand_time_derivatives(TimeDerivative(g0), t=t, timedep_coeffs=(u0,))
@@ -314,10 +314,11 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         for i in range(self.num_fields):
             ks = list(self.stages.subfunctions[i::self.num_fields])
             if self.aux_indices and i in self.aux_indices:
-                self.u_update.append(sum(w * c for w, c in zip(update_test, ks)))
+                wts = update_test
             else:
+                wts = update_trial
                 ks.insert(i0, self.u0.subfunctions[i])
-                self.u_update.append(sum(w * c for w, c in zip(update_trial, ks)))
+            self.u_update.append(sum(w * k for w, k in zip(wts, ks)))
 
     def set_initial_guess(self):
         """Set a constant-in-time initial guess."""
