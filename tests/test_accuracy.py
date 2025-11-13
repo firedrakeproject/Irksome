@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
+from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, cos, diff, div, dx,
                        errornorm, exp, grad, inner, norm, pi, solve)
 from irksome import Dt, GalerkinCollocationScheme, MeshConstant, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
