@@ -92,8 +92,9 @@ def telegraph(n, deg, scheme, **kwargs):
     V = FunctionSpace(msh, "CG", deg)
     x, = SpatialCoordinate(msh)
 
-    t = Constant(0.0)
-    dt = Constant(2.0 / N)
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(2.0 / N)
 
     uexact = exp(-t) * cos(pi * x)
     bcs = DirichletBC(V, uexact, "on_boundary")
