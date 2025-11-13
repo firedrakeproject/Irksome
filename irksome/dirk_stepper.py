@@ -182,6 +182,15 @@ class DIRKTimeStepper:
                 stage_time = float(self.t) + c_value * float(dt)
                 self.stage_update_callback(i, stage_time)
 
+                # Invalidate form cache to ensure updated Functions are picked up
+                # The form references Functions by identity, so updates should be visible,
+                # but we need to ensure the form cache is invalidated
+                if hasattr(self.problem, '_form_cache'):
+                    self.problem._form_cache.clear()
+                # Also invalidate the solver's form cache if it exists
+                if hasattr(self.solver, '_form_cache'):
+                    self.solver._form_cache.clear()
+
             a.assign(self.AA[i, i])
 
             # solve new variational problem, stash the computed
