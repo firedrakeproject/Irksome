@@ -81,11 +81,12 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     A2invw = dot(A2inv, w_np)
     dtu = TimeDerivative(u0)
 
-    def repl(i):
-        return {t: t + c[i] * dt,
-                v: v_np[i],
-                u0: u0 + as_tensor(A1w[i]) * dt,
-                dtu: A2invw[i]}
+    repl = {}
+    for i in range(num_stages):
+        repl[i] = {t: t + c[i] * dt,
+                   v: v_np[i],
+                   u0: u0 + as_tensor(A1w[i]) * dt,
+                   dtu: A2invw[i]}
 
     Fnew = sum(replace(F, repl(i)) for i in range(num_stages))
 
