@@ -11,10 +11,11 @@ class GalerkinScheme:
     a Butcher tableau.
 
     :arg order: An integer indicating the order of the method
-    :kwarg basis_type: A string indicating the finite element family (either
-        `'Lagrange'` or `'Bernstein'`) or the Lagrange variant (either
-        `'equispaced'`, `'spectral'`, `'chebyshev'`, or `'integral'`) for the
-        test/trial spaces.  Defaults to equispaced Lagrange elements.
+    :kwarg basis_type: A string (or tuple of strings) indicating the finite
+        element family (either `'Lagrange'` or `'Bernstein'`) or the
+        Lagrange variant (either `'equispaced'`, `'spectral'`, `'chebyshev'`,
+        or `'integral'`) for the test/trial spaces.
+        Defaults to equispaced Lagrange elements.
     :kwarg quadrature_degree: An integer indicating the degree of the
         quadrature to be use in time. Defaults to the sum
         of the degrees of the trial and test spaces.
