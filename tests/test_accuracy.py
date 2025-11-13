@@ -3,7 +3,7 @@ import pytest
 from firedrake import (DirichletBC, Constant, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, cos, diff, div, dx,
                        errornorm, exp, grad, inner, norm, pi, solve)
-from irksome import Dt, GalerkinCollocationScheme, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
+from irksome import Dt, GalerkinCollocationScheme, MeshConstant, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
 
 
 # test the accuracy of the 1d heat equation using CG elements
