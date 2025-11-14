@@ -2,6 +2,7 @@ from FIAT import (Bernstein, DiscontinuousLagrange,
                   GaussRadau, IntegratedLegendre, Lagrange,
                   NodalEnrichedElement, RestrictedElement)
 from ufl.constantvalue import as_ufl
+from ufl.classes import Form
 
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
@@ -99,13 +100,22 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
         usub[:, aux_components] = dot(test_vals.T, w_np[:, aux_components])
 
     # now loop over quadrature points
-    def repl(q):
-        return {t: t + qpts[q] * dt,
-                v: vsub[q] * dt,
-                u0: usub[q],
-                dtu0: dtu0sub[q] / dt}
+    repl = {}
+    for q in range(len(qpts)):
+        repl[q] = {t: t + qpts[q] * dt,
+                   v: vsub[q] * dt,
+                   u0: usub[q],
+                   dtu0: dtu0sub[q] / dt}
 
-    Fnew = sum(replace(F, repl(q)) for q in range(len(qpts)))
+    if isinstance(F, Form):
+        integrals = []
+        for it in F.integrals():
+            integrand = it.integrand()
+            itq = it.reconstruct(sum(replace(integrand, repl[q]) for q in repl))
+            integrals.append(itq)
+        Fnew = Form(integrals)
+    else:
+        Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
 
