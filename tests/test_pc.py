@@ -179,6 +179,7 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
         "mat_type": "matfree",
         "snes_type": "ksponly",
         "ksp_type": "gmres",
+        "ksp_rtol": 1E-8,
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
         "pc_type": "python",
