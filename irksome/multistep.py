@@ -21,8 +21,7 @@ class MultistepStepper(BaseTimeStepper):
     :arg dt: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time step.
          The user may adjust this value between time steps.
-    :arg a: An array of length s + 1 containing the left-hand coefficients of the method (usually, a[-1] = 1).
-    :arg b: An array of length s + 1 containing the right-hand coefficients of the method    
+    :arg method: A string corresponding to a standard method OR a tuple of arrays, (a, b), containing the coefficients defining the method.
     :arg u: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
@@ -50,14 +49,20 @@ class MultistepStepper(BaseTimeStepper):
             except:
                 raise ValueError(f'{method} is not a recognized method')
         else:
-            print(method)
             a, b = method
 
         self.s = len(b) - 1
         self.a = vecconst(a)
         self.b = vecconst(b)
-        self.us = [u0.copy(deepcopy=True) for const in self.a[0:-1] if const != zero()]
+        self.us = []
+        self.active_steps = []
+        for i in range(len(self.a) - 1):
+            if not (self.a[i] == zero() and self.b[i] == zero()):
+                self.active_steps.append(i)
+                self.us.append(u0.copy(deepcopy=True))
         self.us.append(u0)
+        self.active_steps.append(len(self.a) - 1)
+        
         Fnew, bcsnew = self.get_form_and_bcs(F, t, dt, u0, self.a, self.b, bcs=bcs)
 
         self.problem = NonlinearVariationalProblem(Fnew, self.us[-1], bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
@@ -99,22 +104,22 @@ class MultistepStepper(BaseTimeStepper):
         # replace the time derivative with a linear combination of the previous steps
         temp_form = 0.0
         step_number = 0
-        for coeff in a:
-            if coeff is zero():
+        for (i, coeff) in enumerate(a):
+            if (coeff is zero()) or (i not in self.active_steps):
                 pass
             else:
-               temp_form += coeff * self.us[step_number]
-               step_number += 1
+                temp_form += coeff * self.us[self.active_steps.index(i)]
+                step_number += 1
 
         dtu = TimeDerivative(u0)
         Fnew = replace(F_dt, {dtu: temp_form})
 
         # form the right hand side
         for (i, coeff) in enumerate(b):
-            if coeff is zero():
+            if (coeff is zero()) or (i not in self.active_steps):
                 pass
             else:
-                Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i], 
+                Fnew += dt * coeff * replace(F_remainder, {u0: self.us[self.active_steps.index(i)], 
                                                            t: t + (i - self.s + 1) * dt})
         if bcs is None:
             bcs = []
