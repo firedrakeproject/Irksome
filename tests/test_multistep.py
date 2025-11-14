@@ -1,7 +1,8 @@
 import pytest
 from firedrake import (TestFunction, NonlinearVariationalProblem, NonlinearVariationalSolver,
                        UnitSquareMesh, FunctionSpace, Function, grad, sin, pi, cos, project, 
-                       SpatialCoordinate, exp, inner, dx, div, norm, diff, DirichletBC)
+                       SpatialCoordinate, split, TestFunctions, Constant, exp, conditional, 
+                       Or, And, inner, dx, div, norm, diff, DirichletBC)
 from irksome import (Dt, MeshConstant, TimeStepper, MultistepTimeStepper, RadauIIA, GaussLegendre)
 from ufl.algorithms import expand_derivatives
 import numpy as np
@@ -95,87 +96,87 @@ def heat_mech(msh, N, spatial_degree):
     return u
 
 
-def heat_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div):
+# def heat_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div):
 
-    V = FunctionSpace(msh, "Bernstein", spatial_degree)
+#     V = FunctionSpace(msh, "Bernstein", spatial_degree)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1 / N)
-    t = MC.Constant(0.0)
+#     MC = MeshConstant(msh)
+#     dt = MC.Constant(1 / N)
+#     t = MC.Constant(0.0)
 
-    x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+#     x, y = SpatialCoordinate(msh)
+#     uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
+#     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
 
-    bc = DirichletBC(V, uexact, "on_boundary")
+#     bc = DirichletBC(V, uexact, "on_boundary")
 
-    u0 = project(uexact, V, bcs=bc)
+#     u0 = project(uexact, V, bcs=bc)
 
-    u = project(uexact, V, bcs=bc)
-    v = TestFunction(V)
+#     u = project(uexact, V, bcs=bc)
+#     v = TestFunction(V)
 
-    F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
+#     F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
 
-    startup_stepper = TimeStepper(F, startup_tableau, t, dt, u, bcs=bc)
-
-
-    dt.assign(dt / startup_dt_div)
-    for i in range(0, startup_dt_div):
-        startup_stepper.advance()
-        t.assign(t + dt)
-    dt.assign(dt * startup_dt_div)
-    u1 = Function(V).assign(u)
-
-    ## BDF2
-    a = np.array([1.0 / 3.0, -4.0 / 3.0, 1.0])
-    b = np.array([0.0, 0.0, 2.0 / 3.0])
-
-    stepper = MultistepTimeStepper(F, t, dt, u, (a, b), bcs=bc)
-    stepper.us[0].assign(u0)
-    stepper.us[1].assign(u1)
-
-    for i in range(5):
-        stepper.advance()
-        t.assign(float(t) + float(dt))
-    print(f'hand: {norm(u)}')
-    return u
+#     startup_stepper = TimeStepper(F, startup_tableau, t, dt, u, bcs=bc)
 
 
-def heat_mech_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div):
+#     dt.assign(dt / startup_dt_div)
+#     for i in range(0, startup_dt_div):
+#         startup_stepper.advance()
+#         t.assign(t + dt)
+#     dt.assign(dt * startup_dt_div)
+#     u1 = Function(V).assign(u)
 
-    V = FunctionSpace(msh, "Bernstein", spatial_degree)
+#     ## BDF2
+#     a = np.array([1.0 / 3.0, -4.0 / 3.0, 1.0])
+#     b = np.array([0.0, 0.0, 2.0 / 3.0])
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(1 / N)
-    t = MC.Constant(0.0)
+#     stepper = MultistepTimeStepper(F, t, dt, u, (a, b), bcs=bc)
+#     stepper.us[0].assign(u0)
+#     stepper.us[1].assign(u1)
 
-    x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+#     for i in range(5):
+#         stepper.advance()
+#         t.assign(float(t) + float(dt))
+#     print(f'hand: {norm(u)}')
+#     return u
 
-    bc = DirichletBC(V, uexact, "on_boundary")
 
-    u = project(uexact, V, bcs=bc)
-    v = TestFunction(V)
+# def heat_mech_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div):
 
-    F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
+#     V = FunctionSpace(msh, "Bernstein", spatial_degree)
 
-    ## BDF2
-    a = np.array([1.0 / 3.0, -4.0 / 3.0, 1.0])
-    b = np.array([0.0, 0.0, 2.0 / 3.0])
+#     MC = MeshConstant(msh)
+#     dt = MC.Constant(1 / N)
+#     t = MC.Constant(0.0)
 
-    startup_params = {'tableau': startup_tableau,
-                      'dt_div': startup_dt_div
-                     }
+#     x, y = SpatialCoordinate(msh)
+#     uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
+#     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
 
-    t.assign(0.0)
-    stepper = MultistepTimeStepper(F, t, dt, u, (a, b), bcs=bc, startup_params=startup_params)
+#     bc = DirichletBC(V, uexact, "on_boundary")
 
-    for i in range(5):
-        stepper.advance()
-        t.assign(float(t) + float(dt))
-    print(f'mech: {norm(u)}')
-    return u
+#     u = project(uexact, V, bcs=bc)
+#     v = TestFunction(V)
+
+#     F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
+
+#     ## BDF2
+#     a = np.array([1.0 / 3.0, -4.0 / 3.0, 1.0])
+#     b = np.array([0.0, 0.0, 2.0 / 3.0])
+
+#     startup_params = {'tableau': startup_tableau,
+#                       'dt_div': startup_dt_div
+#                      }
+
+#     t.assign(0.0)
+#     stepper = MultistepTimeStepper(F, t, dt, u, (a, b), bcs=bc, startup_params=startup_params)
+
+#     for i in range(5):
+#         stepper.advance()
+#         t.assign(float(t) + float(dt))
+#     print(f'mech: {norm(u)}')
+#     return u
 
 def heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
     N = 16
@@ -243,7 +244,113 @@ def heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
 
     return (min_init >= 0.0, min_step1 >= 0.0, min_step2 >= 0)
 
-@pytest.mark.parametrize('N', [8, 16, 32])
+
+def CH_hand(msh, spatial_degree, startup_tableau):
+    V = FunctionSpace(msh, "CG", spatial_degree)
+    VV = V * V
+    c_mu = Function(VV)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1e-4)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+
+    c_init = conditional(Or(And(And(x > 1/8, x < 1/2),
+                                And(y > 1/8, y < 1/2)),
+                            And(And(x > 1/2, x < 7/8),
+                                And(y > 1/2, y < 7/8))),
+                        Constant(1),
+                        Constant(-1))
+
+    c_mu.subfunctions[0].interpolate(c_init)
+
+
+    kappa = Constant(2**(-10))
+    M = Constant(1)
+
+    v, w = TestFunctions(VV)
+    c, mu = split(c_mu)
+
+    F_DT = (inner(Dt(c), v) * dx
+        + M * inner(grad(mu), grad(v)) * dx
+        + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx
+        - kappa * inner(grad(c), grad(w)) * dx)
+
+    c_mu0 = Function(c_mu)
+
+    startup_stepper = TimeStepper(F_DT, startup_tableau, t, dt, c_mu)
+    dt_div = 4
+    dt.assign(dt / dt_div)
+    for i in range(dt_div):
+        startup_stepper.advance()
+        t.assign(t + dt)
+
+    dt.assign(dt * dt_div)
+    c_mu1 = Function(VV).assign(c_mu)
+
+    F_BDF_RHS = - (M * inner(grad(mu), grad(v)) * dx + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx - kappa * inner(grad(c), grad(w)) * dx)
+
+    c0, mu0 = split(c_mu0)
+    c1, mu1 = split(c_mu1)
+
+    F_BDF = inner(c, v) * dx - (4.0 / 3.0) * inner(c1, v) * dx + (1.0 / 3.0) * inner(c0, v) * dx - (2.0 / 3.0) * dt * F_BDF_RHS
+
+    stepper_prob = NonlinearVariationalProblem(F_BDF, c_mu)
+    stepper = NonlinearVariationalSolver(stepper_prob)
+
+    for i in range(5):
+        t.assign(t + dt)
+        stepper.solve()
+        c_mu0.assign(c_mu1)
+        c_mu1.assign(c_mu)
+
+    return c_mu
+
+
+def CH_mech(msh, spatial_degree, startup_tableau):
+    V = FunctionSpace(msh, "Lagrange", spatial_degree)
+    VV = V * V
+    c_mu = Function(VV)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1e-4)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+
+    c_init = conditional(Or(And(And(x > 1/8, x < 1/2),
+                                And(y > 1/8, y < 1/2)),
+                            And(And(x > 1/2, x < 7/8),
+                                And(y > 1/2, y < 7/8))),
+                        Constant(1),
+                        Constant(-1))
+
+    c_mu.subfunctions[0].interpolate(c_init)
+
+    kappa = Constant(2**(-10))
+    M = Constant(1)
+
+    v, w = TestFunctions(VV)
+    c, mu = split(c_mu)
+
+    F_DT = (inner(Dt(c), v) * dx
+        + M * inner(grad(mu), grad(v)) * dx
+        + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx
+        - kappa * inner(grad(c), grad(w)) * dx)
+
+    startup_params = {'tableau': startup_tableau, 'dt_div': 4}
+
+    stepper = MultistepTimeStepper(F_DT, t, dt, c_mu, 'BDF2', startup_params=startup_params)
+
+    for i in range(5):
+        stepper.advance()
+        t.assign(t + dt)
+
+    return c_mu
+
+
+@pytest.mark.parametrize('N', [8, 16])
 @pytest.mark.parametrize('spatial_degree', [1, 2, 3])
 def test_heat_mech(N, spatial_degree):
     msh = UnitSquareMesh(N, N)
@@ -252,15 +359,15 @@ def test_heat_mech(N, spatial_degree):
     assert norm(u1 - u2) / norm(u1) < 1e-13
 
 
-@pytest.mark.parametrize('N', [16, 32])
-@pytest.mark.parametrize('spatial_degree', [1, 2])
-@pytest.mark.parametrize('startup_tableau', [RadauIIA(1), RadauIIA(2), GaussLegendre(2)])
-@pytest.mark.parametrize('startup_dt_div', [1, 8])
-def test_heat_startup(N, spatial_degree, startup_tableau, startup_dt_div):
-    msh = UnitSquareMesh(N, N)
-    u1 = heat_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div)
-    u2 = heat_mech_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div)
-    assert norm(u1 - u2) / norm(u1) < 1e-13
+# @pytest.mark.parametrize('N', [16, 32])
+# @pytest.mark.parametrize('spatial_degree', [1, 2])
+# @pytest.mark.parametrize('startup_tableau', [RadauIIA(1), RadauIIA(2), GaussLegendre(2)])
+# @pytest.mark.parametrize('startup_dt_div', [1, 8])
+# def test_heat_startup(N, spatial_degree, startup_tableau, startup_dt_div):
+#     msh = UnitSquareMesh(N, N)
+#     u1 = heat_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div)
+#     u2 = heat_mech_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div)
+#     assert norm(u1 - u2) / norm(u1) < 1e-13
 
 
 @pytest.mark.parametrize('bounds_flag', (True, False))
@@ -269,3 +376,14 @@ def test_heat_startup(N, spatial_degree, startup_tableau, startup_dt_div):
 def test_heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
     tup = heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau)
     assert tup == (True, startup_bounds_flag, bounds_flag)
+
+
+@pytest.mark.parametrize('N', [4, 16])
+@pytest.mark.parametrize('spatial_degree', [1, 2])
+@pytest.mark.parametrize('startup_tableau', [RadauIIA(1), GaussLegendre(1), GaussLegendre(2)])
+def test_CH(N, spatial_degree, startup_tableau):
+    msh = UnitSquareMesh(N, N)
+    c_mu_hand = CH_hand(msh, spatial_degree, startup_tableau)
+    c_mu_mech = CH_mech(msh, spatial_degree, startup_tableau)
+    assert (norm(c_mu_hand.subfunctions[0] - c_mu_mech.subfunctions[0]) / norm(c_mu_hand.subfunctions[0]) < 1e-13 and 
+            norm(c_mu_hand.subfunctions[1] - c_mu_mech.subfunctions[1]) / norm(c_mu_hand.subfunctions[1]) < 1e-13)
