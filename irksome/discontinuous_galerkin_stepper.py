@@ -19,14 +19,15 @@ def getElement(basis_type, order):
         if order == 0:
             raise ValueError("Lobatto test element needs degree > 0")
         return GaussLobattoLegendre(ufc_line, order)
-    elif order == 0:
-        return DiscontinuousLagrange(ufc_line, order)
-    elif basis_type == "bernstein":
-        return Bernstein(ufc_line, order)
     elif basis_type == "radau":
         return GaussRadau(ufc_line, order)
     elif basis_type == "integral":
         return Legendre(ufc_line, order)
+    elif basis_type == "bernstein":
+        if order == 0:
+            return DiscontinuousLagrange(ufc_line, order)
+        else:
+            return Bernstein(ufc_line, order)
     else:
         # Let recursivenodes handle the general case
         variant = None if basis_type == "lagrange" else basis_type

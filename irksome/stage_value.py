@@ -150,7 +150,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
 
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.extend(bc.reconstruct(V=Vbigi, g=g_np[i]))
+            bcsnew.extend(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
 

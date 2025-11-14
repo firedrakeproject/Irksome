@@ -174,11 +174,15 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
         dtg0 = expand_time_derivatives(TimeDerivative(g0), t=t, timedep_coeffs=(u0,))
         for i in range(num_stages):
             # Evaluate the degrees of freedom
-            if aux_indices and bc.function_space().index in aux_indices:
+            if g0 == 0:
+                gi = g0
+            elif aux_indices and bc.function_space().index in aux_indices:
                 gi = sum(replace(g0, {t: t + c * dt}) * w for c, w in aux_dicts[i].items())
             else:
                 gi = sum(replace(g0, {t: t + c * dt}) * w for c, w in trial_dicts[i].items())
-                gi += dt * sum(replace(dtg0, {t: t + c * dt}) * w for c, w in dtrial_dicts[i].items())
+                if dtrial_dicts[i]:
+                    gi += dt * sum(replace(dtg0, {t: t + c * dt}) * w for c, w in dtrial_dicts[i].items())
+
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=gi))
     return Fnew, bcsnew
@@ -274,15 +278,16 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             trial_type, test_type = basis_type
             if trial_type == "value":
                 splitting = scaledIA
-                get_rk_form = getFormStage
+                get_irk_form = getFormStage
             elif trial_type == "deriv":
                 splitting = AI
-                get_rk_form = getForm
+                get_irk_form = getForm
+                F = replace_aux_variables(F, self.u0, self.dt * TimeDerivative(self.u0), aux_indices)
             else:
                 raise ValueError("Expecting a GalerkinCollocationScheme")
 
-            Fnew, bcnew = get_rk_form(F, tableau, self.t, self.dt, self.u0, stages,
-                                      bcs=bcs, splitting=splitting)
+            Fnew, bcnew = get_irk_form(F, tableau, self.t, self.dt, self.u0, stages,
+                                       bcs=bcs, splitting=splitting)
 
             if splitting != scaledIA:
                 v0, = F.arguments()
@@ -292,15 +297,6 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                 test_np = test_np.reshape(test.ufl_shape)
                 Fnew = replace(Fnew, {test: test_np})
 
-            if aux_indices is not None and trial_type == "deriv":
-                # TODO move this to StageDerivativeTimeStepper
-                aux_components = fields_to_components(self.u0.function_space(), aux_indices)
-                A1, A2 = splitting(tableau.A)
-                A1inv = vecconst(np.linalg.inv(A1))
-                stages_np = reshape(stages, (-1, *self.u0.ufl_shape))
-                stages_np[:, aux_components] = dot(A1inv, stages_np[:, aux_components])
-                stages_np = stages_np.reshape(stages.ufl_shape)
-                Fnew = replace(Fnew, {stages: stages_np})
             return Fnew, bcnew
 
         if order is None:
@@ -363,3 +359,15 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                     sbit.zero()
                 else:
                     sbit.assign(u0bit * dof)
+
+
+def replace_aux_variables(F, u0, usub, aux_indices):
+    if not aux_indices:
+        return F
+
+    aux_components = fields_to_components(u0.function_space(), aux_indices)
+    u0_np = reshape(u0, (-1,))
+    usub_np = reshape(usub, (-1,))
+    u0_np[aux_components] = usub_np[aux_components]
+    u0_np = u0_np.reshape(u0.ufl_shape)
+    return replace(F, {u0: u0_np})

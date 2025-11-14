@@ -1,10 +1,14 @@
 import numpy
 import pytest
-from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitSquareMesh, div, dx, errornorm,
-                       grad, inner)
-from irksome import (Dt, GalerkinCollocationScheme, IRKAuxiliaryOperatorPC, LobattoIIIC, MeshConstant,
-                     RadauIIA, TimeStepper, TimeQuadratureLabel)
+from firedrake import (
+    DirichletBC, Function, FunctionSpace, MixedVectorSpaceBasis,
+    SpatialCoordinate, TestFunction, UnitSquareMesh, VectorFunctionSpace,
+    VectorSpaceBasis, as_vector, div, dx, errornorm, grad, inner, split
+)
+from irksome import (
+    Dt, GalerkinCollocationScheme, IRKAuxiliaryOperatorPC, LobattoIIIC,
+    MeshConstant, RadauIIA, TimeStepper, TimeQuadratureLabel
+)
 from irksome.tools import AI, IA
 
 # Tests that various PCs are actually getting the right answer.
@@ -122,9 +126,77 @@ def test_pc_acc(butcher_tableau, order, stage_type):
 @pytest.mark.parametrize("stage_type", ("deriv", "value"))
 @pytest.mark.parametrize('quad_scheme,order', [
     ("radau", 2),
-    # ("lobatto", 3),
 ])
 def test_pc_galerkin(quad_scheme, order, stage_type):
     scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, stage_type=stage_type)
     Lhigh = TimeQuadratureLabel(3*order-1)
     assert rd(scheme, Lhigh=Lhigh) < 1.e-6
+
+
+@pytest.mark.parametrize("stage_type", ("deriv", "value"))
+@pytest.mark.parametrize('quad_scheme,order', [
+    ("radau", 1),
+    ("radau", 2),
+])
+def test_git_irk_equivalence(quad_scheme, order, stage_type):
+    N = 5
+    msh = UnitSquareMesh(N, N)
+    V = VectorFunctionSpace(msh, "CG", 2)
+    Q = FunctionSpace(msh, "CG", 1)
+    Z = V * Q
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(1.0/N)
+    (x, y) = SpatialCoordinate(msh)
+
+    uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
+    pexact = x + y * t
+
+    u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
+    p_rhs = -div(uexact)
+
+    z = Function(Z)
+    ztest = TestFunction(Z)
+    u, p = split(z)
+    v, q = split(ztest)
+
+    F = (inner(Dt(u), v)*dx
+         + inner(grad(u), grad(v))*dx
+         - inner(p, div(v))*dx
+         - inner(div(u), q)*dx
+         - inner(u_rhs, v)*dx
+         - inner(p_rhs, q)*dx)
+
+    bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
+    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=msh.comm)])
+
+    u, p = z.subfunctions
+    u.interpolate(uexact)
+    p.interpolate(pexact)
+
+    sparams = {
+        "mat_type": "matfree",
+        "snes_type": "ksponly",
+        "ksp_type": "gmres",
+        "ksp_view_eigenvalues": None,
+        "ksp_converged_reason": None,
+        "pc_type": "python",
+        "pc_python_type": "irksome.IRKAuxiliaryOperatorPC",
+        "aux": {
+            "pc_type": "lu",
+            "pc_factor_mat_solver_type": "mumps",
+        }
+    }
+    scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, stage_type=stage_type)
+    stepper = TimeStepper(F, scheme, t, dt, z,
+                          bcs=bcs, solver_parameters=sparams,
+                          nullspace=nsp,
+                          aux_indices=[1])
+
+    while float(t) < 1.0:
+        if float(t) + float(dt) > 1.0:
+            dt.assign(1.0 - float(t))
+        stepper.advance()
+        assert numpy.allclose(stepper.solver.snes.ksp.computeEigenvalues(), 1.0)
+        t.assign(float(t) + float(dt))
