@@ -84,7 +84,7 @@ def heat_mech(msh, N, spatial_degree):
     a = np.array([1.0 / 3.0, -4.0 / 3.0, 1.0])
     b = np.array([0.0, 0.0, 2.0 / 3.0])
 
-    stepper = MultistepTimeStepper(F, t, dt, u, a, b, bcs=bc)
+    stepper = MultistepTimeStepper(F, t, dt, u, (a, b), bcs=bc)
     stepper.us[0].assign(u0)
     stepper.us[1].assign(u1)
 
@@ -130,7 +130,7 @@ def heat_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div):
     a = np.array([1.0 / 3.0, -4.0 / 3.0, 1.0])
     b = np.array([0.0, 0.0, 2.0 / 3.0])
 
-    stepper = MultistepTimeStepper(F, t, dt, u, a, b, bcs=bc)
+    stepper = MultistepTimeStepper(F, t, dt, u, (a, b), bcs=bc)
     stepper.us[0].assign(u0)
     stepper.us[1].assign(u1)
 
@@ -169,7 +169,7 @@ def heat_mech_startup(msh, N, spatial_degree, startup_tableau, startup_dt_div):
                      }
 
     t.assign(0.0)
-    stepper = MultistepTimeStepper(F, t, dt, u, a, b, bcs=bc, startup_params=startup_params)
+    stepper = MultistepTimeStepper(F, t, dt, u, (a, b), bcs=bc, startup_params=startup_params)
 
     for i in range(5):
         stepper.advance()
@@ -233,7 +233,7 @@ def heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
     else:
         bounds = None
 
-    stepper = MultistepTimeStepper(F, t, dt, u, a, b, bcs=bc, bounds=bounds, solver_parameters=vi_params, startup_params=startup_params)
+    stepper = MultistepTimeStepper(F, t, dt, u, (a, b), bcs=bc, bounds=bounds, solver_parameters=vi_params, startup_params=startup_params)
 
     min_init = min(stepper.us[0].dat.data)
     min_step1 = min(stepper.us[1].dat.data)
