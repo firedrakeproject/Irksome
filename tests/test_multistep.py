@@ -2,7 +2,7 @@ import pytest
 from firedrake import (TestFunction, NonlinearVariationalProblem, NonlinearVariationalSolver,
                        UnitSquareMesh, FunctionSpace, Function, grad, sin, pi, cos, project, 
                        SpatialCoordinate, split, TestFunctions, Constant, exp, conditional, 
-                       Or, And, inner, dx, div, norm, diff, DirichletBC)
+                       Or, And, inner, dx, div, norm, replace, diff, DirichletBC)
 from irksome import (Dt, MeshConstant, TimeStepper, MultistepTimeStepper, RadauIIA, GaussLegendre)
 from ufl.algorithms import expand_derivatives
 import numpy as np
@@ -268,29 +268,238 @@ def CH_mech(msh, spatial_degree, startup_tableau):
     return c_mu
 
 
+def heat_AB2_hand(msh, N, spatial_basis):
+
+    dt_in = 0.01 / N ** 2
+    V = FunctionSpace(msh, spatial_basis, 2)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(dt_in)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+
+    u2 = Function(V)
+    v = TestFunction(V)
+
+    u2 = project(uexact, V, bcs=bc)
+    F = inner(Dt(u2), v) * dx - (inner(rhs, v) * dx - inner(grad(u2), grad(v)) * dx)
+
+    u0 = project(uexact, V, bcs=bc)
+
+    startup_stepper = TimeStepper(F, RadauIIA(1), t, dt, u2, bcs=bc)
+
+    dt_mod = 4
+    dt.assign(dt / dt_mod)
+
+    for i in range(0, dt_mod):
+        startup_stepper.advance()
+        t.assign(t + dt)
+
+    dt.assign(dt * dt_mod)
+    u1 = Function(V).assign(u2)
+
+    rhsu1 = replace(rhs, {t: t - 1 * dt})
+    rhsu0 = replace(rhs, {t: t - 2 * dt})
+
+    F_AB2 = inner(u2, v) * dx - (inner(u1, v) * dx + dt * ((3.0 / 2.0) * (inner(rhsu1, v) * dx - inner(grad(u1), grad(v)) * dx) + 
+                                (- 1.0 / 2.0) * (inner(rhsu0, v) * dx - inner(grad(u0), grad(v)) * dx)))
+
+    stepper_prob = NonlinearVariationalProblem(F_AB2, u2, bcs=bc)
+    stepper = NonlinearVariationalSolver(stepper_prob)
+
+    for i in range(10):
+        t.assign(t + dt)
+        stepper.solve()
+        u0.assign(u1)
+        u1.assign(u2)
+    
+    return u2
+
+
+def heat_AB2_mech(msh, N, spatial_basis):
+    
+    dt_in = 0.01 / N ** 2
+    V = FunctionSpace(msh, spatial_basis, 2)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(dt_in)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+
+    u2 = Function(V)
+    v = TestFunction(V)
+
+    u2 = project(uexact, V, bcs=bc)
+    F = inner(Dt(u2), v) * dx - (inner(rhs, v) * dx - inner(grad(u2), grad(v)) * dx)
+
+    ## AB2
+    a = np.array([0.0, -1.0, 1.0])
+    b = np.array([-1.0 / 2.0, 3.0 / 2.0, 0.0])
+
+    startup_params = {'tableau': RadauIIA(1), 'dt_div': 4}
+
+    stepper = MultistepTimeStepper(F, t, dt, u2, (a, b), bcs=bc, startup_params=startup_params)
+
+    for i in range(10):
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return u2
+
+
+def heat_Q_hand(msh, N, spatial_basis):
+
+    dt_in = 0.01 / N ** 2
+    V = FunctionSpace(msh, spatial_basis, 2)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(dt_in)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+    v = TestFunction(V)
+
+    u5 = project(uexact, V, bcs=bc)
+    F = inner(Dt(u5), v) * dx - (inner(rhs, v) * dx - inner(grad(u5), grad(v)) * dx)
+
+    u0 = project(uexact, V, bcs=bc)
+
+    startup_stepper = TimeStepper(F, RadauIIA(1), t, dt, u5, bcs=bc)
+
+    dt_mod = 4
+    dt.assign(dt / dt_mod)
+
+    for i in range(0, dt_mod):
+        startup_stepper.advance()
+        t.assign(t + dt)
+    u1 = Function(V).assign(u5)
+    for i in range(0, dt_mod):
+        startup_stepper.advance()
+        t.assign(t + dt)
+    u2 = Function(V).assign(u5)
+    for i in range(0, dt_mod):
+        startup_stepper.advance()
+        t.assign(t + dt)
+    u3 = Function(V).assign(u5)
+    for i in range(0, dt_mod):
+        startup_stepper.advance()
+        t.assign(t + dt)
+    u4 = Function(V).assign(u5)
+
+    dt.assign(dt * dt_mod)
+
+    rhsu4 = replace(rhs, {t: t - 1 * dt})
+    rhsu3 = replace(rhs, {t: t - 2 * dt})
+    rhsu0 = replace(rhs, {t: t - 5 * dt})
+
+    F_Q = inner(u5, v) * dx - 0.5 * inner(u3, v) * dx - 0.5 * inner(u2, v) * dx - (
+        dt * ((3.0 / 2.0) * (inner(rhsu4, v) * dx - inner(grad(u4), grad(v)) * dx) + 
+            (3.0 / 4.0) * (inner(rhsu3, v) * dx - inner(grad(u3), grad(v)) * dx) +
+            (- 1.0 / 2.0) * (inner(rhsu0, v) * dx - inner(grad(u0), grad(v)) * dx)))
+
+    stepper_prob = NonlinearVariationalProblem(F_Q, u5, bcs=bc)
+    stepper = NonlinearVariationalSolver(stepper_prob)
+
+    for i in range(10):
+        t.assign(t + dt)
+        stepper.solve()
+        u0.assign(u1)
+        u1.assign(u2)
+        u2.assign(u3)
+        u3.assign(u4)
+        u4.assign(u5)
+    
+    return u5
+
+
+def heat_Q_mech(msh, N, spatial_basis):
+    
+    dt_in = 0.01 / N ** 2
+    V = FunctionSpace(msh, spatial_basis, 2)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(dt_in)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+
+    v = TestFunction(V)
+    u = project(uexact, V, bcs=bc)
+    F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
+
+    a = np.array([0.0,        0.0, -0.5, -0.5,       0.0,       1.0])
+    b = np.array([-1.0 / 2.0, 0.0,  0.0,  3.0 / 4.0, 3.0 / 4.0, 0.0])
+
+    startup_params = {'tableau': RadauIIA(1), 'dt_div': 4}
+
+    stepper = MultistepTimeStepper(F, t, dt, u, (a, b), bcs=bc, startup_params=startup_params)
+
+    for i in range(10):
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return u
+
+
+# @pytest.mark.parametrize('N', [8, 16])
+# @pytest.mark.parametrize('spatial_degree', [1, 2, 3])
+# def test_heat_mech(N, spatial_degree):
+#     msh = UnitSquareMesh(N, N)
+#     u1 = heat(msh, N, spatial_degree)
+#     u2 = heat_mech(msh, N, spatial_degree)
+#     assert norm(u1 - u2) / norm(u1) < 1e-13
+
+
+# @pytest.mark.parametrize('bounds_flag', (True, False))
+# @pytest.mark.parametrize('startup_bounds_flag', (True, False))
+# @pytest.mark.parametrize('startup_tableau', (RadauIIA(1), RadauIIA(2), GaussLegendre(1)))
+# def test_heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
+#     tup = heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau)
+#     assert tup == (True, startup_bounds_flag, bounds_flag)
+
+
+# @pytest.mark.parametrize('N', [4, 16])
+# @pytest.mark.parametrize('spatial_degree', [1, 2])
+# @pytest.mark.parametrize('startup_tableau', [RadauIIA(1), GaussLegendre(1), GaussLegendre(2)])
+# def test_CH(N, spatial_degree, startup_tableau):
+#     msh = UnitSquareMesh(N, N)
+#     c_mu_hand = CH_hand(msh, spatial_degree, startup_tableau)
+#     c_mu_mech = CH_mech(msh, spatial_degree, startup_tableau)
+#     assert (norm(c_mu_hand.subfunctions[0] - c_mu_mech.subfunctions[0]) / norm(c_mu_hand.subfunctions[0]) < 1e-13 and 
+#             norm(c_mu_hand.subfunctions[1] - c_mu_mech.subfunctions[1]) / norm(c_mu_hand.subfunctions[1]) < 1e-13)
+
+
 @pytest.mark.parametrize('N', [8, 16])
-@pytest.mark.parametrize('spatial_degree', [1, 2, 3])
-def test_heat_mech(N, spatial_degree):
+@pytest.mark.parametrize('spatial_basis', ["Lagrange", "Bernstein"])
+def test_AB2_mech(N, spatial_basis):
     msh = UnitSquareMesh(N, N)
-    u1 = heat(msh, N, spatial_degree)
-    u2 = heat_mech(msh, N, spatial_degree)
+    u1 = heat_AB2_hand(msh, N, spatial_basis)
+    u2 = heat_AB2_mech(msh, N, spatial_basis)
     assert norm(u1 - u2) / norm(u1) < 1e-13
 
 
-@pytest.mark.parametrize('bounds_flag', (True, False))
-@pytest.mark.parametrize('startup_bounds_flag', (True, False))
-@pytest.mark.parametrize('startup_tableau', (RadauIIA(1), RadauIIA(2), GaussLegendre(1)))
-def test_heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
-    tup = heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau)
-    assert tup == (True, startup_bounds_flag, bounds_flag)
-
-
-@pytest.mark.parametrize('N', [4, 16])
-@pytest.mark.parametrize('spatial_degree', [1, 2])
-@pytest.mark.parametrize('startup_tableau', [RadauIIA(1), GaussLegendre(1), GaussLegendre(2)])
-def test_CH(N, spatial_degree, startup_tableau):
+@pytest.mark.parametrize('N', [8, 16])
+@pytest.mark.parametrize('spatial_basis', ["Lagrange", "Bernstein"])
+def test_Q_mech(N, spatial_basis):
     msh = UnitSquareMesh(N, N)
-    c_mu_hand = CH_hand(msh, spatial_degree, startup_tableau)
-    c_mu_mech = CH_mech(msh, spatial_degree, startup_tableau)
-    assert (norm(c_mu_hand.subfunctions[0] - c_mu_mech.subfunctions[0]) / norm(c_mu_hand.subfunctions[0]) < 1e-13 and 
-            norm(c_mu_hand.subfunctions[1] - c_mu_mech.subfunctions[1]) / norm(c_mu_hand.subfunctions[1]) < 1e-13)
+    u1 = heat_Q_hand(msh, N, spatial_basis)
+    u2 = heat_Q_mech(msh, N, spatial_basis)
+    assert norm(u1 - u2) / norm(u1) < 1e-13

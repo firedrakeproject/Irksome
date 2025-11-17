@@ -169,7 +169,7 @@ class MultistepStepper(BaseTimeStepper):
                 self.TS.advance()
                 t.assign(t + dt)
             
-            if self.a[i+1] is not zero():
+            if (self.a[i+1] != zero() or self.b[i+1] != zero()):
                 self.us[counter].assign(u0)
                 counter += 1
 
