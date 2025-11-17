@@ -2,10 +2,10 @@ from FIAT import (Bernstein, DiscontinuousLagrange,
                   GaussRadau, IntegratedLegendre, Lagrange,
                   NodalEnrichedElement, RestrictedElement)
 from ufl.constantvalue import as_ufl
-from ufl.classes import Form
+from ufl.classes import Form, Zero
 
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import stage2spaces4bc
+from .bcs import bc2space, extract_bcs, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
@@ -19,6 +19,7 @@ from .stage_value import getFormStage
 
 import numpy as np
 from firedrake import TestFunction, Constant
+from firedrake.bcs import EquationBCSplit
 
 
 def getTrialElement(basis_type, order):
@@ -119,7 +120,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     return Fnew
 
 
-def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, aux_indices=None):
+def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
 
@@ -141,6 +142,13 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
     :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
+    :kwarg bc_type: How to manipulate the strongly-enforced boundary
+         conditions to derive the stage boundary conditions.  Should
+         be a string, either "DAE", which implements BCs as
+         constraints in the style of a differential-algebraic
+         equation, or "ODE", which evaluates the temporal degrees of
+         freedom of the boundary data.
+         Currently there is no support for `firedrake.EquationBC`.
     :kwarg aux_indices: a list of field indices to be discretized in the test space
          rather than trial space.
 
@@ -150,12 +158,14 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
     """
+    if bc_type is None:
+        bc_type = "DAE"
+
     assert L_test.get_reference_element() == Qdefault.ref_el
     assert L_trial.get_reference_element() == Qdefault.ref_el
     assert Qdefault.ref_el.get_spatial_dimension() == 1
     assert L_trial.space_dimension() == L_test.space_dimension() + 1
 
-    num_stages = L_test.space_dimension()
     Vbig = stages.function_space()
     test = TestFunction(Vbig)
 
@@ -169,30 +179,70 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, a
         bcs = []
     bcsnew = []
 
-    i0, = L_trial.entity_dofs()[0][0]
-    nodes = list(L_trial.dual_basis())
-    del nodes[i0]
     # list of dictionaries mapping time coordinates to weights to evaluate DOFs
-    trial_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
-                   for (c,), wts in node.pt_dict.items()} for node in nodes]
-    dtrial_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
-                    for (c,), wts in node.deriv_dict.items()} for node in nodes]
-    aux_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
-                 for (c,), wts in node.pt_dict.items()} for node in L_test.dual_basis()]
-    for bc in bcs:
-        g0 = as_ufl(bc._original_arg)
-        dtg0 = expand_time_derivatives(TimeDerivative(g0), t=t, timedep_coeffs=(u0,))
-        for i in range(num_stages):
-            # Evaluate the degrees of freedom
-            if g0 == 0:
-                gi = g0
-            elif aux_indices and bc.function_space().index in aux_indices:
-                gi = sum(replace(g0, {t: t + c * dt}) * w for c, w in aux_dicts[i].items())
-            else:
-                gi = sum(replace(g0, {t: t + c * dt}) * w for c, w in trial_dicts[i].items())
-                if dtrial_dicts[i]:
-                    gi += dt * sum(replace(dtg0, {t: t + c * dt}) * w for c, w in dtrial_dicts[i].items())
+    test_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
+                  for (c,), wts in node.pt_dict.items()} for node in L_test.dual_basis()]
 
+    def evaluate_dof(dof, g):
+        if isinstance(g, Zero):
+            return g
+        return sum(replace(g, {t: t + c * dt}) * w for c, w in dof.items())
+
+    aux_bc_data = lambda bc: [evaluate_dof(dof, as_ufl(bc._original_arg)) for dof in test_dicts]
+
+    i0, = L_trial.entity_dofs()[0][0]
+    if bc_type == "ODE":
+        nodes = list(L_trial.dual_basis())
+        del nodes[i0]
+        trial_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
+                       for (c,), wts in node.pt_dict.items()} for node in nodes]
+        dtrial_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
+                        for (c,), wts in node.deriv_dict.items()} for node in nodes]
+
+        def evaluate_trial_dof(bc, value_dict, deriv_dict):
+            g = as_ufl(bc._original_arg)
+            gi = evaluate_dof(value_dict, g)
+            if deriv_dict:
+                gt = expand_time_derivatives(TimeDerivative(g), t=t, timedep_coeffs=(u0,))
+                gi += dt * evaluate_dof(deriv_dict, gt)
+            return gi
+
+        bc_data = lambda bc: [evaluate_trial_dof(bc, pt, dpt) for pt, dpt in zip(trial_dicts, dtrial_dicts)]
+    elif bc_type == "DAE":
+        # mass-ish matrix for BC, based on default quadrature rule
+        qpts = Qdefault.get_points()
+        qwts = Qdefault.get_weights()
+        trial_vals = L_trial.tabulate(0, qpts)[(0,)]
+        test_vals = L_test.tabulate(0, qpts)[(0,)]
+        test_vals_w = np.multiply(test_vals, qwts)
+
+        mmat = test_vals_w @ np.delete(trial_vals, i0, axis=0).T
+        try:
+            trial_proj = vecconst(np.linalg.solve(mmat, test_vals_w))
+        except np.linalg.LinAlgError:
+            raise NotImplementedError("Cannot have DAE BCs for this basis type")
+        trial_vals0 = vecconst(trial_vals[i0])
+        qpts = vecconst(qpts.reshape((-1,)))
+
+        def bc_data(bc):
+            g = as_ufl(bc._original_arg)
+            if isinstance(g, Zero):
+                return [g]*len(test_dicts)
+            gq = np.array([replace(g, {t: t + q * dt}) for q in qpts])
+            gq -= bc2space(bc, u0) * trial_vals0
+            return trial_proj @ gq
+    else:
+        raise ValueError(f"Unrecognised bc_type: {bc_type}")
+
+    bcs = extract_bcs(bcs)
+    for bc in bcs:
+        if isinstance(bc, EquationBCSplit):
+            raise NotImplementedError("EquationBC not implemented for Galerkin-in-Time")
+        if aux_indices and bc.function_space().index in aux_indices:
+            stage_bc_data = aux_bc_data(bc)
+        else:
+            stage_bc_data = bc_data(bc)
+        for i, gi in enumerate(stage_bc_data):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=gi))
     return Fnew, bcsnew
@@ -219,6 +269,13 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             the strongly-enforced boundary conditions.  Irksome will
             manipulate these to obtain boundary conditions for each
             stage of the method.
+    :kwarg bc_type: How to manipulate the strongly-enforced boundary
+         conditions to derive the stage boundary conditions.  Should
+         be a string, either "DAE", which implements BCs as
+         constraints in the style of a differential-algebraic
+         equation, or "ODE", which evaluates the temporal degrees of
+         freedom of the boundary data.
+         Currently there is no support for `firedrake.EquationBC`.
     :kwarg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
@@ -236,7 +293,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             rather than trial space.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None,
-                 aux_indices=None, **kwargs):
+                 bc_type=None, aux_indices=None, **kwargs):
         self.order = scheme.order
         self.basis_type = scheme.basis_type
 
@@ -262,7 +319,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         else:
             self.butcher_tableau = None
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, **kwargs)
         self.set_initial_guess()
         self.set_update_expressions()
 
@@ -319,7 +376,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         quadrature = quadrature or self.quadrature
         return getFormGalerkin(F, trial_el, test_el, quadrature,
                                self.t, self.dt, self.u0, stages,
-                               bcs=bcs, aux_indices=aux_indices)
+                               bcs=bcs, bc_type=self.bc_type,
+                               aux_indices=aux_indices)
 
     def _update(self):
         for u0bit, expr in zip(self.u0.subfunctions, self.u_update):

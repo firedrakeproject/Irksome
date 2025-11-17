@@ -124,7 +124,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
                                     for j in range(num_stages))
                 return BCStageData(bc, gcur, u0, stages, i)
     else:
-        raise ValueError("Unrecognised bc_type: %s", bc_type)
+        raise ValueError(f"Unrecognised bc_type: {bc_type}")
 
     # This logic uses information set up in the previous section to
     # set up the new BCs for either method

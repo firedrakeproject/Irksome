@@ -23,7 +23,7 @@ valid_kwargs_per_stage_type = {
              "splitting", "num_its_initial", "num_its_per_step"],
     "dirkimex": ["Fexp", "stage_type", "mass_parameters"],
     "dg": ["bcs"],
-    "cpg": ["aux_indices", "bcs"]}
+    "cpg": ["bcs", "bc_type", "aux_indices"]}
 
 valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "max_reject", "onscale_factor",

@@ -6,7 +6,7 @@ from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, GalerkinCo
 from irksome.labeling import TimeQuadratureLabel
 
 
-def run_1d_heat_dirichletbc(scheme):
+def run_1d_heat_dirichletbc(scheme, **kwargs):
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -48,7 +48,7 @@ def run_1d_heat_dirichletbc(scheme):
 
     sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
-    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams, **kwargs)
 
     t_end = 2.0
     while float(t) < t_end:
@@ -76,7 +76,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
 def test_1d_heat_dirichletbc_collocation(order, stage_type, quad_scheme):
     scheme = GalerkinCollocationScheme(order, stage_type=stage_type,
                                        quadrature_scheme=quad_scheme)
-    run_1d_heat_dirichletbc(scheme)
+    run_1d_heat_dirichletbc(scheme, bc_type="ODE")
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
