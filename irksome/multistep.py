@@ -3,10 +3,11 @@ from .manipulation import extract_terms, strip_dt_form
 from .deriv import expand_time_derivatives, TimeDerivative
 from .stepper import TimeStepper, valid_base_kwargs
 from .base_time_stepper import BaseTimeStepper
+from .multistep_tableaux import MultistepTableau
 from ufl.constantvalue import as_ufl
 from ufl import zero
 from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver
-from .MultistepMethods import multistep_dict
+
 
 class MultistepStepper(BaseTimeStepper):
     
@@ -21,7 +22,7 @@ class MultistepStepper(BaseTimeStepper):
     :arg dt: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time step.
          The user may adjust this value between time steps.
-    :arg method: A string corresponding to a standard method OR a tuple of arrays, (a, b), containing the coefficients defining the method.
+    :arg method: A :class:`MultistepMethod` corresponding to the desired multistep method.
     :arg u: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
@@ -33,27 +34,21 @@ class MultistepStepper(BaseTimeStepper):
             This gets included with particular things that Irksome will
             pass into the nonlinear solver so that, say, user-defined preconditioners
             have access to it.
-    :arg startup_params: An optional :class:`dict` used to construct a single-step TimeStepper to be used 
+    :arg startup_parameters: An optional :class:`dict` used to construct a single-step TimeStepper to be used 
             to find the required starting values.
     """
 
     def __init__(self, F, t, dt, u0, method, bcs=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
-                 transpose_nullspace=None, near_nullspace=None, startup_params=None, **kwargs):
+                 transpose_nullspace=None, near_nullspace=None, startup_parameters=None, **kwargs):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
         
-        if isinstance(method, str):
-            try:
-                a, b = multistep_dict[method]
-            except:
-                raise ValueError(f'{method} is not a recognized method')
-        else:
-            a, b = method
+        assert isinstance(method, MultistepTableau)
 
-        self.s = len(b) - 1
-        self.a = vecconst(a)
-        self.b = vecconst(b)
+        self.s = len(method.b) - 1
+        self.a = vecconst(method.a)
+        self.b = vecconst(method.b)
         self.us = [u0.copy(deepcopy=True) for coeff in self.a[:-1]]
         self.us.append(u0)
         
@@ -76,8 +71,8 @@ class MultistepStepper(BaseTimeStepper):
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
-        if bool(startup_params): 
-            self.mechanized_startup(F, t, dt, u0, startup_params, bcs=bcs)
+        if bool(startup_parameters): 
+            self.mechanized_startup(F, t, dt, u0, startup_parameters, bcs=bcs)
 
         self.bounds = bounds
 
@@ -140,10 +135,10 @@ class MultistepStepper(BaseTimeStepper):
 
 
     # an optional method to mechanically find the required starting values via a single step method
-    def mechanized_startup(self, F, t, dt, u0, startup_params, bcs=None):
-        butcher_tableau = startup_params.get('tableau', None)
-        stepper_kwargs = startup_params.get('stepper_kwargs', {})
-        startup_dt_div = startup_params.get('dt_div', 1)
+    def mechanized_startup(self, F, t, dt, u0, startup_parameters, bcs=None):
+        butcher_tableau = startup_parameters.get('tableau', None)
+        stepper_kwargs = startup_parameters.get('stepper_kwargs', {})
+        startup_dt_div = startup_parameters.get('dt_div', 1)
         assert isinstance(startup_dt_div, int) and startup_dt_div > 0
 
         self.us[0].assign(u0)
@@ -167,7 +162,7 @@ class MultistepStepper(BaseTimeStepper):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
 
 
-valid_multistep_kwargs = ("bounds", "startup_params")
+valid_multistep_kwargs = ("bounds", "startup_parameters")
 
 
 def MultistepTimeStepper(F, t, dt, u0, method, **kwargs):
@@ -182,5 +177,5 @@ def MultistepTimeStepper(F, t, dt, u0, method, **kwargs):
             raise ValueError(f"kwarg {cur_kwarg} is not allowable for MultistepTimeStepper")
         
     bounds = kwargs.pop('bounds', None)
-    startup_params = kwargs.pop('startup_params', {})
-    return MultistepStepper(F, t, dt, u0, method, bcs, startup_params=startup_params, bounds=bounds, **base_kwargs)
+    startup_parameters = kwargs.pop('startup_parameters', {})
+    return MultistepStepper(F, t, dt, u0, method, bcs, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)

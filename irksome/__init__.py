@@ -31,4 +31,6 @@ from .tools import MeshConstant             # noqa: F401
 from .wso_dirk_tableaux import WSODIRK      # noqa: F401
 from .galerkin_stepper import GalerkinTimeStepper  # noqa: F401
 from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper  # noqa: F401
-from .multistep import MultistepTimeStepper  ## noqa: F401
+from .multistep import MultistepTimeStepper       # noqa: F401
+from .multistep_tableaux import MultistepMethod   # noqa: F401
+from .multistep_tableaux import MultistepTableau  # noqa: F401
