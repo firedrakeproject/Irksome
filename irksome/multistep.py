@@ -54,14 +54,8 @@ class MultistepStepper(BaseTimeStepper):
         self.s = len(b) - 1
         self.a = vecconst(a)
         self.b = vecconst(b)
-        self.us = []
-        self.active_steps = []
-        for i in range(len(self.a) - 1):
-            if not (self.a[i] == zero() and self.b[i] == zero()):
-                self.active_steps.append(i)
-                self.us.append(u0.copy(deepcopy=True))
+        self.us = [u0.copy(deepcopy=True) for coeff in self.a[:-1]]
         self.us.append(u0)
-        self.active_steps.append(len(self.a) - 1)
         
         Fnew, bcsnew = self.get_form_and_bcs(F, t, dt, u0, self.a, self.b, bcs=bcs)
 
@@ -96,30 +90,27 @@ class MultistepStepper(BaseTimeStepper):
 
         assert V == u0.function_space()
 
-        ## Is this the proper generalization?
         split_form = extract_terms(F)
         F_dt = split_form.time
         F_remainder = split_form.remainder
 
         # replace the time derivative with a linear combination of the previous steps
         temp_form = 0.0
-        step_number = 0
         for (i, coeff) in enumerate(a):
-            if (coeff is zero()) or (i not in self.active_steps):
+            if coeff is zero():
                 pass
             else:
-                temp_form += coeff * self.us[self.active_steps.index(i)]
-                step_number += 1
+                temp_form += coeff * self.us[i]
 
         dtu = TimeDerivative(u0)
         Fnew = replace(F_dt, {dtu: temp_form})
 
         # form the right hand side
         for (i, coeff) in enumerate(b):
-            if (coeff is zero()) or (i not in self.active_steps):
+            if coeff is zero():
                 pass
             else:
-                Fnew += dt * coeff * replace(F_remainder, {u0: self.us[self.active_steps.index(i)], 
+                Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i], 
                                                            t: t + (i - self.s + 1) * dt})
         if bcs is None:
             bcs = []
@@ -163,17 +154,11 @@ class MultistepStepper(BaseTimeStepper):
         dt.assign(dt / startup_dt_div)
         
         # advance the system and assign values to previous steps
-        counter = 1
         for i in range(self.s - 1):
             for substep in range(startup_dt_div):
                 self.TS.advance()
                 t.assign(t + dt)
-            
-            if (self.a[i+1] != zero() or self.b[i+1] != zero()):
-                self.us[counter].assign(u0)
-                counter += 1
-
-        # reset the timestep
+            self.us[i + 1].assign(u0)
         dt.assign(dt * startup_dt_div)
 
 
