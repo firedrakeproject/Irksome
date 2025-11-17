@@ -1,8 +1,8 @@
 from FIAT import (Bernstein, DiscontinuousLagrange,
                   GaussRadau, IntegratedLegendre, Lagrange,
                   NodalEnrichedElement, RestrictedElement)
-from ufl.constantvalue import as_ufl
-from ufl.classes import Form, Zero
+from ufl.classes import Zero
+from ufl import as_ufl, as_tensor
 
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, extract_bcs, stage2spaces4bc
@@ -107,16 +107,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
                    v: vsub[q] * dt,
                    u0: usub[q],
                    dtu0: dtu0sub[q] / dt}
-
-    if isinstance(F, Form):
-        integrals = []
-        for it in F.integrals():
-            integrand = it.integrand()
-            itq = it.reconstruct(sum(replace(integrand, repl[q]) for q in repl))
-            integrals.append(itq)
-        Fnew = Form(integrals)
-    else:
-        Fnew = sum(replace(F, repl[q]) for q in repl)
+    Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
 
@@ -230,21 +221,22 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
                 return [g]*len(test_dicts)
             gq = np.array([replace(g, {t: t + q * dt}) for q in qpts])
             gq -= bc2space(bc, u0) * trial_vals0
-            return trial_proj @ gq
+            return dot(trial_proj, gq)
     else:
         raise ValueError(f"Unrecognised bc_type: {bc_type}")
 
+    num_stages = L_test.space_dimension()
     bcs = extract_bcs(bcs)
     for bc in bcs:
         if isinstance(bc, EquationBCSplit):
             raise NotImplementedError("EquationBC not implemented for Galerkin-in-Time")
         if aux_indices and bc.function_space().index in aux_indices:
-            stage_bc_data = aux_bc_data(bc)
+            g_np = aux_bc_data(bc)
         else:
-            stage_bc_data = bc_data(bc)
-        for i, gi in enumerate(stage_bc_data):
+            g_np = bc_data(bc)
+        for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=gi))
+            bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
 
