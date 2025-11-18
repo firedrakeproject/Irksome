@@ -219,8 +219,9 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
             g = as_ufl(bc._original_arg)
             if isinstance(g, Zero):
                 return [g]*len(test_dicts)
-            gq = np.array([replace(g, {t: t + q * dt}) for q in qpts])
-            gq -= bc2space(bc, u0) * trial_vals0
+            ucur = bc2space(bc, u0)
+            gq = np.array([replace(g, {t: t + q * dt}) - phi0 * ucur
+                           for phi0, q in zip(trial_vals0, qpts)])
             return dot(trial_proj, gq)
     else:
         raise ValueError(f"Unrecognised bc_type: {bc_type}")
