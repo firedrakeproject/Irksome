@@ -7,8 +7,17 @@ from .deriv import TimeDerivative, expand_time_derivatives
 from .labeling import split_quadrature
 from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace, vecconst
+
+from ufl import as_tensor, outer, Coefficient
+from ufl.core.operator import Operator
+from ufl.core.ufl_type import ufl_type
+from ufl.corealg.multifunction import MultiFunction
+from ufl.domain import as_domain
+from ufl.algorithms.map_integrands import map_integrand_dags
+from ufl.algorithms import expand_derivatives
+from firedrake import Constant, Function, TestFunction, TensorFunctionSpace, VectorFunctionSpace, diff, dx, inner
+
 import numpy as np
-from firedrake import TestFunction, Constant
 
 
 def getTrialElement(basis_type, order):
@@ -46,15 +55,27 @@ def getElements(basis_type, order):
     return L_trial, L_test
 
 
-def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
+def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices=None):
+    qpts = Q.get_points()
+    qwts = Q.get_weights()
+
+    # internal state to be used inside projected expressions
+    u1 = Function(u0)
+    # symbolic Coefficient with the temporal test function
+    mesh = as_domain(u0.function_space().mesh())
+    R = VectorFunctionSpace(mesh, "Real", 0, dim=L_test.space_dimension())
+    phi = Coefficient(R)
+    # apply time projectors
+    F = expand_time_projectors(F, L_trial, t, dt, u0, u1, stages, phi)
+    # tabulate the temporal test function
+    ref_el = L_test.get_reference_element()
+    phisub = vecconst(Legendre(ref_el, L_test.degree()).tabulate(0, qpts)[(0,)].T)
+
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
     V = v.function_space()
-    assert V == u0.function_space()
 
-    qpts = Q.get_points()
-    qwts = Q.get_weights()
     tabulate_trials = L_trial.tabulate(1, qpts)
     trial_vals = tabulate_trials[(0,)]
     trial_dvals = tabulate_trials[(1,)]
@@ -63,11 +84,12 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
 
     trial_vals = vecconst(trial_vals)
     trial_dvals = vecconst(trial_dvals)
+    test_vals = vecconst(test_vals)
     test_vals_w = vecconst(test_vals_w)
     qpts = vecconst(np.reshape(qpts, (-1,)))
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = reshape(test, (-1, *u0.ufl_shape))
+    v_np = reshape(test, (-1, *v.ufl_shape))
     w_np = reshape(stages, (-1, *u0.ufl_shape))
 
     u_np = np.concatenate((np.reshape(u0, (1, *u0.ufl_shape)), w_np))
@@ -92,13 +114,15 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
         repl[q] = {t: t + qpts[q] * dt,
                    v: vsub[q] * dt,
                    u0: usub[q],
-                   dtu0: dtu0sub[q] / dt}
+                   dtu0: dtu0sub[q] / dt,
+                   u1: u0,
+                   phi: phisub[q]}
+
     Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
 
 def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, aux_indices=None):
-
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
 
@@ -296,3 +320,65 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                     sbit.zero()
                 else:
                     sbit.assign(u0bit * dof)
+
+
+@ufl_type(
+    num_ops=1,
+    inherit_shape_from_operand=0,
+    inherit_indices_from_operand=0,
+)
+class TimeProjector(Operator):
+    __slots__ = ("order", "quadrature")
+
+    def __init__(self, expression, order, Q):
+        self.order = order
+        self.quadrature = Q
+        Operator.__init__(self, operands=(expression,))
+
+
+class TimeProjectorDispatcher(MultiFunction):
+    def __init__(self, element, t, dt, u0, u1, stages, phi):
+        MultiFunction.__init__(self)
+        self.L_trial = element
+        self.t = t
+        self.dt = dt
+        self.u0 = u0
+        self.u1 = u1
+        self.stages = stages
+        self.phi = np.reshape(phi, (-1,))
+
+    def time_projector(self, o):
+        # use the internal copy of the state, so it does not get updated again in the outer quadrature
+        order = o.order
+        Q = o.quadrature
+        assert order+1 <= len(self.phi)
+        f, = o.ufl_operands
+        mesh = as_domain(self.u0.function_space().mesh())
+        R = TensorFunctionSpace(mesh, "DG", 0, shape=f.ufl_shape)
+        F = inner(f, TestFunction(R))*dx
+        F = replace(F, {self.u0: self.u1})
+
+        # compute the hierarchical mass matrix (always the identity)
+        ref_el = self.L_trial.get_reference_element()
+        L_test = Legendre(ref_el, order)
+        test_vals = L_test.tabulate(0, Q.get_points())[(0,)]
+        M = np.multiply(test_vals, Q.get_weights()) @ test_vals.T
+        Minv = vecconst(np.linalg.inv(M))
+
+        # compute modal expansion tested against c
+        c = Coefficient(R)
+
+        test = outer(as_tensor(Minv[:order+1] @ self.phi) / self.dt, c)
+        Fc = getTermGalerkin(F, self.L_trial, L_test, Q, self.t, self.dt, self.u1, self.stages, test)
+
+        # compute the L2-Riesz representation by undoing the integral against the test coefficient
+        fc = sum(it.integrand() for it in Fc.integrals())
+        fproj = expand_derivatives(diff(fc, c))
+        return fproj
+
+    expr = MultiFunction.reuse_if_untouched
+
+
+def expand_time_projectors(expression, element, t, dt, u0, u1, stages, phi):
+    rules = TimeProjectorDispatcher(element, t, dt, u0, u1, stages, phi)
+    return map_integrand_dags(rules, expression)

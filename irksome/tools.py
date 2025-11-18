@@ -3,19 +3,12 @@ from functools import reduce
 import numpy
 from firedrake import Function, FunctionSpace, VectorSpaceBasis, MixedVectorSpaceBasis, Constant
 from ufl.algorithms.analysis import extract_type
+from ufl.domain import as_domain
 from ufl import as_tensor, zero
 from ufl import replace as ufl_replace
 from pyop2.types import MixedDat
 
 from irksome.deriv import TimeDerivative
-
-
-def unique_mesh(mesh):
-    try:
-        mesh, = set(mesh)
-    except TypeError:
-        pass
-    return mesh
 
 
 def dot(A, B):
@@ -111,7 +104,7 @@ def is_ode(f, u):
 # Utility class for constants on a mesh
 class MeshConstant(object):
     def __init__(self, msh):
-        self.msh = unique_mesh(msh)
+        self.msh = as_domain(msh)
         self.V = FunctionSpace(self.msh, 'R', 0)
 
     def Constant(self, val=0.0):

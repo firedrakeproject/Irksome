@@ -2,8 +2,10 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, TimeStepper, GaussLegendre
+from irksome import Dt, MeshConstant, TimeStepper, GaussLegendre
+from irksome import ContinuousPetrovGalerkinScheme, TimeProjector
 from irksome.labeling import TimeQuadratureLabel
+from irksome.scheme import create_time_quadrature
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
@@ -263,7 +265,7 @@ def test_wave_eq_galerkin(deg, N, order):
     assert np.allclose(energy[1:], energy[:-1])
 
 
-def kepler(V, order, t, dt, u0, solver_parameters):
+def kepler_naive(V, order, t, dt, u0, solver_parameters):
     dim = V.value_size//2
     u = Function(V)
     u.interpolate(u0)
@@ -271,16 +273,18 @@ def kepler(V, order, t, dt, u0, solver_parameters):
     p = as_vector([u[k] for k in range(dim)])
     q = as_vector([u[k] for k in range(dim, 2*dim)])
     J = as_matrix(np.kron([[0, -1], [1, 0]], np.eye(dim)))
-    H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))*dx
+    H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))
 
-    Lhigh = TimeQuadratureLabel(25)
+    Llow = TimeQuadratureLabel(2*order-2)
+    Lhigh = TimeQuadratureLabel(2*order+2)
 
     test = TestFunction(V)
-    dHdu = derivative(H, u, test)
-    F = inner(Dt(u), test)*dx + Lhigh(-replace(dHdu, {test: dot(J.T, test)}))
+    dHdu = derivative(H*dx, u, test)
+    F = Llow(inner(Dt(u), test)*dx) + Lhigh(-replace(dHdu, {test: dot(J.T, test)}))
+
     scheme = ContinuousPetrovGalerkinScheme(order)
     stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=solver_parameters)
-    return stepper, [H]
+    return stepper, [H*dx]
 
 
 def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
@@ -324,7 +328,6 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
 
     # Auxiliary variable subspaces
     aux_indices = list(range(1, len(Z)))
-
     scheme = ContinuousPetrovGalerkinScheme(order)
     stepper = TimeStepper(F, scheme, t, dt, z,
                           solver_parameters=solver_parameters,
@@ -332,8 +335,48 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     return stepper, invariants
 
 
+def kepler_projector(V, order, t, dt, u0, solver_parameters):
+    dim = V.value_size//2
+    u = Function(V)
+    u.interpolate(u0)
+
+    uv = variable(u)
+    p = as_vector([uv[k] for k in range(dim)])
+    q = as_vector([uv[k] for k in range(dim, 2*dim)])
+
+    T = 0.5*dot(p, p)
+    U = -1/sqrt(dot(q, q))
+
+    # Invariants
+    H = T + U
+    L = dot(p, perp(q))
+    A1, A2 = U*q - L*perp(p)
+    invariants = [H*dx, L*dx, A1*dx, A2*dx]
+
+    v = TestFunction(V)
+    dHdu = diff(H, uv)
+    dA1du = diff(A1, uv)
+    dA2du = diff(A2, uv)
+
+    Llow = TimeQuadratureLabel(2*order-2)
+
+    Qproj = create_time_quadrature(25)
+    w0 = TimeProjector(dHdu, order-1, Qproj)
+    w1 = TimeProjector(dA1du, order-1, Qproj)
+    w2 = TimeProjector(dA2du, order-1, Qproj)
+    determinant_forms = [v, w0, w1, w2]
+    tensor = as_tensor(determinant_forms)
+
+    F = Llow(inner(Dt(u), v)*dx) - (det(tensor) / (2*L*H))*dx
+
+    scheme = ContinuousPetrovGalerkinScheme(order)
+    stepper = TimeStepper(F, scheme, t, dt, u,
+                          solver_parameters=solver_parameters)
+    return stepper, invariants
+
+
 @pytest.mark.parametrize('order', (1, 2))
-@pytest.mark.parametrize('problem', (kepler, kepler_aux_variable))
+@pytest.mark.parametrize('problem', (kepler_naive, kepler_aux_variable, kepler_projector))
 def test_kepler(problem, order):
     msh = UnitIntervalMesh(1)
     MC = MeshConstant(msh)
