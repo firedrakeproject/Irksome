@@ -67,9 +67,12 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
             test_type = "spectral"
         elif quadrature_scheme in {"radau", "lobatto"}:
             test_type = quadrature_scheme
-            if quadrature_degree is None and quadrature_scheme == "lobatto":
+            if quadrature_degree is None:
                 # Default to under-integration!
-                quadrature_degree = 2*order-2
+                if quadrature_scheme == "radau":
+                    quadrature_degree = 2*order-2
+                elif quadrature_scheme == "lobatto":
+                    quadrature_degree = 2*order-3
         else:
             raise ValueError(f"Unsupported quadrature scheme {quadrature_scheme}.")
 
@@ -85,10 +88,10 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
 
 def create_time_quadrature(degree, scheme=None):
     if scheme == "radau":
-        num_points = degree // 2 + 1
+        num_points = (degree + 1) // 2 + 1
         return RadauQuadratureLineRule(ufc_line, num_points)
     elif scheme == "lobatto":
-        num_points = (degree + 1) // 2 + 1
+        num_points = degree // 2 + 2
         return GaussLobattoLegendreQuadratureLineRule(ufc_line, num_points)
     else:
         return create_quadrature(ufc_line, degree, scheme=scheme or "default")
