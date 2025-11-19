@@ -33,4 +33,10 @@ from .scheme import create_time_quadrature  # noqa: F401
 from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme  # noqa: F401
 from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper  # noqa: F401
 from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper  # noqa: F401
-from .labeling import TimeQuadratureLabel  # noqa: F401
+from .labeling import (
+	TimeQuadratureLabel, MeasureOverride,  # noqa: F401
+	dx_override, ds_override, dS_override, dr_override, dP_override,  # noqa: F401
+	dc_override, dC_override, dI_override, dO_override,               # noqa: F401
+	ds_b_override, ds_t_override, ds_v_override,                      # noqa: F401
+	dS_h_override, dS_v_override,                                     # noqa: F401
+) 
