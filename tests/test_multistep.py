@@ -23,6 +23,63 @@ vi_params = {
 }
 
 
+def heat_BE(msh, N, spatial_degree):
+
+    V = FunctionSpace(msh, "Bernstein", spatial_degree)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1 / N)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+
+    u = project(uexact, V, bcs=bc)
+    v = TestFunction(V)
+
+    F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
+
+    stepper = TimeStepper(F, RadauIIA(1), t, dt, u, bcs=bc)
+
+    for i in range(5):
+
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return u
+
+def heat_BDF1(msh, N, spatial_degree):
+
+    V = FunctionSpace(msh, "Bernstein", spatial_degree)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1 / N)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+
+    u = project(uexact, V, bcs=bc)
+    v = TestFunction(V)
+
+    F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
+    BDF1 = MultistepMethod('BDF', 1)
+    stepper = MultistepTimeStepper(F, BDF1, t, dt, u, bcs=bc)
+
+    for i in range(5):
+
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+    return u
+
+
 def heat(msh, N, spatial_degree):
 
     V = FunctionSpace(msh, "Bernstein", spatial_degree)
@@ -83,7 +140,7 @@ def heat_mech(msh, N, spatial_degree):
 
     BDF2 = MultistepMethod('BDF', 2)
 
-    stepper = MultistepTimeStepper(F, t, dt, u, BDF2, bcs=bc)
+    stepper = MultistepTimeStepper(F, BDF2, t, dt, u, bcs=bc)
     stepper.us[0].assign(u0)
     stepper.us[1].assign(u1)
 
@@ -148,7 +205,7 @@ def heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
     else:
         bounds = None
 
-    stepper = MultistepTimeStepper(F, t, dt, u, BDF2, bcs=bc, bounds=bounds, solver_parameters=vi_params, startup_parameters=startup_parameters)
+    stepper = MultistepTimeStepper(F, BDF2, t, dt, u, bcs=bc, bounds=bounds, solver_parameters=vi_params, startup_parameters=startup_parameters)
 
     min_init = min(stepper.us[0].dat.data)
     min_step1 = min(stepper.us[1].dat.data)
@@ -256,7 +313,7 @@ def CH_mech(msh, spatial_degree, startup_tableau):
     startup_parameters = {'tableau': startup_tableau, 'dt_div': 4}
 
     BDF2 = MultistepMethod('BDF', 2)
-    stepper = MultistepTimeStepper(F_DT, t, dt, c_mu, BDF2, startup_parameters=startup_parameters)
+    stepper = MultistepTimeStepper(F_DT, BDF2, t, dt, c_mu, startup_parameters=startup_parameters)
 
     for i in range(5):
         stepper.advance()
@@ -342,7 +399,7 @@ def heat_AB2_mech(msh, N, spatial_basis):
     startup_parameters = {'tableau': RadauIIA(1), 'dt_div': 4}
 
     AB2 = MultistepMethod('AB', 2)
-    stepper = MultistepTimeStepper(F, t, dt, u2, AB2, bcs=bc, startup_parameters=startup_parameters)
+    stepper = MultistepTimeStepper(F, AB2, t, dt, u2, bcs=bc, startup_parameters=startup_parameters)
 
     for i in range(10):
         stepper.advance()
@@ -446,13 +503,22 @@ def heat_Q_mech(msh, N, spatial_basis):
 
     startup_parameters = {'tableau': RadauIIA(1), 'dt_div': 4}
 
-    stepper = MultistepTimeStepper(F, t, dt, u, method, bcs=bc, startup_parameters=startup_parameters)
+    stepper = MultistepTimeStepper(F, method, t, dt, u, bcs=bc, startup_parameters=startup_parameters)
 
     for i in range(10):
         stepper.advance()
         t.assign(float(t) + float(dt))
 
     return u
+
+
+@pytest.mark.parametrize('N', [8, 16])
+@pytest.mark.parametrize('spatial_degree', [1, 2, 3])
+def test_heat_BDF1(N, spatial_degree):
+    msh = UnitSquareMesh(N, N)
+    u1 = heat_BE(msh, N, spatial_degree)
+    u2 = heat_BDF1(msh, N, spatial_degree)
+    assert norm(u1 - u2) / norm(u1) < 1e-13
 
 
 @pytest.mark.parametrize('N', [8, 16])

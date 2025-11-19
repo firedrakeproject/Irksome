@@ -1,5 +1,5 @@
 from .tools import replace, vecconst, getNullspace
-from .manipulation import extract_terms, strip_dt_form
+from .manipulation import extract_terms
 from .deriv import expand_time_derivatives, TimeDerivative
 from .stepper import TimeStepper, valid_base_kwargs
 from .base_time_stepper import BaseTimeStepper
@@ -9,7 +9,6 @@ from ufl import zero
 from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver
 
 
-## TODO: Single step methods are failing -- need to investigate 11/18/2025
 class MultistepStepper(BaseTimeStepper):
     
     """front-end class for advancing time-dependent PDE via the BDF2 Method
@@ -18,12 +17,12 @@ class MultistepStepper(BaseTimeStepper):
         F(t, u; v) == 0, where `u` is the unknown
         :class:`firedrake.Function and `v` is the
         :class:firedrake.TestFunction`.
+    :arg method: A :class:`MultistepMethod` corresponding to the desired multistep method.
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time step.
          The user may adjust this value between time steps.
-    :arg method: A :class:`MultistepMethod` corresponding to the desired multistep method.
     :arg u: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
@@ -39,7 +38,7 @@ class MultistepStepper(BaseTimeStepper):
             to find the required starting values.
     """
 
-    def __init__(self, F, t, dt, u0, method, bcs=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
+    def __init__(self, F, method, t, dt, u0, bcs=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None, startup_parameters=None, **kwargs):
 
         super().__init__(F, t, dt, u0,
@@ -137,6 +136,9 @@ class MultistepStepper(BaseTimeStepper):
 
     # an optional method to mechanically find the required starting values via a single step method
     def mechanized_startup(self, F, t, dt, u0, startup_parameters, bcs=None):
+        if self.s == 1: # No startup required
+            return 
+            
         butcher_tableau = startup_parameters.get('tableau', None)
         stepper_kwargs = startup_parameters.get('stepper_kwargs', {})
         startup_dt_div = startup_parameters.get('dt_div', 1)
@@ -166,7 +168,7 @@ class MultistepStepper(BaseTimeStepper):
 valid_multistep_kwargs = ("bounds", "startup_parameters")
 
 
-def MultistepTimeStepper(F, t, dt, u0, method, **kwargs):
+def MultistepTimeStepper(F, method, t, dt, u0, **kwargs):
     base_kwargs = {}
     for k in valid_base_kwargs:
         if k in kwargs:
@@ -179,4 +181,4 @@ def MultistepTimeStepper(F, t, dt, u0, method, **kwargs):
         
     bounds = kwargs.pop('bounds', None)
     startup_parameters = kwargs.pop('startup_parameters', {})
-    return MultistepStepper(F, t, dt, u0, method, bcs, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
+    return MultistepStepper(F, method, t, dt, u0, bcs, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)

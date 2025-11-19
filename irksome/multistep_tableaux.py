@@ -43,7 +43,7 @@ class MultistepMethod(MultistepTableau):
         super().__init__(a, b)
 
 # BDF Methods
-BDF1a = np.array([0.0, 1.0])
+BDF1a = np.array([-1.0, 1.0])
 BDF1b = np.array([0.0, 1.0])
 
 BDF2a = np.array([0.3333333333333333, -1.3333333333333333, 1.0])
@@ -106,7 +106,7 @@ def get_weights_AB(s):
 
 def get_weights_AM(s):
     '''compute the weights a, b, for the Adams-Moulton method seeking y^{n + s}. 
-       s = 0 correspons to backward Euler--handled separately'''
+       s = 0 corresponds to backward Euler--handled separately'''
 
     assert s >= 0
 
