@@ -6,14 +6,14 @@ from firedrake import assemble, dx, inner, norm, as_tensor
 from firedrake.bcs import EquationBC, EquationBCSplit
 
 from ufl.constantvalue import as_ufl
-from .tools import AI, dot, replace, reshape, vecconst
+from .tools import AI, dot, replace, reshape, vecconst, fields_to_components
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
 from .manipulation import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
 
-def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
+def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, aux_indices=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -81,11 +81,17 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     A2invw = dot(A2inv, w_np)
     dtu = TimeDerivative(u0)
 
+    aux_components = fields_to_components(V, aux_indices or [])
+
     repl = {}
     for i in range(num_stages):
+        usub = reshape(u0 + as_tensor(A1w[i]) * dt, u0.ufl_shape)
+        if aux_components:
+            usub[aux_components] = A2invw[i][aux_components] * dt
+
         repl[i] = {t: t + c[i] * dt,
                    v: v_np[i],
-                   u0: u0 + as_tensor(A1w[i]) * dt,
+                   u0: usub,
                    dtu: A2invw[i]}
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
