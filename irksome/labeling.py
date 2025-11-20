@@ -52,10 +52,12 @@ def split_quadrature(F, Qdefault=None):
     for Q in quad_labels:
         splitting[Q] = F.label_map(lambda t: Q in t.labels, map_if_true=keep, map_if_false=drop)
 
+    rule_equals = lambda Q1, Q2: (type(Q1) == type(Q2)
+                                  and np.array_equal(Q1.get_points(), Q2.get_points())
+                                  and np.array_equal(Q1.get_weights(), Q2.get_weights()))
+
     # dict mapping unique TimeQuadratureRules to Forms
     forms = defaultdict(lambda: Form([]))
-    rule_equals = lambda Q1, Q2: np.array_equal(Q1.x, Q2.x) and np.array_equal(Q1.w, Q2.w)
-
     for Q in sorted(splitting, key=lambda Q: tuple(Q.get_points()), reverse=True):
         form = as_form(splitting[Q])
         if not form.empty():

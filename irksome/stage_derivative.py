@@ -118,10 +118,12 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
                 return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
                                   bcs=[bc2stagebc(innerbc, i) for innerbc in extract_bcs(bc.bcs)])
             else:
-                gorig = as_ufl(bc._original_arg)
-                ucur = bc2space(bc, u0)
-                gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur) * A1inv[i, j]
-                                    for j in range(num_stages))
+                gcur = bc._original_arg
+                if gcur != 0:
+                    gorig = as_ufl(gcur)
+                    ucur = bc2space(bc, u0)
+                    gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur) * A1inv[i, j]
+                                        for j in range(num_stages))
                 return BCStageData(bc, gcur, u0, stages, i)
     else:
         raise ValueError(f"Unrecognised bc_type: {bc_type}")

@@ -201,7 +201,6 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
 
     t_end = 1.0
     while float(t) < t_end:
-        print(float(t))
         if float(t + dt) > t_end:
             dt.assign(t_end - t)
         stepper.advance()
