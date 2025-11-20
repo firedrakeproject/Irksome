@@ -1,4 +1,6 @@
+from ufl import Form
 from firedrake.fml import Label, keep, drop, LabelledForm
+from collections import defaultdict
 from .scheme import create_time_quadrature
 import numpy as np
 
@@ -44,16 +46,22 @@ def split_quadrature(F, Qdefault=None):
         elif len(cur_labels) > 1:
             raise ValueError("Multiple quadrature labels on one term.")
 
-    splitting = {Q: F.label_map(lambda t: Q in t.labels, map_if_true=keep, map_if_false=drop)
-                 for Q in quad_labels}
-    splitting[Qdefault] = F.label_map(lambda t: len(quad_labels.intersection(t.labels)) > 0,
-                                      map_if_true=drop, map_if_false=keep)
-    for Q in list(splitting):
-        try:
-            splitting[Q] = splitting[Q].form
-        except TypeError:
-            splitting.pop(Q)
-    return splitting
+    splitting = {}
+    splitting[Qdefault] = F.label_map(lambda t: len(quad_labels.intersection(t.labels)) == 0,
+                                      map_if_true=keep, map_if_false=drop)
+    for Q in quad_labels:
+        splitting[Q] = F.label_map(lambda t: Q in t.labels, map_if_true=keep, map_if_false=drop)
+
+    # dict mapping unique TimeQuadratureRules to Forms
+    forms = defaultdict(lambda: Form([]))
+    rule_equals = lambda Q1, Q2: np.array_equal(Q1.x, Q2.x) and np.array_equal(Q1.w, Q2.w)
+
+    for Q in sorted(splitting, key=lambda Q: tuple(Q.get_points()), reverse=True):
+        form = as_form(splitting[Q])
+        if not form.empty():
+            Q_unique = next((Qk for Qk in forms if rule_equals(Q, Qk)), Q)
+            forms[Q_unique] += form
+    return forms
 
 
 def split_explicit(F):
@@ -66,10 +74,10 @@ def split_explicit(F):
     imp_part = F.label_map(lambda t: t.labels == {},
                            map_if_true=keep, map_if_false=drop)
 
-    return imp_part.form, exp_part.form
+    return as_form(imp_part), as_form(exp_part)
 
 
 def as_form(form):
     if isinstance(form, LabelledForm):
-        form = form.form
+        form = Form([]) if len(form) == 0 else form.form
     return form
