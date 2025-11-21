@@ -185,9 +185,8 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
         "pc_type": "python",
         "pc_python_type": "irksome.IRKAuxiliaryOperatorPC",
         "aux": {
-            "pc_type": "lu",
-            "pc_factor_mat_solver_type": "petsc",
-            "pc_factor_shift_type": "nonzero",
+            "pc_type": "cholesky" if order == 1 else "lu",
+            "pc_factor_mat_solver_type": "mumps",
         }
     }
     scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, stage_type=stage_type)
