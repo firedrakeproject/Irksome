@@ -154,7 +154,7 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
     pexact = x + y * t
 
     u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
-    p_rhs = div(uexact)
+    p_rhs = -div(uexact)
 
     z = Function(Z)
     ztest = TestFunction(Z)
@@ -164,7 +164,7 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
     F = (inner(Dt(u), v)*dx
          + inner(grad(u), grad(v))*dx
          - inner(p, div(v))*dx
-         + inner(div(u), q)*dx
+         - inner(div(u), q)*dx
          - inner(u_rhs, v)*dx
          - inner(p_rhs, q)*dx)
 
@@ -179,6 +179,7 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
         "mat_type": "matfree",
         "snes_type": "ksponly",
         "ksp_type": "gmres",
+        "ksp_pc_side": "right",
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
         "pc_type": "python",
