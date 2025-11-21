@@ -154,7 +154,7 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
     pexact = x + y * t
 
     u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
-    p_rhs = -div(uexact)
+    p_rhs = div(uexact)
 
     z = Function(Z)
     ztest = TestFunction(Z)
@@ -164,7 +164,7 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
     F = (inner(Dt(u), v)*dx
          + inner(grad(u), grad(v))*dx
          - inner(p, div(v))*dx
-         - inner(div(u), q)*dx
+         + inner(div(u), q)*dx
          - inner(u_rhs, v)*dx
          - inner(p_rhs, q)*dx)
 
@@ -179,8 +179,6 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
         "mat_type": "matfree",
         "snes_type": "ksponly",
         "ksp_type": "gmres",
-        "ksp_atol": 1E-16,
-        "ksp_rtol": 1E-6,
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
         "pc_type": "python",
@@ -196,9 +194,7 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
                           nullspace=nsp,
                           aux_indices=[1])
 
-    while float(t) < 1.0:
-        if float(t) + float(dt) > 1.0:
-            dt.assign(1.0 - float(t))
+    for step in range(N):
         stepper.advance()
         assert numpy.allclose(stepper.solver.snes.ksp.computeEigenvalues(), 1.0)
         t.assign(float(t) + float(dt))
