@@ -35,13 +35,13 @@ class TimeQuadratureRule:
 
 
 def split_quadrature(F, Qdefault=None):
-    """Split a :class:`LabelledForm` into the terms to be integrated in time by the
+    """Splits a :class:`LabelledForm` into the terms to be integrated in time by the
     different :class:`TimeQuadratureRule`s.
 
     :arg F: a :class:`LabelledForm`.
     :kwarg Qdefault: the :class:`TimeQuadratureRule` to be applied on unlabelled terms.
 
-    :returns: a dict mapping unique :class:`TimeQuadratureRule`s to :class:`Form`s.
+    :returns: a `dict` mapping unique :class:`TimeQuadratureRule`s to :class:`Form`s.
     """
     if not isinstance(F, LabelledForm):
         return {Qdefault: F}
@@ -60,6 +60,7 @@ def split_quadrature(F, Qdefault=None):
     for Q in quad_labels:
         splitting[Q] = F.label_map(lambda t: Q in t.labels, map_if_true=keep, map_if_false=drop)
 
+    # collapse TimeQuadratureRules based on numerical equality
     rule_equals = lambda Q1, Q2: (type(Q1) == type(Q2)
                                   and np.array_equal(Q1.get_points(), Q2.get_points())
                                   and np.array_equal(Q1.get_weights(), Q2.get_weights()))
@@ -87,7 +88,7 @@ def split_explicit(F):
 
 
 def as_form(form):
-    """Extracts the Form from a LabelledForm."""
+    """Extracts the :class:`Form` from a :class:`LabelledForm`."""
     if isinstance(form, LabelledForm):
         form = Form([]) if len(form) == 0 else form.form
     return form
