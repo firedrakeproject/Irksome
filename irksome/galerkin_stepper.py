@@ -143,11 +143,10 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     :kwarg aux_indices: a list of field indices to be discretized in the test space
          rather than trial space.
 
-    On output, we return a tuple consisting of four parts:
-
-       - Fnew, the :class:`Form` corresponding to the Galerkin-in-Time discretized problem
+    :returns: a 2-tuple of
+       - `Fnew`, the :class:`Form` corresponding to the Galerkin-in-Time discretized problem
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
-         on the Galerkin-in-time solution,
+         on the Galerkin-in-time solution
     """
     if bc_type is None:
         bc_type = "DAE"

@@ -41,6 +41,16 @@ def get_stage_space(V, num_stages):
 
 
 def fields_to_components(V, fields):
+    """
+    Returns the scalar component indices corresponding to the possibly
+    tensor-valued subspaces of a mixed function space.
+
+    :arg V: a :class:`FunctionSpace`.
+    :arg fields: a list of integers defining subspaces of V.
+
+    :returns: a list of integers with the scalar components corresponding to
+    the subfields.
+    """
     cur = 0
     components = []
     for i, Vi in enumerate(V):

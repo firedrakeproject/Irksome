@@ -50,32 +50,27 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
          It lives in a :class:`firedrake.FunctionSpace` corresponding to the
          s-way tensor product of the space on which the semidiscrete
          form lives.
-    :arg splitting: a callable that maps the (floating point) Butcher matrix
+    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
+         containing (possibly time-dependent) boundary conditions imposed
+         on the system.
+    :kwarg splitting: a callable that maps the (floating point) Butcher matrix
          a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
          to vary between the classical RK formulation and Butcher's reformulation
          that leads to a denser mass matrix with block-diagonal stiffness.
          Only `AI` and `IA` are currently supported.
-    :arg vandermonde: a numpy array encoding a change of basis to the Lagrange
+    :kwarg vandermonde: a numpy array encoding a change of basis to the Lagrange
          polynomials associated with the collocation nodes from some other
          (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
          coefficients in some basis rather than the values at particular stages,
          which can be useful for satisfying bounds constraints.
          If none is provided, we assume it is the identity, working in the
          Lagrange basis.
-    :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possibly time-dependent) boundary conditions imposed
-         on the system.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-         index is an index into the function space associated with `u`
-         and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
-         be passed to a `firedrake.MixedVectorSpaceBasis` over the
-         larger space associated with the Runge-Kutta method
+    :kwarg aux_indices: a list of field indices, currently ignored.
 
-    On output, we return a tuple consisting of several parts:
-
+    :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
-         on the stages,
+         on the stages
     """
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))

@@ -25,18 +25,13 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     :arg dt: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time step.
          The user may adjust this value between time steps.
-    :arg splitting: a callable that maps the (floating point) Butcher matrix
-         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
-         to vary between the classical RK formulation and Butcher's reformulation
-         that leads to a denser mass matrix with block-diagonal stiffness.
-         Some choices of function will assume that `butch.A` is invertible.
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :arg bcs: optionally, a :class:`DirichletBC` or :class:`EquationBC`
+    :kwarg bcs: optionally, a :class:`DirichletBC` or :class:`EquationBC`
          object (or iterable thereof) containing (possibly time-dependent)
          boundary conditions imposed on the system.
-    :arg bc_type: How to manipulate the strongly-enforced boundary
+    :kwarg bc_type: How to manipulate the strongly-enforced boundary
          conditions to derive the stage boundary conditions.  Should
          be a string, either "DAE", which implements BCs as
          constraints in the style of a differential-algebraic
@@ -44,12 +39,18 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
          boundary data and evaluates this for the stage values.
          Support for `firedrake.EquationBC` in `bcs` is limited
          to DAE style BCs.
+    :kwarg splitting: a callable that maps the (floating point) Butcher matrix
+         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
+         to vary between the classical RK formulation and Butcher's reformulation
+         that leads to a denser mass matrix with block-diagonal stiffness.
+         Some choices of function will assume that `butch.A` is invertible.
+    :kwarg aux_indices: a list of field indices to be discretized as :class:`TimeDerivative`,
+         analogouos to :class:`ContinouosPetrovGalerkinTimeStepper`.
 
-    On output, we return a tuple consisting of four parts:
-
-       - Fnew, the :class:`Form`
+    :returns: a 2-tuple of
+       - `Fnew`, the :class:`Form`
        - `bcnew`, a list of :class:`firedrake.DirichletBC` or :class:`EquationBC`
-         objects to be posed on the stages,
+         objects to be posed on the stages
     """
     if bc_type is None:
         bc_type = "DAE"
@@ -85,14 +86,17 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     repl = {}
     for i in range(num_stages):
-        usub = reshape(u0 + as_tensor(A1w[i]) * dt, u0.ufl_shape)
+        usub = u0 + as_tensor(A1w[i]) * dt
+        dtusub = A2invw[i]
         if aux_components:
-            usub[aux_components] = A2invw[i][aux_components] * dt
+            # Apply TimeDerivative substitution to auxiliary fields
+            usub = reshape(usub, u0.ufl_shape)
+            usub[aux_components] = dtusub[aux_components] * dt
 
         repl[i] = {t: t + c[i] * dt,
                    v: v_np[i],
                    u0: usub,
-                   dtu: A2invw[i]}
+                   dtu: dtusub}
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 

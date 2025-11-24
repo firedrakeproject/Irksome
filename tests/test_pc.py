@@ -35,6 +35,10 @@ class myPC(IRKAuxiliaryOperatorPC):
 
 
 def rd(scheme, Lhigh=None, **kwargs):
+    """When a GalerkinCollocationScheme is provided, this preconditions the
+    Jacobian by applying the Rana triangular approximation to the corresponding
+    collocation IRK.
+    """
     N = 4
     msh = UnitSquareMesh(N, N)
 
