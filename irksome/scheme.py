@@ -59,7 +59,7 @@ class ContinuousPetrovGalerkinScheme(GalerkinScheme):
 class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
     """Class for describing collocation cPG-in-time methods"""
     def __init__(self, order,
-                 stage_type="value",
+                 stage_type="deriv",
                  quadrature_degree=None,
                  quadrature_scheme=None):
         assert order >= 1, f"{type(self).__name__} must have order >= 1"
