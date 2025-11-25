@@ -36,12 +36,12 @@ class TimeQuadratureRule:
 
 def split_quadrature(F, Qdefault=None):
     """Splits a :class:`LabelledForm` into the terms to be integrated in time by the
-    different :class:`TimeQuadratureRule`s.
+    different :class:`TimeQuadratureRule` objects used as labels.
 
     :arg F: a :class:`LabelledForm`.
     :kwarg Qdefault: the :class:`TimeQuadratureRule` to be applied on unlabelled terms.
 
-    :returns: a `dict` mapping unique :class:`TimeQuadratureRule`s to :class:`Form`s.
+    :returns: a `dict` mapping unique :class:`TimeQuadratureRule` objects to the :class:`Form` to be integrated in time.
     """
     if not isinstance(F, LabelledForm):
         return {Qdefault: F}
