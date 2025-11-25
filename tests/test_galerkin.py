@@ -2,13 +2,11 @@ from math import isclose
 
 import pytest
 from firedrake import *
-from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, TimeStepper, GaussLegendre
+from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme, TimeStepper, GaussLegendre
 from irksome.labeling import TimeQuadratureLabel
 
 
-@pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "integral"])
-def test_1d_heat_dirichletbc(order, basis_type):
+def run_1d_heat_dirichletbc(scheme, **kwargs):
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -43,29 +41,42 @@ def test_1d_heat_dirichletbc(order, basis_type):
         + inner(grad(u), grad(v)) * dx
         - inner(rhs, v) * dx
     )
-    bc = [
+    bcs = [
         DirichletBC(V, u_1, 2),
         DirichletBC(V, u_0, 1),
     ]
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
-    scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
-    stepper = TimeStepper(
-        F, scheme, t, dt, u, bcs=bc,
-        solver_parameters=luparams
-    )
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams, **kwargs)
 
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
         stepper.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
         # Check solution and boundary values
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
         assert isclose(u.at(x0), u_0)
         assert isclose(u.at(x1), u_1)
+
+
+@pytest.mark.parametrize("order", [1, 3])
+@pytest.mark.parametrize("basis_type", ("Lagrange", "Bernstein", "integral"))
+def test_1d_heat_dirichletbc(order, basis_type):
+    scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
+    run_1d_heat_dirichletbc(scheme)
+
+
+@pytest.mark.parametrize("quad_scheme,order", [(scheme, order)
+                                               for scheme in (None, "radau", "lobatto")
+                                               for order in (2 if scheme == "lobatto" else 1, 3)])
+@pytest.mark.parametrize("stage_type", ("value", "deriv"))
+def test_1d_heat_dirichletbc_collocation(order, stage_type, quad_scheme):
+    scheme = GalerkinCollocationScheme(order, stage_type=stage_type,
+                                       quadrature_scheme=quad_scheme)
+    run_1d_heat_dirichletbc(scheme, bc_type="ODE")
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
@@ -78,7 +89,6 @@ def test_1d_heat_neumannbc(order, quad_degree):
     dt = MC.Constant(1.0 / N)
     t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(msh)
-    butcher_tableau = GaussLegendre(order)
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
     rhs = Dt(uexact) - div(grad(uexact))
@@ -95,25 +105,21 @@ def test_1d_heat_neumannbc(order, quad_degree):
     )
     F_GL = replace(F, {u: u_GL})
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree=quad_degree)
+    stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=sparams)
 
-    stepper = TimeStepper(
-        F, scheme, t, dt, u,
-        solver_parameters=luparams
-    )
-    stepper_GL = TimeStepper(
-        F_GL, butcher_tableau, t, dt, u_GL, solver_parameters=luparams
-    )
+    butcher_tableau = GaussLegendre(order)
+    stepper_GL = TimeStepper(F_GL, butcher_tableau, t, dt, u_GL, solver_parameters=sparams)
 
     t_end = 1.0
     while float(t) < t_end:
-        if float(t) + float(dt) > t_end:
-            dt.assign(t_end - float(t))
+        if float(t + dt) > t_end:
+            dt.assign(t_end - t)
         stepper.advance()
         stepper_GL.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
         assert (errornorm(u_GL, u) / norm(u)) < 1.e-10
 
 
@@ -126,7 +132,6 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     dt = MC.Constant(1.0 / N)
     t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(msh)
-    butcher_tableau = GaussLegendre(order)
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
     rhs = Dt(uexact) - div(grad(uexact))
@@ -144,24 +149,22 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     )
     F_GL = replace(F, {u: u_GL})
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = ContinuousPetrovGalerkinScheme(order)
-    stepper = TimeStepper(
-        F, scheme, t, dt, u, bcs=bcs,
-        solver_parameters=luparams
-    )
-    stepper_GL = TimeStepper(
-        F_GL, butcher_tableau, t, dt, u_GL, bcs=bcs, solver_parameters=luparams
-    )
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
+
+    butcher_tableau = GaussLegendre(order)
+    stepper_GL = TimeStepper(F_GL, butcher_tableau, t, dt, u_GL, bcs=bcs,
+                             solver_parameters=sparams)
 
     t_end = 1.0
     while float(t) < t_end:
-        if float(t) + float(dt) > t_end:
-            dt.assign(t_end - float(t))
+        if float(t + dt) > t_end:
+            dt.assign(t_end - t)
         stepper.advance()
         stepper_GL.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
         assert (errornorm(u_GL, u) / norm(u)) < 1.e-10
 
 
@@ -191,19 +194,15 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
     F2 = inner(rhs, v) * dx
     F = Llow(F0) + F1 - Lhigh(F2)
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = ContinuousPetrovGalerkinScheme(order)
-    stepper = TimeStepper(
-        F, scheme, t, dt, u, bcs=bcs,
-        solver_parameters=luparams
-    )
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
     t_end = 1.0
     while float(t) < t_end:
-        print(float(t))
-        if float(t) + float(dt) > t_end:
-            dt.assign(t_end - float(t))
+        if float(t + dt) > t_end:
+            dt.assign(t_end - t)
         stepper.advance()
         t += dt
 
@@ -213,11 +212,6 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
 def galerkin_wave(n, deg, alpha, order):
     N = 2**n
     msh = UnitIntervalMesh(N)
-
-    params = {"snes_type": "ksponly",
-              "ksp_type": "preonly",
-              "mat_type": "aij",
-              "pc_type": "lu"}
 
     V = FunctionSpace(msh, "CG", deg)
     W = FunctionSpace(msh, "DG", deg - 1)
@@ -239,17 +233,18 @@ def galerkin_wave(n, deg, alpha, order):
 
     E = 0.5 * (inner(u, u)*dx + inner(p, p)*dx)
 
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
+
     scheme = ContinuousPetrovGalerkinScheme(order)
-    stepper = TimeStepper(F, scheme, t, dt, up,
-                          solver_parameters=params)
+    stepper = TimeStepper(F, scheme, t, dt, up, solver_parameters=sparams)
 
     energies = []
 
-    while (float(t) < 1.0):
-        if (float(t) + float(dt) > 1.0):
+    while float(t) < 1.0:
+        if float(t + dt) > 1.0:
             dt.assign(1.0 - float(t))
         stepper.advance()
-        t.assign(float(t) + float(dt))
+        t += dt
         energies.append(assemble(E))
 
     return np.array(energies)
