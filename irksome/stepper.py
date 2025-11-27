@@ -14,11 +14,11 @@ valid_base_kwargs = ("form_compiler_parameters", "is_linear", "restrict", "solve
                      "appctx", "options_prefix", "pre_apply_bcs")
 
 valid_kwargs_per_stage_type = {
-    "deriv": ["stage_type", "bc_type", "splitting", "adaptive_parameters"],
+    "deriv": ["stage_type", "bc_type", "splitting", "adaptive_parameters", "stage_update_callback"],
     "value": ["stage_type", "basis_type",
               "update_solver_parameters", "splitting", "bounds", "use_collocation_update"],
-    "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
-    "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
+    "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx", "stage_update_callback"],
+    "explicit": ["stage_type", "bcs", "solver_parameters", "appctx", "stage_update_callback"],
     "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
              "splitting", "num_its_initial", "num_its_per_step"],
     "dirkimex": ["Fexp", "stage_type", "mass_parameters"],
@@ -164,11 +164,13 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
             bounds=bounds, use_collocation_update=use_collocation_update,
             **base_kwargs)
     elif stage_type == "dirk":
+        stage_update_callback = kwargs.get("stage_update_callback")
         return DIRKTimeStepper(
-            F, method, t, dt, u0, bcs, **base_kwargs)
+            F, method, t, dt, u0, bcs, stage_update_callback=stage_update_callback, **base_kwargs)
     elif stage_type == "explicit":
+        stage_update_callback = kwargs.get("stage_update_callback")
         return ExplicitTimeStepper(
-            F, method, t, dt, u0, bcs, **base_kwargs)
+            F, method, t, dt, u0, bcs, stage_update_callback=stage_update_callback, **base_kwargs)
     elif stage_type == "imex":
         Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
         appctx = base_kwargs.get("appctx")

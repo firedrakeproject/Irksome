@@ -192,10 +192,11 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
-                 appctx=None, bc_type="DAE", **kwargs):
+                 appctx=None, bc_type="DAE", stage_update_callback=None, **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
+        self.stage_update_callback = stage_update_callback
         A1, A2 = splitting(butcher_tableau.A)
         try:
             self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b))
