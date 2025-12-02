@@ -12,7 +12,7 @@ from irksome import (
     MeshConstant, RadauIIA, TimeStepper, TimeQuadratureLabel
 )
 from irksome.tools import AI, IA
-from irksome.labeling import as_form
+from irksome.labeling import as_form, create_time_quadrature
 
 # Tests that various PCs are actually getting the right answer.
 
@@ -208,13 +208,13 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
         t.assign(float(t) + float(dt))
 
 
-@pytest.mark.parametrize('family', (ContinuousPetrovGalerkinScheme, RadauIIA))
-@pytest.mark.parametrize('order', (1, 2))
+@pytest.mark.parametrize('order', (1, 2, 3))
+@pytest.mark.parametrize('family', (GalerkinCollocationScheme, RadauIIA))
 def test_stokes_augmented_lagrangian_preconditioner(family, order):
     N = 5
     msh = UnitSquareMesh(N, N)
     V = VectorFunctionSpace(msh, "CG", 2, variant="alfeld")
-    Q = FunctionSpace(msh, "DG", 1, variant="alfeld")
+    Q = FunctionSpace(msh, "DG", 1, variant="integral,alfeld")
     Z = V * Q
 
     MC = MeshConstant(msh)
@@ -233,46 +233,76 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
     u, p = split(z)
     v, q = split(ztest)
 
-    F = (inner(Dt(u), v)*dx
-         + inner(grad(u), grad(v))*dx
-         - inner(p, div(v))*dx
-         - inner(div(u), q)*dx
-         - inner(u_rhs, v)*dx
-         - inner(p_rhs, q)*dx)
-
+    scheme = family(order)
+    if isinstance(scheme, ContinuousPetrovGalerkinScheme):
+        scheme = family(order, stage_type="value")
+        Qlow = create_time_quadrature(2*order-2, scheme="radau")
+        Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+    else:
+        Llow = lambda x: x
+    F = (
+        inner(grad(u), grad(v))*dx
+        + Llow(
+            inner(Dt(u), v)*dx
+            - inner(p, div(v))*dx
+            - inner(div(u), q)*dx
+        )
+        - inner(u_rhs, v)*dx
+        - inner(p_rhs, q)*dx
+    )
     # Augmented Lagrangian preconditioner
-    Fp = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx + inner(div(u), div(v))*dx + inner(p, q)*dx
+    Fp = inner(grad(u), grad(v))*dx + Llow(inner(Dt(u), v)*dx + inner(div(u), div(v))*dx + inner(p, q)*dx)
 
     bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
-    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=msh.comm)])
 
     sparams = {
         "mat_type": "matfree",
         "pmat_type": "aij",
         "snes_type": "ksponly",
-        "ksp_type": "gmres",
-        "ksp_norm_type": "preconditioned",
+        "snes_lag_jacobian": -2,
         "ksp_max_it": 15,
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
-        "pc_type": "cholesky" if order == 1 else "lu",
         "pc_factor_mat_solver_type": "mumps",
     }
+    if order == 1:
+        sparams["ksp_type"] = "minres"
+        sparams["ksp_norm_type"] = "preconditioned"
+        sparams["pc_type"] = "cholesky"
+    else:
+        sparams["ksp_type"] = "gmres"
+        sparams["ksp_pc_side"] = "right"
+        sparams["pc_type"] = "lu"
 
-    scheme = family(order)
     stepper = TimeStepper(F, scheme, t, dt, z,
-                          bcs=bcs, Fp=Fp, solver_parameters=sparams,
-                          nullspace=nsp,
-                          aux_indices=[1])
+                          bcs=bcs, Fp=Fp, solver_parameters=sparams)
 
+    ksp = stepper.solver.snes.ksp
     u, p = z.subfunctions
-    u.project(uexact)
+    u.interpolate(uexact)
     p.interpolate(pexact)
-
     for step in range(N):
-        stepper.stages.assign(0)
+        stepper.stages.zero()
         stepper.advance()
         t.assign(float(t) + float(dt))
+
+        eigs = ksp.computeEigenvalues()
+
+        # There should be a single positive eigenvalue equal to one
+        assert numpy.allclose(eigs[numpy.real(eigs) > 0], 1)
+
+        # The negative eigenvalues should be bounded from the left
+        if isinstance(scheme, ContinuousPetrovGalerkinScheme):
+            bound = 2/3
+        else:
+            bound = 1/2
+        assert min(numpy.real(eigs)) >= -bound
+
+        # Eigenvalues must be bounded away from 0
+        assert abs(min(eigs, key=abs)) > 0.05
+
+        # All eigenvalues must be real
+        assert numpy.allclose(numpy.imag(eigs), 0)
 
 
 @pytest.mark.parametrize('stage_type', ("value", "deriv"))
@@ -357,3 +387,8 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
         times.append(float(t))
 
         print(f'{float(t):.15f}, {i1:.15f}, {i2:.15f}, {i3:.15f}')
+
+        iprev = invariants[-2]
+        icur = invariants[-1]
+        assert numpy.allclose(iprev[0], icur[0], atol=1e-14)
+        assert numpy.allclose(iprev[2], icur[2], atol=1e-14)
