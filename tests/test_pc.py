@@ -213,8 +213,8 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
 def test_stokes_augmented_lagrangian_preconditioner(family, order):
     N = 5
     msh = UnitSquareMesh(N, N)
-    V = VectorFunctionSpace(msh, "CG", 2)
-    Q = FunctionSpace(msh, "CG", 1)
+    V = VectorFunctionSpace(msh, "CG", 2, variant="alfeld")
+    Q = FunctionSpace(msh, "DG", 1, variant="alfeld")
     Z = V * Q
 
     MC = MeshConstant(msh)
@@ -251,8 +251,8 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
         "pmat_type": "aij",
         "snes_type": "ksponly",
         "ksp_type": "gmres",
-        "ksp_max_it": 35,
-        "ksp_pc_side": "right",
+        "ksp_norm_type": "preconditioned",
+        "ksp_max_it": 15,
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
         "pc_type": "cholesky" if order == 1 else "lu",
@@ -266,7 +266,7 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
                           aux_indices=[1])
 
     u, p = z.subfunctions
-    u.interpolate(uexact)
+    u.project(uexact)
     p.interpolate(pexact)
 
     for step in range(N):
