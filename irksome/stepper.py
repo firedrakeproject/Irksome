@@ -17,8 +17,8 @@ valid_kwargs_per_stage_type = {
     "deriv": ["Fp", "stage_type", "bc_type", "splitting", "adaptive_parameters", "aux_indices"],
     "value": ["Fp", "stage_type", "basis_type",
               "update_solver_parameters", "splitting", "bounds", "use_collocation_update"],
-    "dirk": ["stage_type", "nullspace", "solver_parameters", "appctx"],
-    "explicit": ["stage_type", "solver_parameters", "appctx"],
+    "dirk": ["Fp", "stage_type"],
+    "explicit": ["Fp", "stage_type"],
     "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
              "splitting", "num_its_initial", "num_its_per_step"],
     "dirkimex": ["Fexp", "stage_type", "mass_parameters"],
@@ -167,11 +167,13 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
             bounds=bounds, use_collocation_update=use_collocation_update,
             **base_kwargs)
     elif stage_type == "dirk":
+        Fp = kwargs.get("Fp", None)
         return DIRKTimeStepper(
-            F, method, t, dt, u0, bcs, **base_kwargs)
+            F, method, t, dt, u0, bcs, Fp=Fp, **base_kwargs)
     elif stage_type == "explicit":
+        Fp = kwargs.get("Fp", None)
         return ExplicitTimeStepper(
-            F, method, t, dt, u0, bcs, **base_kwargs)
+            F, method, t, dt, u0, bcs, Fp=Fp, **base_kwargs)
     elif stage_type == "imex":
         Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
         appctx = base_kwargs.get("appctx")
