@@ -1,15 +1,18 @@
 import numpy
 import pytest
 from firedrake import (
-    DirichletBC, Function, FunctionSpace, MixedVectorSpaceBasis,
-    SpatialCoordinate, TestFunction, UnitSquareMesh, VectorFunctionSpace,
-    VectorSpaceBasis, as_vector, div, dx, errornorm, grad, inner, split
+    Constant, DirichletBC, Function, FunctionSpace, MixedVectorSpaceBasis,
+    SpatialCoordinate, TestFunction, TrialFunction, PeriodicIntervalMesh,
+    UnitSquareMesh, VectorFunctionSpace, VectorSpaceBasis,
+    assemble, as_vector, derivative, div, dx, errornorm, exp, grad, inner, split, solve
 )
 from irksome import (
-    Dt, GalerkinCollocationScheme, IRKAuxiliaryOperatorPC, LobattoIIIC,
+    Dt, ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme,
+    IRKAuxiliaryOperatorPC, LobattoIIIC,
     MeshConstant, RadauIIA, TimeStepper, TimeQuadratureLabel
 )
 from irksome.tools import AI, IA
+from irksome.labeling import as_form
 
 # Tests that various PCs are actually getting the right answer.
 
@@ -203,3 +206,154 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
         stepper.advance()
         assert numpy.allclose(stepper.solver.snes.ksp.computeEigenvalues(), 1.0)
         t.assign(float(t) + float(dt))
+
+
+@pytest.mark.parametrize('family', (ContinuousPetrovGalerkinScheme, RadauIIA))
+@pytest.mark.parametrize('order', (1, 2))
+def test_stokes_augmented_lagrangian_preconditioner(family, order):
+    N = 5
+    msh = UnitSquareMesh(N, N)
+    V = VectorFunctionSpace(msh, "CG", 2)
+    Q = FunctionSpace(msh, "CG", 1)
+    Z = V * Q
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(1.0/N)
+    (x, y) = SpatialCoordinate(msh)
+
+    uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
+    pexact = x + y * t
+
+    u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
+    p_rhs = -div(uexact)
+
+    z = Function(Z)
+    ztest = TestFunction(Z)
+    u, p = split(z)
+    v, q = split(ztest)
+
+    F = (inner(Dt(u), v)*dx
+         + inner(grad(u), grad(v))*dx
+         - inner(p, div(v))*dx
+         - inner(div(u), q)*dx
+         - inner(u_rhs, v)*dx
+         - inner(p_rhs, q)*dx)
+
+    # Augmented Lagrangian preconditioner
+    Fp = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx + inner(div(u), div(v))*dx + inner(p, q)*dx
+
+    bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
+    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=msh.comm)])
+
+    sparams = {
+        "mat_type": "matfree",
+        "pmat_type": "aij",
+        "snes_type": "ksponly",
+        "ksp_type": "gmres",
+        "ksp_max_it": 35,
+        "ksp_pc_side": "right",
+        "ksp_view_eigenvalues": None,
+        "ksp_converged_reason": None,
+        "pc_type": "cholesky" if order == 1 else "lu",
+        "pc_factor_mat_solver_type": "mumps",
+    }
+
+    scheme = family(order)
+    stepper = TimeStepper(F, scheme, t, dt, z,
+                          bcs=bcs, Fp=Fp, solver_parameters=sparams,
+                          nullspace=nsp,
+                          aux_indices=[1])
+
+    u, p = z.subfunctions
+    u.interpolate(uexact)
+    p.interpolate(pexact)
+
+    for step in range(N):
+        stepper.stages.assign(0)
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+
+@pytest.mark.parametrize('stage_type', ("value", "deriv"))
+@pytest.mark.parametrize('order', (1, 2))
+def test_bbm_underintegrated_preconditioner(stage_type, order):
+    N = 8000
+    L = 100
+    msh = PeriodicIntervalMesh(N, L)
+    x, = SpatialCoordinate(msh)
+
+    t = Constant(0)
+    inv_dt = N // (10 * L)
+    tfinal = 18
+    Nt = tfinal * inv_dt
+    dt = Constant(tfinal / Nt)
+    Nt = 10
+
+    c = Constant(0.5)
+    center = Constant(40.0)
+    delta = -c * center
+
+    def sech(x):
+        return 2 / (exp(x) + exp(-x))
+
+    uexact = 3 * c**2 / (1-c**2) * sech(0.5 * (c * x - c * t / (1 - c ** 2) + delta))**2
+
+    def h1inner(u, v):
+        return inner(u, v) + inner(grad(u), grad(v))
+
+    def I1(u):
+        return u * dx
+
+    def I2(u):
+        return 0.5 * h1inner(u, u) * dx
+
+    def I3(u):
+        return (u**2 / 2 + u**3 / 6) * dx
+
+    V = FunctionSpace(msh, "Hermite", 3)
+    u = Function(V)
+    v = TestFunction(V)
+    w = TrialFunction(V)
+
+    a = h1inner(w, v) * dx
+    solve(a == h1inner(uexact, v)*dx, u)
+
+    time_order_high = 3 * order - 1
+    Lhigh = TimeQuadratureLabel(time_order_high)
+
+    dHdu = derivative(I3(u), u, v)
+    F = h1inner(Dt(u), v)*dx + Lhigh(-dHdu(v.dx(0)))
+
+    # Drop quadrature labels to define an under-integrated preconditioner
+    Fp = as_form(F)
+
+    sparams = {
+        "mat_type": "matfree",
+        "pmat_type": "aij",
+        "ksp_type": "gmres",
+        "ksp_max_it": 5,
+        "snes_atol": 0,
+        "snes_rtol": 1E-14,
+        "ksp_atol": 0,
+        "ksp_rtol": 1E-12,
+        "pc_type": "lu",
+        "pc_factor_mat_solver_type": "mumps",
+    }
+
+    scheme = GalerkinCollocationScheme(order, stage_type=stage_type)
+    stepper = TimeStepper(F, scheme, t, dt, u,
+                          Fp=Fp, solver_parameters=sparams)
+
+    times = [float(t)]
+    functionals = (I1(u), I2(u), I3(u))
+    invariants = [tuple(map(assemble, functionals))]
+    for _ in range(Nt):
+        stepper.advance()
+
+        invariants.append(tuple(map(assemble, functionals)))
+        i1, i2, i3 = invariants[-1]
+        t.assign(float(t) + float(dt))
+        times.append(float(t))
+
+        print(f'{float(t):.15f}, {i1:.15f}, {i2:.15f}, {i3:.15f}')

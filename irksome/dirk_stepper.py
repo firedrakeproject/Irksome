@@ -191,9 +191,12 @@ class DIRKTimeStepper:
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
 
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, u0=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         return getFormDIRK(F or self.F,
                            stages,
                            tableau or self.butcher_tableau,
                            self.t, self.dt,
-                           self.u0, bcs=self.orig_bcs)
+                           u0 or self.u0,
+                           bcs=bcs)

@@ -315,12 +315,16 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         self.set_initial_guess()
         self.set_update_expressions()
 
-    def get_form_and_bcs(self, stages, tableau=None, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, u0=None, bcs=None,
+                         tableau=None, basis_type=None, order=None,
+                         quadrature=None, aux_indices=None):
         F = F or self.F
-        bcs = self.orig_bcs
-        aux_indices = aux_indices or self.aux_indices
+        u0 = u0 or self.u0
+        if bcs is None:
+            bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
+        aux_indices = aux_indices or self.aux_indices
 
         if tableau is not None:
             # Galerkin collocation is equivalent to an IRK up to row scaling
@@ -344,7 +348,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             else:
                 raise ValueError("Expecting a GalerkinCollocationScheme")
 
-            Fnew, bcnew = get_irk_form(F, tableau, self.t, self.dt, self.u0, stages,
+            Fnew, bcnew = get_irk_form(F, tableau, self.t, self.dt, u0, stages,
                                        bcs=bcs, splitting=splitting, aux_indices=aux_indices)
 
             if splitting != scaledIA:
@@ -366,7 +370,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             trial_el, test_el = getElements(basis_type, order)
         quadrature = quadrature or self.quadrature
         return getFormGalerkin(F, trial_el, test_el, quadrature,
-                               self.t, self.dt, self.u0, stages,
+                               self.t, self.dt, u0, stages,
                                bcs=bcs, bc_type=self.bc_type,
                                aux_indices=aux_indices)
 

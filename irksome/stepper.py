@@ -9,21 +9,21 @@ from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
 from .stage_value import StageValueTimeStepper
 from .tools import AI
 
-valid_base_kwargs = ("form_compiler_parameters", "is_linear", "restrict", "solver_parameters",
+valid_base_kwargs = ("bcs", "form_compiler_parameters", "is_linear", "restrict", "solver_parameters",
                      "nullspace", "transpose_nullspace", "near_nullspace",
                      "appctx", "options_prefix", "pre_apply_bcs")
 
 valid_kwargs_per_stage_type = {
-    "deriv": ["stage_type", "bc_type", "splitting", "adaptive_parameters"],
-    "value": ["stage_type", "basis_type",
+    "deriv": ["Fp", "stage_type", "bc_type", "splitting", "adaptive_parameters", "aux_indices"],
+    "value": ["Fp", "stage_type", "basis_type",
               "update_solver_parameters", "splitting", "bounds", "use_collocation_update"],
-    "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
-    "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
+    "dirk": ["stage_type", "nullspace", "solver_parameters", "appctx"],
+    "explicit": ["stage_type", "solver_parameters", "appctx"],
     "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
              "splitting", "num_its_initial", "num_its_per_step"],
     "dirkimex": ["Fexp", "stage_type", "mass_parameters"],
-    "dg": ["bcs"],
-    "cpg": ["bcs", "bc_type", "aux_indices"]}
+    "dg": ["Fp"],
+    "cpg": ["Fp", "bc_type", "aux_indices"]}
 
 valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "max_reject", "onscale_factor",
@@ -119,19 +119,21 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
     for k in valid_base_kwargs:
         if k in kwargs:
             base_kwargs[k] = kwargs.pop(k)
-    bcs = kwargs.pop("bcs", None)
+    bcs = base_kwargs.pop("bcs", None)
 
     for cur_kwarg in kwargs.keys():
         if cur_kwarg not in valid_kwargs_per_stage_type[stage_type]:
             raise ValueError(f"kwarg {cur_kwarg} is not allowable for stage_type {stage_type}")
 
     if stage_type == "deriv":
+        Fp = kwargs.get("Fp", None)
         bc_type = kwargs.get("bc_type", "DAE")
         splitting = kwargs.get("splitting", AI)
+        aux_indices = kwargs.get("aux_indices", None)
         if adapt_params is None:
             return StageDerivativeTimeStepper(
-                F, method, t, dt, u0, bcs,
-                bc_type=bc_type, splitting=splitting, **base_kwargs)
+                F, method, t, dt, u0, bcs, Fp=Fp,
+                bc_type=bc_type, splitting=splitting, aux_indices=aux_indices, **base_kwargs)
         else:
             for param in adapt_params:
                 assert param in valid_adapt_parameters
@@ -152,13 +154,14 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
             safety_factor=safety_factor, gamma0_params=gamma0_params,
             **base_kwargs)
     elif stage_type == "value":
+        Fp = kwargs.get("Fp", None)
         splitting = kwargs.get("splitting", AI)
         basis_type = kwargs.get("basis_type")
         update_solver_parameters = kwargs.get("update_solver_parameters")
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
         return StageValueTimeStepper(
-            F, method, t, dt, u0, bcs=bcs,
+            F, method, t, dt, u0, bcs=bcs, Fp=Fp,
             splitting=splitting, basis_type=basis_type,
             update_solver_parameters=update_solver_parameters,
             bounds=bounds, use_collocation_update=use_collocation_update,
