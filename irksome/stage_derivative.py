@@ -224,14 +224,13 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-    def get_form_and_bcs(self, stages, F=None, u0=None, bcs=None, tableau=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
             bcs = self.orig_bcs
         return getForm(F or self.F,
                        tableau or self.butcher_tableau,
                        self.t, self.dt,
-                       u0 or self.u0,
-                       stages, bcs, self.bc_type,
+                       self.u0, stages, bcs, self.bc_type,
                        splitting=self.splitting,
                        aux_indices=self.aux_indices)
 
