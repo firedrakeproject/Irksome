@@ -42,7 +42,7 @@ def has_quad_labels(term):
 def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timedep_coeffs=None):
     """
     Estimates the polynomial degree in time for each integral in the given form and labels
-    each term with a quadrature rule to be used time integration.
+    each term with a quadrature rule to be used for time integration.
 
     :arg form: a :class:`Form` or a partially labelled :class:`LabelledForm`.
     :arg test_degree: the temporal polynomial degree of the test space.
