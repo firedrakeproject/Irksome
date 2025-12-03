@@ -315,12 +315,15 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         self.set_initial_guess()
         self.set_update_expressions()
 
-    def get_form_and_bcs(self, stages, tableau=None, basis_type=None, order=None, quadrature=None, aux_indices=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None,
+                         tableau=None, basis_type=None, order=None,
+                         quadrature=None, aux_indices=None):
         F = F or self.F
-        bcs = self.orig_bcs
-        aux_indices = aux_indices or self.aux_indices
+        if bcs is None:
+            bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
+        aux_indices = aux_indices or self.aux_indices
 
         if tableau is not None:
             # Galerkin collocation is equivalent to an IRK up to row scaling

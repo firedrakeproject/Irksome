@@ -77,7 +77,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v = F.arguments()[0]
+    v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
 
@@ -206,10 +206,11 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                             for s in range(ns)))
             ut0bit += sum(kp[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         return getFormNystrom(F or self.F,
-                              tableau or self.tableau, self.t,
-                              self.dt, self.u0, self.ut0,
+                              tableau or self.tableau,
+                              self.t, self.dt, self.u0, self.ut0,
                               stages,
-                              bcs=self.orig_bcs,
-                              bc_type=self.bc_type)
+                              bcs=bcs, bc_type=self.bc_type)

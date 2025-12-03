@@ -204,7 +204,9 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
 
-    def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, basis_type=None, order=None, quadrature=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
         if order is None:
@@ -216,7 +218,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         return getFormDiscGalerkin(F or self.F,
                                    el,
                                    quadrature or self.quadrature,
-                                   self.t, self.dt, self.u0, stages, self.orig_bcs)
+                                   self.t, self.dt, self.u0, stages, bcs)
 
     def _update(self):
         stages_np = np.array(self.stages.subfunctions, dtype=object)

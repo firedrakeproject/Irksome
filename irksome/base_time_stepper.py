@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationalSolver
+from firedrake import derivative, Function, NonlinearVariationalProblem, NonlinearVariationalSolver
 from firedrake.petsc import PETSc
 from .tools import AI, get_stage_space, getNullspace, flatten_dats
 
@@ -59,6 +59,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             manipulate these to obtain boundary conditions for each
             stage of the RK method.  Support for `firedrake.EquationBC` is limited
             to the stage derivative formulation with DAE style BCs.
+    :arg Fp: A :class:`ufl.Form` instance to precondition the semi-discrete linearization.
     :arg solver_parameters: An optional :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
@@ -79,7 +80,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     """
     def __init__(self, F, t, dt, u0, num_stages,
-                 bcs=None, solver_parameters=None,
+                 bcs=None, Fp=None, solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
                  splitting=None, bc_type=None,
@@ -104,7 +105,11 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         stages = self.get_stages()
         self.stages = stages
 
-        Fbig, bigBCs = self.get_form_and_bcs(self.stages)
+        Fbig, bigBCs = self.get_form_and_bcs(stages)
+        Jpbig = None
+        if Fp is not None:
+            Fpbig, _ = self.get_form_and_bcs(stages, F=Fp, bcs=())
+            Jpbig = derivative(Fpbig, stages)
 
         V = u0.function_space()
         Vbig = stages.function_space()
@@ -115,7 +120,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.bigBCs = bigBCs
 
         self.problem = NonlinearVariationalProblem(
-            Fbig, stages, bcs=bigBCs,
+            Fbig, stages, bcs=bigBCs, Jp=Jpbig,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),

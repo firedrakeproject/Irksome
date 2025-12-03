@@ -192,7 +192,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
-                 appctx=None, bc_type="DAE", **kwargs):
+                 appctx=None, bc_type="DAE", aux_indices=None, **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
@@ -202,6 +202,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
 
+        self.aux_indices = aux_indices
         super().__init__(F, t, dt, u0,
                          butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
@@ -223,12 +224,15 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         return getForm(F or self.F,
                        tableau or self.butcher_tableau,
                        self.t, self.dt,
-                       self.u0, stages, self.orig_bcs, self.bc_type,
-                       self.splitting)
+                       self.u0, stages, bcs, self.bc_type,
+                       splitting=self.splitting,
+                       aux_indices=self.aux_indices)
 
 
 class AdaptiveTimeStepper(StageDerivativeTimeStepper):

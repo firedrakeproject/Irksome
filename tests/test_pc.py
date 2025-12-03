@@ -1,15 +1,18 @@
 import numpy
 import pytest
 from firedrake import (
-    DirichletBC, Function, FunctionSpace, MixedVectorSpaceBasis,
-    SpatialCoordinate, TestFunction, UnitSquareMesh, VectorFunctionSpace,
-    VectorSpaceBasis, as_vector, div, dx, errornorm, grad, inner, split
+    Constant, DirichletBC, Function, FunctionSpace, MixedVectorSpaceBasis,
+    SpatialCoordinate, TestFunction, TrialFunction, PeriodicIntervalMesh,
+    UnitSquareMesh, VectorFunctionSpace, VectorSpaceBasis,
+    assemble, as_vector, derivative, div, dx, errornorm, exp, grad, inner, split, solve
 )
 from irksome import (
-    Dt, GalerkinCollocationScheme, IRKAuxiliaryOperatorPC, LobattoIIIC,
+    Dt, ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme,
+    IRKAuxiliaryOperatorPC, LobattoIIIC,
     MeshConstant, RadauIIA, TimeStepper, TimeQuadratureLabel
 )
 from irksome.tools import AI, IA
+from irksome.labeling import as_form, create_time_quadrature
 
 # Tests that various PCs are actually getting the right answer.
 
@@ -203,3 +206,189 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
         stepper.advance()
         assert numpy.allclose(stepper.solver.snes.ksp.computeEigenvalues(), 1.0)
         t.assign(float(t) + float(dt))
+
+
+@pytest.mark.parametrize('order', (1, 2, 3))
+@pytest.mark.parametrize('family', (GalerkinCollocationScheme, RadauIIA))
+def test_stokes_augmented_lagrangian_preconditioner(family, order):
+    N = 5
+    msh = UnitSquareMesh(N, N)
+    V = VectorFunctionSpace(msh, "CG", 2, variant="alfeld")
+    Q = FunctionSpace(msh, "DG", 1, variant="integral,alfeld")
+    Z = V * Q
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(1.0/N)
+    (x, y) = SpatialCoordinate(msh)
+
+    uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
+    pexact = x + y * t
+
+    u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
+    p_rhs = -div(uexact)
+
+    z = Function(Z)
+    ztest = TestFunction(Z)
+    u, p = split(z)
+    v, q = split(ztest)
+
+    scheme = family(order)
+    if isinstance(scheme, ContinuousPetrovGalerkinScheme):
+        scheme = family(order, stage_type="value")
+        Qlow = create_time_quadrature(2*order-2, scheme="radau")
+        Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+    else:
+        Llow = lambda x: x
+    F = (
+        inner(grad(u), grad(v))*dx
+        + Llow(
+            inner(Dt(u), v)*dx
+            - inner(p, div(v))*dx
+            - inner(div(u), q)*dx
+        )
+        - inner(u_rhs, v)*dx
+        - inner(p_rhs, q)*dx
+    )
+    # Augmented Lagrangian preconditioner
+    Fp = inner(grad(u), grad(v))*dx + Llow(inner(Dt(u), v)*dx + inner(div(u), div(v))*dx + inner(p, q)*dx)
+
+    bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
+
+    sparams = {
+        "mat_type": "matfree",
+        "pmat_type": "aij",
+        "snes_type": "ksponly",
+        "snes_lag_jacobian": -2,
+        "ksp_max_it": 15,
+        "ksp_view_eigenvalues": None,
+        "ksp_converged_reason": None,
+        "pc_factor_mat_solver_type": "mumps",
+    }
+    if order == 1:
+        sparams["ksp_type"] = "minres"
+        sparams["ksp_norm_type"] = "preconditioned"
+        sparams["pc_type"] = "cholesky"
+    else:
+        sparams["ksp_type"] = "gmres"
+        sparams["ksp_pc_side"] = "right"
+        sparams["pc_type"] = "lu"
+
+    stepper = TimeStepper(F, scheme, t, dt, z,
+                          bcs=bcs, Fp=Fp, solver_parameters=sparams)
+
+    ksp = stepper.solver.snes.ksp
+    u, p = z.subfunctions
+    u.interpolate(uexact)
+    p.interpolate(pexact)
+    for step in range(N):
+        stepper.stages.zero()
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+        eigs = ksp.computeEigenvalues()
+
+        # There should be a single positive eigenvalue equal to one
+        assert numpy.allclose(eigs[numpy.real(eigs) > 0], 1)
+
+        # The negative eigenvalues should be bounded from the left
+        if isinstance(scheme, ContinuousPetrovGalerkinScheme):
+            bound = 2/3
+        else:
+            bound = 1/2
+        assert min(numpy.real(eigs)) >= -bound
+
+        # Eigenvalues must be bounded away from 0
+        assert abs(min(eigs, key=abs)) > 0.05
+
+        # All eigenvalues must be real
+        assert numpy.allclose(numpy.imag(eigs), 0)
+
+
+@pytest.mark.parametrize('stage_type', ("value", "deriv"))
+@pytest.mark.parametrize('order', (1, 2))
+def test_bbm_underintegrated_preconditioner(stage_type, order):
+    N = 8000
+    L = 100
+    msh = PeriodicIntervalMesh(N, L)
+    x, = SpatialCoordinate(msh)
+
+    t = Constant(0)
+    inv_dt = N // (10 * L)
+    tfinal = 18
+    Nt = tfinal * inv_dt
+    dt = Constant(tfinal / Nt)
+    Nt = 10
+
+    c = Constant(0.5)
+    center = Constant(40.0)
+    delta = -c * center
+
+    def sech(x):
+        return 2 / (exp(x) + exp(-x))
+
+    uexact = 3 * c**2 / (1-c**2) * sech(0.5 * (c * x - c * t / (1 - c ** 2) + delta))**2
+
+    def h1inner(u, v):
+        return inner(u, v) + inner(grad(u), grad(v))
+
+    def I1(u):
+        return u * dx
+
+    def I2(u):
+        return 0.5 * h1inner(u, u) * dx
+
+    def I3(u):
+        return (u**2 / 2 + u**3 / 6) * dx
+
+    V = FunctionSpace(msh, "Hermite", 3)
+    u = Function(V)
+    v = TestFunction(V)
+    w = TrialFunction(V)
+
+    a = h1inner(w, v) * dx
+    solve(a == h1inner(uexact, v)*dx, u)
+
+    time_order_high = 3 * order - 1
+    Lhigh = TimeQuadratureLabel(time_order_high)
+
+    dHdu = derivative(I3(u), u, v)
+    F = h1inner(Dt(u), v)*dx + Lhigh(-dHdu(v.dx(0)))
+
+    # Drop quadrature labels to define an under-integrated preconditioner
+    Fp = as_form(F)
+
+    sparams = {
+        "mat_type": "matfree",
+        "pmat_type": "aij",
+        "ksp_type": "gmres",
+        "ksp_max_it": 5,
+        "snes_atol": 0,
+        "snes_rtol": 1E-14,
+        "ksp_atol": 0,
+        "ksp_rtol": 1E-12,
+        "pc_type": "lu",
+        "pc_factor_mat_solver_type": "mumps",
+    }
+
+    scheme = GalerkinCollocationScheme(order, stage_type=stage_type)
+    stepper = TimeStepper(F, scheme, t, dt, u,
+                          Fp=Fp, solver_parameters=sparams)
+
+    times = [float(t)]
+    functionals = (I1(u), I2(u), I3(u))
+    invariants = [tuple(map(assemble, functionals))]
+    for _ in range(Nt):
+        stepper.advance()
+
+        invariants.append(tuple(map(assemble, functionals)))
+        i1, i2, i3 = invariants[-1]
+        t.assign(float(t) + float(dt))
+        times.append(float(t))
+
+        print(f'{float(t):.15f}, {i1:.15f}, {i2:.15f}, {i3:.15f}')
+
+        iprev = invariants[-2]
+        icur = invariants[-1]
+        assert numpy.allclose(iprev[0], icur[0], atol=1e-14)
+        assert numpy.allclose(iprev[2], icur[2], atol=1e-14)
