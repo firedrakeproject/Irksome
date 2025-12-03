@@ -80,9 +80,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     """
     def __init__(self, F, t, dt, u0, num_stages,
-                 bcs=None, Fp=None,
-                 solver_parameters=None, appctx=None,
-                 nullspace=None, transpose_nullspace=None, near_nullspace=None,
+                 bcs=None, Fp=None, solver_parameters=None,
+                 appctx=None, nullspace=None,
+                 transpose_nullspace=None, near_nullspace=None,
                  splitting=None, bc_type=None,
                  butcher_tableau=None, bounds=None,
                  **kwargs):
