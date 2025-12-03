@@ -181,10 +181,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     aux_bc_data = lambda bc: [evaluate_dof(dof, as_ufl(bc._original_arg)) for dof in test_dicts]
 
     i0, = L_trial.entity_dofs()[0][0]
-    if len(bcs) == 0:
-        bc_data = None
-
-    elif bc_type == "ODE":
+    if bc_type == "ODE" or len(bcs) == 0:
         nodes = list(L_trial.dual_basis())
         del nodes[i0]
         trial_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
