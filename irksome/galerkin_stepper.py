@@ -7,6 +7,7 @@ from ufl import as_ufl, as_tensor
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, extract_bcs, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
+from .estimate_degrees import TimeDegreeEstimator
 from .labeling import split_quadrature
 from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
 from .tools import AI, IA, dot, fields_to_components, reshape, replace, vecconst
@@ -73,6 +74,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
+    assert qpts.size >= L_test.space_dimension()
     tabulate_trials = L_trial.tabulate(1, qpts)
     trial_vals = tabulate_trials[(0,)]
     trial_dvals = tabulate_trials[(1,)]
@@ -150,16 +152,13 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     """
     if bc_type is None:
         bc_type = "DAE"
-
-    assert L_test.get_reference_element() == Qdefault.ref_el
-    assert L_trial.get_reference_element() == Qdefault.ref_el
-    assert Qdefault.ref_el.get_spatial_dimension() == 1
+    assert L_test.get_reference_element() == L_trial.get_reference_element()
     assert L_trial.space_dimension() == L_test.space_dimension() + 1
 
     Vbig = stages.function_space()
     test = TestFunction(Vbig)
 
-    splitting = split_quadrature(F, Qdefault=Qdefault)
+    splitting = split_quadrature(F, L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,), Qdefault=Qdefault)
     Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
                for Q, Fcur in splitting.items())
 
@@ -167,6 +166,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     V = u0.function_space()
     if bcs is None:
         bcs = []
+    bcs = extract_bcs(bcs)
     bcsnew = []
 
     # list of dictionaries mapping time coordinates to weights to evaluate DOFs
@@ -181,7 +181,10 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     aux_bc_data = lambda bc: [evaluate_dof(dof, as_ufl(bc._original_arg)) for dof in test_dicts]
 
     i0, = L_trial.entity_dofs()[0][0]
-    if bc_type == "ODE":
+    if len(bcs) == 0:
+        bc_data = None
+
+    elif bc_type == "ODE":
         nodes = list(L_trial.dual_basis())
         del nodes[i0]
         trial_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
@@ -199,6 +202,12 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
 
         bc_data = lambda bc: [evaluate_trial_dof(bc, pt, dpt) for pt, dpt in zip(trial_dicts, dtrial_dicts)]
     elif bc_type == "DAE":
+        if Qdefault == "auto":
+            # create a quadrature for the boundary conditions
+            de = TimeDegreeEstimator(L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
+            bc_degree = max(max(de(as_ufl(bc._original_arg)) for bc in bcs), L_trial.degree())
+            Qdefault = create_time_quadrature(bc_degree + L_test.degree())
+
         # mass-ish matrix for BC, based on default quadrature rule
         qpts = Qdefault.get_points()
         qwts = Qdefault.get_weights()
@@ -226,7 +235,6 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
         raise ValueError(f"Unrecognised bc_type: {bc_type}")
 
     num_stages = L_test.space_dimension()
-    bcs = extract_bcs(bcs)
     for bc in bcs:
         if isinstance(bc, EquationBCSplit):
             raise NotImplementedError("EquationBC not implemented for Galerkin-in-Time")
@@ -301,9 +309,11 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         quad_scheme = scheme.quadrature_scheme
         if quad_scheme is None and isinstance(self.test_el, GaussRadau):
             quad_scheme = "radau"
-        quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
-        assert np.size(quadrature.get_points()) >= num_stages
 
+        if quad_degree == "auto":
+            quadrature = "auto"
+        else:
+            quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
         self.quadrature = quadrature
         self.aux_indices = aux_indices
         if isinstance(scheme, GalerkinCollocationScheme):

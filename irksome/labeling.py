@@ -35,12 +35,16 @@ class TimeQuadratureRule:
         return np.asarray(self.w)
 
 
+def has_quad_labels(term):
+    return any(isinstance(label, TimeQuadratureRule) for label in term.labels)
+
+
 def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timedep_coeffs=None):
     """
     Estimates the polynomial degree in time for each integral in the given form and labels
     each term with a quadrature rule to be used time integration.
 
-    :arg form: a :class:`Form`.
+    :arg form: a :class:`Form` or a partially labelled :class:`LabelledForm`.
     :arg test_degree: the temporal polynomial degree of the test space.
     :arg trial_degree: the temporal polynomial degree of the trial space.
     :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
@@ -48,26 +52,49 @@ def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timede
 
     :returns: a :class:`LabelledForm` labelled by :class:`TimeQuaradratureRule` instances.
     """
-    if not isinstance(form, Form):
-        return form
+    if isinstance(form, Form):
+        remainder = None
+    elif isinstance(form, LabelledForm):
+        remainder = form.label_map(has_quad_labels, map_if_true=keep, map_if_false=drop)
+        form = as_form(form.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep))
+    else:
+        raise ValueError(f"Expecting a Form or LabelledForm, not {type(form).__name__}")
+    if form.empty():
+        return remainder
+
+    # Group integrals by degree
     de = TimeDegreeEstimator(test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs)
-    terms = []
+    terms = defaultdict(list)
     for it in form.integrals():
-        degree = de(it.integrand())
-        label = TimeQuadratureLabel(degree)
-        terms.append(label(Form([it])))
-    return sum(terms, Form([]))
+        terms[de(it.integrand())].append(it)
+
+    F = remainder
+    for deg, its in terms.items():
+        label = TimeQuadratureLabel(deg)
+        term = label(Form(its))
+        if F is None:
+            F = term
+        else:
+            F += term
+    return F
 
 
-def split_quadrature(F, Qdefault=None):
+def split_quadrature(F, test_degree, trial_degree, t=None, timedep_coeffs=None, Qdefault="auto"):
     """Splits a :class:`LabelledForm` into the terms to be integrated in time by the
     different :class:`TimeQuadratureRule` objects used as labels.
 
-    :arg F: a :class:`LabelledForm`.
+    :arg F: a :class:`LabelledForm` or a partially labelled :class:`LabelledForm`.
+    :arg test_degree: the temporal polynomial degree of the test space.
+    :arg trial_degree: the temporal polynomial degree of the trial space.
+    :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
+    :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
     :kwarg Qdefault: the :class:`TimeQuadratureRule` to be applied on unlabelled terms.
 
     :returns: a `dict` mapping unique :class:`TimeQuadratureRule` objects to the :class:`Form` to be integrated in time.
     """
+    if Qdefault == "auto":
+        F = apply_time_quadrature_labels(F, test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs)
+
     if not isinstance(F, LabelledForm):
         return {Qdefault: F}
 
@@ -80,8 +107,12 @@ def split_quadrature(F, Qdefault=None):
             raise ValueError("Multiple quadrature labels on one term.")
 
     splitting = {}
-    splitting[Qdefault] = F.label_map(lambda t: len(quad_labels.intersection(t.labels)) == 0,
-                                      map_if_true=keep, map_if_false=drop)
+    Fdefault = as_form(F.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep))
+    if Qdefault == "auto":
+        # every term must have been labelled at this point
+        assert Fdefault.empty()
+    else:
+        splitting[Qdefault] = Fdefault
     for Q in quad_labels:
         splitting[Q] = F.label_map(lambda t: Q in t.labels, map_if_true=keep, map_if_false=drop)
 

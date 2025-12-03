@@ -62,10 +62,11 @@ def run_1d_heat_dirichletbc(scheme, **kwargs):
         assert isclose(u.at(x1), u_1)
 
 
+@pytest.mark.parametrize("quad_degree", [None, "auto"])
 @pytest.mark.parametrize("order", [1, 3])
 @pytest.mark.parametrize("basis_type", ("Lagrange", "Bernstein", "integral"))
-def test_1d_heat_dirichletbc(order, basis_type):
-    scheme = ContinuousPetrovGalerkinScheme(order, basis_type)
+def test_1d_heat_dirichletbc(order, basis_type, quad_degree):
+    scheme = ContinuousPetrovGalerkinScheme(order, basis_type, quadrature_degree=quad_degree)
     run_1d_heat_dirichletbc(scheme)
 
 
@@ -80,7 +81,7 @@ def test_1d_heat_dirichletbc_collocation(order, stage_type, quad_scheme):
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-@pytest.mark.parametrize("quad_degree", [None, 6])
+@pytest.mark.parametrize("quad_degree", [None, "auto", 6])
 def test_1d_heat_neumannbc(order, quad_degree):
     N = 20
     msh = UnitIntervalMesh(N)
