@@ -57,7 +57,7 @@ class TimeDegreeEstimator(DAGTraverser):
     @process.register(TimeDerivative)
     @DAGTraverser.postorder
     def time_derivative(self, o, degree):
-        return degree - 1
+        return max(degree - 1, 0)
 
     @process.register(Abs)
     @process.register(Conj)
@@ -159,8 +159,10 @@ def estimate_time_degree(expression, test_degree, trial_degree, t=None, timedep_
     if isinstance(expression, Form):
         if not expression.integrals():
             return 0
-        return max(map(de, (it.integrand() for it in expression.integrals())))
+        degree = max(map(de, (it.integrand() for it in expression.integrals())))
     elif isinstance(expression, Integral):
-        return de(expression.integrand())
+        degree = de(expression.integrand())
     else:
-        return de(expression)
+        degree = de(expression)
+    default_degree = test_degree + trial_degree
+    return default_degree if degree is None else degree

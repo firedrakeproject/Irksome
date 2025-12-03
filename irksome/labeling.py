@@ -2,6 +2,7 @@ from ufl import Form
 from firedrake.fml import Label, keep, drop, LabelledForm
 from collections import defaultdict
 from .scheme import create_time_quadrature
+from .estimate_degrees import TimeDegreeEstimator
 import numpy as np
 
 explicit = Label("explicit")
@@ -32,6 +33,30 @@ class TimeQuadratureRule:
 
     def get_weights(self):
         return np.asarray(self.w)
+
+
+def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timedep_coeffs=None):
+    """
+    Estimates the polynomial degree in time for each integral in the given form and labels
+    each term with a quadrature rule to be used time integration.
+
+    :arg form: a :class:`Form`.
+    :arg test_degree: the temporal polynomial degree of the test space.
+    :arg trial_degree: the temporal polynomial degree of the trial space.
+    :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
+    :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
+
+    :returns: a :class:`LabelledForm` labelled by :class:`TimeQuaradratureRule` instances.
+    """
+    if not isinstance(form, Form):
+        return form
+    de = TimeDegreeEstimator(test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs)
+    terms = []
+    for it in form.integrals():
+        degree = de(it.integrand())
+        label = TimeQuadratureLabel(degree)
+        terms.append(label(Form([it])))
+    return sum(terms, Form([]))
 
 
 def split_quadrature(F, Qdefault=None):

@@ -20,7 +20,6 @@ def V(request, mesh):
 
 def test_time():
     k = 3
-
     t = Constant(0)
     expr = t
     expected = 1
@@ -30,13 +29,17 @@ def test_time():
     expected = 2
     assert estimate_time_degree(expr, k-1, k, t=t, timedep_coeffs=()) == expected
 
+    expr = Dt((t-1)**2)
+    expected = 1
+    assert estimate_time_degree(expr, k-1, k, t=t, timedep_coeffs=()) == expected
 
-@pytest.mark.parametrize("order", (1, 2, 3))
+
+@pytest.mark.parametrize("order", range(5))
 def test_time_derivative(V, order):
     k = 3
     u = Function(V)
-    expr = Dt(u, order)
-    expected = k - order
+    expr = u if order == 0 else Dt(u, order)
+    expected = max(k - order, 0)
     time_degree = estimate_time_degree(expr, k-1, k, timedep_coeffs=(u,))
     assert time_degree == expected
 
