@@ -83,7 +83,7 @@ def split_quadrature(F, test_degree, trial_degree, t=None, timedep_coeffs=None, 
     """Splits a :class:`LabelledForm` into the terms to be integrated in time by the
     different :class:`TimeQuadratureRule` objects used as labels.
 
-    :arg F: a :class:`LabelledForm` or a partially labelled :class:`LabelledForm`.
+    :arg F: a :class:`Form` or a :class:`LabelledForm`.
     :arg test_degree: the temporal polynomial degree of the test space.
     :arg trial_degree: the temporal polynomial degree of the trial space.
     :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
