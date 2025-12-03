@@ -18,17 +18,17 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None):
     assert V == u0.function_space()
 
     num_stages = butch.num_stages
+
+    # Note: the Constant c is used for substitution in both the
+    # variational form and BC's, and we update it for each stage in
+    # the loop over stages in the advance method.  The Constant a is
+    # used similarly in the variational form
     MC = MeshConstant(V.mesh())
     if kgac is None:
         k = Function(V)
         g = Function(V)
-
-        # Note: the Constant c is used for substitution in both the
-        # variational form and BC's, and we update it for each stage in
-        # the loop over stages in the advance method.  The Constant a is
-        # used similarly in the variational form
-        c = MC.Constant(1.0)
         a = MC.Constant(1.0)
+        c = MC.Constant(1.0)
     else:
         k, g, a, c = kgac
 
