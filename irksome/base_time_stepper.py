@@ -106,7 +106,6 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.stages = stages
 
         Fbig, bigBCs = self.get_form_and_bcs(stages)
-        Jbig = None
         Jpbig = None
         if Fp is not None:
             Fpbig, _ = self.get_form_and_bcs(stages, F=Fp, bcs=())
@@ -121,7 +120,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.bigBCs = bigBCs
 
         self.problem = NonlinearVariationalProblem(
-            Fbig, stages, bcs=bigBCs, J=Jbig, Jp=Jpbig,
+            Fbig, stages, bcs=bigBCs, Jp=Jpbig,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
