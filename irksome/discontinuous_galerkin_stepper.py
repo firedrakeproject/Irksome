@@ -218,8 +218,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         return getFormDiscGalerkin(F or self.F,
                                    el,
                                    quadrature or self.quadrature,
-                                   self.t, self.dt,
-                                   self.u0, stages, bcs)
+                                   self.t, self.dt, self.u0, stages, bcs)
 
     def _update(self):
         stages_np = np.array(self.stages.subfunctions, dtype=object)
