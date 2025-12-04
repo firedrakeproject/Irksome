@@ -267,14 +267,16 @@ def kepler(V, order, t, dt, u0, solver_parameters):
     p = as_vector([u[k] for k in range(dim)])
     q = as_vector([u[k] for k in range(dim, 2*dim)])
     J = as_matrix(np.kron([[0, -1], [1, 0]], np.eye(dim)))
-    H = (0.5*dot(p, p) - 1/sqrt(dot(q, q)))*dx
 
-    Lhigh = TimeQuadratureLabel(25)
+    T = 0.5*dot(p, p)
+    U = -dot(q, q)**-0.5
+    H = (T + U)*dx
 
     test = TestFunction(V)
     dHdu = derivative(H, u, test)
-    F = inner(Dt(u), test)*dx + Lhigh(-replace(dHdu, {test: dot(J.T, test)}))
-    scheme = ContinuousPetrovGalerkinScheme(order)
+
+    F = inner(Dt(u), test)*dx - dHdu(dot(J.T, test))
+    scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree="auto")
     stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=solver_parameters)
     return stepper, [H]
 
@@ -286,12 +288,11 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     z.subfunctions[0].interpolate(u0)
 
     u, w0, w1, w2 = split(z)
-    u = variable(u)
     p = as_vector([u[k] for k in range(dim)])
     q = as_vector([u[k] for k in range(dim, 2*dim)])
 
     T = 0.5*dot(p, p)
-    U = -1/sqrt(dot(q, q))
+    U = -dot(q, q)**-0.5
 
     # Invariants
     H = T + U
@@ -299,29 +300,33 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     A1, A2 = U*q - L*perp(p)
 
     invariants = [H*dx, L*dx, A1*dx, A2*dx]
-    dHdu = diff(H, u)
-    dA1du = diff(A1, u)
-    dA2du = diff(A2, u)
 
     test = TestFunction(Z)
     test_u, v0, v1, v2 = split(test)
-
-    Llow = TimeQuadratureLabel(2*order-2)
-    Lhigh = TimeQuadratureLabel(25)
+    dHdu = derivative(H*dx, u, v0)
+    dA1du = derivative(A1*dx, u, v1)
+    dA2du = derivative(A2*dx, u, v2)
 
     # determinant_forms = [test_u, dHdu, dA1du, dA2du]
     determinant_forms = [test_u, w0, w1, w2]
     tensor = as_tensor(determinant_forms)
 
-    F = Llow(inner(Dt(u), test_u)*dx - (det(tensor) / (2*L*H))*dx)
-    F += Llow(inner(w0, v0)*dx) + Lhigh(-inner(dHdu, v0)*dx)
-    F += Llow(inner(w1, v1)*dx) + Lhigh(-inner(dA1du, v1)*dx)
-    F += Llow(inner(w2, v2)*dx) + Lhigh(-inner(dA2du, v2)*dx)
+    Llow = TimeQuadratureLabel(2*order-2)
+    Lmid = TimeQuadratureLabel(2*order-1)
+    if order == 1:
+        # Manually bump the last two terms
+        Lhigh = TimeQuadratureLabel(8)
+    else:
+        Lhigh = lambda x: x
+
+    F = inner(Dt(u), test_u)*dx + Lmid(-(det(tensor) / (2*L*H))*dx)
+    F += Llow(inner(w0, v0)*dx + inner(w1, v1)*dx + inner(w2, v2)*dx)
+    F -= dHdu + Lhigh(dA1du + dA2du)
 
     # Auxiliary variable subspaces
     aux_indices = list(range(1, len(Z)))
 
-    scheme = ContinuousPetrovGalerkinScheme(order)
+    scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree="auto")
     stepper = TimeStepper(F, scheme, t, dt, z,
                           solver_parameters=solver_parameters,
                           aux_indices=aux_indices)
@@ -360,4 +365,4 @@ def test_kepler(problem, order):
         t += dt
         Et = np.asarray(list(map(assemble, invariants)))
         print(float(t), Et)
-        assert np.allclose(E0, Et)
+        assert np.allclose(E0, Et, atol=1E-14)

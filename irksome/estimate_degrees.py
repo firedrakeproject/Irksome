@@ -9,7 +9,8 @@ from ufl.classes import (
     ReferenceValue, Variable, ComponentTensor, IndexSum, Skew, Sym, Trace,
     Transposed, Determinant, Inverse, Division, Product, Inner, Dot, Outer,
     Cross, Sum, ListTensor, ExprList, ExprMapping, Power, MathFunction,
-    Conditional, Condition, MultiIndex, MaxValue, MinValue, Form, Integral,
+    Conditional, Condition, MultiIndex, MaxValue, MinValue, Form, Integral, Label,
+    Cofactor,
 )
 
 from .deriv import TimeDerivative
@@ -71,19 +72,29 @@ class TimeDegreeEstimator(DAGTraverser):
     @process.register(Variable)
     @process.register(ComponentTensor)
     @process.register(IndexSum)
-    @process.register(Skew)
-    @process.register(Sym)
-    @process.register(Trace)
-    @process.register(Transposed)
     @DAGTraverser.postorder
     def terminal_modifier(self, o, degree, *ops):
         return degree
 
+    @process.register(Cofactor)
+    @process.register(Skew)
+    @process.register(Sym)
+    @process.register(Trace)
+    @process.register(Transposed)
     @process.register(Determinant)
     @process.register(Inverse)
     @DAGTraverser.postorder
     def not_handled(self, v, *ops):
+        # We should not be here after preprocessing with apply_algebra_lowering
         raise NotImplementedError(f"Degree estimation for {type(v).__name__} not handled.")
+
+    @process.register(Sum)
+    @process.register(ListTensor)
+    @process.register(ExprList)
+    @process.register(ExprMapping)
+    @DAGTraverser.postorder
+    def max_degree(self, v, *ops):
+        return 0 if len(ops) == 0 else max(ops)
 
     @process.register(Division)
     @process.register(Product)
@@ -94,14 +105,6 @@ class TimeDegreeEstimator(DAGTraverser):
     @DAGTraverser.postorder
     def add_degrees(self, v, *ops):
         return sum(ops)
-
-    @process.register(Sum)
-    @process.register(ListTensor)
-    @process.register(ExprList)
-    @process.register(ExprMapping)
-    @DAGTraverser.postorder
-    def max_degree(self, v, *ops):
-        return max(ops)
 
     @process.register(Power)
     @DAGTraverser.postorder
@@ -147,6 +150,7 @@ class TimeDegreeEstimator(DAGTraverser):
     def minmax(self, v, *ops):
         return max(*ops)
 
+    @process.register(Label)
     @process.register(Condition)
     @process.register(MultiIndex)
     @DAGTraverser.postorder

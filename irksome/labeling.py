@@ -1,3 +1,4 @@
+from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl import Form
 from firedrake.fml import Label, keep, drop, LabelledForm
 from collections import defaultdict
@@ -61,6 +62,8 @@ def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timede
         raise ValueError(f"Expecting a Form or LabelledForm, not {type(form).__name__}")
     if form.empty():
         return remainder
+    # Need to preprocess Inverse and Determinant
+    form = apply_algebra_lowering(form)
 
     # Group integrals by degree
     de = TimeDegreeEstimator(test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs)
