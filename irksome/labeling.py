@@ -40,7 +40,7 @@ def has_quad_labels(term):
     return any(isinstance(label, TimeQuadratureRule) for label in term.labels)
 
 
-def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timedep_coeffs=None):
+def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timedep_coeffs=None, scheme=None):
     """
     Estimates the polynomial degree in time for each integral in the given form and labels
     each term with a quadrature rule to be used for time integration.
@@ -50,6 +50,7 @@ def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timede
     :arg trial_degree: the temporal polynomial degree of the trial space.
     :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
     :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
+    :kwarg scheme: a string with the quadrature scheme.
 
     :returns: a :class:`LabelledForm` labelled by :class:`TimeQuaradratureRule` instances.
     """
@@ -73,7 +74,7 @@ def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timede
 
     F = remainder
     for deg, its in terms.items():
-        label = TimeQuadratureLabel(deg)
+        label = TimeQuadratureLabel(deg, scheme=scheme)
         term = label(Form(its))
         if F is None:
             F = term
@@ -82,7 +83,7 @@ def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timede
     return F
 
 
-def split_quadrature(F, test_degree, trial_degree, t=None, timedep_coeffs=None, Qdefault="auto"):
+def split_quadrature(F, test_degree, trial_degree, t=None, timedep_coeffs=None, Qdefault=None):
     """Splits a :class:`LabelledForm` into the terms to be integrated in time by the
     different :class:`TimeQuadratureRule` objects used as labels.
 
@@ -92,11 +93,15 @@ def split_quadrature(F, test_degree, trial_degree, t=None, timedep_coeffs=None, 
     :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
     :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
     :kwarg Qdefault: the :class:`TimeQuadratureRule` to be applied on unlabelled terms.
+        Alternatively, a string indicating the quadrature scheme,
+        in which case the degree is automatically estimated for each unlabelled term.
 
     :returns: a `dict` mapping unique :class:`TimeQuadratureRule` objects to the :class:`Form` to be integrated in time.
     """
-    if Qdefault == "auto":
-        F = apply_time_quadrature_labels(F, test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs)
+    do_estimate_degrees = Qdefault is None or isinstance(Qdefault, str)
+    if do_estimate_degrees:
+        scheme = Qdefault
+        F = apply_time_quadrature_labels(F, test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs, scheme=scheme)
 
     if not isinstance(F, LabelledForm):
         return {Qdefault: F}
@@ -111,7 +116,7 @@ def split_quadrature(F, test_degree, trial_degree, t=None, timedep_coeffs=None, 
 
     splitting = {}
     Fdefault = as_form(F.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep))
-    if Qdefault == "auto":
+    if do_estimate_degrees:
         # every term must have been labelled at this point
         assert Fdefault.empty()
     else:

@@ -199,11 +199,11 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
 
         bc_data = lambda bc: [evaluate_trial_dof(bc, pt, dpt) for pt, dpt in zip(trial_dicts, dtrial_dicts)]
     elif bc_type == "DAE":
-        if Qdefault == "auto":
+        if Qdefault is None or isinstance(Qdefault, str):
             # create a quadrature for the boundary conditions
             de = TimeDegreeEstimator(L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
             bc_degree = max(max(de(as_ufl(bc._original_arg)) for bc in bcs), L_trial.degree())
-            Qdefault = create_time_quadrature(bc_degree + L_test.degree())
+            Qdefault = create_time_quadrature(bc_degree + L_test.degree(), scheme=Qdefault)
 
         # mass-ish matrix for BC, based on default quadrature rule
         qpts = Qdefault.get_points()
@@ -308,7 +308,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             quad_scheme = "radau"
 
         if quad_degree == "auto":
-            quadrature = "auto"
+            quadrature = quad_scheme
         else:
             quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
         self.quadrature = quadrature
