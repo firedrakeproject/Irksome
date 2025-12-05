@@ -24,7 +24,7 @@ def Fubc(V, t, uexact, Lhigh=None):
     u.interpolate(uexact)
     v = TestFunction(V)
     rhs = Dt(uexact) - div(grad(uexact)) - uexact * (1-uexact)
-    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx + Lhigh(-inner(u*(1-u), v)*dx) + Lhigh(-inner(rhs, v)*dx)
+    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx + Lhigh(-inner(u*(1-u), v)*dx - inner(rhs, v)*dx)
     bc = DirichletBC(V, uexact, "on_boundary")
     return (F, u, bc)
 

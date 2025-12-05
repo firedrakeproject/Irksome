@@ -1,7 +1,9 @@
+from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl import Form
 from firedrake.fml import Label, keep, drop, LabelledForm
 from collections import defaultdict
 from .scheme import create_time_quadrature
+from .estimate_degrees import TimeDegreeEstimator
 import numpy as np
 
 explicit = Label("explicit")
@@ -34,15 +36,73 @@ class TimeQuadratureRule:
         return np.asarray(self.w)
 
 
-def split_quadrature(F, Qdefault=None):
+def has_quad_labels(term):
+    return any(isinstance(label, TimeQuadratureRule) for label in term.labels)
+
+
+def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timedep_coeffs=None, scheme=None):
+    """
+    Estimates the polynomial degree in time for each integral in the given form and labels
+    each term with a quadrature rule to be used for time integration.
+
+    :arg form: a :class:`Form` or a partially labelled :class:`LabelledForm`.
+    :arg test_degree: the temporal polynomial degree of the test space.
+    :arg trial_degree: the temporal polynomial degree of the trial space.
+    :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
+    :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
+    :kwarg scheme: a string with the quadrature scheme.
+
+    :returns: a :class:`LabelledForm` labelled by :class:`TimeQuaradratureRule` instances.
+    """
+    if isinstance(form, Form):
+        remainder = None
+    elif isinstance(form, LabelledForm):
+        remainder = form.label_map(has_quad_labels, map_if_true=keep, map_if_false=drop)
+        form = as_form(form.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep))
+    else:
+        raise ValueError(f"Expecting a Form or LabelledForm, not {type(form).__name__}")
+    if form.empty():
+        return remainder
+    # Need to preprocess Inverse and Determinant
+    form = apply_algebra_lowering(form)
+
+    # Group integrals by degree
+    de = TimeDegreeEstimator(test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs)
+    terms = defaultdict(list)
+    for it in form.integrals():
+        terms[de(it.integrand())].append(it)
+
+    F = remainder
+    for deg, its in terms.items():
+        label = TimeQuadratureLabel(deg, scheme=scheme)
+        term = label(Form(its))
+        if F is None:
+            F = term
+        else:
+            F += term
+    return F
+
+
+def split_quadrature(F, test_degree, trial_degree, t=None, timedep_coeffs=None, Qdefault=None):
     """Splits a :class:`LabelledForm` into the terms to be integrated in time by the
     different :class:`TimeQuadratureRule` objects used as labels.
 
-    :arg F: a :class:`LabelledForm`.
+    :arg F: a :class:`Form` or a :class:`LabelledForm`.
+    :arg test_degree: the temporal polynomial degree of the test space.
+    :arg trial_degree: the temporal polynomial degree of the trial space.
+    :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
+    :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
     :kwarg Qdefault: the :class:`TimeQuadratureRule` to be applied on unlabelled terms.
+        Alternatively, a string indicating the quadrature scheme,
+        in which case the degree is automatically estimated for each unlabelled term.
 
     :returns: a `dict` mapping unique :class:`TimeQuadratureRule` objects to the :class:`Form` to be integrated in time.
     """
+    do_estimate_degrees = Qdefault is None or isinstance(Qdefault, str)
+    if do_estimate_degrees:
+        scheme = Qdefault
+        F = apply_time_quadrature_labels(F, test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs, scheme=scheme)
+
     if not isinstance(F, LabelledForm):
         return {Qdefault: F}
 
@@ -55,8 +115,12 @@ def split_quadrature(F, Qdefault=None):
             raise ValueError("Multiple quadrature labels on one term.")
 
     splitting = {}
-    splitting[Qdefault] = F.label_map(lambda t: len(quad_labels.intersection(t.labels)) == 0,
-                                      map_if_true=keep, map_if_false=drop)
+    Fdefault = as_form(F.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep))
+    if do_estimate_degrees:
+        # every term must have been labelled at this point
+        assert Fdefault.empty()
+    else:
+        splitting[Qdefault] = Fdefault
     for Q in quad_labels:
         splitting[Q] = F.label_map(lambda t: Q in t.labels, map_if_true=keep, map_if_false=drop)
 
