@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Welcome to Irksome &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/fenics.css?v=c6f455f8" />
+    <script src="_static/documentation_options.js?v=41c113e4"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Solving the Heat Equation with Irksome" href="demos/demo_heat.py.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="#"><img src="_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="index">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="welcome-to-irksome">
+<h1>Welcome to Irksome<a class="headerlink" href="#welcome-to-irksome" title="Link to this heading">¶</a></h1>
+<p>Irksome is a Python library that adds a temporal discretization layer on top of
+finite element discretizations provided by <a class="reference external" href="https://firedrakeproject.org">Firedrake</a>.  We provide a symbolic
+representation of time derivatives in UFL, allowing users to write weak forms
+of semidiscrete PDE.  Irksome maps this and a Butcher tableau encoding a Runge-Kutta method into a fully discrete variational problem for the stage values.  Irksome then leverages existing advanced solver technology in Firedrake and <a class="reference external" href="https://petsc.org">PETSc</a> to allow for efficient computation of the Runge-Kutta stages.
+Convenience classes package the underlying lower-level manipulations and present users with a friendly high-level interface time stepping.</p>
+<p>So, instead of manually coding UFL for backward Euler for the heat equation:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">F</span> <span class="o">=</span> <span class="n">inner</span><span class="p">((</span><span class="n">unew</span> <span class="o">-</span> <span class="n">uold</span><span class="p">)</span> <span class="o">/</span> <span class="n">dt</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">unew</span><span class="p">),</span> <span class="n">grad</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="o">*</span> <span class="n">dx</span>
+</pre></div>
+</div>
+<p>and rewriting this if you want a different time-stepping method, Irksome lets you write UFL for a semidiscrete form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">F</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">grad</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="o">*</span> <span class="n">dx</span>
+</pre></div>
+</div>
+<p>and maps this and a Butcher tableau for some Runge-Kutta method to UFL for a fully-discrete method.  Hence, switching between RK methods is plug-and-play.</p>
+<p>Irksome provides convenience classes to package the transformation of
+forms and boundary conditions and provide a method to advance by a
+time step.  The underlying variational problem for the (possibly
+implicit!) Runge-Kutta stages composes fully with advanced
+Firedrake/PETSc solver technology, so you can use block
+preconditioners, multigrid with patch smoothers, and more – and in
+parallel, too!</p>
+</section>
+<section id="acknowledgements">
+<h1>Acknowledgements<a class="headerlink" href="#acknowledgements" title="Link to this heading">¶</a></h1>
+<p>The Irksome team is deeply grateful to David Ham for setting up our initial documentation and Jack Betteridge for initializing the CI.  Ivan Yashchuk set up the GitHub Actions.
+Lawrence Mitchell provided early assistance on some UFL manipulation and documentation.</p>
+<a class="reference internal image-reference" href="_images/nsf.png"><img alt="NSF Logo" class="align-center" src="_images/nsf.png" style="width: 25%;" />
+</a>
+<p>We also acknowledge support from NSF 2410408.</p>
+</section>
+<section id="getting-started">
+<h1>Getting started<a class="headerlink" href="#getting-started" title="Link to this heading">¶</a></h1>
+<p>Irksome requires <a class="reference external" href="https://www.firedrakeproject.org/">Firedrake</a>.
+Instructions for installing Firedrake can be found
+<a class="reference external" href="https://www.firedrakeproject.org/install.html">here</a>.
+Once Firedrake is installed you can install Irksome by running:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ pip install --src . --editable git+https://github.com/firedrakeproject/Irksome.git#egg=Irksome
+</pre></div>
+</div>
+<p>or, equivalently:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ git clone https://github.com/firedrakeproject/Irksome.git
+$ pip install --editable ./Irksome
+</pre></div>
+</div>
+</section>
+<section id="tutorials">
+<h1>Tutorials<a class="headerlink" href="#tutorials" title="Link to this heading">¶</a></h1>
+<p>After your installation works, please check out our demos.</p>
+<p>The best place to start are with some simple heat and wave equations:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_heat.py.html">Solving the Heat Equation with Irksome</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_mixed_heat.py.html">Solving the Mixed form of the Heat Equation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_RTwave.py.html">Solving the Mixed Wave Equation: Energy conservation</a></li>
+</ul>
+</div>
+<p>To see a nonlinear problem in action, we have a simple lid-driven
+cavity example, too:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_nse.py.html">Solving the Navier-Stokes Equations with Irksome</a></li>
+</ul>
+</div>
+<p>Since those demos invariably rely on the non-scalable LU factorization,
+we have several demos showing how to work with Firedrake solver options
+to deploy more efficient methods:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_heat_pc.py.html">Block diagonal preconditioners for the heat equation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_heat_mg.py.html">Solving the heat equation with monolithic multigrid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_heat_mg_dg.py.html">Solving the heat equation with monolithic multigrid and Discontinuous Galerkin-in-Time</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_heat_rana.py.html">Rana/Howle/et al preconditioning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_dirk_parameters.py.html">Accessing DIRK methods</a></li>
+</ul>
+</div>
+<p>We now have support for DIRKs:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_heat_dirk.py.html">Solving the Heat Equation with a DIRK in Irksome</a></li>
+</ul>
+</div>
+<p>and for Galerkin-in-Time:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_RTwave_galerkin.py.html">Solving the Mixed Wave Equation: Energy conservation, Multigrid, Galerkin-in-Time</a></li>
+</ul>
+</div>
+<p>and for explicit schemes:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_RTwave_PEP.py.html">Solving the Mixed Wave Equation: Energy conservation and explicit RK</a></li>
+</ul>
+</div>
+<p>and for Nystrom methods for second-order-in-time equations:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_wave.py.html">Solving the Wave Equation with Irksome</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_wave_explicit.py.html">Solving the Wave Equation with Irksome and an explicit Nystrom method</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_wave_mg.py.html">Solving the wave equation with monolithic multigrid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_wave_clines.py.html">Solving the telegraph equation with a stage-decoupled preconditioner</a></li>
+</ul>
+</div>
+<p>and for bounds constraints:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_bounded_heat.py.html">Solving the Heat Equation with Bounds Constraints</a></li>
+</ul>
+</div>
+<p>and for adaptive IRK methods:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_heat_adapt.py.html">Solving the Heat Equation with Irksome</a></li>
+</ul>
+</div>
+<p>Or check out two IMEX-type methods for the monodomain equations:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_monodomain_FHN.py.html">Solving monodomain equations with Fitzhugh-Nagumo reaction and an IMEX method</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_monodomain_FHN_dirkimex.py.html">Solving monodomain equations with Fitzhugh-Nagumo reaction and a DIRK-IMEX method</a></li>
+</ul>
+</div>
+<section id="advanced-demos">
+<h2>Advanced demos<a class="headerlink" href="#advanced-demos" title="Link to this heading">¶</a></h2>
+<p>There’s also an example solving a Sobolev-type equation with symplectic RK methods:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_bbm.py.html">Solving the Benjamin-Bona-Mahony equation</a></li>
+</ul>
+</div>
+<p>and with a Galerkin-in-Time approach, in standard form or with auxiliary variables for alternate conservation properties:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_bbm_galerkin.py.html">Solving the Benjamin-Bona-Mahony equation with Galerkin-in-Time</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_bbm_aux.py.html">Hamiltonian-structure-preserving implementation of the Benjamin-Bona-Mahoney equation</a></li>
+</ul>
+</div>
+<p>Finally, if you feel you must bypass the <code class="xref py py-class docutils literal notranslate"><span class="pre">TimeStepper</span></code>
+abstraction, we have some examples how to interact with Irksome at a
+slightly lower level:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_lowlevel_homogbc.py.html">Not using the TimeStepper interface for the heat equation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_lowlevel_inhomogbc.py.html">Time-dependent BCs and the low-level interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos/demo_lowlevel_mixed_heat.py.html">Mixed problems with the low-level interface</a></li>
+</ul>
+</div>
+</section>
+</section>
+<section id="api-documentation">
+<h1>API documentation<a class="headerlink" href="#api-documentation" title="Link to this heading">¶</a></h1>
+<p>There is also an alphabetical <a class="reference internal" href="genindex.html"><span class="std std-ref">index</span></a>, and a
+<a class="reference internal" href="search.html"><span class="std std-ref">search engine</span></a>.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="irksome.html">irksome package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.ButcherTableaux">irksome.ButcherTableaux module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.ars_dirk_imex_tableaux">irksome.ars_dirk_imex_tableaux module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.base_time_stepper">irksome.base_time_stepper module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.bcs">irksome.bcs module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.deriv">irksome.deriv module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.dirk_imex_tableaux">irksome.dirk_imex_tableaux module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.dirk_stepper">irksome.dirk_stepper module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.discontinuous_galerkin_stepper">irksome.discontinuous_galerkin_stepper module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.estimate_degrees">irksome.estimate_degrees module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.explicit_stepper">irksome.explicit_stepper module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.galerkin_stepper">irksome.galerkin_stepper module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.imex">irksome.imex module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.integrated_lagrange">irksome.integrated_lagrange module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.labeling">irksome.labeling module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.manipulation">irksome.manipulation module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.nystrom_dirk_stepper">irksome.nystrom_dirk_stepper module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.nystrom_stepper">irksome.nystrom_stepper module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.pc">irksome.pc module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.pep_explicit_rk">irksome.pep_explicit_rk module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.scheme">irksome.scheme module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.sspk_tableau">irksome.sspk_tableau module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.stage_derivative">irksome.stage_derivative module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.stage_value">irksome.stage_value module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.stepper">irksome.stepper module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.tools">irksome.tools module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome.wso_dirk_tableaux">irksome.wso_dirk_tableaux module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="irksome.html#module-irksome">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

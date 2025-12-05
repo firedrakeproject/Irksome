@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.discontinuous_galerkin_stepper &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/discontinuous_galerkin_stepper">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.discontinuous_galerkin_stepper</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">FIAT</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">Bernstein</span><span class="p">,</span>
+                  <span class="n">DiscontinuousLagrange</span><span class="p">,</span> <span class="n">Legendre</span><span class="p">,</span>
+                  <span class="n">GaussLobattoLegendre</span><span class="p">,</span> <span class="n">GaussRadau</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.constantvalue</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_ufl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.base_time_stepper</span><span class="w"> </span><span class="kn">import</span> <span class="n">StageCoupledTimeStepper</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.bcs</span><span class="w"> </span><span class="kn">import</span> <span class="n">stage2spaces4bc</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.deriv</span><span class="w"> </span><span class="kn">import</span> <span class="n">expand_time_derivatives</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.manipulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract_terms</span><span class="p">,</span> <span class="n">strip_dt_form</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.scheme</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_time_quadrature</span><span class="p">,</span> <span class="n">ufc_line</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">dot</span><span class="p">,</span> <span class="n">reshape</span><span class="p">,</span> <span class="n">replace</span><span class="p">,</span> <span class="n">vecconst</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="n">TestFunction</span>
+
+
+<div class="viewcode-block" id="getElement">
+<a class="viewcode-back" href="../../irksome.html#irksome.discontinuous_galerkin_stepper.getElement">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">getElement</span><span class="p">(</span><span class="n">basis_type</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">basis_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">basis_type</span> <span class="o">=</span> <span class="n">basis_type</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="s2">&quot;lobatto&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">order</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Lobatto test element needs degree &gt; 0&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">GaussLobattoLegendre</span><span class="p">(</span><span class="n">ufc_line</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="s2">&quot;radau&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">GaussRadau</span><span class="p">(</span><span class="n">ufc_line</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="s2">&quot;integral&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Legendre</span><span class="p">(</span><span class="n">ufc_line</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="s2">&quot;bernstein&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">order</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">DiscontinuousLagrange</span><span class="p">(</span><span class="n">ufc_line</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Bernstein</span><span class="p">(</span><span class="n">ufc_line</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Let recursivenodes handle the general case</span>
+        <span class="n">variant</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="s2">&quot;lagrange&quot;</span> <span class="k">else</span> <span class="n">basis_type</span>
+        <span class="k">return</span> <span class="n">DiscontinuousLagrange</span><span class="p">(</span><span class="n">ufc_line</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="n">variant</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="getFormDiscGalerkin">
+<a class="viewcode-back" href="../../irksome.html#irksome.discontinuous_galerkin_stepper.getFormDiscGalerkin">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">getFormDiscGalerkin</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">Q</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Given a time-dependent variational form, trial and test spaces, and</span>
+<span class="sd">    a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.</span>
+
+<span class="sd">    :arg F: UFL form for the semidiscrete ODE/DAE</span>
+<span class="sd">    :arg L: A :class:`FIAT.FiniteElement` for the test and trial functions in time</span>
+<span class="sd">    :arg Q: A :class:`FIAT.QuadratureRule` for the time integration</span>
+<span class="sd">    :arg t: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time.</span>
+<span class="sd">    :arg dt: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time step.</span>
+<span class="sd">         The user may adjust this value between time steps.</span>
+<span class="sd">    :arg u0: a :class:`Function` referring to the state of</span>
+<span class="sd">         the PDE system at time `t`</span>
+<span class="sd">    :arg stages: a :class:`Function` representing the stages to be solved for.</span>
+<span class="sd">    :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)</span>
+<span class="sd">         containing (possibly time-dependent) boundary conditions imposed</span>
+<span class="sd">         on the system.</span>
+<span class="sd">    :arg nullspace: A list of tuples of the form (index, VSB) where</span>
+<span class="sd">         index is an index into the function space associated with `u`</span>
+<span class="sd">         and VSB is a :class: `firedrake.VectorSpaceBasis` instance to</span>
+<span class="sd">         be passed to a `firedrake.MixedVectorSpaceBasis` over the</span>
+<span class="sd">         larger space associated with the Runge-Kutta method</span>
+
+<span class="sd">    On output, we return a tuple consisting of four parts:</span>
+
+<span class="sd">       - Fnew, the :class:`Form` corresponding to the DG-in-Time discretized problem</span>
+<span class="sd">       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed</span>
+<span class="sd">         on the Galerkin-in-time solution,</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">Q</span><span class="o">.</span><span class="n">ref_el</span><span class="o">.</span><span class="n">get_spatial_dimension</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">L</span><span class="o">.</span><span class="n">get_reference_element</span><span class="p">()</span> <span class="o">==</span> <span class="n">Q</span><span class="o">.</span><span class="n">ref_el</span>
+
+    <span class="c1"># preprocess time derivatives</span>
+    <span class="n">F</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+    <span class="n">v</span><span class="p">,</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">arguments</span><span class="p">()</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">V</span> <span class="o">==</span> <span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+
+    <span class="n">num_stages</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">space_dimension</span><span class="p">()</span>
+    <span class="n">Vbig</span> <span class="o">=</span> <span class="n">stages</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+    <span class="n">test</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">Vbig</span><span class="p">)</span>
+    <span class="n">qpts</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_points</span><span class="p">()</span>
+    <span class="n">qwts</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+
+    <span class="n">tabulate_basis</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">qpts</span><span class="p">)</span>
+    <span class="n">basis_vals</span> <span class="o">=</span> <span class="n">tabulate_basis</span><span class="p">[(</span><span class="mi">0</span><span class="p">,)]</span>
+    <span class="n">basis_dvals</span> <span class="o">=</span> <span class="n">tabulate_basis</span><span class="p">[(</span><span class="mi">1</span><span class="p">,)]</span>
+    <span class="n">basis_vals_w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">basis_vals</span><span class="p">,</span> <span class="n">qwts</span><span class="p">)</span>
+
+    <span class="c1"># mass matrix later for BC</span>
+    <span class="n">mmat</span> <span class="o">=</span> <span class="n">basis_vals_w</span> <span class="o">@</span> <span class="n">basis_vals</span><span class="o">.</span><span class="n">T</span>
+    <span class="c1"># L2 projector</span>
+    <span class="n">proj</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">mmat</span><span class="p">,</span> <span class="n">basis_vals_w</span><span class="p">))</span>
+
+    <span class="n">trial_vals</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">basis_vals</span><span class="p">)</span>
+    <span class="n">trial_dvals</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">basis_dvals</span><span class="p">)</span>
+    <span class="n">test_vals_w</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">basis_vals_w</span><span class="p">)</span>
+    <span class="n">qpts</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">qpts</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,)))</span>
+
+    <span class="n">split_form</span> <span class="o">=</span> <span class="n">extract_terms</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+    <span class="n">F_dtless</span> <span class="o">=</span> <span class="n">strip_dt_form</span><span class="p">(</span><span class="n">split_form</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+    <span class="n">F_remainder</span> <span class="o">=</span> <span class="n">split_form</span><span class="o">.</span><span class="n">remainder</span>
+
+    <span class="c1"># set up the pieces we need to work with to do our substitutions</span>
+    <span class="n">v_np</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="p">(</span><span class="n">num_stages</span><span class="p">,</span> <span class="o">*</span><span class="n">u0</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+    <span class="n">u_np</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">stages</span><span class="p">,</span> <span class="p">(</span><span class="n">num_stages</span><span class="p">,</span> <span class="o">*</span><span class="n">u0</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+    <span class="n">vsub</span> <span class="o">=</span> <span class="n">dot</span><span class="p">(</span><span class="n">test_vals_w</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">v_np</span><span class="p">)</span>
+    <span class="n">usub</span> <span class="o">=</span> <span class="n">dot</span><span class="p">(</span><span class="n">trial_vals</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">u_np</span><span class="p">)</span>
+    <span class="n">dtu0sub</span> <span class="o">=</span> <span class="n">dot</span><span class="p">(</span><span class="n">trial_dvals</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">u_np</span><span class="p">)</span>
+
+    <span class="c1"># Jump terms</span>
+    <span class="n">L_at_0</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">L</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,))[(</span><span class="mi">0</span><span class="p">,)])</span>
+    <span class="n">u_at_0</span> <span class="o">=</span> <span class="n">L_at_0</span> <span class="o">@</span> <span class="n">u_np</span>
+    <span class="n">v_at_0</span> <span class="o">=</span> <span class="n">L_at_0</span> <span class="o">@</span> <span class="n">v_np</span>
+    <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">u0</span><span class="p">:</span> <span class="n">u_at_0</span> <span class="o">-</span> <span class="n">u0</span><span class="p">,</span>
+            <span class="n">v</span><span class="p">:</span> <span class="n">v_at_0</span><span class="p">}</span>
+    <span class="n">Fnew</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">F_dtless</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+    <span class="c1"># Terms with time derivatives</span>
+    <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">qpts</span><span class="p">)):</span>
+        <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">qpts</span><span class="p">[</span><span class="n">q</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                <span class="n">v</span><span class="p">:</span> <span class="n">vsub</span><span class="p">[</span><span class="n">q</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                <span class="n">u0</span><span class="p">:</span> <span class="n">dtu0sub</span><span class="p">[</span><span class="n">q</span><span class="p">]</span> <span class="o">/</span> <span class="n">dt</span><span class="p">}</span>
+        <span class="n">Fnew</span> <span class="o">+=</span> <span class="n">replace</span><span class="p">(</span><span class="n">F_dtless</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+    <span class="c1"># Handle the rest of the terms</span>
+    <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">qpts</span><span class="p">)):</span>
+        <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">qpts</span><span class="p">[</span><span class="n">q</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                <span class="n">v</span><span class="p">:</span> <span class="n">vsub</span><span class="p">[</span><span class="n">q</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                <span class="n">u0</span><span class="p">:</span> <span class="n">usub</span><span class="p">[</span><span class="n">q</span><span class="p">]}</span>
+        <span class="n">Fnew</span> <span class="o">+=</span> <span class="n">replace</span><span class="p">(</span><span class="n">F_remainder</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+    <span class="c1"># Oh, honey, is it the boundary conditions?</span>
+    <span class="k">if</span> <span class="n">bcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bcs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">bcsnew</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="n">bcs</span><span class="p">:</span>
+        <span class="n">g0</span> <span class="o">=</span> <span class="n">as_ufl</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">_original_arg</span><span class="p">)</span>
+        <span class="n">Vg_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">replace</span><span class="p">(</span><span class="n">g0</span><span class="p">,</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span><span class="o">*</span><span class="n">dt</span><span class="p">})</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">qpts</span><span class="p">])</span>
+        <span class="n">g_np</span> <span class="o">=</span> <span class="n">proj</span> <span class="o">@</span> <span class="n">Vg_np</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">Vbigi</span> <span class="o">=</span> <span class="n">stage2spaces4bc</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="n">Vbig</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">bcsnew</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">reconstruct</span><span class="p">(</span><span class="n">V</span><span class="o">=</span><span class="n">Vbigi</span><span class="p">,</span> <span class="n">g</span><span class="o">=</span><span class="n">g_np</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+
+    <span class="k">return</span> <span class="n">Fnew</span><span class="p">,</span> <span class="n">bcsnew</span></div>
+
+
+
+<div class="viewcode-block" id="DiscontinuousGalerkinTimeStepper">
+<a class="viewcode-back" href="../../irksome.html#irksome.discontinuous_galerkin_stepper.DiscontinuousGalerkinTimeStepper">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DiscontinuousGalerkinTimeStepper</span><span class="p">(</span><span class="n">StageCoupledTimeStepper</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Front-end class for advancing a time-dependent PDE via a Discontinuous Galerkin</span>
+<span class="sd">    in time method</span>
+
+<span class="sd">    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem</span>
+<span class="sd">            F(t, u; v) == 0, where `u` is the unknown</span>
+<span class="sd">            :class:`firedrake.Function and `v` is the</span>
+<span class="sd">            :class:firedrake.TestFunction`.</span>
+<span class="sd">    :arg scheme: a :class:`DiscontinuousGalerkinScheme` instance describing the order,</span>
+<span class="sd">         basis type, and default quadrature scheme.</span>
+<span class="sd">    :arg t: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time.</span>
+<span class="sd">    :arg dt: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time step.</span>
+<span class="sd">         The user may adjust this value between time steps.</span>
+<span class="sd">    :arg u0: A :class:`firedrake.Function` containing the current</span>
+<span class="sd">            state of the problem to be solved.</span>
+<span class="sd">    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing</span>
+<span class="sd">            the strongly-enforced boundary conditions.  Irksome will</span>
+<span class="sd">            manipulate these to obtain boundary conditions for each</span>
+<span class="sd">            stage of the method.</span>
+<span class="sd">    :arg solver_parameters: A :class:`dict` of solver parameters that</span>
+<span class="sd">            will be used in solving the algebraic problem associated</span>
+<span class="sd">            with each time step.</span>
+<span class="sd">    :arg appctx: An optional :class:`dict` containing application context.</span>
+<span class="sd">            This gets included with particular things that Irksome will</span>
+<span class="sd">            pass into the nonlinear solver so that, say, user-defined preconditioners</span>
+<span class="sd">            have access to it.</span>
+<span class="sd">    :arg nullspace: A list of tuples of the form (index, VSB) where</span>
+<span class="sd">            index is an index into the function space associated with</span>
+<span class="sd">            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`</span>
+<span class="sd">            instance to be passed to a</span>
+<span class="sd">            `firedrake.MixedVectorSpaceBasis` over the larger space</span>
+<span class="sd">            associated with the Runge-Kutta method</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">scheme</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">quadrature</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="n">scheme</span><span class="o">.</span><span class="n">order</span>
+        <span class="k">assert</span> <span class="n">order</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;DG must be order &gt;= 0&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">basis_type</span> <span class="o">=</span> <span class="n">basis_type</span> <span class="o">=</span> <span class="n">scheme</span><span class="o">.</span><span class="n">basis_type</span>
+
+        <span class="n">V</span> <span class="o">=</span> <span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">el</span> <span class="o">=</span> <span class="n">getElement</span><span class="p">(</span><span class="n">basis_type</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+
+        <span class="n">quad_degree</span> <span class="o">=</span> <span class="n">scheme</span><span class="o">.</span><span class="n">quadrature_degree</span>
+        <span class="k">if</span> <span class="n">quad_degree</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">quad_degree</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">order</span>
+        <span class="n">quadrature</span> <span class="o">=</span> <span class="n">create_time_quadrature</span><span class="p">(</span><span class="n">quad_degree</span><span class="p">,</span> <span class="n">scheme</span><span class="o">=</span><span class="n">scheme</span><span class="o">.</span><span class="n">quadrature_scheme</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">quadrature</span> <span class="o">=</span> <span class="n">quadrature</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">quadrature</span><span class="o">.</span><span class="n">get_points</span><span class="p">())</span> <span class="o">&gt;=</span> <span class="n">order</span><span class="o">+</span><span class="mi">1</span>
+
+        <span class="n">num_stages</span> <span class="o">=</span> <span class="n">order</span><span class="o">+</span><span class="mi">1</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_b</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">el</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,))[(</span><span class="mi">0</span><span class="p">,)])</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DiscontinuousGalerkinTimeStepper.get_form_and_bcs">
+<a class="viewcode-back" href="../../irksome.html#irksome.discontinuous_galerkin_stepper.DiscontinuousGalerkinTimeStepper.get_form_and_bcs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_form_and_bcs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">F</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quadrature</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">bcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">bcs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">orig_bcs</span>
+        <span class="k">if</span> <span class="n">basis_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">basis_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">basis_type</span>
+        <span class="k">if</span> <span class="n">order</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">order</span>
+        <span class="k">if</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">basis_type</span> <span class="ow">and</span> <span class="n">order</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">order</span><span class="p">:</span>
+            <span class="n">el</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">el</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">el</span> <span class="o">=</span> <span class="n">getElement</span><span class="p">(</span><span class="n">basis_type</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">getFormDiscGalerkin</span><span class="p">(</span><span class="n">F</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">F</span><span class="p">,</span>
+                                   <span class="n">el</span><span class="p">,</span>
+                                   <span class="n">quadrature</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">quadrature</span><span class="p">,</span>
+                                   <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">bcs</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">stages_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stages</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">u0bit</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">):</span>
+            <span class="n">u0bit</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">stages_np</span><span class="p">[</span><span class="n">i</span><span class="p">::</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span><span class="p">]</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_b</span><span class="p">)</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

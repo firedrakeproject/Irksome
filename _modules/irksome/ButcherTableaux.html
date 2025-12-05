@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.ButcherTableaux &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/ButcherTableaux">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.ButcherTableaux</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">FIAT</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">vander</span><span class="p">,</span> <span class="n">zeros</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">numpy.linalg</span><span class="w"> </span><span class="kn">import</span> <span class="n">solve</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">FIAT.quadrature_schemes</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_quadrature</span>
+
+
+<div class="viewcode-block" id="ButcherTableau">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.ButcherTableau">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ButcherTableau</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Top-level class representing a Butcher tableau encoding</span>
+<span class="sd">       a Runge-Kutta method.  It has members</span>
+
+<span class="sd">    :arg A: a 2d array containing the Butcher matrix</span>
+<span class="sd">    :arg b: a 1d array giving weights assigned to each stage when</span>
+<span class="sd">            computing the solution at time n+1.</span>
+<span class="sd">    :arg btilde: If present, a 1d array giving weights for an embedded</span>
+<span class="sd">            lower-order method (used in estimating temporal</span>
+<span class="sd">            truncation error.)</span>
+<span class="sd">    :arg c: a 1d array containing weights at which time-dependent</span>
+<span class="sd">            terms are evaluated.</span>
+<span class="sd">    :arg order: the (integer) formal order of accuracy of the method</span>
+<span class="sd">    :arg embedded_order: If present, the (integer) formal order of</span>
+<span class="sd">            accuracy of the embedded method</span>
+<span class="sd">    :arg gamma0: If present, the weight on the explicit term in the</span>
+<span class="sd">            embedded lower-order method</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">btilde</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">embedded_order</span><span class="p">,</span> <span class="n">gamma0</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">A</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btilde</span> <span class="o">=</span> <span class="n">btilde</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">c</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="n">order</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">embedded_order</span> <span class="o">=</span> <span class="n">embedded_order</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma0</span> <span class="o">=</span> <span class="n">gamma0</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">num_stages</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the number of stages the method has.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_stiffly_accurate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Determines whether the method is stiffly accurate.&quot;&quot;&quot;</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span><span class="p">)</span>
+        <span class="n">res</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">solve</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_explicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_diagonally_implicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_implicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_explicit</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_fully_implicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_implicit</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_diagonally_implicit</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">][:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="CollocationButcherTableau">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.CollocationButcherTableau">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">CollocationButcherTableau</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;When an RK method is based on collocation with point sets present</span>
+<span class="sd">    in FIAT, we have a general formula for producing the Butcher tableau.</span>
+
+<span class="sd">    :arg L: a one-dimensional class :class:`FIAT.FiniteElement`</span>
+<span class="sd">            of Lagrange type -- the degrees of freedom must all be point</span>
+<span class="sd">            evaluation.</span>
+<span class="sd">    :arg order: the order of the resulting RK method.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">L</span><span class="o">.</span><span class="n">ref_el</span><span class="o">.</span><span class="n">get_spatial_dimension</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span>
+
+        <span class="n">points</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ell</span> <span class="ow">in</span> <span class="n">L</span><span class="o">.</span><span class="n">dual</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ell</span><span class="p">,</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">PointEvaluation</span><span class="p">)</span>
+            <span class="c1"># Assert singleton point for each node.</span>
+            <span class="n">pt</span><span class="p">,</span> <span class="o">=</span> <span class="n">ell</span><span class="o">.</span><span class="n">get_point_dict</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+            <span class="n">points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pt</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+        <span class="c1"># GLL DOFs are ordered by increasing entity dimension!</span>
+        <span class="n">perm</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="n">perm</span><span class="p">]</span>
+
+        <span class="n">num_stages</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">create_quadrature</span><span class="p">(</span><span class="n">L</span><span class="o">.</span><span class="n">ref_complex</span><span class="p">,</span> <span class="n">L</span><span class="o">.</span><span class="n">degree</span><span class="p">())</span>
+        <span class="n">qpts</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_points</span><span class="p">()</span>
+        <span class="n">qwts</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+
+        <span class="n">Lvals</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">qpts</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="p">][</span><span class="n">perm</span><span class="p">]</span>
+
+        <span class="c1"># integrates them all!</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">Lvals</span> <span class="o">@</span> <span class="n">qwts</span>
+
+        <span class="c1"># now for A, which means we have to adjust the interval</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">qpts_i</span> <span class="o">=</span> <span class="n">qpts</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">qwts_i</span> <span class="o">=</span> <span class="n">qwts</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">Lvals_i</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">qpts_i</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="p">][</span><span class="n">perm</span><span class="p">]</span>
+            <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">Lvals_i</span> <span class="o">@</span> <span class="n">qwts_i</span>
+
+        <span class="n">Aexplicit</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">qpts_i</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">qpts</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">qwts_i</span> <span class="o">=</span> <span class="n">qwts</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">Lvals_i</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">qpts_i</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="p">][</span><span class="n">perm</span><span class="p">]</span>
+            <span class="n">Aexplicit</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">Lvals_i</span> <span class="o">@</span> <span class="n">qwts_i</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">Aexplicit</span> <span class="o">=</span> <span class="n">Aexplicit</span>
+
+        <span class="n">V</span> <span class="o">=</span> <span class="n">vander</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">increasing</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">btilde</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">V</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+        <span class="n">gamma0</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">embedded_order</span> <span class="o">=</span> <span class="n">num_stages</span><span class="o">-</span><span class="mi">1</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">CollocationButcherTableau</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">btilde</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">embedded_order</span><span class="p">,</span> <span class="n">gamma0</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="GaussLegendre">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.GaussLegendre">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GaussLegendre</span><span class="p">(</span><span class="n">CollocationButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collocation method based on the Gauss-Legendre points.</span>
+<span class="sd">    The order of accuracy is 2 * `num_stages`.</span>
+<span class="sd">    GL methods are A-stable, B-stable, and symplectic.</span>
+
+<span class="sd">    :arg num_stages: The number of stages (1 or greater)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">num_stages</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="n">U</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">GaussLegendre</span><span class="p">(</span><span class="n">U</span><span class="p">,</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">GaussLegendre</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num_stages</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;GaussLegendre(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span></div>
+
+
+
+<div class="viewcode-block" id="LobattoIIIA">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.LobattoIIIA">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LobattoIIIA</span><span class="p">(</span><span class="n">CollocationButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collocation method based on the Gauss-Lobatto points.</span>
+<span class="sd">    The order of accuracy is 2 * `num_stages` - 2.</span>
+<span class="sd">    LobattoIIIA methods are A-stable but not B- or L-stable.</span>
+
+<span class="sd">    :arg num_stages: The number of stages (2 or greater)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">num_stages</span> <span class="o">&gt;</span> <span class="mi">1</span>
+        <span class="n">U</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">GaussLobattoLegendre</span><span class="p">(</span><span class="n">U</span><span class="p">,</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">LobattoIIIA</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;LobattoIIIA(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span></div>
+
+
+
+<div class="viewcode-block" id="RadauIIA">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.RadauIIA">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">RadauIIA</span><span class="p">(</span><span class="n">CollocationButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collocation method based on the Gauss-Radau points.</span>
+<span class="sd">    The order of accuracy is 2 * `num_stages` - 1.</span>
+<span class="sd">    RadauIIA methods are algebraically (hence B-) stable.</span>
+
+<span class="sd">    :arg num_stages: The number of stages (2 or greater)</span>
+<span class="sd">    :arg variant: Indicate whether to use the Radau5 style of</span>
+<span class="sd">          embedded scheme (with `variant = &quot;embed_Radau5&quot;`) or</span>
+<span class="sd">          the simple collocation type (with `variant = &quot;embed_colloc&quot;`)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">&quot;embed_Radau5&quot;</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">num_stages</span> <span class="o">&gt;=</span> <span class="mi">1</span>
+        <span class="n">U</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">GaussRadau</span><span class="p">(</span><span class="n">U</span><span class="p">,</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RadauIIA</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">num_stages</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">variant</span> <span class="o">==</span> <span class="s2">&quot;embed_Radau5&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">embedded_order</span> <span class="o">=</span> <span class="mi">3</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">btilde</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">4763</span><span class="o">/</span><span class="mi">13500</span><span class="o">-</span><span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">503</span><span class="o">/</span><span class="mi">3071</span><span class="p">),</span> <span class="mi">4763</span><span class="o">/</span><span class="mi">13500</span><span class="o">+</span><span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">503</span><span class="o">/</span><span class="mi">3071</span><span class="p">),</span> <span class="mi">263</span><span class="o">/</span><span class="mi">13500</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gamma0</span> <span class="o">=</span> <span class="mf">1237.0</span><span class="o">/</span><span class="mi">4500</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;RadauIIA(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span></div>
+
+
+
+<div class="viewcode-block" id="BackwardEuler">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.BackwardEuler">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BackwardEuler</span><span class="p">(</span><span class="n">RadauIIA</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The rock-solid first-order implicit method.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BackwardEuler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ButcherTableau</span><span class="o">.</span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="LobattoIIIC">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.LobattoIIIC">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LobattoIIIC</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Discontinuous collocation method based on the Lobatto points.</span>
+<span class="sd">    The order of accuracy is 2 * `num_stages` - 2.</span>
+<span class="sd">    LobattoIIIC methods are A-, L-, algebraically, and B- stable.</span>
+
+<span class="sd">    :arg num_stages: The number of stages (2 or greater)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">num_stages</span> <span class="o">&gt;</span> <span class="mi">1</span>
+        <span class="c1"># mooch the b and c from IIIA</span>
+        <span class="n">IIIA</span> <span class="o">=</span> <span class="n">LobattoIIIA</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">IIIA</span><span class="o">.</span><span class="n">b</span>
+        <span class="n">btilde</span> <span class="o">=</span> <span class="n">IIIA</span><span class="o">.</span><span class="n">btilde</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">IIIA</span><span class="o">.</span><span class="n">c</span>
+        <span class="n">embedded_order</span> <span class="o">=</span> <span class="n">IIIA</span><span class="o">.</span><span class="n">embedded_order</span>
+        <span class="n">gamma0</span> <span class="o">=</span> <span class="n">IIIA</span><span class="o">.</span><span class="n">gamma0</span>
+
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">A</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+
+        <span class="n">mat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">vander</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">increasing</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">rhs</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([(</span><span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">**</span><span class="p">(</span><span class="n">k</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">k</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="n">k</span>
+                               <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="o">-</span><span class="mi">1</span><span class="p">)])</span>
+            <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">mat</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">LobattoIIIC</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">btilde</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num_stages</span> <span class="o">-</span> <span class="mi">2</span><span class="p">,</span> <span class="n">embedded_order</span><span class="p">,</span> <span class="n">gamma0</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;LobattoIIIC(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span></div>
+
+
+
+<div class="viewcode-block" id="PareschiRusso">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.PareschiRusso">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PareschiRusso</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Second order, diagonally implicit, 2-stage.</span>
+<span class="sd">    A-stable if x &gt;= 1/4 and L-stable iff x = 1 plus/minus 1/sqrt(2).&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">x</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">]])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="o">-</span><span class="n">x</span><span class="p">])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">PareschiRusso</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;PareschiRusso(</span><span class="si">%f</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span></div>
+
+
+
+<div class="viewcode-block" id="QinZhang">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.QinZhang">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">QinZhang</span><span class="p">(</span><span class="n">PareschiRusso</span><span class="p">):</span>
+    <span class="s2">&quot;Symplectic Pareschi-Russo DIRK&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">QinZhang</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="mf">0.25</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;QinZhang()&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="Alexander">
+<a class="viewcode-back" href="../../irksome.html#irksome.ButcherTableaux.Alexander">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Alexander</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Third-order, diagonally implicit, 3-stage, L-stable scheme from</span>
+<span class="sd">    Diagonally Implicit Runge-Kutta Methods for Stiff O.D.E.&#39;s,</span>
+<span class="sd">    R. Alexander, SINUM 14(6): 1006-1021, 1977.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Root of x^3 - 3x^2 +3x/2-1/6 between 1/6 and 1/2</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="mf">0.43586652150845899942</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.5</span><span class="o">*</span><span class="n">x</span><span class="o">*</span><span class="n">x</span> <span class="o">+</span> <span class="mi">4</span><span class="o">*</span><span class="n">x</span> <span class="o">-</span> <span class="mf">0.25</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="mf">1.5</span><span class="o">*</span><span class="n">x</span><span class="o">*</span><span class="n">x</span><span class="o">-</span><span class="mi">5</span><span class="o">*</span><span class="n">x</span><span class="o">+</span><span class="mf">1.25</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">x</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[(</span><span class="mi">1</span><span class="o">-</span><span class="n">x</span><span class="p">)</span><span class="o">/</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">x</span><span class="p">]])</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">x</span><span class="p">])</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">x</span><span class="p">)</span><span class="o">/</span><span class="mf">2.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Alexander</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;Alexander()&quot;</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

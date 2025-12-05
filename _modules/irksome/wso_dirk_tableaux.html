@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.wso_dirk_tableaux &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/wso_dirk_tableaux">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.wso_dirk_tableaux</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.ButcherTableaux</span><span class="w"> </span><span class="kn">import</span> <span class="n">ButcherTableau</span>
+
+<span class="n">wso432A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mf">0.01900072890</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.40434605601</span><span class="p">,</span> <span class="mf">0.38435717512</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.06487908412</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.16389640295</span><span class="p">,</span> <span class="mf">0.51545231222</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.02343549374</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.41207877888</span><span class="p">,</span> <span class="mf">0.96661161281</span><span class="p">,</span> <span class="mf">0.42203167233</span><span class="p">]])</span>
+
+<span class="n">wso432b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">0.02343549374</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.41207877888</span><span class="p">,</span> <span class="mf">0.96661161281</span><span class="p">,</span> <span class="mf">0.42203167233</span><span class="p">])</span>
+
+<span class="n">wso432c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">0.01900072890</span><span class="p">,</span> <span class="mf">0.78870323114</span><span class="p">,</span> <span class="mf">0.41643499339</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+<span class="n">wso433A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mf">0.13756543551</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.56695122794</span><span class="p">,</span> <span class="mf">0.23483888782</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">1.08354072813</span><span class="p">,</span> <span class="mf">2.96618223864</span><span class="p">,</span> <span class="mf">0.44915521951</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.59761291500</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.43420997584</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.05305815322</span><span class="p">,</span> <span class="mf">0.88965521406</span><span class="p">]])</span>
+
+<span class="n">wso433b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">0.59761291500</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.43420997584</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.05305815322</span><span class="p">,</span> <span class="mf">0.88965521406</span><span class="p">])</span>
+
+<span class="n">wso433c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">0.13756543551</span><span class="p">,</span> <span class="mf">0.80179011576</span><span class="p">,</span> <span class="mf">2.33179673002</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+<span class="n">wso643A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mf">0.079672377876931</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.328355391763968</span><span class="p">,</span> <span class="mf">0.136009256546967</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">0.650772774016417</span><span class="p">,</span> <span class="mf">1.742859063495349</span><span class="p">,</span> <span class="mf">0.256472952467792</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">0.714580550967259</span><span class="p">,</span> <span class="mf">1.793745752775934</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.078254785672497</span><span class="p">,</span>
+      <span class="mf">0.311753794172585</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">1.120092779092918</span><span class="p">,</span> <span class="mf">1.983452339867353</span><span class="p">,</span> <span class="mf">3.117393885836001</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">3.761930177913743</span><span class="p">,</span> <span class="mf">0.770646024799205</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.214823667785537</span><span class="p">,</span> <span class="mf">0.536367363903245</span><span class="p">,</span> <span class="mf">0.154488125726409</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">0.217748592703941</span><span class="p">,</span> <span class="mf">0.072226422925896</span><span class="p">,</span> <span class="mf">0.239843012362853</span><span class="p">]])</span>
+
+<span class="n">wso643b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">0.214823667785537</span><span class="p">,</span> <span class="mf">0.536367363903245</span><span class="p">,</span> <span class="mf">0.154488125726409</span><span class="p">,</span>
+     <span class="o">-</span><span class="mf">0.217748592703941</span><span class="p">,</span> <span class="mf">0.072226422925896</span><span class="p">,</span> <span class="mf">0.239843012362853</span><span class="p">])</span>
+
+<span class="n">wso643c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">0.079672377876931</span><span class="p">,</span> <span class="mf">0.464364648310935</span><span class="p">,</span> <span class="mf">1.348559241946724</span><span class="p">,</span>
+     <span class="mf">1.312664210308764</span><span class="p">,</span> <span class="mf">0.989469293495897</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+<span class="n">wso744A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mf">1.290066345260422e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">3.315354455306989e-01</span><span class="p">,</span> <span class="mf">1.177478680001996e-01</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">8.009819642882672e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.408450965101765e-03</span><span class="p">,</span> <span class="mf">9.242630648045402e-02</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">1.730636616639455e+00</span><span class="p">,</span> <span class="mf">1.513225984674677e+00</span><span class="p">,</span> <span class="mf">1.221258626309848e+00</span><span class="p">,</span> <span class="mf">2.266279031096887e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">1.475353790517696e-01</span><span class="p">,</span> <span class="mf">3.618481772236499e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.603544220240282e-01</span><span class="p">,</span> <span class="mf">2.455453653222619e+00</span><span class="p">,</span> <span class="mf">5.742190161395324e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">2.099717815888321e-01</span><span class="p">,</span> <span class="mf">7.120237463672882e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.012023940726332e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.913828539529156e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.556044541810300e-03</span><span class="p">,</span> <span class="mf">3.707277349712966e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">2.387938238483883e-01</span><span class="p">,</span> <span class="mf">4.762495400483653e-01</span><span class="p">,</span> <span class="mf">1.233935151213300e-02</span><span class="p">,</span> <span class="mf">6.011995982693821e-02</span><span class="p">,</span> <span class="mf">6.553618225489034e-05</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.270730910442124e-01</span><span class="p">,</span> <span class="mf">3.395048796261326e-01</span><span class="p">]])</span>
+
+<span class="n">wso744b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">2.387938238483883e-01</span><span class="p">,</span> <span class="mf">4.762495400483653e-01</span><span class="p">,</span> <span class="mf">1.233935151213300e-02</span><span class="p">,</span>
+     <span class="mf">6.011995982693821e-02</span><span class="p">,</span> <span class="mf">6.553618225489034e-05</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.270730910442124e-01</span><span class="p">,</span>
+     <span class="mf">3.395048796261326e-01</span><span class="p">])</span>
+
+<span class="n">wso744c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">1.290066345260422e-01</span><span class="p">,</span> <span class="mf">4.492833135308985e-01</span><span class="p">,</span> <span class="mf">9.919659086525534e-03</span><span class="p">,</span>
+     <span class="mf">1.230475897454758e+00</span><span class="p">,</span> <span class="mf">2.978701803613543e+00</span><span class="p">,</span> <span class="mf">1.247908693583052e+00</span><span class="p">,</span>
+     <span class="mf">1.000000000000000e+00</span><span class="p">])</span>
+
+<span class="n">wso1254A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mf">2.345371908646273e-01</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">6.874344413888787e-01</span><span class="p">,</span> <span class="mf">5.515270980695153e-02</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">1.183552669539587e-01</span><span class="p">,</span> <span class="mf">5.463563002913454e-03</span><span class="p">,</span> <span class="mf">1.458584459918280e-01</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">1.832235204042292e-01</span><span class="p">,</span> <span class="mf">5.269029412008775e-02</span><span class="p">,</span> <span class="mf">8.203685085133529e-01</span><span class="p">,</span>
+      <span class="mf">4.812118949092085e-02</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">9.941572060659400e-02</span><span class="p">,</span> <span class="mf">4.977904930055774e-03</span><span class="p">,</span> <span class="mf">5.414758174284321e-02</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">1.666571741820749e-03</span><span class="p">,</span> <span class="mf">8.078975617332473e-02</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">9.896614721582678e-01</span><span class="p">,</span> <span class="mf">2.860682690577833e+00</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.236119341063179e+00</span><span class="p">,</span>
+      <span class="mf">2.130219523351530e+00</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.260655031676537e+00</span><span class="p">,</span> <span class="mf">2.457717913099987e-01</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">5.656238413439102e-02</span><span class="p">,</span> <span class="mf">1.661985685769353e-01</span><span class="p">,</span> <span class="mf">6.464600922362508e-01</span><span class="p">,</span>
+      <span class="mf">6.608854962269927e-01</span><span class="p">,</span> <span class="mf">3.736054198873429e-01</span><span class="p">,</span> <span class="mf">6.294456964407685e-01</span><span class="p">,</span>
+      <span class="mf">5.702752607818027e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">8.048962104724392e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">6.232034990249100e-02</span><span class="p">,</span> <span class="mf">5.737234603323347e-01</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">9.613723511489970e-02</span><span class="p">,</span> <span class="mf">5.524106361737929e-01</span><span class="p">,</span> <span class="mf">5.961002486833255e-01</span><span class="p">,</span>
+      <span class="mf">1.978411600659203e-01</span><span class="p">,</span> <span class="mf">3.156238724024008e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">1.606381759216300e-01</span><span class="p">,</span> <span class="mf">6.833397073337708e-01</span><span class="p">,</span> <span class="mf">4.734578665308685e-01</span><span class="p">,</span>
+      <span class="mf">8.037708984872738e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.094498069459834e-02</span><span class="p">,</span> <span class="mf">6.151263362711297e-01</span><span class="p">,</span>
+      <span class="mf">3.908946848682723e-01</span><span class="p">,</span> <span class="mf">8.966103265353116e-02</span><span class="p">,</span> <span class="mf">2.973255537857041e-02</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">7.074283235644631e-01</span><span class="p">,</span> <span class="mf">4.392037300952482e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">3.623592480237268e-02</span><span class="p">,</span>
+      <span class="mf">7.189990308645932e-04</span><span class="p">,</span> <span class="mf">5.820968279166545e-01</span><span class="p">,</span> <span class="mf">3.302003177175218e-01</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">2.394564021215881e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">7.540283547997615e-03</span><span class="p">,</span> <span class="mf">1.702137469523672e-01</span><span class="p">,</span>
+      <span class="mf">6.268780138721711e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">1.361197981133694e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">7.486549901902831e-01</span><span class="p">,</span> <span class="mf">1.893908350024949e+00</span><span class="p">,</span>
+      <span class="mf">3.940485196730028e-01</span><span class="p">,</span> <span class="mf">6.240233526545023e-02</span><span class="p">,</span> <span class="mf">7.511983862200027e-01</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">5.283465265730526e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.661625677872943e+00</span><span class="p">,</span> <span class="mf">9.998723833190827e-01</span><span class="p">,</span>
+      <span class="mf">1.377776742457387e+00</span><span class="p">,</span> <span class="mf">8.905676409277480e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">7.433675378768276e-01</span><span class="p">,</span> <span class="mf">1.490594423766965e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.042884056742363e-02</span><span class="p">,</span>
+      <span class="mf">8.565329438087443e-04</span><span class="p">,</span> <span class="mf">1.357261590983184e+00</span><span class="p">,</span> <span class="mf">2.067512027776675e-03</span><span class="p">,</span>
+      <span class="mf">9.836884265759428e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.357936974507222e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.428992174996300e-02</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">3.803299038293005e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">9.150525836295019e-03</span><span class="p">,</span> <span class="mf">2.712352651694511e-01</span><span class="p">]])</span>
+
+<span class="n">wso1254b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span><span class="o">-</span><span class="mf">7.433675378768276e-01</span><span class="p">,</span> <span class="mf">1.490594423766965e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.042884056742363e-02</span><span class="p">,</span>
+     <span class="mf">8.565329438087443e-04</span><span class="p">,</span> <span class="mf">1.357261590983184e+00</span><span class="p">,</span> <span class="mf">2.067512027776675e-03</span><span class="p">,</span>
+     <span class="mf">9.836884265759428e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.357936974507222e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.428992174996300e-02</span><span class="p">,</span>
+     <span class="o">-</span><span class="mf">3.803299038293005e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">9.150525836295019e-03</span><span class="p">,</span> <span class="mf">2.712352651694511e-01</span><span class="p">])</span>
+
+<span class="n">wso1254c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">2.345371908646273e-01</span><span class="p">,</span> <span class="mf">7.425871511958302e-01</span><span class="p">,</span> <span class="mf">3.296674204078279e-02</span><span class="p">,</span>
+     <span class="mf">7.379564717201322e-01</span><span class="p">,</span> <span class="mf">2.376643917109970e-01</span><span class="p">,</span> <span class="mf">1.750238160341377e+00</span><span class="p">,</span>
+     <span class="mf">2.990308150015702e+00</span><span class="p">,</span> <span class="mf">2.882138003112822e+00</span><span class="p">,</span> <span class="mf">2.914399924907188e+00</span><span class="p">,</span>
+     <span class="mf">2.573507348677332e+00</span><span class="p">,</span> <span class="mf">3.567266961364713e+00</span><span class="p">,</span> <span class="mf">1.000000000000000e+00</span><span class="p">])</span>
+
+<span class="n">wso1255A</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mf">4.113473525867655e-02</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">1.603459327727949e-01</span><span class="p">,</span> <span class="mf">6.663913326722831e-02</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">3.424389044264752e-01</span><span class="p">,</span> <span class="mf">8.658006324816373e-01</span><span class="p">,</span> <span class="mf">9.893519116923277e-02</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">9.437182028870806e+00</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.088783359642350e+01</span><span class="p">,</span> <span class="mf">2.644025436733866e+00</span><span class="p">,</span>
+      <span class="mf">1.846155800500574e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">3.425409029430815e-01</span><span class="p">,</span> <span class="mf">5.172239272544332e-01</span><span class="p">,</span> <span class="mf">9.163589909678043e-01</span><span class="p">,</span>
+      <span class="mf">5.225142808845742e-02</span><span class="p">,</span> <span class="mf">1.165485436026433e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">2.094441177460360e+00</span><span class="p">,</span> <span class="mf">2.577655753533404e+00</span><span class="p">,</span> <span class="mf">5.704405293326313e-01</span><span class="p">,</span>
+      <span class="mf">1.213637180023516e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">4.752289775376601e-01</span><span class="p">,</span> <span class="mf">5.285605969257756e-01</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">3.391631788320480e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.797427027028997e-01</span><span class="p">,</span> <span class="mf">1.039483063369094e+00</span><span class="p">,</span>
+      <span class="mf">5.978770926212172e-02</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.132900327070380e-01</span><span class="p">,</span> <span class="mf">8.344318363436753e-02</span><span class="p">,</span>
+      <span class="mf">2.410106515779412e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">5.904282488642163e+00</span><span class="p">,</span> <span class="mf">3.171195765985073e+00</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.236822836316587e+01</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">4.989519066913001e-01</span><span class="p">,</span> <span class="mf">2.160529620826442e+00</span><span class="p">,</span> <span class="mf">1.916104322021480e+00</span><span class="p">,</span>
+      <span class="mf">1.988059486291180e+00</span><span class="p">,</span> <span class="mf">2.232092386922440e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">4.616443509508975e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.933433560549238e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.212541486279519e-01</span><span class="p">,</span>
+      <span class="mf">6.662362039716674e-02</span><span class="p">,</span> <span class="mf">4.254912950625259e-01</span><span class="p">,</span> <span class="mf">7.856131647013712e-01</span><span class="p">,</span>
+      <span class="mf">8.369551389357689e-01</span><span class="p">,</span> <span class="mf">1.604780447895926e-01</span><span class="p">,</span> <span class="mf">3.616125951766939e-01</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">7.087669749878204e-01</span><span class="p">,</span> <span class="mf">6.466527094491541e-01</span><span class="p">,</span> <span class="mf">4.758821526542215e-01</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">2.570518451375722e-01</span><span class="p">,</span> <span class="mf">1.123185062554392e+00</span><span class="p">,</span> <span class="mf">5.546921612875290e-01</span><span class="p">,</span>
+      <span class="mf">3.192424333237050e-01</span><span class="p">,</span> <span class="mf">3.612077612576969e-01</span><span class="p">,</span> <span class="mf">5.866779836068974e-01</span><span class="p">,</span>
+      <span class="mf">2.353799736246102e-01</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">4.264162484855930e-01</span><span class="p">,</span> <span class="mf">1.322816663477840e+00</span><span class="p">,</span> <span class="mf">4.245673729758231e-01</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">2.530402764527700e+00</span><span class="p">,</span> <span class="o">-</span><span class="mf">7.822016897497742e-02</span><span class="p">,</span> <span class="mf">1.054463080605071e+00</span><span class="p">,</span>
+      <span class="mf">4.645590541391895e-01</span><span class="p">,</span> <span class="mf">1.145097379521439e+00</span><span class="p">,</span> <span class="mf">4.301337846893282e-01</span><span class="p">,</span>
+      <span class="mf">1.499513057076809e+00</span><span class="p">,</span> <span class="mf">1.447942640822165e-02</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">1.207394392845339e-02</span><span class="p">,</span> <span class="mf">5.187080074649261e-01</span><span class="p">,</span> <span class="mf">1.121304244847239e-01</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">4.959806334780896e-03</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.345031364651444e+00</span><span class="p">,</span> <span class="mf">3.398828703760807e-01</span><span class="p">,</span>
+      <span class="mf">8.159251531671077e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.640104266439604e-03</span><span class="p">,</span> <span class="mf">1.439060901763520e-02</span><span class="p">,</span>
+      <span class="o">-</span><span class="mf">6.556567796749947e-03</span><span class="p">,</span> <span class="mf">6.548135446843367e-04</span><span class="p">,</span> <span class="mf">5.454220210658036e-01</span><span class="p">]])</span>
+
+<span class="n">wso1255c</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">4.113473525867655e-02</span><span class="p">,</span> <span class="mf">2.269850660400232e-01</span><span class="p">,</span> <span class="mf">6.222969192243949e-01</span><span class="p">,</span>
+     <span class="mf">1.377989449231234e+00</span><span class="p">,</span> <span class="mf">1.259841986970257e+00</span><span class="p">,</span> <span class="mf">1.228350442796143e+00</span><span class="p">,</span>
+     <span class="mf">1.269855051265635e+00</span><span class="p">,</span> <span class="mf">2.496200652601413e+00</span><span class="p">,</span> <span class="mf">2.783820705331141e+00</span><span class="p">,</span>
+     <span class="mf">3.337101417632813e+00</span><span class="p">,</span> <span class="mf">4.173423133876636e+00</span><span class="p">,</span> <span class="mf">1.000000000000000e+00</span><span class="p">])</span>
+
+<span class="n">wso1255b</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span><span class="mf">1.207394392845339e-02</span><span class="p">,</span> <span class="mf">5.187080074649261e-01</span><span class="p">,</span> <span class="mf">1.121304244847239e-01</span><span class="p">,</span>
+     <span class="o">-</span><span class="mf">4.959806334780896e-03</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.345031364651444e+00</span><span class="p">,</span> <span class="mf">3.398828703760807e-01</span><span class="p">,</span>
+     <span class="mf">8.159251531671077e-01</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.640104266439604e-03</span><span class="p">,</span> <span class="mf">1.439060901763520e-02</span><span class="p">,</span>
+     <span class="o">-</span><span class="mf">6.556567796749947e-03</span><span class="p">,</span> <span class="mf">6.548135446843367e-04</span><span class="p">,</span> <span class="mf">5.454220210658036e-01</span><span class="p">])</span>
+
+<span class="n">wsodict</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span> <span class="p">(</span><span class="n">wso432A</span><span class="p">,</span> <span class="n">wso432b</span><span class="p">,</span> <span class="n">wso432c</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span> <span class="p">(</span><span class="n">wso433A</span><span class="p">,</span> <span class="n">wso433b</span><span class="p">,</span> <span class="n">wso433c</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span> <span class="p">(</span><span class="n">wso643A</span><span class="p">,</span> <span class="n">wso643b</span><span class="p">,</span> <span class="n">wso643c</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span> <span class="p">(</span><span class="n">wso744A</span><span class="p">,</span> <span class="n">wso744b</span><span class="p">,</span> <span class="n">wso744c</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span> <span class="p">(</span><span class="n">wso1254A</span><span class="p">,</span> <span class="n">wso1254b</span><span class="p">,</span> <span class="n">wso1254c</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span> <span class="p">(</span><span class="n">wso1255A</span><span class="p">,</span> <span class="n">wso1255b</span><span class="p">,</span> <span class="n">wso1255c</span><span class="p">)</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="WSODIRK">
+<a class="viewcode-back" href="../../irksome.html#irksome.wso_dirk_tableaux.WSODIRK">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">WSODIRK</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ns</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">ws_order</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">wsodict</span><span class="p">[</span><span class="n">ns</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">ws_order</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;No WSO DIRK method for that combination of stages, order and weak stage order&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ws_order</span> <span class="o">=</span> <span class="n">ws_order</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">WSODIRK</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

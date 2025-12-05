@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Solving monodomain equations with Fitzhugh-Nagumo reaction and an IMEX method &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/fenics.css?v=c6f455f8" />
+    <script src="../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Solving monodomain equations with Fitzhugh-Nagumo reaction and a DIRK-IMEX method" href="demo_monodomain_FHN_dirkimex.py.html" />
+    <link rel="prev" title="Solving the Heat Equation with Irksome" href="demo_heat_adapt.py.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../index.html"><img src="../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="demos/demo_monodomain_FHN.py">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="solving-monodomain-equations-with-fitzhugh-nagumo-reaction-and-an-imex-method">
+<h1>Solving monodomain equations with Fitzhugh-Nagumo reaction and an IMEX method<a class="headerlink" href="#solving-monodomain-equations-with-fitzhugh-nagumo-reaction-and-an-imex-method" title="Link to this heading">¶</a></h1>
+<p>We’re solving monodomain (reaction-diffusion) with a particular reaction term.
+The basic form of the equation is:</p>
+<div class="math notranslate nohighlight">
+\[\chi \left( C_m u_t + I_{ion}(u) \right) = \nabla \cdot \sigma \nabla u\]</div>
+<p>where <span class="math notranslate nohighlight">\(u\)</span> is the membrane potential, <span class="math notranslate nohighlight">\(\sigma\)</span> is the conductivity tensor, <span class="math notranslate nohighlight">\(C_m\)</span> is the specific capacitance of the cell membrane, and <span class="math notranslate nohighlight">\(\chi\)</span> is the surface area to volume ratio.  The term <span class="math notranslate nohighlight">\(I_{ion}\)</span> is current due to ionic flows through channels in the cell membranes, and may couple to a complicated reaction network.  In our case, we take the relatively simple model due to Fitzhugh and Nagumo.  Here, we have a separate concentration variable <span class="math notranslate nohighlight">\(c\)</span> satisfying the reaction equation:</p>
+<div class="math notranslate nohighlight">
+\[c_t = \epsilon( u + \beta - \gamma c)\]</div>
+<p>for certain positive parameters <span class="math notranslate nohighlight">\(\beta\)</span> and <span class="math notranslate nohighlight">\(\gamma\)</span>, and the current takes the form of:</p>
+<div class="math notranslate nohighlight">
+\[I_{ion}(u, c) = \tfrac{1}{\epsilon} \left( u - \tfrac{u^3}{3} - c \right)\]</div>
+<p>so that we have an overall system of two equations.  One of them is linear but stiff/diffusive, and the other is nonstiff but nonlinear.  This combination makes the system a good candidate for additive partitioning/IMEX-type methods.</p>
+<p>We start with standard Firedrake/Irksome imports:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">And</span><span class="p">,</span> <span class="n">Constant</span><span class="p">,</span> <span class="n">File</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">FunctionSpace</span><span class="p">,</span>
+                       <span class="n">RectangleMesh</span><span class="p">,</span> <span class="n">SpatialCoordinate</span><span class="p">,</span> <span class="n">TestFunctions</span><span class="p">,</span>
+                       <span class="n">as_matrix</span><span class="p">,</span> <span class="n">conditional</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">grad</span><span class="p">,</span> <span class="n">inner</span><span class="p">,</span> <span class="n">split</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">irksome</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dt</span><span class="p">,</span> <span class="n">MeshConstant</span><span class="p">,</span> <span class="n">RadauIIA</span><span class="p">,</span> <span class="n">TimeStepper</span>
+</pre></div>
+</div>
+<p>And we set up the mesh and function space.  Note this demo uses serendipity elements, but could just as easily use Lagrange on quads or triangles.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">RectangleMesh</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">70</span><span class="p">,</span> <span class="mi">70</span><span class="p">,</span> <span class="n">quadrilateral</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">polyOrder</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="n">V</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">&quot;S&quot;</span><span class="p">,</span> <span class="n">polyOrder</span><span class="p">)</span>
+<span class="n">Z</span> <span class="o">=</span> <span class="n">V</span> <span class="o">*</span> <span class="n">V</span>
+
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">SpatialCoordinate</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
+<span class="n">MC</span> <span class="o">=</span> <span class="n">MeshConstant</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
+<span class="n">dt</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span>
+<span class="n">t</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Specify the physical constants and initial conditions:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">eps</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+<span class="n">beta</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">gamma</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+
+<span class="n">chi</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">capacitance</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+
+<span class="n">sigma1</span> <span class="o">=</span> <span class="n">sigma2</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="n">sigma</span> <span class="o">=</span> <span class="n">as_matrix</span><span class="p">([[</span><span class="n">sigma1</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">sigma2</span><span class="p">]])</span>
+
+
+<span class="n">initial_potential</span> <span class="o">=</span> <span class="n">conditional</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="mf">3.5</span><span class="p">,</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">2.0</span><span class="p">),</span> <span class="n">Constant</span><span class="p">(</span><span class="o">-</span><span class="mf">1.28791</span><span class="p">))</span>
+<span class="n">initial_cell</span> <span class="o">=</span> <span class="n">conditional</span><span class="p">(</span><span class="n">And</span><span class="p">(</span><span class="n">And</span><span class="p">(</span><span class="mi">31</span> <span class="o">&lt;=</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mi">39</span><span class="p">),</span> <span class="n">And</span><span class="p">(</span><span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">y</span><span class="p">,</span> <span class="n">y</span> <span class="o">&lt;</span> <span class="mi">35</span><span class="p">)),</span>
+                          <span class="n">Constant</span><span class="p">(</span><span class="mf">2.0</span><span class="p">),</span> <span class="n">Constant</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5758</span><span class="p">))</span>
+
+
+<span class="n">uu</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+<span class="n">vu</span><span class="p">,</span> <span class="n">vc</span> <span class="o">=</span> <span class="n">TestFunctions</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+<span class="n">uu</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">initial_potential</span><span class="p">)</span>
+<span class="n">uu</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">initial_cell</span><span class="p">)</span>
+
+<span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">uu</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This sets up the Butcher tableau.  All of our IMEX-type methods are
+based on a RadauIIA method for the implicit part.  We use a two-stage method.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">butcher_tableau</span> <span class="o">=</span> <span class="n">RadauIIA</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">ns</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">num_stages</span>
+</pre></div>
+</div>
+<p>To access an IMEX method, we need to separately specify the implicit and explicit parts of the operator.
+The part to be handled implicitly is taken to contain the time derivatives as well:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">F1</span> <span class="o">=</span> <span class="p">(</span><span class="n">inner</span><span class="p">(</span><span class="n">chi</span> <span class="o">*</span> <span class="n">capacitance</span> <span class="o">*</span> <span class="n">Dt</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">vu</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span>
+      <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">sigma</span> <span class="o">*</span> <span class="n">grad</span><span class="p">(</span><span class="n">vu</span><span class="p">))</span><span class="o">*</span><span class="n">dx</span>
+      <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">c</span><span class="p">),</span> <span class="n">vc</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">-</span> <span class="n">inner</span><span class="p">(</span><span class="n">eps</span> <span class="o">*</span> <span class="n">u</span><span class="p">,</span> <span class="n">vc</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span>
+      <span class="o">-</span> <span class="n">inner</span><span class="p">(</span><span class="n">beta</span> <span class="o">*</span> <span class="n">eps</span><span class="p">,</span> <span class="n">vc</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">gamma</span> <span class="o">*</span> <span class="n">eps</span> <span class="o">*</span> <span class="n">c</span><span class="p">,</span> <span class="n">vc</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This is the part to be additively partitioned and handled explicitly:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">F2</span> <span class="o">=</span> <span class="n">inner</span><span class="p">((</span><span class="n">chi</span><span class="o">/</span><span class="n">eps</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="n">u</span> <span class="o">+</span> <span class="p">(</span><span class="n">u</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span> <span class="o">+</span> <span class="n">c</span><span class="p">),</span> <span class="n">vu</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span>
+</pre></div>
+</div>
+<p>If we wanted to use a fully implicit method, we would just take
+F = F1 + F2.  Now, set up solver parameters.  For this problem, the Rana preconditioner applied with a multiplicative field split works very well.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;snes_type&quot;</span><span class="p">:</span> <span class="s2">&quot;ksponly&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;ksp_rtol&quot;</span><span class="p">:</span> <span class="mf">1.e-8</span><span class="p">,</span>
+          <span class="s2">&quot;ksp_monitor&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+          <span class="s2">&quot;mat_type&quot;</span><span class="p">:</span> <span class="s2">&quot;matfree&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;fgmres&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;python&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;pc_python_type&quot;</span><span class="p">:</span> <span class="s2">&quot;irksome.RanaLD&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;aux&quot;</span><span class="p">:</span> <span class="p">{</span>
+              <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;fieldsplit&quot;</span><span class="p">,</span>
+              <span class="s2">&quot;pc_fieldsplit_type&quot;</span><span class="p">:</span> <span class="s2">&quot;multiplicative&quot;</span><span class="p">}}</span>
+</pre></div>
+</div>
+<p>Each diagonal block to be solved is itself a block-coupled system, with a diffusive block and a mass matrix on the diagonal.  Hence, we further fieldsplit each diagonal block, using algebraic multigrid for the diffusive block and incomplete Cholesky for the mass matrix.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">per_stage</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;preonly&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;fieldsplit&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;pc_fieldsplit_type&quot;</span><span class="p">:</span> <span class="s2">&quot;additive&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;fieldsplit_0&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;preonly&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;gamg&quot;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s2">&quot;fieldsplit_1&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;preonly&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;icc&quot;</span><span class="p">,</span>
+    <span class="p">}}</span>
+</pre></div>
+</div>
+<p>This bit of mess specifies how the overall system is split up.  Each stage corresponds to a pair of fields (potential and concentration):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ns</span><span class="p">):</span>
+    <span class="n">params</span><span class="p">[</span><span class="s2">&quot;aux&quot;</span><span class="p">][</span><span class="sa">f</span><span class="s2">&quot;pc_fieldsplit_</span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s2">_fields&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="mi">2</span><span class="o">*</span><span class="n">s</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="mi">2</span><span class="o">*</span><span class="n">s</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">params</span><span class="p">[</span><span class="s2">&quot;aux&quot;</span><span class="p">][</span><span class="sa">f</span><span class="s2">&quot;fieldsplit_</span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">per_stage</span>
+</pre></div>
+</div>
+<p>The partitioned IMEX methods also provide an “iterator” that is used both to start the method (filling in the stage values between the initial condition and first time step taken) and can also be used after a time step to improve the accuracy/stability of the solution.  If the iterator “works”, applying it a large number of times will tend to produce the solution to a fully implicit RadauIIA method.  In practice, we can sometimes get away with applying the iterator to a looser tolerance, but we otherwise use the same method as for the propagator.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">itparams</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+<span class="n">itparams</span><span class="p">[</span><span class="s2">&quot;ksp_rtol&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.e-4</span>
+</pre></div>
+</div>
+<p>Now, we access the IMEX method via the <cite>TimeStepper</cite> as with other methods.  Note that we specify somewhat different kwargs, needing to specify the implicit and explicit parts separately as well as separate solver options for propagator and iterator.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">stepper</span> <span class="o">=</span> <span class="n">TimeStepper</span><span class="p">(</span><span class="n">F1</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">uu</span><span class="p">,</span>
+                      <span class="n">stage_type</span><span class="o">=</span><span class="s2">&quot;imex&quot;</span><span class="p">,</span>
+                      <span class="n">prop_solver_parameters</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+                      <span class="n">it_solver_parameters</span><span class="o">=</span><span class="n">itparams</span><span class="p">,</span>
+                      <span class="n">Fexp</span><span class="o">=</span><span class="n">F2</span><span class="p">,</span>
+                      <span class="n">num_its_initial</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                      <span class="n">num_its_per_step</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+<span class="n">uFinal</span><span class="p">,</span> <span class="n">cFinal</span> <span class="o">=</span> <span class="n">uu</span><span class="o">.</span><span class="n">subfunctions</span>
+<span class="n">outfile1</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="s2">&quot;FHN_results/FHN_2d_u.pvd&quot;</span><span class="p">)</span>
+<span class="n">outfile2</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="s2">&quot;FHN_results/FHN_2d_c.pvd&quot;</span><span class="p">)</span>
+<span class="n">outfile1</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">uFinal</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">outfile2</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cFinal</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">12</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">stepper</span><span class="o">.</span><span class="n">advance</span><span class="p">()</span>
+    <span class="n">t</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">j</span> <span class="o">%</span> <span class="mi">5</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="n">outfile1</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">uFinal</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="n">j</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+        <span class="n">outfile2</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cFinal</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="n">j</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+
+<span class="n">nsteps</span><span class="p">,</span> <span class="n">nprop</span><span class="p">,</span> <span class="n">nit</span><span class="p">,</span> <span class="n">nnonlinprop</span><span class="p">,</span> <span class="n">nlinprop</span><span class="p">,</span> <span class="n">nnonlinit</span><span class="p">,</span> <span class="n">nlinit</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">solver_stats</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Time steps taken: </span><span class="si">{</span><span class="n">nsteps</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">nprop</span><span class="si">}</span><span class="s2"> propagator steps&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">nit</span><span class="si">}</span><span class="s2"> iterator steps&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">nnonlinprop</span><span class="si">}</span><span class="s2"> nonlinear steps in propagators&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">nlinprop</span><span class="si">}</span><span class="s2"> linear steps in propagators&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">nnonlinit</span><span class="si">}</span><span class="s2"> nonlinear steps in iterators&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">nlinit</span><span class="si">}</span><span class="s2"> linear steps in iterators&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

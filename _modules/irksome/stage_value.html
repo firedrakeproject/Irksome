@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.stage_value &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/stage_value">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.stage_value</h1><div class="highlight"><pre>
+<span></span><span class="c1"># formulate RK methods to solve for stage values rather than the stage derivatives.</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">FIAT</span><span class="w"> </span><span class="kn">import</span> <span class="n">Bernstein</span><span class="p">,</span> <span class="n">ufc_simplex</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">FIAT.barycentric_interpolation</span><span class="w"> </span><span class="kn">import</span> <span class="n">LagrangePolynomialSet</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">Function</span><span class="p">,</span> <span class="n">NonlinearVariationalProblem</span><span class="p">,</span>
+                       <span class="n">NonlinearVariationalSolver</span><span class="p">,</span> <span class="n">TestFunction</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span>
+                       <span class="n">inner</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_tensor</span><span class="p">,</span> <span class="n">zero</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.constantvalue</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_ufl</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.bcs</span><span class="w"> </span><span class="kn">import</span> <span class="n">stage2spaces4bc</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.ButcherTableaux</span><span class="w"> </span><span class="kn">import</span> <span class="n">CollocationButcherTableau</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.deriv</span><span class="w"> </span><span class="kn">import</span> <span class="n">expand_time_derivatives</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.manipulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract_terms</span><span class="p">,</span> <span class="n">strip_dt_form</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">AI</span><span class="p">,</span> <span class="n">is_ode</span><span class="p">,</span> <span class="n">dot</span><span class="p">,</span> <span class="n">reshape</span><span class="p">,</span> <span class="n">replace</span><span class="p">,</span> <span class="n">vecconst</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.base_time_stepper</span><span class="w"> </span><span class="kn">import</span> <span class="n">StageCoupledTimeStepper</span>
+
+
+<div class="viewcode-block" id="to_value">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_value.to_value">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_value</span><span class="p">(</span><span class="n">u0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">vandermonde</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;convert from Bernstein to Lagrange representation</span>
+
+<span class="sd">    the Bernstein coefficients are [u0; ZZ], and the Lagrange</span>
+<span class="sd">    are [u0; UU] since the value at the left-endpoint is unchanged.</span>
+<span class="sd">    Since u0 is not part of the unknown vector of stages, we disassemble</span>
+<span class="sd">    the Vandermonde matrix (first row is [1, 0, ...]).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ZZ_np</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">stages</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="n">u0</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">vandermonde</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ZZ_np</span>
+    <span class="n">u0_np</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">u0</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="n">u0</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+    <span class="n">u_np</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">u0_np</span><span class="p">,</span> <span class="n">ZZ_np</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">dot</span><span class="p">(</span><span class="n">vandermonde</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">u_np</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="getFormStage">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_value.getFormStage">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">getFormStage</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">butch</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">splitting</span><span class="o">=</span><span class="n">AI</span><span class="p">,</span> <span class="n">vandermonde</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aux_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Given a time-dependent variational form and a</span>
+<span class="sd">    :class:`ButcherTableau`, produce UFL for the s-stage RK method.</span>
+
+<span class="sd">    :arg F: UFL form for the semidiscrete ODE/DAE</span>
+<span class="sd">    :arg butch: the :class:`ButcherTableau` for the RK method being used to</span>
+<span class="sd">         advance in time.</span>
+<span class="sd">    :arg t: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time.</span>
+<span class="sd">    :arg dt: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time step.</span>
+<span class="sd">         The user may adjust this value between time steps.</span>
+<span class="sd">    :arg u0: a :class:`Function` referring to the state of</span>
+<span class="sd">         the PDE system at time `t`</span>
+<span class="sd">    :arg stages: a :class:`Function` representing the stages to be solved for.</span>
+<span class="sd">         It lives in a :class:`firedrake.FunctionSpace` corresponding to the</span>
+<span class="sd">         s-way tensor product of the space on which the semidiscrete</span>
+<span class="sd">         form lives.</span>
+<span class="sd">    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)</span>
+<span class="sd">         containing (possibly time-dependent) boundary conditions imposed</span>
+<span class="sd">         on the system.</span>
+<span class="sd">    :kwarg splitting: a callable that maps the (floating point) Butcher matrix</span>
+<span class="sd">         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used</span>
+<span class="sd">         to vary between the classical RK formulation and Butcher&#39;s reformulation</span>
+<span class="sd">         that leads to a denser mass matrix with block-diagonal stiffness.</span>
+<span class="sd">         Only `AI` and `IA` are currently supported.</span>
+<span class="sd">    :kwarg vandermonde: a numpy array encoding a change of basis to the Lagrange</span>
+<span class="sd">         polynomials associated with the collocation nodes from some other</span>
+<span class="sd">         (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the</span>
+<span class="sd">         coefficients in some basis rather than the values at particular stages,</span>
+<span class="sd">         which can be useful for satisfying bounds constraints.</span>
+<span class="sd">         If none is provided, we assume it is the identity, working in the</span>
+<span class="sd">         Lagrange basis.</span>
+<span class="sd">    :kwarg aux_indices: a list of field indices, currently ignored.</span>
+
+<span class="sd">    :returns: a 2-tuple of</span>
+<span class="sd">       - `Fnew`, the :class:`Form`</span>
+<span class="sd">       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed</span>
+<span class="sd">         on the stages</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># preprocess time derivatives</span>
+    <span class="n">F</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+    <span class="c1"># we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.</span>
+    <span class="k">assert</span> <span class="n">is_ode</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">u0</span><span class="p">)</span> <span class="ow">or</span> <span class="n">butch</span><span class="o">.</span><span class="n">is_stiffly_accurate</span>
+
+    <span class="n">v</span><span class="p">,</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">arguments</span><span class="p">()</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">V</span> <span class="o">==</span> <span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">bA1</span><span class="p">,</span> <span class="n">bA2</span> <span class="o">=</span> <span class="n">splitting</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">A</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">bA2inv</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">bA2</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;We require A = A1 A2 with A2 invertible&quot;</span><span class="p">)</span>
+    <span class="n">A1</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">bA1</span><span class="p">)</span>
+    <span class="n">A2inv</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">bA2inv</span><span class="p">)</span>
+
+    <span class="c1"># s-way product space for the stage variables</span>
+    <span class="n">num_stages</span> <span class="o">=</span> <span class="n">butch</span><span class="o">.</span><span class="n">num_stages</span>
+    <span class="n">Vbig</span> <span class="o">=</span> <span class="n">stages</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+    <span class="n">test</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">Vbig</span><span class="p">)</span>
+
+    <span class="c1"># set up the pieces we need to work with to do our substitutions</span>
+    <span class="n">v_np</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="p">(</span><span class="n">num_stages</span><span class="p">,</span> <span class="o">*</span><span class="n">v</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+    <span class="n">w_np</span> <span class="o">=</span> <span class="n">to_value</span><span class="p">(</span><span class="n">u0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">vandermonde</span><span class="p">)</span>
+    <span class="n">A1Tv</span> <span class="o">=</span> <span class="n">dot</span><span class="p">(</span><span class="n">A1</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">v_np</span><span class="p">)</span>
+    <span class="n">A2invTv</span> <span class="o">=</span> <span class="n">dot</span><span class="p">(</span><span class="n">A2inv</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">v_np</span><span class="p">)</span>
+
+    <span class="c1"># first, process terms with a time derivative.  I&#39;m</span>
+    <span class="c1"># assuming we have something of the form inner(Dt(g(u0)), v)*dx</span>
+    <span class="c1"># For each stage i, this gets replaced with</span>
+    <span class="c1"># inner((g(stages[i]) - g(u0))/dt, v)*dx</span>
+    <span class="n">split_form</span> <span class="o">=</span> <span class="n">extract_terms</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+    <span class="n">F_dtless</span> <span class="o">=</span> <span class="n">strip_dt_form</span><span class="p">(</span><span class="n">split_form</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+    <span class="n">F_remainder</span> <span class="o">=</span> <span class="n">split_form</span><span class="o">.</span><span class="n">remainder</span>
+
+    <span class="n">Fnew</span> <span class="o">=</span> <span class="n">zero</span><span class="p">()</span>
+    <span class="c1"># Terms with time derivatives</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+        <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                <span class="n">v</span><span class="p">:</span> <span class="n">A2invTv</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">u0</span><span class="p">:</span> <span class="n">as_tensor</span><span class="p">(</span><span class="n">w_np</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">-</span> <span class="n">u0</span><span class="p">}</span>
+        <span class="n">Fnew</span> <span class="o">+=</span> <span class="n">replace</span><span class="p">(</span><span class="n">F_dtless</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+    <span class="c1"># Handle the rest of the terms</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+        <span class="c1"># replace the solution with stage values</span>
+        <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                <span class="n">v</span><span class="p">:</span> <span class="n">A1Tv</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                <span class="n">u0</span><span class="p">:</span> <span class="n">w_np</span><span class="p">[</span><span class="n">i</span><span class="p">]}</span>
+        <span class="n">Fnew</span> <span class="o">+=</span> <span class="n">replace</span><span class="p">(</span><span class="n">F_remainder</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">bcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bcs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">bcsnew</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">vandermonde</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">Vander_inv</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">vandermonde</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)))</span>
+
+    <span class="c1"># For each BC, we need a new BC for each stage</span>
+    <span class="c1"># so we need to figure out how the function is indexed (mixed + vec)</span>
+    <span class="c1"># and then set it to have the value of the original argument at</span>
+    <span class="c1"># time t+C[i]*dt.</span>
+    <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="n">bcs</span><span class="p">:</span>
+        <span class="n">bcarg</span> <span class="o">=</span> <span class="n">as_ufl</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">_original_arg</span><span class="p">)</span>
+        <span class="n">g_np</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">replace</span><span class="p">(</span><span class="n">bcarg</span><span class="p">,</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">ci</span> <span class="o">*</span> <span class="n">dt</span><span class="p">})</span> <span class="k">for</span> <span class="n">ci</span> <span class="ow">in</span> <span class="n">c</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">vandermonde</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">g_np</span> <span class="o">-=</span> <span class="n">vandermonde</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">bcarg</span>
+            <span class="n">g_np</span> <span class="o">=</span> <span class="n">Vander_inv</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">@</span> <span class="n">g_np</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">Vbigi</span> <span class="o">=</span> <span class="n">stage2spaces4bc</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="n">Vbig</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">bcsnew</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">reconstruct</span><span class="p">(</span><span class="n">V</span><span class="o">=</span><span class="n">Vbigi</span><span class="p">,</span> <span class="n">g</span><span class="o">=</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">g_np</span><span class="p">[</span><span class="n">i</span><span class="p">])))</span>
+    <span class="k">return</span> <span class="n">Fnew</span><span class="p">,</span> <span class="n">bcsnew</span></div>
+
+
+
+<div class="viewcode-block" id="StageValueTimeStepper">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_value.StageValueTimeStepper">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">StageValueTimeStepper</span><span class="p">(</span><span class="n">StageCoupledTimeStepper</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">solver_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">update_solver_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">splitting</span><span class="o">=</span><span class="n">AI</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">appctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">use_collocation_update</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span> <span class="o">=</span> <span class="n">butcher_tableau</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">basis_type</span> <span class="o">=</span> <span class="n">basis_type</span>
+
+        <span class="n">degree</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">num_stages</span>
+
+        <span class="k">if</span> <span class="n">basis_type</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="s1">&#39;Lagrange&#39;</span><span class="p">:</span>
+            <span class="n">vandermonde</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="s2">&quot;Bernstein&quot;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">CollocationButcherTableau</span><span class="p">),</span> <span class="s2">&quot;Need collocation for Bernstein conversion&quot;</span>
+            <span class="n">bern</span> <span class="o">=</span> <span class="n">Bernstein</span><span class="p">(</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">degree</span><span class="p">)</span>
+            <span class="n">pts</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">vandermonde</span> <span class="o">=</span> <span class="n">bern</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pts</span><span class="p">)[(</span><span class="mi">0</span><span class="p">,</span> <span class="p">)]</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown or unimplemented basis transformation type&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">vandermonde</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">vandermonde</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">vandermonde</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vandermonde</span> <span class="o">=</span> <span class="n">vandermonde</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span>
+                         <span class="n">solver_parameters</span><span class="o">=</span><span class="n">solver_parameters</span><span class="p">,</span>
+                         <span class="n">appctx</span><span class="o">=</span><span class="n">appctx</span><span class="p">,</span>
+                         <span class="n">splitting</span><span class="o">=</span><span class="n">splitting</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="o">=</span><span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="n">bounds</span><span class="p">,</span>
+                         <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">use_collocation_update</span><span class="p">:</span>
+            <span class="c1"># Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.</span>
+            <span class="c1"># TODO: create an assertion to check for constant-in-time boundary conditions.</span>
+            <span class="n">nodes</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">CollocationButcherTableau</span><span class="p">),</span> <span class="s2">&quot;Need a collocation method for collocation update&quot;</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">basis_type</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">basis_type</span> <span class="o">==</span> <span class="s2">&quot;Lagrange&quot;</span><span class="p">),</span> <span class="s2">&quot;Collocation update requires the Lagrange form of the collocation polynomial&quot;</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">nodes</span><span class="p">))</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="o">.</span><span class="n">num_stages</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;Need a non-confluent collocation method to use collocation update&quot;</span>
+
+            <span class="n">lag_basis</span> <span class="o">=</span> <span class="n">LagrangePolynomialSet</span><span class="p">(</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">nodes</span><span class="p">)</span>
+            <span class="n">collocation_vander</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">lag_basis</span><span class="o">.</span><span class="n">tabulate</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,))[(</span><span class="mi">0</span><span class="p">,)])</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">collocation_vander</span> <span class="o">=</span> <span class="n">collocation_vander</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_collocation</span>
+
+        <span class="k">elif</span> <span class="p">(</span><span class="ow">not</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">is_stiffly_accurate</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">basis_type</span> <span class="o">!=</span> <span class="s2">&quot;Bernstein&quot;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">unew</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_solver</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_update_solver</span><span class="p">(</span><span class="n">update_solver_parameters</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_general</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_stiff_acc</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_stiff_acc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">u0bit</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">):</span>
+            <span class="n">u0bit</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stages</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">+</span><span class="n">i</span><span class="p">])</span>
+
+<div class="viewcode-block" id="StageValueTimeStepper.get_update_solver">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_value.StageValueTimeStepper.get_update_solver">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_update_solver</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update_solver_parameters</span><span class="p">):</span>
+        <span class="c1"># only form update stuff if we need it</span>
+        <span class="c1"># which means neither stiffly accurate nor Vandermonde</span>
+        <span class="n">F</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="p">,))</span>
+        <span class="n">v</span><span class="p">,</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">arguments</span><span class="p">()</span>
+        <span class="n">unew</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+        <span class="n">Fupdate</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">unew</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span>
+
+        <span class="n">C</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+        <span class="n">B</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="o">.</span><span class="n">b</span><span class="p">)</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span>
+        <span class="n">u0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span>
+        <span class="n">split_form</span> <span class="o">=</span> <span class="n">extract_terms</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+        <span class="n">u_np</span> <span class="o">=</span> <span class="n">to_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stages</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">vandermonde</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">C</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                    <span class="n">u0</span><span class="p">:</span> <span class="n">u_np</span><span class="p">[</span><span class="n">i</span><span class="p">]}</span>
+            <span class="n">Fupdate</span> <span class="o">+=</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">B</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">replace</span><span class="p">(</span><span class="n">split_form</span><span class="o">.</span><span class="n">remainder</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+        <span class="c1"># And the BC&#39;s for the update -- just the original BC at t+dt</span>
+        <span class="n">update_bcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">orig_bcs</span><span class="p">:</span>
+            <span class="n">bcarg</span> <span class="o">=</span> <span class="n">as_ufl</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">_original_arg</span><span class="p">)</span>
+            <span class="n">gcur</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">bcarg</span><span class="p">,</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">dt</span><span class="p">})</span>
+            <span class="n">update_bcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">reconstruct</span><span class="p">(</span><span class="n">g</span><span class="o">=</span><span class="n">gcur</span><span class="p">))</span>
+
+        <span class="n">update_problem</span> <span class="o">=</span> <span class="n">NonlinearVariationalProblem</span><span class="p">(</span>
+            <span class="n">Fupdate</span><span class="p">,</span> <span class="n">unew</span><span class="p">,</span> <span class="n">update_bcs</span><span class="p">)</span>
+
+        <span class="n">update_solver</span> <span class="o">=</span> <span class="n">NonlinearVariationalSolver</span><span class="p">(</span>
+            <span class="n">update_problem</span><span class="p">,</span>
+            <span class="n">solver_parameters</span><span class="o">=</span><span class="n">update_solver_parameters</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">unew</span><span class="p">,</span> <span class="n">update_solver</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_general</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unew</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_collocation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">stage_vals</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">stages</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">u0bit</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">):</span>
+            <span class="n">u0bit</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">stage_vals</span><span class="p">[</span><span class="n">i</span><span class="p">::</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span><span class="p">]</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">collocation_vander</span><span class="p">)</span>
+
+<div class="viewcode-block" id="StageValueTimeStepper.get_form_and_bcs">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_value.StageValueTimeStepper.get_form_and_bcs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_form_and_bcs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">F</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tableau</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">bcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">bcs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">orig_bcs</span>
+        <span class="k">return</span> <span class="n">getFormStage</span><span class="p">(</span><span class="n">F</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">F</span><span class="p">,</span>
+                            <span class="n">tableau</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="p">,</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="p">,</span>
+                            <span class="n">stages</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span>
+                            <span class="n">splitting</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">splitting</span><span class="p">,</span>
+                            <span class="n">vandermonde</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">vandermonde</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
