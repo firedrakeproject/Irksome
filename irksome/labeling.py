@@ -1,9 +1,8 @@
 from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
-from ufl import Form
+from ufl import BaseForm, Form, FormSum
 from firedrake.fml import Label, keep, drop, LabelledForm
 from collections import defaultdict
 from .scheme import create_time_quadrature
-from .estimate_degrees import TimeDegreeEstimator
 import numpy as np
 
 explicit = Label("explicit")
@@ -40,58 +39,67 @@ def has_quad_labels(term):
     return any(isinstance(label, TimeQuadratureRule) for label in term.labels)
 
 
-def apply_time_quadrature_labels(form, test_degree, trial_degree, t=None, timedep_coeffs=None, scheme=None):
+def apply_time_quadrature_labels(form, degree_estimator, scheme=None):
     """
     Estimates the polynomial degree in time for each integral in the given form and labels
     each term with a quadrature rule to be used for time integration.
 
-    :arg form: a :class:`Form` or a partially labelled :class:`LabelledForm`.
-    :arg test_degree: the temporal polynomial degree of the test space.
-    :arg trial_degree: the temporal polynomial degree of the trial space.
-    :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
-    :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
+    :arg form: a :class:`BaseForm` or a partially labelled :class:`LabelledForm`.
+    :arg degree_estimator: a :class:`TimeDegreeEstimator` instance.
     :kwarg scheme: a string with the quadrature scheme.
 
     :returns: a :class:`LabelledForm` labelled by :class:`TimeQuaradratureRule` instances.
     """
-    if isinstance(form, Form):
-        remainder = None
-    elif isinstance(form, LabelledForm):
-        remainder = form.label_map(has_quad_labels, map_if_true=keep, map_if_false=drop)
+
+    # Split labelled and unlabelled parts
+    if isinstance(form, LabelledForm):
+        F = form.label_map(has_quad_labels, map_if_true=keep, map_if_false=drop)
         form = as_form(form.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep))
+    elif isinstance(form, BaseForm):
+        F = LabelledForm()
     else:
-        raise ValueError(f"Expecting a Form or LabelledForm, not {type(form).__name__}")
+        raise ValueError(f"Expecting a BaseForm or a LabelledForm, not {type(form).__name__}")
+
+    if not isinstance(form, Form) and isinstance(form, BaseForm):
+        # Label the non-integral components
+        if isinstance(form, FormSum):
+            ws = form.weights()
+            fs = form.components()
+            form = sum((w*f for f, w in zip(fs, ws) if isinstance(f, Form)), Form([]))
+            base_form = FormSum(*((f, w) for f, w in zip(fs, ws) if not isinstance(f, Form)))
+        else:
+            base_form = form
+            form = Form([])
+
+        degree = degree_estimator(apply_algebra_lowering(base_form))
+        label = TimeQuadratureLabel(degree, scheme=scheme)
+        F += label(base_form)
+
+    if not isinstance(form, Form):
+        raise NotImplementedError(f"Expecting a Form, not {type(form).__name__}")
     if form.empty():
-        return remainder
+        return F
+
     # Need to preprocess Inverse and Determinant
     form = apply_algebra_lowering(form)
 
     # Group integrals by degree
-    de = TimeDegreeEstimator(test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs)
     terms = defaultdict(list)
     for it in form.integrals():
-        terms[de(it.integrand())].append(it)
+        terms[degree_estimator(it)].append(it)
 
-    F = remainder
-    for deg, its in terms.items():
-        label = TimeQuadratureLabel(deg, scheme=scheme)
-        term = label(Form(its))
-        if F is None:
-            F = term
-        else:
-            F += term
+    for degree, integrals in terms.items():
+        label = TimeQuadratureLabel(degree, scheme=scheme)
+        F += label(Form(integrals))
     return F
 
 
-def split_quadrature(F, test_degree, trial_degree, t=None, timedep_coeffs=None, Qdefault=None):
+def split_quadrature(F, degree_estimator=None, Qdefault=None):
     """Splits a :class:`LabelledForm` into the terms to be integrated in time by the
     different :class:`TimeQuadratureRule` objects used as labels.
 
     :arg F: a :class:`Form` or a :class:`LabelledForm`.
-    :arg test_degree: the temporal polynomial degree of the test space.
-    :arg trial_degree: the temporal polynomial degree of the trial space.
-    :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
-    :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
+    :kwarg degree_estimator: a :class:`TimeDegreeEstimator` instance.
     :kwarg Qdefault: the :class:`TimeQuadratureRule` to be applied on unlabelled terms.
         Alternatively, a string indicating the quadrature scheme,
         in which case the degree is automatically estimated for each unlabelled term.
@@ -101,7 +109,7 @@ def split_quadrature(F, test_degree, trial_degree, t=None, timedep_coeffs=None, 
     do_estimate_degrees = Qdefault is None or isinstance(Qdefault, str)
     if do_estimate_degrees:
         scheme = Qdefault
-        F = apply_time_quadrature_labels(F, test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs, scheme=scheme)
+        F = apply_time_quadrature_labels(F, degree_estimator, scheme=scheme)
 
     if not isinstance(F, LabelledForm):
         return {Qdefault: F}

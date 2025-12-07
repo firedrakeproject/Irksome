@@ -75,26 +75,7 @@ def test_delta(msh, vom):
     assert result1.function_space() == Vbig.dual()
 
 
-def heat_delta(msh, vom, bt, stage_type):
-    V = FunctionSpace(msh, "CG", 1)
-    u = Function(V, name="u")
-    v = TestFunction(V)
-
-    t = Constant(0)
-
-    d = delta(v * sin(t*pi), vom)
-
-    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - d
-    bcs = DirichletBC(V, 0, "on_boundary")
-
-    dt = Constant(1/N)
-
-    stepper = TimeStepper(F, bt, t, dt, u, bcs=bcs, stage_type=stage_type, solver_parameters={"snes_lag_jacobian": -2})
-
-    stepper.advance()
-
-
-def heat_delta_galerkin(msh, vom, scheme):
+def heat_delta(msh, vom, scheme, **kwargs):
     V = FunctionSpace(msh, "CG", 1)
     u = Function(V, name="u")
     v = TestFunction(V)
@@ -108,7 +89,8 @@ def heat_delta_galerkin(msh, vom, scheme):
     dt = Constant(1/N)
 
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs,
-                          solver_parameters={"snes_lag_jacobian": -2})
+                          solver_parameters={"snes_lag_jacobian": -2},
+                          **kwargs)
 
     stepper.advance()
 
@@ -135,11 +117,11 @@ def wave_delta(msh, vom, bt):
 @pytest.mark.parametrize('stage_type', ('deriv', 'value'))
 @pytest.mark.parametrize('num_stages', (1, 2))
 def test_heat_fully_implicit(msh, vom, num_stages, stage_type):
-    heat_delta(msh, vom, RadauIIA(num_stages), stage_type)
+    heat_delta(msh, vom, RadauIIA(num_stages), stage_type=stage_type)
 
 
 def test_heat_dirk(msh, vom):
-    heat_delta(msh, vom, Alexander(), "dirk")
+    heat_delta(msh, vom, Alexander(), stage_type="dirk")
 
 
 @pytest.mark.parametrize('num_stages', (1, 2))
@@ -147,6 +129,6 @@ def test_wave(msh, vom, num_stages):
     wave_delta(msh, vom, GaussLegendre(num_stages))
 
 
-@pytest.mark.parametrize('scheme', (DiscontinuousGalerkinScheme(1), ContinuousPetrovGalerkinScheme(2)))
+@pytest.mark.parametrize('scheme', (DiscontinuousGalerkinScheme(1), ContinuousPetrovGalerkinScheme(2, quadrature_degree="auto")))
 def test_heat_galerkin(msh, vom, scheme):
-    heat_delta_galerkin(msh, vom, scheme)
+    heat_delta(msh, vom, scheme)
