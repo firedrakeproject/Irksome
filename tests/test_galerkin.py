@@ -318,7 +318,7 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     else:
         Lhigh = lambda x: x
 
-    F = inner(Dt(u), test_u)*dx - Llow((det(tensor) / (2*L*H))*dx)
+    F = inner(Dt(u), test_u)*dx + Llow(-(det(tensor) / (2*L*H))*dx)
     F += Llow(inner(w0, v0)*dx + inner(w1, v1)*dx + inner(w2, v2)*dx)
     F -= Lhigh(dHdu + dA1du + dA2du)
 
