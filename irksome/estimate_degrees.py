@@ -163,6 +163,17 @@ class TimeDegreeEstimator(DAGTraverser):
 
 
 def get_degree_mapping(expression, test_degree, trial_degree, t=None, timedep_coeffs=None):
+    """
+    Map time-dependent terminals to their polynomial degree.
+
+    :arg expression: a :class:`ufl.BaseForm` or :class:`ufl.Expr`.
+    :arg test_degree: the temporal polynomial degree of the test space.
+    :arg trial_degree: the temporal polynomial degree of the trial space.
+    :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
+    :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
+
+    :returns: a `dict` mapping time-dependent terminals to their degree in time.
+    """
     degree_mapping = {}
     if isinstance(expression, BaseForm):
         for arg in expression.arguments():
