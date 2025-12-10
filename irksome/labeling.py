@@ -77,8 +77,6 @@ def apply_time_quadrature_labels(form, degree_estimator, scheme=None):
 
     if not isinstance(form, Form):
         raise NotImplementedError(f"Expecting a Form, not {type(form).__name__}")
-    if form.empty():
-        return F
 
     # Need to preprocess Inverse and Determinant
     form = apply_algebra_lowering(form)
