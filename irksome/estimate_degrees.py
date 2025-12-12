@@ -2,6 +2,7 @@ from functools import singledispatchmethod
 
 from ufl.corealg.dag_traverser import DAGTraverser
 
+from ufl import as_ufl
 from ufl.constantvalue import IntValue
 from ufl.classes import (
     Argument, ConstantValue, Coefficient, SpatialCoordinate,
@@ -10,7 +11,7 @@ from ufl.classes import (
     Transposed, Determinant, Inverse, Division, Product, Inner, Dot, Outer,
     Cross, Sum, ListTensor, ExprList, ExprMapping, Power, MathFunction,
     Conditional, Condition, MultiIndex, MaxValue, MinValue, Form, Integral, Label,
-    Cofactor,
+    Cofactor, FormSum, Interpolate, Cofunction, BaseForm
 )
 
 from .deriv import TimeDerivative
@@ -21,12 +22,11 @@ class TimeDegreeEstimator(DAGTraverser):
 
     This algorithm is exact for a few operators and heuristic for many.
     """
-    def __init__(self, test_degree, trial_degree, t=None, timedep_coeffs=None, **kwargs):
+    def __init__(self, degree_mapping=None, **kwargs):
         super().__init__(**kwargs)
-        self.test_degree = test_degree
-        self.trial_degree = trial_degree
-        self.t = t
-        self.timedep_coeffs = timedep_coeffs
+        if degree_mapping is None:
+            degree_mapping = {}
+        self.degree_mapping = degree_mapping
 
     # Work around singledispatchmethod inheritance issue;
     # see https://bugs.python.org/issue36457.
@@ -34,26 +34,30 @@ class TimeDegreeEstimator(DAGTraverser):
     def process(self, o):
         return super().process(o)
 
+    @process.register(FormSum)
+    def formsum(self, o):
+        return max(self(as_ufl(w)) + self(c)
+                   for w, c in zip(o.weights(), o.components()))
+
+    @process.register(Interpolate)
+    def interpolate(self, o):
+        return sum(map(self, o.argument_slots()))
+
+    @process.register(Form)
+    def form(self, o):
+        return 0 if o.empty() else max(map(self, o.integrals()))
+
+    @process.register(Integral)
+    def integral(self, o):
+        return self(o.integrand())
+
     @process.register(Argument)
-    def argument(self, o):
-        return self.test_degree if o.number() == 0 else self.trial_degree
-
-    @process.register(ConstantValue)
-    def constant(self, o):
-        if self.t is not None and o is self.t:
-            return 1
-        else:
-            return 0
-
+    @process.register(Cofunction)
     @process.register(Coefficient)
+    @process.register(ConstantValue)
     @process.register(SpatialCoordinate)
     def terminal(self, o):
-        if self.t is not None and o is self.t:
-            return 1
-        elif self.timedep_coeffs is None or o in self.timedep_coeffs:
-            return self.trial_degree
-        else:
-            return 0
+        return self.degree_mapping.get(o, 0)
 
     @process.register(TimeDerivative)
     @DAGTraverser.postorder
@@ -158,15 +162,33 @@ class TimeDegreeEstimator(DAGTraverser):
         return None
 
 
+def get_degree_mapping(expression, test_degree, trial_degree, t=None, timedep_coeffs=None):
+    """
+    Map time-dependent terminals to their polynomial degree.
+
+    :arg expression: a :class:`ufl.BaseForm` or :class:`ufl.Expr`.
+    :arg test_degree: the temporal polynomial degree of the test space.
+    :arg trial_degree: the temporal polynomial degree of the trial space.
+    :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.
+    :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.
+
+    :returns: a `dict` mapping time-dependent terminals to their degree in time.
+    """
+    degree_mapping = {}
+    if isinstance(expression, BaseForm):
+        for arg in expression.arguments():
+            degree_mapping[arg] = test_degree if arg.number() == 0 else trial_degree
+
+    if t is not None:
+        degree_mapping[t] = 1
+
+    if timedep_coeffs is not None:
+        for c in timedep_coeffs:
+            degree_mapping[c] = trial_degree
+    return degree_mapping
+
+
 def estimate_time_degree(expression, test_degree, trial_degree, t=None, timedep_coeffs=None):
-    de = TimeDegreeEstimator(test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs)
-    if isinstance(expression, Form):
-        if not expression.integrals():
-            return 0
-        degree = max(map(de, (it.integrand() for it in expression.integrals())))
-    elif isinstance(expression, Integral):
-        degree = de(expression.integrand())
-    else:
-        degree = de(expression)
-    default_degree = test_degree + trial_degree
-    return default_degree if degree is None else degree
+    degree_mapping = get_degree_mapping(expression, test_degree, trial_degree, t=t, timedep_coeffs=timedep_coeffs)
+    degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
+    return degree_estimator(expression)
