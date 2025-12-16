@@ -6,7 +6,7 @@ from .base_time_stepper import BaseTimeStepper
 from .multistep_tableaux import MultistepTableau
 from ufl.constantvalue import as_ufl
 from ufl import zero
-from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver
+from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative
 
 
 class MultistepStepper(BaseTimeStepper):
@@ -38,7 +38,7 @@ class MultistepStepper(BaseTimeStepper):
             to find the required starting values.
     """
 
-    def __init__(self, F, method, t, dt, u0, bcs=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
+    def __init__(self, F, method, t, dt, u0, bcs=None, Fp=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None, startup_parameters=None, **kwargs):
 
         super().__init__(F, t, dt, u0,
@@ -51,10 +51,16 @@ class MultistepStepper(BaseTimeStepper):
         self.b = vecconst(method.b)
         self.us = [u0.copy(deepcopy=True) for coeff in self.a[:-1]]
         self.us.append(u0)
-        
         Fnew, bcsnew = self.get_form_and_bcs(F, t, dt, u0, self.a, self.b, bcs=bcs)
 
-        self.problem = NonlinearVariationalProblem(Fnew, self.us[-1], bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+        if Fp is not None:
+            print('im right here!!')
+            Fpnew, _ = self.get_form_and_bcs(Fp, t, dt, u0, self.a, self.b, bcs=bcs)
+            J = derivative(Fpnew, self.us[-1])
+        else:
+            J = None
+
+        self.problem = NonlinearVariationalProblem(Fnew, self.us[-1], J=J, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False))
 
@@ -165,7 +171,7 @@ class MultistepStepper(BaseTimeStepper):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
 
 
-valid_multistep_kwargs = ("bounds", "startup_parameters")
+valid_multistep_kwargs = ("Fp", "bounds", "startup_parameters")
 
 
 def MultistepTimeStepper(F, method, t, dt, u0, **kwargs):
@@ -180,5 +186,6 @@ def MultistepTimeStepper(F, method, t, dt, u0, **kwargs):
             raise ValueError(f"kwarg {cur_kwarg} is not allowable for MultistepTimeStepper")
         
     bounds = kwargs.pop('bounds', None)
+    Fp = kwargs.pop('Fp', None)
     startup_parameters = kwargs.pop('startup_parameters', {})
-    return MultistepStepper(F, method, t, dt, u0, bcs, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
+    return MultistepStepper(F, method, t, dt, u0, bcs, Fp=Fp, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
