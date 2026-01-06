@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.tools &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/tools">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.tools</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">operator</span><span class="w"> </span><span class="kn">import</span> <span class="n">mul</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">reduce</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">FunctionSpace</span><span class="p">,</span> <span class="n">VectorSpaceBasis</span><span class="p">,</span> <span class="n">MixedVectorSpaceBasis</span><span class="p">,</span> <span class="n">Constant</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.algorithms.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract_type</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_tensor</span><span class="p">,</span> <span class="n">zero</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span> <span class="k">as</span> <span class="n">ufl_replace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.domain</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_domain</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyop2.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MixedDat</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">irksome.deriv</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeDerivative</span>
+
+
+<div class="viewcode-block" id="dot">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.dot">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">dot</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">tensordot</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="reshape">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.reshape">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">reshape</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">reshape</span><span class="p">([</span><span class="n">expr</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndindex</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">)],</span> <span class="n">shape</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="flatten_dats">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.flatten_dats">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">flatten_dats</span><span class="p">(</span><span class="n">dats</span><span class="p">):</span>
+    <span class="n">flat_dat</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">dat</span> <span class="ow">in</span> <span class="n">dats</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dat</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="n">MixedDat</span><span class="p">)):</span>
+            <span class="n">flat_dat</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">dat</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">flat_dat</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dat</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">MixedDat</span><span class="p">(</span><span class="n">flat_dat</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="get_stage_space">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.get_stage_space">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_stage_space</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="p">(</span><span class="n">V</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)))</span></div>
+
+
+
+<div class="viewcode-block" id="fields_to_components">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.fields_to_components">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fields_to_components</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">fields</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the scalar component indices corresponding to the possibly</span>
+<span class="sd">    tensor-valued subspaces of a mixed function space.</span>
+
+<span class="sd">    :arg V: a :class:`FunctionSpace`.</span>
+<span class="sd">    :arg fields: a list of integers defining subspaces of V.</span>
+
+<span class="sd">    :returns: a list of integers with the scalar components corresponding to</span>
+<span class="sd">    the subfields.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">components</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">Vi</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">V</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">:</span>
+            <span class="n">components</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="n">cur</span><span class="o">+</span><span class="n">Vi</span><span class="o">.</span><span class="n">value_size</span><span class="p">))</span>
+        <span class="n">cur</span> <span class="o">+=</span> <span class="n">Vi</span><span class="o">.</span><span class="n">value_size</span>
+    <span class="k">return</span> <span class="n">components</span></div>
+
+
+
+<div class="viewcode-block" id="getNullspace">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.getNullspace">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">getNullspace</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">Vbig</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">,</span> <span class="n">nullspace</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes the nullspace for a multi-stage method.</span>
+
+<span class="sd">    :arg V: The :class:`FunctionSpace` on which the original time-dependent PDE is posed.</span>
+<span class="sd">    :arg Vbig: The multi-stage :class:`FunctionSpace` for the stage problem</span>
+<span class="sd">    :arg num_stages: The number of stages in the RK method</span>
+<span class="sd">    :arg nullspace: The nullspace for the original problem.</span>
+
+<span class="sd">    On output, we produce a :class:`MixedVectorSpaceBasis` defining the nullspace</span>
+<span class="sd">    for the multistage problem.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">num_fields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">nullspace</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">nspnew</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">nullspace</span><span class="p">,</span> <span class="p">(</span><span class="n">MixedVectorSpaceBasis</span><span class="p">,</span> <span class="n">VectorSpaceBasis</span><span class="p">)):</span>
+            <span class="n">nullspace</span> <span class="o">=</span> <span class="p">[(</span><span class="n">field</span><span class="p">,</span> <span class="n">basis</span><span class="p">)</span> <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">basis</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nullspace</span><span class="p">)</span>
+                         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">basis</span><span class="p">,</span> <span class="n">VectorSpaceBasis</span><span class="p">)]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">nullspace</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">nullspace</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">num_fields</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">nullspace</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;At least one index for nullspaces is out of range&quot;</span><span class="p">)</span>
+        <span class="n">nspnew</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">nsp_comp</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nullspace</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_fields</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">count</span> <span class="o">&lt;</span> <span class="n">nsp_comp</span> <span class="ow">and</span> <span class="n">j</span> <span class="o">==</span> <span class="n">nullspace</span><span class="p">[</span><span class="n">count</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
+                    <span class="n">nspnew</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nullspace</span><span class="p">[</span><span class="n">count</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+                    <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">nspnew</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Vbig</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">num_fields</span> <span class="o">*</span> <span class="n">i</span><span class="p">))</span>
+        <span class="n">nspnew</span> <span class="o">=</span> <span class="n">MixedVectorSpaceBasis</span><span class="p">(</span><span class="n">Vbig</span><span class="p">,</span> <span class="n">nspnew</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">nspnew</span></div>
+
+
+
+<div class="viewcode-block" id="replace">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.replace">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">replace</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">mapping</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A wrapper for ufl.replace that allows numpy arrays.&quot;&quot;&quot;</span>
+    <span class="n">cmapping</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">as_tensor</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapping</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="k">return</span> <span class="n">ufl_replace</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">cmapping</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># Utility functions that help us refactor</span>
+<div class="viewcode-block" id="AI">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.AI">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">AI</span><span class="p">(</span><span class="n">A</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="o">*</span><span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">A</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="IA">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.IA">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">IA</span><span class="p">(</span><span class="n">A</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="o">*</span><span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">A</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span> <span class="n">A</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="is_ode">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.is_ode">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">is_ode</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">u</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Given a form defined over a function `u`, checks if</span>
+<span class="sd">    (each bit of) u appears under a time derivative.&quot;&quot;&quot;</span>
+    <span class="n">derivs</span> <span class="o">=</span> <span class="n">extract_type</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">TimeDerivative</span><span class="p">)</span>
+    <span class="n">Dtbits</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">derivs</span><span class="p">:</span>
+        <span class="n">op</span><span class="p">,</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">ufl_operands</span>
+        <span class="n">Dtbits</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">op</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndindex</span><span class="p">(</span><span class="n">op</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+    <span class="n">ubits</span> <span class="o">=</span> <span class="p">[</span><span class="n">u</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndindex</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">Dtbits</span><span class="p">)</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">ubits</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># Utility class for constants on a mesh</span>
+<div class="viewcode-block" id="MeshConstant">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.MeshConstant">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshConstant</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msh</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">msh</span> <span class="o">=</span> <span class="n">as_domain</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">V</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">msh</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MeshConstant.Constant">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.MeshConstant.Constant">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">Constant</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Function</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">V</span><span class="p">)</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">val</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ConstantOrZero">
+<a class="viewcode-back" href="../../irksome.html#irksome.tools.ConstantOrZero">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ConstantOrZero</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">MC</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">const</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span> <span class="k">if</span> <span class="n">MC</span> <span class="k">else</span> <span class="n">Constant</span>
+    <span class="k">return</span> <span class="n">zero</span><span class="p">()</span> <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">complex</span><span class="p">(</span><span class="n">x</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mf">1.e-10</span> <span class="k">else</span> <span class="n">const</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></div>
+
+
+
+<span class="n">vecconst</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">vectorize</span><span class="p">(</span><span class="n">ConstantOrZero</span><span class="p">)</span>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

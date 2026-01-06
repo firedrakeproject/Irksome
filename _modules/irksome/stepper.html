@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.stepper &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/stepper">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.stepper</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">.scheme</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContinuousPetrovGalerkinScheme</span><span class="p">,</span> <span class="n">DiscontinuousGalerkinScheme</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.dirk_stepper</span><span class="w"> </span><span class="kn">import</span> <span class="n">DIRKTimeStepper</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.explicit_stepper</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExplicitTimeStepper</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.discontinuous_galerkin_stepper</span><span class="w"> </span><span class="kn">import</span> <span class="n">DiscontinuousGalerkinTimeStepper</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.galerkin_stepper</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContinuousPetrovGalerkinTimeStepper</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.imex</span><span class="w"> </span><span class="kn">import</span> <span class="n">RadauIIAIMEXMethod</span><span class="p">,</span> <span class="n">DIRKIMEXMethod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.labeling</span><span class="w"> </span><span class="kn">import</span> <span class="n">split_explicit</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.stage_derivative</span><span class="w"> </span><span class="kn">import</span> <span class="n">StageDerivativeTimeStepper</span><span class="p">,</span> <span class="n">AdaptiveTimeStepper</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.stage_value</span><span class="w"> </span><span class="kn">import</span> <span class="n">StageValueTimeStepper</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">AI</span>
+
+<span class="n">valid_base_kwargs</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;bcs&quot;</span><span class="p">,</span> <span class="s2">&quot;form_compiler_parameters&quot;</span><span class="p">,</span> <span class="s2">&quot;is_linear&quot;</span><span class="p">,</span> <span class="s2">&quot;restrict&quot;</span><span class="p">,</span> <span class="s2">&quot;solver_parameters&quot;</span><span class="p">,</span>
+                     <span class="s2">&quot;nullspace&quot;</span><span class="p">,</span> <span class="s2">&quot;transpose_nullspace&quot;</span><span class="p">,</span> <span class="s2">&quot;near_nullspace&quot;</span><span class="p">,</span>
+                     <span class="s2">&quot;appctx&quot;</span><span class="p">,</span> <span class="s2">&quot;options_prefix&quot;</span><span class="p">,</span> <span class="s2">&quot;pre_apply_bcs&quot;</span><span class="p">)</span>
+
+<span class="n">valid_kwargs_per_stage_type</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;deriv&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Fp&quot;</span><span class="p">,</span> <span class="s2">&quot;stage_type&quot;</span><span class="p">,</span> <span class="s2">&quot;bc_type&quot;</span><span class="p">,</span> <span class="s2">&quot;splitting&quot;</span><span class="p">,</span> <span class="s2">&quot;adaptive_parameters&quot;</span><span class="p">,</span> <span class="s2">&quot;aux_indices&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Fp&quot;</span><span class="p">,</span> <span class="s2">&quot;stage_type&quot;</span><span class="p">,</span> <span class="s2">&quot;basis_type&quot;</span><span class="p">,</span>
+              <span class="s2">&quot;update_solver_parameters&quot;</span><span class="p">,</span> <span class="s2">&quot;splitting&quot;</span><span class="p">,</span> <span class="s2">&quot;bounds&quot;</span><span class="p">,</span> <span class="s2">&quot;use_collocation_update&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;dirk&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Fp&quot;</span><span class="p">,</span> <span class="s2">&quot;stage_type&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;explicit&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Fp&quot;</span><span class="p">,</span> <span class="s2">&quot;stage_type&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;imex&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Fexp&quot;</span><span class="p">,</span> <span class="s2">&quot;stage_type&quot;</span><span class="p">,</span> <span class="s2">&quot;it_solver_parameters&quot;</span><span class="p">,</span> <span class="s2">&quot;prop_solver_parameters&quot;</span><span class="p">,</span>
+             <span class="s2">&quot;splitting&quot;</span><span class="p">,</span> <span class="s2">&quot;num_its_initial&quot;</span><span class="p">,</span> <span class="s2">&quot;num_its_per_step&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;dirkimex&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Fexp&quot;</span><span class="p">,</span> <span class="s2">&quot;stage_type&quot;</span><span class="p">,</span> <span class="s2">&quot;mass_parameters&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;dg&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Fp&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;cpg&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Fp&quot;</span><span class="p">,</span> <span class="s2">&quot;bc_type&quot;</span><span class="p">,</span> <span class="s2">&quot;aux_indices&quot;</span><span class="p">]}</span>
+
+<span class="n">valid_adapt_parameters</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;tol&quot;</span><span class="p">,</span> <span class="s2">&quot;dtmin&quot;</span><span class="p">,</span> <span class="s2">&quot;dtmax&quot;</span><span class="p">,</span> <span class="s2">&quot;KI&quot;</span><span class="p">,</span> <span class="s2">&quot;KP&quot;</span><span class="p">,</span>
+                          <span class="s2">&quot;max_reject&quot;</span><span class="p">,</span> <span class="s2">&quot;onscale_factor&quot;</span><span class="p">,</span>
+                          <span class="s2">&quot;safety_factor&quot;</span><span class="p">,</span> <span class="s2">&quot;gamma0_params&quot;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="imex_separation">
+<a class="viewcode-back" href="../../irksome.html#irksome.stepper.imex_separation">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">imex_separation</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">Fexp_kwarg</span><span class="p">,</span> <span class="n">label</span><span class="p">):</span>
+    <span class="n">Fimp</span><span class="p">,</span> <span class="n">Fexp_label</span> <span class="o">=</span> <span class="n">split_explicit</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">Fexp_kwarg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">Fexp_label</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Calling an </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> scheme with no explicit form.  Did you really mean to do this?&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">Fexp</span> <span class="o">=</span> <span class="n">Fexp_label</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">Fexp</span> <span class="o">=</span> <span class="n">Fexp_kwarg</span>
+        <span class="k">if</span> <span class="n">Fexp_label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;You specified an explicit part in two ways!&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">Fimp</span><span class="p">,</span> <span class="n">Fexp</span></div>
+
+
+
+<div class="viewcode-block" id="TimeStepper">
+<a class="viewcode-back" href="../../irksome.html#irksome.stepper.TimeStepper">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">TimeStepper</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Helper function to dispatch between various back-end classes</span>
+<span class="sd">       for doing time stepping.  Returns an instance of the</span>
+<span class="sd">       appropriate class.</span>
+
+<span class="sd">    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem</span>
+<span class="sd">            F(t, u; v) == 0, where `u` is the unknown</span>
+<span class="sd">            :class:`firedrake.Function and `v` iss the</span>
+<span class="sd">            :class:firedrake.TestFunction`.</span>
+<span class="sd">    :arg method: A :class:`ButcherTableau` instance (for RK methods) or</span>
+<span class="sd">            a :class:`GalerkinScheme` instance (for CPG or DG) methods</span>
+<span class="sd">            to be used in time marching.</span>
+<span class="sd">    :arg t: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time.</span>
+<span class="sd">    :arg dt: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time step.</span>
+<span class="sd">         The user may adjust this value between time steps.</span>
+<span class="sd">    :arg u0: A :class:`firedrake.Function` containing the current</span>
+<span class="sd">            state of the problem to be solved.</span>
+<span class="sd">    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or</span>
+<span class="sd">            :class: `firedrake.EquationBC` containing</span>
+<span class="sd">            the strongly-enforced boundary conditions.  Irksome will</span>
+<span class="sd">            manipulate these to obtain boundary conditions for each</span>
+<span class="sd">            stage of the RK method.</span>
+<span class="sd">    :arg nullspace: A list of tuples of the form (index, VSB) where</span>
+<span class="sd">            index is an index into the function space associated with</span>
+<span class="sd">            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`</span>
+<span class="sd">            instance to be passed to a</span>
+<span class="sd">            `firedrake.MixedVectorSpaceBasis` over the larger space</span>
+<span class="sd">            associated with the Runge-Kutta method</span>
+<span class="sd">    :arg stage_type: Whether to formulate in terms of a stage</span>
+<span class="sd">            derivatives or stage values. Support for `firedrake.EquationBC`</span>
+<span class="sd">            in `bcs` is limited to the stage derivative formulation.</span>
+<span class="sd">    :arg splitting: An callable used to factor the Butcher matrix</span>
+<span class="sd">    :arg bc_type: For stage derivative formulation, how to manipulate</span>
+<span class="sd">            the strongly-enforced boundary conditions.</span>
+<span class="sd">            Support for `firedrake.EquationBC` in `bcs` is limited</span>
+<span class="sd">            to DAE style BCs.</span>
+<span class="sd">    :arg solver_parameters: A :class:`dict` of solver parameters that</span>
+<span class="sd">            will be used in solving the algebraic problem associated</span>
+<span class="sd">            with each time step.</span>
+<span class="sd">    :arg update_solver_parameters: A :class:`dict` of parameters for</span>
+<span class="sd">            inverting the mass matrix at each step (only used if</span>
+<span class="sd">            stage_type is &quot;value&quot;)</span>
+<span class="sd">    :arg adaptive_parameters: A :class:`dict` of parameters for use with</span>
+<span class="sd">            adaptive time stepping (only used if stage_type is &quot;deriv&quot;)</span>
+<span class="sd">    :arg use_collocation_update: An optional kwarg indicating whether to use</span>
+<span class="sd">        the terminal value of the collocation polynomial as the solution</span>
+<span class="sd">        update. This is needed to bypass the mass matrix inversion when</span>
+<span class="sd">        enforcing bounds constraints with an RK method that is not stiffly</span>
+<span class="sd">        accurate. Currently, only constant-in-time boundary conditions are</span>
+<span class="sd">        supported.</span>
+<span class="sd">    :kwarg aux_indices: Only valid for continuous Petrov Galerkin time scheme.  It</span>
+<span class="sd">            specifies that some of the variables in `u0` are to be treated as</span>
+<span class="sd">            auxiliary, that is, discretized in the lower-order DG test space.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># first pluck out the cases for Galerkin in time...</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="n">DiscontinuousGalerkinScheme</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">set</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">valid_base_kwargs</span><span class="p">)</span> <span class="o">+</span> <span class="n">valid_kwargs_per_stage_type</span><span class="p">[</span><span class="s2">&quot;dg&quot;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">DiscontinuousGalerkinTimeStepper</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="n">ContinuousPetrovGalerkinScheme</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">set</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">valid_base_kwargs</span><span class="p">)</span> <span class="o">+</span> <span class="n">valid_kwargs_per_stage_type</span><span class="p">[</span><span class="s2">&quot;cpg&quot;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">ContinuousPetrovGalerkinTimeStepper</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="n">stage_type</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;stage_type&quot;</span><span class="p">,</span> <span class="s2">&quot;deriv&quot;</span><span class="p">)</span>
+    <span class="n">adapt_params</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;adaptive_parameters&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">adapt_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">stage_type</span> <span class="o">==</span> <span class="s2">&quot;deriv&quot;</span><span class="p">,</span> <span class="s2">&quot;Adaptive time stepping is only implemented for derivative stage type&quot;</span>
+
+    <span class="n">base_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">valid_base_kwargs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">base_kwargs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+    <span class="n">bcs</span> <span class="o">=</span> <span class="n">base_kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;bcs&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">cur_kwarg</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">cur_kwarg</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">valid_kwargs_per_stage_type</span><span class="p">[</span><span class="n">stage_type</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;kwarg </span><span class="si">{</span><span class="n">cur_kwarg</span><span class="si">}</span><span class="s2"> is not allowable for stage_type </span><span class="si">{</span><span class="n">stage_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">stage_type</span> <span class="o">==</span> <span class="s2">&quot;deriv&quot;</span><span class="p">:</span>
+        <span class="n">Fp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Fp&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">bc_type</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bc_type&quot;</span><span class="p">,</span> <span class="s2">&quot;DAE&quot;</span><span class="p">)</span>
+        <span class="n">splitting</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;splitting&quot;</span><span class="p">,</span> <span class="n">AI</span><span class="p">)</span>
+        <span class="n">aux_indices</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;aux_indices&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">adapt_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">StageDerivativeTimeStepper</span><span class="p">(</span>
+                <span class="n">F</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="p">,</span> <span class="n">Fp</span><span class="o">=</span><span class="n">Fp</span><span class="p">,</span>
+                <span class="n">bc_type</span><span class="o">=</span><span class="n">bc_type</span><span class="p">,</span> <span class="n">splitting</span><span class="o">=</span><span class="n">splitting</span><span class="p">,</span> <span class="n">aux_indices</span><span class="o">=</span><span class="n">aux_indices</span><span class="p">,</span> <span class="o">**</span><span class="n">base_kwargs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">adapt_params</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">valid_adapt_parameters</span>
+            <span class="n">tol</span> <span class="o">=</span> <span class="n">adapt_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tol&quot;</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">)</span>
+            <span class="n">dtmin</span> <span class="o">=</span> <span class="n">adapt_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dtmin&quot;</span><span class="p">,</span> <span class="mf">1.e-15</span><span class="p">)</span>
+            <span class="n">dtmax</span> <span class="o">=</span> <span class="n">adapt_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dtmax&quot;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+            <span class="n">KI</span> <span class="o">=</span> <span class="n">adapt_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;KI&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">15</span><span class="p">)</span>
+            <span class="n">KP</span> <span class="o">=</span> <span class="n">adapt_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;KP&quot;</span><span class="p">,</span> <span class="mf">0.13</span><span class="p">)</span>
+            <span class="n">max_reject</span> <span class="o">=</span> <span class="n">adapt_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;max_reject&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+            <span class="n">onscale_factor</span> <span class="o">=</span> <span class="n">adapt_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;onscale_factor&quot;</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">)</span>
+            <span class="n">safety_factor</span> <span class="o">=</span> <span class="n">adapt_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;safety_factor&quot;</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">)</span>
+            <span class="n">gamma0_params</span> <span class="o">=</span> <span class="n">adapt_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;gamma0_params&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">AdaptiveTimeStepper</span><span class="p">(</span>
+            <span class="n">F</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="p">,</span>
+            <span class="n">bc_type</span><span class="o">=</span><span class="n">bc_type</span><span class="p">,</span> <span class="n">splitting</span><span class="o">=</span><span class="n">splitting</span><span class="p">,</span>
+            <span class="n">tol</span><span class="o">=</span><span class="n">tol</span><span class="p">,</span> <span class="n">dtmin</span><span class="o">=</span><span class="n">dtmin</span><span class="p">,</span> <span class="n">dtmax</span><span class="o">=</span><span class="n">dtmax</span><span class="p">,</span> <span class="n">KI</span><span class="o">=</span><span class="n">KI</span><span class="p">,</span> <span class="n">KP</span><span class="o">=</span><span class="n">KP</span><span class="p">,</span>
+            <span class="n">max_reject</span><span class="o">=</span><span class="n">max_reject</span><span class="p">,</span> <span class="n">onscale_factor</span><span class="o">=</span><span class="n">onscale_factor</span><span class="p">,</span>
+            <span class="n">safety_factor</span><span class="o">=</span><span class="n">safety_factor</span><span class="p">,</span> <span class="n">gamma0_params</span><span class="o">=</span><span class="n">gamma0_params</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">base_kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">stage_type</span> <span class="o">==</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span>
+        <span class="n">Fp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Fp&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">splitting</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;splitting&quot;</span><span class="p">,</span> <span class="n">AI</span><span class="p">)</span>
+        <span class="n">basis_type</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;basis_type&quot;</span><span class="p">)</span>
+        <span class="n">update_solver_parameters</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;update_solver_parameters&quot;</span><span class="p">)</span>
+        <span class="n">bounds</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bounds&quot;</span><span class="p">)</span>
+        <span class="n">use_collocation_update</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;use_collocation_update&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">StageValueTimeStepper</span><span class="p">(</span>
+            <span class="n">F</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span> <span class="n">Fp</span><span class="o">=</span><span class="n">Fp</span><span class="p">,</span>
+            <span class="n">splitting</span><span class="o">=</span><span class="n">splitting</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="n">basis_type</span><span class="p">,</span>
+            <span class="n">update_solver_parameters</span><span class="o">=</span><span class="n">update_solver_parameters</span><span class="p">,</span>
+            <span class="n">bounds</span><span class="o">=</span><span class="n">bounds</span><span class="p">,</span> <span class="n">use_collocation_update</span><span class="o">=</span><span class="n">use_collocation_update</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">base_kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">stage_type</span> <span class="o">==</span> <span class="s2">&quot;dirk&quot;</span><span class="p">:</span>
+        <span class="n">Fp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Fp&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">DIRKTimeStepper</span><span class="p">(</span>
+            <span class="n">F</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="p">,</span> <span class="n">Fp</span><span class="o">=</span><span class="n">Fp</span><span class="p">,</span> <span class="o">**</span><span class="n">base_kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">stage_type</span> <span class="o">==</span> <span class="s2">&quot;explicit&quot;</span><span class="p">:</span>
+        <span class="n">Fp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Fp&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ExplicitTimeStepper</span><span class="p">(</span>
+            <span class="n">F</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="p">,</span> <span class="n">Fp</span><span class="o">=</span><span class="n">Fp</span><span class="p">,</span> <span class="o">**</span><span class="n">base_kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">stage_type</span> <span class="o">==</span> <span class="s2">&quot;imex&quot;</span><span class="p">:</span>
+        <span class="n">Fimp</span><span class="p">,</span> <span class="n">Fexp</span> <span class="o">=</span> <span class="n">imex_separation</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Fexp&quot;</span><span class="p">),</span> <span class="n">stage_type</span><span class="p">)</span>
+        <span class="n">appctx</span> <span class="o">=</span> <span class="n">base_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;appctx&quot;</span><span class="p">)</span>
+        <span class="n">nullspace</span> <span class="o">=</span> <span class="n">base_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nullspace&quot;</span><span class="p">)</span>
+        <span class="n">splitting</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;splitting&quot;</span><span class="p">,</span> <span class="n">AI</span><span class="p">)</span>
+        <span class="n">it_solver_parameters</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;it_solver_parameters&quot;</span><span class="p">)</span>
+        <span class="n">prop_solver_parameters</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;prop_solver_parameters&quot;</span><span class="p">)</span>
+        <span class="n">num_its_initial</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;num_its_initial&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">num_its_per_step</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;num_its_per_step&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">RadauIIAIMEXMethod</span><span class="p">(</span>
+            <span class="n">Fimp</span><span class="p">,</span> <span class="n">Fexp</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="p">,</span>
+            <span class="n">it_solver_parameters</span><span class="p">,</span> <span class="n">prop_solver_parameters</span><span class="p">,</span>
+            <span class="n">splitting</span><span class="p">,</span> <span class="n">appctx</span><span class="p">,</span> <span class="n">nullspace</span><span class="p">,</span>
+            <span class="n">num_its_initial</span><span class="p">,</span> <span class="n">num_its_per_step</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">stage_type</span> <span class="o">==</span> <span class="s2">&quot;dirkimex&quot;</span><span class="p">:</span>
+        <span class="n">Fimp</span><span class="p">,</span> <span class="n">Fexp</span> <span class="o">=</span> <span class="n">imex_separation</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Fexp&quot;</span><span class="p">),</span> <span class="n">stage_type</span><span class="p">)</span>
+        <span class="n">appctx</span> <span class="o">=</span> <span class="n">base_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;appctx&quot;</span><span class="p">)</span>
+        <span class="n">nullspace</span> <span class="o">=</span> <span class="n">base_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nullspace&quot;</span><span class="p">)</span>
+        <span class="n">solver_parameters</span> <span class="o">=</span> <span class="n">base_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;solver_parameters&quot;</span><span class="p">)</span>
+        <span class="n">mass_parameters</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mass_parameters&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">DIRKIMEXMethod</span><span class="p">(</span>
+            <span class="n">Fimp</span><span class="p">,</span> <span class="n">Fexp</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="p">,</span>
+            <span class="n">solver_parameters</span><span class="p">,</span> <span class="n">mass_parameters</span><span class="p">,</span> <span class="n">appctx</span><span class="p">,</span> <span class="n">nullspace</span><span class="p">)</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

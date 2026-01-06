@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Hamiltonian-structure-preserving implementation of the Benjamin-Bona-Mahoney equation &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/fenics.css?v=c6f455f8" />
+    <script src="../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Not using the TimeStepper interface for the heat equation" href="demo_lowlevel_homogbc.py.html" />
+    <link rel="prev" title="Solving the Benjamin-Bona-Mahony equation with Galerkin-in-Time" href="demo_bbm_galerkin.py.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../index.html"><img src="../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="demos/demo_bbm_aux.py">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="hamiltonian-structure-preserving-implementation-of-the-benjamin-bona-mahoney-equation">
+<h1>Hamiltonian-structure-preserving implementation of the Benjamin-Bona-Mahoney equation<a class="headerlink" href="#hamiltonian-structure-preserving-implementation-of-the-benjamin-bona-mahoney-equation" title="Link to this heading">¶</a></h1>
+<p>This demo solves the Benjamin-Bona-Mahony equation:</p>
+<div class="math notranslate nohighlight">
+\[u_t - u_{txx} + u_x + u u_x = 0\]</div>
+<p>posed on a bounded interval with periodic boundaries.</p>
+<p>BBM is known to have a Hamiltonian structure, and there are several canonical polynomial invariants:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}I_1 &amp; = \int u \, \mathrm{d}x\\I_2 &amp; = \int u^2 + (u_x)^2 \, \mathrm{d}x\\I_3 &amp; = \int \frac{u^2}{2} + \frac{u^3}{6} \, \mathrm{d}x\end{aligned}\end{align} \]</div>
+<p>The BBM invariants are the total momentum <span class="math notranslate nohighlight">\(I_1\)</span>, the <span class="math notranslate nohighlight">\(H^1\)</span>-energy
+norm <span class="math notranslate nohighlight">\(I_2\)</span>, and the Hamiltonian <span class="math notranslate nohighlight">\(I_3\)</span>.
+The Hamiltonian variational formulation reads</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}(\partial_t u + \partial_x \tilde{w}_H, v)_{H^1} &amp; = 0\\(\tilde{w}_H, v_H)_{H^1} &amp; = \langle \frac{\delta I_3}{\delta u}, v_H \rangle\end{aligned}\end{align} \]</div>
+<p>For all test functions <span class="math notranslate nohighlight">\(v, v_H\)</span> in a suitable function space.
+The numerical scheme in this demo introduces
+the <span class="math notranslate nohighlight">\(H^1\)</span>-Riesz representative of the Fréchet derivative of the
+Hamiltonian <span class="math notranslate nohighlight">\(\frac{\delta I_3}{\delta u}\)</span>
+as the auxiliary variable <span class="math notranslate nohighlight">\(\tilde{w}_H\)</span>.</p>
+<p>Standard Gauss-Legendre and continuous Petrov-Galerkin (cPG) methods conserve
+the first two invariants exactly (up to roundoff and solver tolerances).  They
+do quite well, but are inexact for the cubic one.  Here, we consider the
+reformulation in Andrews and Farrell, “Enforcing conservation laws and dissipation
+inequalities numerically via auxiliary variables” (<a class="reference external" href="https://arxiv.org/abs/2407.11904">arXiv:2407.11904</a>, to appear
+in SIAM J. Scientific Computing) that preserves the third invariant at
+the expense of the second.  This method has an auxiliary variable in the system
+and requires a continuously differentiable spatial discretization (1D Hermite
+elements in this case).  The time discretization puts the main unknown in a
+continuous space and the auxiliary variable in a discontinuous one.  See
+equation (7.17) of Boris Andrews’ thesis for the particular formulation.</p>
+<p>Firedrake, Irksome, and other imports:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">Constant</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">FunctionSpace</span><span class="p">,</span>
+    <span class="n">PeriodicIntervalMesh</span><span class="p">,</span> <span class="n">SpatialCoordinate</span><span class="p">,</span> <span class="n">TestFunction</span><span class="p">,</span> <span class="n">TrialFunction</span><span class="p">,</span>
+    <span class="n">assemble</span><span class="p">,</span> <span class="n">derivative</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">errornorm</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span> <span class="n">grad</span><span class="p">,</span> <span class="n">inner</span><span class="p">,</span>
+    <span class="n">interpolate</span><span class="p">,</span> <span class="n">norm</span><span class="p">,</span> <span class="n">plot</span><span class="p">,</span> <span class="n">project</span><span class="p">,</span> <span class="n">replace</span><span class="p">,</span> <span class="n">solve</span><span class="p">,</span> <span class="n">split</span>
+<span class="p">)</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">irksome</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dt</span><span class="p">,</span> <span class="n">TimeStepper</span><span class="p">,</span> <span class="n">TimeQuadratureLabel</span><span class="p">,</span> <span class="n">ContinuousPetrovGalerkinScheme</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span>
+</pre></div>
+</div>
+<p>Next, we define the domain and the exact solution</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">N</span> <span class="o">=</span> <span class="mi">8000</span>
+<span class="n">L</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">h</span> <span class="o">=</span> <span class="n">L</span> <span class="o">/</span> <span class="n">N</span>
+<span class="n">msh</span> <span class="o">=</span> <span class="n">PeriodicIntervalMesh</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">L</span><span class="p">)</span>
+<span class="n">x</span><span class="p">,</span> <span class="o">=</span> <span class="n">SpatialCoordinate</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+
+<span class="n">t</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">inv_dt</span> <span class="o">=</span> <span class="n">N</span> <span class="o">//</span> <span class="p">(</span><span class="mi">10</span> <span class="o">*</span> <span class="n">L</span><span class="p">)</span>
+<span class="n">tfinal</span> <span class="o">=</span> <span class="mi">18</span>
+<span class="n">Nt</span> <span class="o">=</span> <span class="n">tfinal</span> <span class="o">*</span> <span class="n">inv_dt</span>
+<span class="n">dt</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="n">tfinal</span> <span class="o">/</span> <span class="n">Nt</span><span class="p">)</span>
+
+<span class="n">c</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">center</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">40.0</span><span class="p">)</span>
+<span class="n">delta</span> <span class="o">=</span> <span class="o">-</span><span class="n">c</span> <span class="o">*</span> <span class="n">center</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sech</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="p">))</span>
+
+<span class="n">uexact</span> <span class="o">=</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">c</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">c</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> \
+    <span class="o">*</span> <span class="n">sech</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">c</span> <span class="o">*</span> <span class="n">x</span> <span class="o">-</span> <span class="n">c</span> <span class="o">*</span> <span class="n">t</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">c</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">delta</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span>
+</pre></div>
+</div>
+<p>This sets up the function space for the unknown <span class="math notranslate nohighlight">\(u\)</span> and
+auxiliary variable <span class="math notranslate nohighlight">\(\tilde{w}_H\)</span>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">space_deg</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">time_deg</span> <span class="o">=</span> <span class="mi">1</span>
+
+<span class="n">V</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;Hermite&quot;</span><span class="p">,</span> <span class="n">space_deg</span><span class="p">)</span>
+<span class="n">Z</span> <span class="o">=</span> <span class="n">V</span> <span class="o">*</span> <span class="n">V</span>
+</pre></div>
+</div>
+<p>We next define the BBM invariants. Again, the discrete formulation preserves
+<span class="math notranslate nohighlight">\(I_1\)</span> and <span class="math notranslate nohighlight">\(I_3\)</span> up to solver tolerances and roundoff errors,
+but <span class="math notranslate nohighlight">\(I_2\)</span> is preserved up to a bounded oscillation</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">h1inner</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">inner</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">grad</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">I1</span><span class="p">(</span><span class="n">u</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">u</span> <span class="o">*</span> <span class="n">dx</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">I2</span><span class="p">(</span><span class="n">u</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">h1inner</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">I3</span><span class="p">(</span><span class="n">u</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">u</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">u</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span>
+</pre></div>
+</div>
+<p>We project the initial condition on <span class="math notranslate nohighlight">\(u\)</span>, but we also need a consistent
+initial condition for the auxiliary variable.  We need to find <span class="math notranslate nohighlight">\(\tilde{w}_H \in V\)</span> such that</p>
+<div class="math notranslate nohighlight">
+\[(\tilde{w}_H, v)_{H^1} = \langle \frac{\delta I_3}{\delta u}, v \rangle \text{ for all } v \in V\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">uwH</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+<span class="n">u0</span><span class="p">,</span> <span class="n">wH0</span> <span class="o">=</span> <span class="n">uwH</span><span class="o">.</span><span class="n">subfunctions</span>
+
+<span class="n">v</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+<span class="n">w</span> <span class="o">=</span> <span class="n">TrialFunction</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">h1inner</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span>
+<span class="n">dHdu</span> <span class="o">=</span> <span class="n">derivative</span><span class="p">(</span><span class="n">I3</span><span class="p">(</span><span class="n">u0</span><span class="p">),</span> <span class="n">u0</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+
+<span class="n">solve</span><span class="p">(</span><span class="n">a</span> <span class="o">==</span> <span class="n">h1inner</span><span class="p">(</span><span class="n">uexact</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span><span class="p">,</span> <span class="n">u0</span><span class="p">)</span>
+<span class="n">solve</span><span class="p">(</span><span class="n">a</span> <span class="o">==</span> <span class="n">dHdu</span><span class="p">,</span> <span class="n">wH0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Visualize the initial condition:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">plot</span><span class="p">(</span><span class="n">Function</span><span class="p">(</span><span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">u0</span><span class="p">),</span> <span class="n">axes</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Initial condition&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;u&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;bbm_init.png&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<figure class="align-center">
+<img alt="../_images/bbm_init.png" src="../_images/bbm_init.png" />
+</figure>
+<p>Create time quadrature labels:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">time_order_low</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">time_deg</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">time_order_high</span> <span class="o">=</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">time_deg</span> <span class="o">-</span> <span class="mi">1</span>
+
+<span class="n">Llow</span> <span class="o">=</span> <span class="n">TimeQuadratureLabel</span><span class="p">(</span><span class="n">time_order_low</span><span class="p">)</span>
+<span class="n">Lhigh</span> <span class="o">=</span> <span class="n">TimeQuadratureLabel</span><span class="p">(</span><span class="n">time_order_high</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This tags several of the terms with a low-order time integration scheme,
+but forces a higher-order method on the nonlinear term:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">u</span><span class="p">,</span> <span class="n">wH</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">uwH</span><span class="p">)</span>
+<span class="n">v</span><span class="p">,</span> <span class="n">vH</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">TestFunction</span><span class="p">(</span><span class="n">Z</span><span class="p">))</span>
+
+<span class="n">Flow</span> <span class="o">=</span> <span class="n">h1inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="o">+</span> <span class="n">wH</span><span class="o">.</span><span class="n">dx</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span> <span class="o">+</span> <span class="n">h1inner</span><span class="p">(</span><span class="n">wH</span><span class="p">,</span> <span class="n">vH</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span>
+<span class="n">Fhigh</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">dHdu</span><span class="p">,</span> <span class="p">{</span><span class="n">u0</span><span class="p">:</span> <span class="n">u</span><span class="p">})</span>
+
+<span class="n">F</span> <span class="o">=</span> <span class="n">Llow</span><span class="p">(</span><span class="n">Flow</span><span class="p">)</span> <span class="o">-</span> <span class="n">Lhigh</span><span class="p">(</span><span class="n">Fhigh</span><span class="p">(</span><span class="n">vH</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>This sets up the cPG time stepper.  There are two fields in the unknown, we
+indicate the second one is an auxiliary and hence to be discretized in the DG
+test space instead by passing the <cite>aux_indices</cite> keyword:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">scheme</span> <span class="o">=</span> <span class="n">ContinuousPetrovGalerkinScheme</span><span class="p">(</span><span class="n">time_deg</span><span class="p">)</span>
+
+<span class="n">stepper</span> <span class="o">=</span> <span class="n">TimeStepper</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">scheme</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">uwH</span><span class="p">,</span> <span class="n">aux_indices</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>UFL expressions for the invariants, which we are going to track as we go
+through time steps:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">times</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)]</span>
+<span class="n">functionals</span> <span class="o">=</span> <span class="p">(</span><span class="n">I1</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">I2</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">I3</span><span class="p">(</span><span class="n">u</span><span class="p">))</span>
+<span class="n">invariants</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">assemble</span><span class="p">,</span> <span class="n">functionals</span><span class="p">))]</span>
+</pre></div>
+</div>
+<p>Do the time-stepping:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">Nt</span><span class="p">):</span>
+    <span class="n">stepper</span><span class="o">.</span><span class="n">advance</span><span class="p">()</span>
+
+    <span class="n">invariants</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">assemble</span><span class="p">,</span> <span class="n">functionals</span><span class="p">)))</span>
+
+    <span class="n">i1</span><span class="p">,</span> <span class="n">i2</span><span class="p">,</span> <span class="n">i3</span> <span class="o">=</span> <span class="n">invariants</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">t</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+    <span class="n">times</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="si">:</span><span class="s1">.15f</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">i1</span><span class="si">:</span><span class="s1">.15f</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">i2</span><span class="si">:</span><span class="s1">.15f</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">i3</span><span class="si">:</span><span class="s1">.15f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Visualize invariant preservation:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">axes</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+<span class="n">invariants</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">invariants</span><span class="p">)</span>
+
+<span class="n">lbls</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;I1&quot;</span><span class="p">,</span> <span class="s2">&quot;I2&quot;</span><span class="p">,</span> <span class="s2">&quot;I3&quot;</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">invariants</span><span class="p">[:,</span> <span class="n">i</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="n">lbls</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Invariants over time&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Time&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;I(t)&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;invariants.png&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">invariants</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span><span class="o">/</span><span class="n">invariants</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="n">lbls</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Relative error in invariants over time&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Time&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;|1-I/I(0)|&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;invariant_errors.png&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<figure class="align-center">
+<img alt="../_images/invariants.png" src="../_images/invariants.png" />
+</figure>
+<figure class="align-center">
+<img alt="../_images/invariant_errors.png" src="../_images/invariant_errors.png" />
+</figure>
+<p>Visualize the solution at final time step:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">axes</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+<span class="n">plot</span><span class="p">(</span><span class="n">Function</span><span class="p">(</span><span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">u0</span><span class="p">),</span> <span class="n">axes</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Solution at time </span><span class="si">{</span><span class="n">tfinal</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;u&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;bbm_final.png&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<figure class="align-center">
+<img alt="../_images/bbm_final.png" src="../_images/bbm_final.png" />
+</figure>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
