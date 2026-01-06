@@ -7,8 +7,8 @@ from ufl import as_ufl, as_tensor
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, extract_bcs, stage2spaces4bc
 from .deriv import TimeDerivative, expand_time_derivatives
-from .estimate_degrees import TimeDegreeEstimator
-from .labeling import split_quadrature
+from .estimate_degrees import TimeDegreeEstimator, get_degree_mapping
+from .labeling import split_quadrature, as_form
 from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
 from .tools import AI, IA, dot, fields_to_components, reshape, replace, vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
@@ -158,7 +158,10 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     Vbig = stages.function_space()
     test = TestFunction(Vbig)
 
-    splitting = split_quadrature(F, L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,), Qdefault=Qdefault)
+    degree_mapping = get_degree_mapping(as_form(F), L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
+    degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
+
+    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault)
     Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
                for Q, Fcur in splitting.items())
 
@@ -201,8 +204,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     elif bc_type == "DAE":
         if Qdefault is None or isinstance(Qdefault, str):
             # create a quadrature for the boundary conditions
-            de = TimeDegreeEstimator(L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
-            bc_degree = max(max(de(as_ufl(bc._original_arg)) for bc in bcs), L_trial.degree())
+            bc_degree = max(max(degree_estimator(as_ufl(bc._original_arg)) for bc in bcs), L_trial.degree())
             Qdefault = create_time_quadrature(bc_degree + L_test.degree(), scheme=Qdefault)
 
         # mass-ish matrix for BC, based on default quadrature rule

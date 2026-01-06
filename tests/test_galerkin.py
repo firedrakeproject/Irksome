@@ -312,16 +312,15 @@ def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
     tensor = as_tensor(determinant_forms)
 
     Llow = TimeQuadratureLabel(2*order-2)
-    Lmid = TimeQuadratureLabel(2*order-1)
     if order == 1:
-        # Manually bump the last two terms
+        # Manually bump the last terms
         Lhigh = TimeQuadratureLabel(8)
     else:
         Lhigh = lambda x: x
 
-    F = inner(Dt(u), test_u)*dx + Lmid(-(det(tensor) / (2*L*H))*dx)
+    F = inner(Dt(u), test_u)*dx + Llow(-(det(tensor) / (2*L*H))*dx)
     F += Llow(inner(w0, v0)*dx + inner(w1, v1)*dx + inner(w2, v2)*dx)
-    F -= dHdu + Lhigh(dA1du + dA2du)
+    F -= Lhigh(dHdu + dA1du + dA2du)
 
     # Auxiliary variable subspaces
     aux_indices = list(range(1, len(Z)))
