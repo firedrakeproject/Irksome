@@ -78,13 +78,15 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
             the Runge-Kutta method to be used for time marching.
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
+    :arg evaluation_points: An optional kwarg used to evaluate collocation methods 
+            at additional points in time.
     """
     def __init__(self, F, t, dt, u0, num_stages,
                  bcs=None, Fp=None, solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
                  splitting=None, bc_type=None,
-                 butcher_tableau=None, bounds=None,
+                 butcher_tableau=None, bounds=None, evaluation_points=None,
                  **kwargs):
 
         super().__init__(F, t, dt, u0,
@@ -97,6 +99,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             splitting = AI
         self.splitting = splitting
         self.bc_type = bc_type
+        self.evaluation_points = evaluation_points
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
@@ -145,7 +148,11 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
-        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
+        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()         
+
+        if self.evaluation_points is not None:
+            self._set_poly()
+
         self._update()
 
     # allow butcher tableau as input for preconditioners to create

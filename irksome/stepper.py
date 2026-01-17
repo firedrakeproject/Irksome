@@ -14,9 +14,9 @@ valid_base_kwargs = ("bcs", "form_compiler_parameters", "is_linear", "restrict",
                      "appctx", "options_prefix", "pre_apply_bcs")
 
 valid_kwargs_per_stage_type = {
-    "deriv": ["Fp", "stage_type", "bc_type", "splitting", "adaptive_parameters", "aux_indices"],
+    "deriv": ["Fp", "stage_type", "bc_type", "splitting", "adaptive_parameters", "aux_indices", "evaluation_points"],
     "value": ["Fp", "stage_type", "basis_type",
-              "update_solver_parameters", "splitting", "bounds", "use_collocation_update"],
+              "update_solver_parameters", "splitting", "bounds", "use_collocation_update", "evaluation_points"],
     "dirk": ["Fp", "stage_type"],
     "explicit": ["Fp", "stage_type"],
     "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
@@ -130,10 +130,12 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         bc_type = kwargs.get("bc_type", "DAE")
         splitting = kwargs.get("splitting", AI)
         aux_indices = kwargs.get("aux_indices", None)
+        evaluation_points = kwargs.get("evaluation_points", None)
+
         if adapt_params is None:
             return StageDerivativeTimeStepper(
                 F, method, t, dt, u0, bcs, Fp=Fp,
-                bc_type=bc_type, splitting=splitting, aux_indices=aux_indices, **base_kwargs)
+                bc_type=bc_type, splitting=splitting, aux_indices=aux_indices, evaluation_points=evaluation_points, **base_kwargs)
         else:
             for param in adapt_params:
                 assert param in valid_adapt_parameters
@@ -160,11 +162,13 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         update_solver_parameters = kwargs.get("update_solver_parameters")
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
+        evaluation_points = kwargs.get("evaluation_points", None)
         return StageValueTimeStepper(
             F, method, t, dt, u0, bcs=bcs, Fp=Fp,
             splitting=splitting, basis_type=basis_type,
             update_solver_parameters=update_solver_parameters,
             bounds=bounds, use_collocation_update=use_collocation_update,
+            evaluation_points=evaluation_points,
             **base_kwargs)
     elif stage_type == "dirk":
         Fp = kwargs.get("Fp", None)

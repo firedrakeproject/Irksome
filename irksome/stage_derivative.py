@@ -5,7 +5,11 @@ from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm, as_tensor
 from firedrake.bcs import EquationBC, EquationBCSplit
 
+from FIAT import Bernstein, ufc_simplex
+from FIAT.barycentric_interpolation import LagrangePolynomialSet
+
 from ufl.constantvalue import as_ufl
+from .ButcherTableaux import CollocationButcherTableau
 from .tools import AI, dot, replace, reshape, vecconst, fields_to_components
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
@@ -192,7 +196,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
-                 appctx=None, bc_type="DAE", aux_indices=None, **kwargs):
+                 appctx=None, bc_type="DAE", aux_indices=None, evaluation_points=None, **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
@@ -208,7 +212,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
-                         butcher_tableau=butcher_tableau, **kwargs)
+                         butcher_tableau=butcher_tableau, 
+                         evaluation_points=None, **kwargs)
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -223,6 +228,29 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
 
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
+
+
+    def build_poly(self):
+        assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
+        assert self.butcher_tableau.c != 0.0, "Need non-confluent collocation method for polynomial evaluation"
+        
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        nodes = vecconst(nodes)
+        sample_points = numpy.reshape(self.evaluation_points, (-1, 1))
+        
+        lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
+        evaluation_vander = lag_basis.tabulate(sample_points, 0)[(0,)]
+
+
+        self.u0_poly = Function(self.u0.function_space()).assign(self.u0)
+
+        all_stage_vals = self.u0_poly.subfunctions + self.stages.subfunctions
+
+        self.coll_poly_vals = evaluation_vander.T @ all_stage_vals
+        
+    def _set_poly(self):
+        self.u0_poly.assign(self.u0)
+
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
