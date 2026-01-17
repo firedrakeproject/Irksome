@@ -262,12 +262,12 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
     def build_poly(self):
         assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
-        assert self.butcher_tableau.c != 0.0, "Need non-confluent collocation method for polynomial evaluation"
-        
+        assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
+
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
         nodes = vecconst(nodes)
         sample_points = numpy.reshape(self.evaluation_points, (-1, 1))
-        
+
         if self.basis_type == "Lagrange":
             lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
             evaluation_vander = lag_basis.tabulate(sample_points, 0)[(0,)]
@@ -280,7 +280,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         all_stage_vals = self.u0_poly.subfunctions + self.stages.subfunctions
 
         self.coll_poly_vals = evaluation_vander.T @ all_stage_vals
-        
+
     def _set_poly(self):
         self.u0_poly.assign(self.u0)
 

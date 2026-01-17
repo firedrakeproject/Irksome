@@ -214,7 +214,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau, 
-                         evaluation_points=None, **kwargs)
+                         evaluation_points=evaluation_points, **kwargs)
         
         if evaluation_points is not None:
             self.build_poly()
@@ -236,30 +236,30 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
 
     def build_poly(self):
         assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
-        assert self.butcher_tableau.c != 0.0, "Need non-confluent collocation method for polynomial evaluation"
+        assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
         
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
         nodes = vecconst(nodes)
         sample_points = numpy.reshape(self.evaluation_points, (-1, 1))
-        
+    
         lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
         evaluation_vander = lag_basis.tabulate(sample_points, 0)[(0,)]
-
 
         self.u0_poly = Function(self.u0.function_space()).assign(self.u0)
         A_const = vecconst(self.butcher_tableau.A)
 
-        stage_vals = [self.u0_poly] + [zero() for _ in range(len(self.stages.subfunctions))]
+        # stage_vals = [self.u0_poly] + [zero() for _ in range(len(self.stages.subfunctions))]
+        # stage_vals_A = numpy.array([self.u0_poly for _ in range(len(self.stages.subfunctions) + 1)])
+        # stage_vals_B = numpy.array([zero() for _ in range(len(self.stages.subfunctions) + 1)])
+        stage_vals = [self.u0_poly.copy(deepcopy=True) for _ in range(self.butcher_tableau.num_stages + 1)]
         for (j, stage) in enumerate(self.stages.subfunctions[1:]):
-            stage += self.u0_poly
             for i in range(0, self.butcher_tableau.num_stages):
                 stage += self.dt * A_const[j-1, i] * self.stages.subfunctions[i]
 
         self.coll_poly_vals = evaluation_vander.T @ stage_vals
-        
+
     def _set_poly(self):
         self.u0_poly.assign(self.u0)
-
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
