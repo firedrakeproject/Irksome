@@ -8,6 +8,7 @@ from firedrake.bcs import EquationBC, EquationBCSplit
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
+from ufl import zero
 from ufl.constantvalue import as_ufl
 from .ButcherTableaux import CollocationButcherTableau
 from .tools import AI, dot, replace, reshape, vecconst, fields_to_components
@@ -214,6 +215,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau, 
                          evaluation_points=None, **kwargs)
+        
+        if evaluation_points is not None:
+            self.build_poly()
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -243,10 +247,15 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
 
 
         self.u0_poly = Function(self.u0.function_space()).assign(self.u0)
+        A_const = vecconst(self.butcher_tableau.A)
 
-        all_stage_vals = self.u0_poly.subfunctions + self.stages.subfunctions
+        stage_vals = [self.u0_poly] + [zero() for _ in range(len(self.stages.subfunctions))]
+        for (j, stage) in enumerate(self.stages.subfunctions[1:]):
+            stage += self.u0_poly
+            for i in range(0, self.butcher_tableau.num_stages):
+                stage += self.dt * A_const[j-1, i] * self.stages.subfunctions[i]
 
-        self.coll_poly_vals = evaluation_vander.T @ all_stage_vals
+        self.coll_poly_vals = evaluation_vander.T @ stage_vals
         
     def _set_poly(self):
         self.u0_poly.assign(self.u0)

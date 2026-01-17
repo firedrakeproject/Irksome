@@ -209,8 +209,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         if evaluation_points is not None:
             self.build_poly()
-            self._set_poly = self._set_poly
-
 
     def _update_stiff_acc(self):
         for i, u0bit in enumerate(self.u0.subfunctions):
