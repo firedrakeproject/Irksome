@@ -194,10 +194,12 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             instance to be passed to a
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods 
+            at additional points in time.
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
-                 appctx=None, bc_type="DAE", aux_indices=None, evaluation_points=None, **kwargs):
+                 appctx=None, bc_type="DAE", aux_indices=None, sample_points=None, **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
@@ -214,9 +216,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau, 
-                         evaluation_points=evaluation_points, **kwargs)
+                         sample_points=sample_points, **kwargs)
         
-        if evaluation_points is not None:
+        if sample_points is not None:
             self.build_poly()
 
     def _update(self):
@@ -240,23 +242,20 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
         nodes = vecconst(nodes)
-        sample_points = numpy.reshape(self.evaluation_points, (-1, 1))
     
         lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
-        evaluation_vander = lag_basis.tabulate(sample_points, 0)[(0,)]
+        evaluation_vander = lag_basis.tabulate(numpy.reshape(self.sample_points, (-1, 1)), 0)[(0,)]
 
         self.u0_poly = Function(self.u0.function_space()).assign(self.u0)
         A_const = vecconst(self.butcher_tableau.A)
 
-        # stage_vals = [self.u0_poly] + [zero() for _ in range(len(self.stages.subfunctions))]
-        # stage_vals_A = numpy.array([self.u0_poly for _ in range(len(self.stages.subfunctions) + 1)])
-        # stage_vals_B = numpy.array([zero() for _ in range(len(self.stages.subfunctions) + 1)])
-        stage_vals = [self.u0_poly.copy(deepcopy=True) for _ in range(self.butcher_tableau.num_stages + 1)]
-        for (j, stage) in enumerate(self.stages.subfunctions[1:]):
-            for i in range(0, self.butcher_tableau.num_stages):
-                stage += self.dt * A_const[j-1, i] * self.stages.subfunctions[i]
-
-        self.coll_poly_vals = evaluation_vander.T @ stage_vals
+        # compute the stage values
+        stage_vals_A = [zero()] * (self.butcher_tableau.num_stages + 1)
+        for j in range(self.butcher_tableau.num_stages):
+            for i in range(self.butcher_tableau.num_stages):
+                stage_vals_A[j + 1] += self.dt * A_const[j, i] * self.stages.subfunctions[i]
+        
+        self.sample_values = evaluation_vander.T @ (stage_vals_A + numpy.full(len(stage_vals_A), self.u0_poly))
 
     def _set_poly(self):
         self.u0_poly.assign(self.u0)

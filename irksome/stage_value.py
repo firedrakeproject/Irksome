@@ -66,6 +66,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
          If none is provided, we assume it is the identity, working in the
          Lagrange basis.
     :kwarg aux_indices: a list of field indices, currently ignored.
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods 
+        at additional points in time.
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
@@ -156,7 +158,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                  splitting=AI, basis_type=None,
                  appctx=None, bounds=None,
                  use_collocation_update=False,
-                 evaluation_points=None,
+                 sample_points=None,
                  **kwargs):
 
         self.num_fields = len(u0.function_space())
@@ -183,7 +185,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
-                         evaluation_points=evaluation_points,
+                         sample_points=sample_points,
                          **kwargs)
 
         if use_collocation_update:
@@ -207,7 +209,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         else:
             self._update = self._update_stiff_acc
 
-        if evaluation_points is not None:
+        if sample_points is not None:
             self.build_poly()
 
     def _update_stiff_acc(self):
@@ -266,20 +268,19 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
         nodes = vecconst(nodes)
-        sample_points = numpy.reshape(self.evaluation_points, (-1, 1))
 
         if self.basis_type == "Lagrange":
             lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
-            evaluation_vander = lag_basis.tabulate(sample_points, 0)[(0,)]
+            evaluation_vander = lag_basis.tabulate(numpy.reshape(self.sample_points, (-1, 1)), 0)[(0,)]
         elif self.basis_type == "Bernstein":
             bern_element = Bernstein(ufc_simplex(1), self.butcher_tableau.num_stages)
-            evaluation_vander = bern_element.tabulate(0, sample_points)[(0,)]
+            evaluation_vander = bern_element.tabulate(0, numpy.reshape(self.sample_points, (-1, 1)))[(0,)]
 
         self.u0_poly = Function(self.u0.function_space()).assign(self.u0)
 
         all_stage_vals = self.u0_poly.subfunctions + self.stages.subfunctions
 
-        self.coll_poly_vals = evaluation_vander.T @ all_stage_vals
+        self.sample_values = evaluation_vander.T @ all_stage_vals
 
     def _set_poly(self):
         self.u0_poly.assign(self.u0)
