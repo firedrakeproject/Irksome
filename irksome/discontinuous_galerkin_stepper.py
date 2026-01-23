@@ -2,9 +2,12 @@ from FIAT import (Bernstein,
                   DiscontinuousLagrange, Legendre,
                   GaussLobattoLegendre, GaussRadau)
 from ufl.constantvalue import as_ufl
+from ufl.algorithms.analysis import has_type
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
-from .deriv import expand_time_derivatives
+from .deriv import TimeDerivative, expand_time_derivatives
+from .estimate_degrees import TimeDegreeEstimator, get_degree_mapping
+from .labeling import split_quadrature, as_form
 from .manipulation import extract_terms, strip_dt_form
 from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace, vecconst
@@ -34,14 +37,74 @@ def getElement(basis_type, order):
         return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
-def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
+def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    v, = F.arguments()
+    V = v.function_space()
+    assert V == u0.function_space()
 
+    num_stages = L.space_dimension()
+    qpts = Q.get_points()
+    qwts = Q.get_weights()
+    assert np.size(qpts) >= num_stages
+
+    tabulate_basis = L.tabulate(1, qpts)
+    basis_vals = tabulate_basis[(0,)]
+    basis_dvals = tabulate_basis[(1,)]
+    basis_vals_w = np.multiply(basis_vals, qwts)
+
+    trial_vals = vecconst(basis_vals)
+    trial_dvals = vecconst(basis_dvals)
+    test_vals_w = vecconst(basis_vals_w)
+    qpts = vecconst(qpts.reshape((-1,)))
+
+    # set up the pieces we need to work with to do our substitutions
+    v_np = reshape(test, (num_stages, *u0.ufl_shape))
+    u_np = reshape(stages, (num_stages, *u0.ufl_shape))
+    vsub = dot(test_vals_w.T, v_np)
+    usub = dot(trial_vals.T, u_np)
+    dtu0sub = dot(trial_dvals.T, u_np)
+
+    if has_type(F, TimeDerivative):
+        split_form = extract_terms(F)
+        F_dtless = strip_dt_form(split_form.time)
+        F_remainder = split_form.remainder
+
+        # Jump terms
+        L_at_0 = vecconst(L.tabulate(0, (0.0,))[(0,)])
+        u_at_0 = L_at_0 @ u_np
+        v_at_0 = L_at_0 @ v_np
+        repl = {u0: u_at_0 - u0,
+                v: v_at_0}
+        Fnew = replace(F_dtless, repl)
+
+        # Terms with time derivatives
+        for q in range(len(qpts)):
+            repl = {t: t + qpts[q] * dt,
+                    v: vsub[q] * dt,
+                    u0: dtu0sub[q] / dt}
+            Fnew += replace(F_dtless, repl)
+    else:
+        Fnew = 0
+        F_remainder = F
+
+    # Handle the rest of the terms
+    for q in range(len(qpts)):
+        repl = {t: t + qpts[q] * dt,
+                v: vsub[q] * dt,
+                u0: usub[q]}
+        Fnew += replace(F_remainder, repl)
+    return Fnew
+
+
+def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
     :arg F: UFL form for the semidiscrete ODE/DAE
     :arg L: A :class:`FIAT.FiniteElement` for the test and trial functions in time
-    :arg Q: A :class:`FIAT.QuadratureRule` for the time integration
+    :arg Qdefault: A :class:`FIAT.QuadratureRule` for the time integration
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
@@ -53,93 +116,50 @@ def getFormDiscGalerkin(F, L, Q, t, dt, u0, stages, bcs=None):
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-         index is an index into the function space associated with `u`
-         and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
-         be passed to a `firedrake.MixedVectorSpaceBasis` over the
-         larger space associated with the Runge-Kutta method
 
-    On output, we return a tuple consisting of four parts:
+    On output, we return a tuple consisting of two parts:
 
        - Fnew, the :class:`Form` corresponding to the DG-in-Time discretized problem
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
     """
-    assert Q.ref_el.get_spatial_dimension() == 1
-    assert L.get_reference_element() == Q.ref_el
-
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v, = F.arguments()
-    V = v.function_space()
-    assert V == u0.function_space()
-
     num_stages = L.space_dimension()
+
+    V = u0.function_space()
     Vbig = stages.function_space()
     test = TestFunction(Vbig)
-    qpts = Q.get_points()
-    qwts = Q.get_weights()
 
-    tabulate_basis = L.tabulate(1, qpts)
-    basis_vals = tabulate_basis[(0,)]
-    basis_dvals = tabulate_basis[(1,)]
-    basis_vals_w = np.multiply(basis_vals, qwts)
+    degree_mapping = get_degree_mapping(as_form(F), L.degree(), L.degree(), t=t, timedep_coeffs=(u0,))
+    degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
 
-    # mass matrix later for BC
-    mmat = basis_vals_w @ basis_vals.T
-    # L2 projector
-    proj = vecconst(np.linalg.solve(mmat, basis_vals_w))
-
-    trial_vals = vecconst(basis_vals)
-    trial_dvals = vecconst(basis_dvals)
-    test_vals_w = vecconst(basis_vals_w)
-    qpts = vecconst(qpts.reshape((-1,)))
-
-    split_form = extract_terms(F)
-    F_dtless = strip_dt_form(split_form.time)
-    F_remainder = split_form.remainder
-
-    # set up the pieces we need to work with to do our substitutions
-    v_np = reshape(test, (num_stages, *u0.ufl_shape))
-    u_np = reshape(stages, (num_stages, *u0.ufl_shape))
-    vsub = dot(test_vals_w.T, v_np)
-    usub = dot(trial_vals.T, u_np)
-    dtu0sub = dot(trial_dvals.T, u_np)
-
-    # Jump terms
-    L_at_0 = vecconst(L.tabulate(0, (0.0,))[(0,)])
-    u_at_0 = L_at_0 @ u_np
-    v_at_0 = L_at_0 @ v_np
-    repl = {u0: u_at_0 - u0,
-            v: v_at_0}
-    Fnew = replace(F_dtless, repl)
-
-    # Terms with time derivatives
-    for q in range(len(qpts)):
-        repl = {t: t + qpts[q] * dt,
-                v: vsub[q] * dt,
-                u0: dtu0sub[q] / dt}
-        Fnew += replace(F_dtless, repl)
-
-    # Handle the rest of the terms
-    for q in range(len(qpts)):
-        repl = {t: t + qpts[q] * dt,
-                v: vsub[q] * dt,
-                u0: usub[q]}
-        Fnew += replace(F_remainder, repl)
+    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault)
+    Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test)
+               for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
-    if bcs is None:
-        bcs = []
     bcsnew = []
-    for bc in bcs:
-        g0 = as_ufl(bc._original_arg)
-        Vg_np = np.array([replace(g0, {t: t + c*dt}) for c in qpts])
-        g_np = proj @ Vg_np
-        for i in range(num_stages):
-            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
+    if bcs:
+        if Qdefault is None or isinstance(Qdefault, str):
+            # create a quadrature for the boundary conditions
+            bc_degree = max(max(degree_estimator(as_ufl(bc._original_arg)) for bc in bcs), L.degree())
+            Qdefault = create_time_quadrature(bc_degree + L.degree(), scheme=Qdefault)
 
+        qpts = Qdefault.get_points()
+        basis_vals = L.tabulate(0, qpts)[(0,)]
+        basis_vals_w = np.multiply(basis_vals, Qdefault.get_weights())
+        # mass matrix for BC, based on default quadrature rule
+        mmat = basis_vals_w @ basis_vals.T
+        # L2 projector
+        proj = vecconst(np.linalg.solve(mmat, basis_vals_w))
+        qpts = vecconst(qpts.reshape((-1,)))
+
+        for bc in bcs:
+            g0 = as_ufl(bc._original_arg)
+            Vg_np = np.array([replace(g0, {t: t + c*dt}) for c in qpts])
+            g_np = proj @ Vg_np
+            for i in range(num_stages):
+                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                bcsnew.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
     return Fnew, bcsnew
 
 
@@ -192,11 +212,17 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
 
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:
-            quad_degree = 2 * order
-        quadrature = create_time_quadrature(quad_degree, scheme=scheme.quadrature_scheme)
+            quad_degree = 2*self.el.degree()
+        quad_scheme = scheme.quadrature_scheme
+        if quad_scheme is None and isinstance(self.el, GaussRadau):
+            quad_scheme = "radau"
+
+        if quad_degree == "auto":
+            quadrature = quad_scheme
+        else:
+            quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
 
         self.quadrature = quadrature
-        assert np.size(quadrature.get_points()) >= order+1
 
         num_stages = order+1
 
