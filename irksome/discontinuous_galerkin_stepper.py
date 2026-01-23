@@ -1,7 +1,7 @@
 from FIAT import (Bernstein,
                   DiscontinuousLagrange, Legendre,
                   GaussLobattoLegendre, GaussRadau)
-from ufl.constantvalue import as_ufl
+from ufl import as_ufl, as_tensor
 from ufl.algorithms.analysis import has_type
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
@@ -155,11 +155,11 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None):
 
         for bc in bcs:
             g0 = as_ufl(bc._original_arg)
-            Vg_np = np.array([replace(g0, {t: t + c*dt}) for c in qpts])
-            g_np = proj @ Vg_np
+            gq = np.array([replace(g0, {t: t + c*dt}) for c in qpts])
+            g_np = proj @ gq
             for i in range(num_stages):
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                bcsnew.append(bc.reconstruct(V=Vbigi, g=g_np[i]))
+                bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
 
