@@ -295,11 +295,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                  bc_type="DAE", splitting=AI, nullspace=None,
                  tol=1.e-3, dtmin=1.e-15, dtmax=1.0, KI=1/15, KP=0.13,
                  max_reject=10, onscale_factor=1.2, safety_factor=0.9,
-                 gamma0_params=None):
+                 gamma0_params=None, **kwargs):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
-                                                  bc_type=bc_type, splitting=splitting, nullspace=nullspace)
+                                                  bc_type=bc_type, splitting=splitting, nullspace=nullspace, **kwargs)
 
         from firedrake.petsc import PETSc
         self.print = PETSc.Sys.Print
