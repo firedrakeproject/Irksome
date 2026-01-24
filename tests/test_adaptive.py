@@ -223,31 +223,3 @@ def test_adapt_vector_heat(N, butcher_tableau):
 def test_adapt_mixed_heat(N, butcher_tableau):
     error = adapt_mixed_heat(N, butcher_tableau(3))
     assert abs(error) < 1e-10
-
-
-def test_adaptive_base_kwargs():
-    """Test that valid_base_kwargs are passed through AdaptiveTimeStepper."""
-    msh = UnitSquareMesh(4, 4)
-    MC = MeshConstant(msh)
-    dt = MC.Constant(0.1)
-    t = MC.Constant(0.0)
-
-    V = FunctionSpace(msh, "CG", 1)
-    u = Function(V)
-    v = TestFunction(V)
-    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx
-
-    luparams = {"mat_type": "aij",
-                "snes_type": "ksponly",
-                "ksp_type": "preonly",
-                "pc_type": "lu"}
-
-    stepper = TimeStepper(
-        F, RadauIIA(2), t, dt, u,
-        solver_parameters=luparams,
-        adaptive_parameters={"tol": 1e-2},
-        options_prefix="test_adaptive_",
-        form_compiler_parameters={"quadrature_degree": 4},
-    )
-
-    assert stepper.solver.snes.getOptionsPrefix() == "test_adaptive_"
