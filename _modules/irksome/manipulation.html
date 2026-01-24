@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.manipulation &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/manipulation">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.manipulation</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Manipulation of expressions containing :class:`~.TimeDerivative`</span>
+<span class="sd">terms.</span>
+
+<span class="sd">These can be used to do some basic checking of the suitability of a</span>
+<span class="sd">:class:`~ufl.Form` for use in Irksome (via :func:`~.check_integrals`), and</span>
+<span class="sd">splitting out terms in the :class:`~ufl.Form` that contain a time</span>
+<span class="sd">derivative from those that don&#39;t (via :func:`~.extract_terms`).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span><span class="p">,</span> <span class="n">singledispatch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">chain</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">operator</span><span class="w"> </span><span class="kn">import</span> <span class="n">contains</span><span class="p">,</span> <span class="n">or_</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">FrozenSet</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">NamedTuple</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Union</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">gem.node</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memoizer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tsfc.ufl_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">ufl_reuse_if_untouched</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.algebra</span><span class="w"> </span><span class="kn">import</span> <span class="n">Conj</span><span class="p">,</span> <span class="n">Division</span><span class="p">,</span> <span class="n">Product</span><span class="p">,</span> <span class="n">Sum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.averaging</span><span class="w"> </span><span class="kn">import</span> <span class="n">CellAvg</span><span class="p">,</span> <span class="n">FacetAvg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.classes</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultiIndex</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.coefficient</span><span class="w"> </span><span class="kn">import</span> <span class="n">Coefficient</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.constantvalue</span><span class="w"> </span><span class="kn">import</span> <span class="n">Zero</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.core.expr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Expr</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.core.operator</span><span class="w"> </span><span class="kn">import</span> <span class="n">Operator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.core.terminal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Terminal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.corealg.traversal</span><span class="w"> </span><span class="kn">import</span> <span class="n">traverse_unique_terminals</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.differentiation</span><span class="w"> </span><span class="kn">import</span> <span class="n">Derivative</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.form</span><span class="w"> </span><span class="kn">import</span> <span class="n">Form</span><span class="p">,</span> <span class="n">FormSum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.indexed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Indexed</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.indexsum</span><span class="w"> </span><span class="kn">import</span> <span class="n">IndexSum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.integral</span><span class="w"> </span><span class="kn">import</span> <span class="n">Integral</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.restriction</span><span class="w"> </span><span class="kn">import</span> <span class="n">NegativeRestricted</span><span class="p">,</span> <span class="n">PositiveRestricted</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.tensoralgebra</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dot</span><span class="p">,</span> <span class="n">Inner</span><span class="p">,</span> <span class="n">Outer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.tensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ComponentTensor</span><span class="p">,</span> <span class="n">ListTensor</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.variable</span><span class="w"> </span><span class="kn">import</span> <span class="n">Variable</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">irksome.deriv</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeDerivative</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;SplitTimeForm&quot;</span><span class="p">,</span> <span class="s2">&quot;check_integrals&quot;</span><span class="p">,</span> <span class="s2">&quot;extract_terms&quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="SplitTimeForm">
+<a class="viewcode-back" href="../../irksome.html#irksome.manipulation.SplitTimeForm">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SplitTimeForm</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A container for a form split into time terms and a remainder.&quot;&quot;&quot;</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">Form</span>
+    <span class="n">remainder</span><span class="p">:</span> <span class="n">Form</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_filter</span><span class="p">(</span><span class="n">o</span><span class="p">:</span> <span class="n">Expr</span><span class="p">,</span> <span class="bp">self</span><span class="p">:</span> <span class="n">Memoizer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Expr</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cannot handle term with type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">predicate</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Zero</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">,</span>
+                    <span class="n">free_indices</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">ufl_free_indices</span><span class="p">,</span>
+                    <span class="n">index_dimensions</span><span class="o">=</span><span class="n">o</span><span class="o">.</span><span class="n">ufl_index_dimensions</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ufl_reuse_if_untouched</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">remove_if</span><span class="p">(</span><span class="n">expr</span><span class="p">:</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">predicate</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Expr</span><span class="p">],</span> <span class="nb">bool</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Expr</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Remove terms from an expression that match a predicate.</span>
+
+<span class="sd">    This is done by replacing matching terms by an</span>
+<span class="sd">    appropriately-shaped :class:`~.Zero`, so only works to remove</span>
+<span class="sd">    terms that are linear in the expression.</span>
+
+<span class="sd">    :arg expr: the expression to remove terms from.</span>
+<span class="sd">    :arg predicate: a function that indicates if an expression should</span>
+<span class="sd">        be kept or not.</span>
+<span class="sd">    :returns: A potentially new expression with terms matching the</span>
+<span class="sd">        predicate removed.&quot;&quot;&quot;</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">Memoizer</span><span class="p">(</span><span class="n">_filter</span><span class="p">)</span>
+    <span class="n">mapper</span><span class="o">.</span><span class="n">predicate</span> <span class="o">=</span> <span class="n">predicate</span>
+    <span class="k">return</span> <span class="n">mapper</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+
+<span class="n">Result</span> <span class="o">=</span> <span class="n">Union</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[()],</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Coefficient</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>
+
+
+<span class="nd">@singledispatch</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_time_terms</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="bp">self</span><span class="p">:</span> <span class="n">Memoizer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Result</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unhandled type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">TimeDerivative</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_timederiv</span><span class="p">(</span><span class="n">o</span><span class="p">:</span> <span class="n">TimeDerivative</span><span class="p">,</span> <span class="bp">self</span><span class="p">:</span> <span class="n">Memoizer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Result</span><span class="p">:</span>
+    <span class="n">op</span><span class="p">,</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="p">(</span><span class="n">op</span><span class="p">):</span>
+        <span class="c1"># op already has a TimeDerivative applied to it</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can only handle first-order systems&quot;</span><span class="p">)</span>
+    <span class="n">terminals</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">traverse_unique_terminals</span><span class="p">(</span><span class="n">op</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">MultiIndex</span><span class="p">)]))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">terminals</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">terminals</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Coefficient</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Time derivative must apply to a single coefficient&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">terminals</span>
+
+
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Expr</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_nonlinearop</span><span class="p">(</span><span class="n">o</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Terminal</span><span class="p">,</span> <span class="n">Operator</span><span class="p">],</span> <span class="bp">self</span><span class="p">:</span> <span class="n">Memoizer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Result</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t apply nonlinear operator to time derivative&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">()</span>
+
+
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Division</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_division</span><span class="p">(</span><span class="n">o</span><span class="p">:</span> <span class="n">Division</span><span class="p">,</span> <span class="bp">self</span><span class="p">:</span> <span class="n">Memoizer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Result</span><span class="p">:</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">b</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t divide by time derivative&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">a</span>
+
+
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Product</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Inner</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Dot</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Outer</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_product</span><span class="p">(</span><span class="n">o</span><span class="p">:</span> <span class="n">Operator</span><span class="p">,</span> <span class="bp">self</span><span class="p">:</span> <span class="n">Memoizer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Result</span><span class="p">:</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">a</span> <span class="ow">and</span> <span class="n">b</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t take product of time derivatives&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="ow">or</span> <span class="n">b</span>
+
+
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">PositiveRestricted</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">NegativeRestricted</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">CellAvg</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">FacetAvg</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Conj</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Derivative</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Variable</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Sum</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ListTensor</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_linearop</span><span class="p">(</span><span class="n">o</span><span class="p">:</span> <span class="n">Operator</span><span class="p">,</span> <span class="bp">self</span><span class="p">:</span> <span class="n">Memoizer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Result</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">))))</span>
+
+
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Indexed</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">IndexSum</span><span class="p">)</span>
+<span class="nd">@_check_time_terms</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ComponentTensor</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_indexed</span><span class="p">(</span><span class="n">o</span><span class="p">:</span> <span class="n">Operator</span><span class="p">,</span> <span class="bp">self</span><span class="p">:</span> <span class="n">Memoizer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Result</span><span class="p">:</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="check_integrals">
+<a class="viewcode-back" href="../../irksome.html#irksome.manipulation.check_integrals">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_integrals</span><span class="p">(</span><span class="n">integrals</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Integral</span><span class="p">],</span> <span class="n">expect_time_derivative</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Integral</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check a list of integrals for linearity in the time derivative.</span>
+
+<span class="sd">    :arg integrals: list of integrals.</span>
+<span class="sd">    :arg expect_time_derivative: Are we expecting to see a time</span>
+<span class="sd">        derivative?</span>
+<span class="sd">    :raises ValueError: if we are expecting a time derivative and</span>
+<span class="sd">        don&#39;t see one, or time derivatives are applied nonlinearly, to</span>
+<span class="sd">        more than one coefficient, or more than first order.&quot;&quot;&quot;</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">Memoizer</span><span class="p">(</span><span class="n">_check_time_terms</span><span class="p">)</span>
+    <span class="n">time_derivatives</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">integral</span> <span class="ow">in</span> <span class="n">integrals</span><span class="p">:</span>
+        <span class="n">time_derivatives</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">mapper</span><span class="p">(</span><span class="n">integral</span><span class="o">.</span><span class="n">integrand</span><span class="p">()))</span>
+    <span class="n">howmany</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">expect_time_derivative</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">time_derivatives</span> <span class="o">-</span> <span class="p">{()})</span> <span class="o">!=</span> <span class="n">howmany</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expecting time derivative applied to </span><span class="si">{</span><span class="n">howmany</span><span class="si">}</span><span class="s2">&quot;</span>
+                         <span class="sa">f</span><span class="s2">&quot;coefficients, not </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">time_derivatives</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">{()})</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">integrals</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">summands</span><span class="p">(</span><span class="n">o</span><span class="p">:</span> <span class="n">Expr</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FrozenSet</span><span class="p">[</span><span class="n">Expr</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flatten a sum tree into a set of summands</span>
+
+<span class="sd">    :arg o: the expression to flatten.</span>
+<span class="sd">    :returns: a frozenset of the summands such that sum(r) == o (up to</span>
+<span class="sd">        order of arguments).&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">Sum</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">or_</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="n">summands</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">([</span><span class="n">o</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="extract_terms">
+<a class="viewcode-back" href="../../irksome.html#irksome.manipulation.extract_terms">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_terms</span><span class="p">(</span><span class="n">form</span><span class="p">:</span> <span class="n">Form</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SplitTimeForm</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract terms from a :class:`~ufl.Form`.</span>
+
+<span class="sd">    This splits a form (a sum of integrals) into those integrals which</span>
+<span class="sd">    do contain a :class:`~.TimeDerivative` and those that don&#39;t.</span>
+
+<span class="sd">    :arg form: The form to split.</span>
+<span class="sd">    :returns: a :class:`~.SplitTimeForm` tuple.</span>
+<span class="sd">    :raises ValueError: if the form does not apply anything other than</span>
+<span class="sd">        first-order time derivatives to a single coefficient.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">form</span><span class="p">,</span> <span class="n">FormSum</span><span class="p">):</span>
+        <span class="c1"># Assume that TimeDerivative cannot occur on BaseForms</span>
+        <span class="n">form</span> <span class="o">=</span> <span class="nb">next</span><span class="p">((</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">form</span><span class="o">.</span><span class="n">components</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Form</span><span class="p">)),</span> <span class="n">Form</span><span class="p">([]))</span>
+    <span class="n">time_terms</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">rest_terms</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">integral</span> <span class="ow">in</span> <span class="n">form</span><span class="o">.</span><span class="n">integrals</span><span class="p">():</span>
+        <span class="n">integrand</span> <span class="o">=</span> <span class="n">integral</span><span class="o">.</span><span class="n">integrand</span><span class="p">()</span>
+        <span class="n">rest</span> <span class="o">=</span> <span class="n">remove_if</span><span class="p">(</span><span class="n">integrand</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">o</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">TimeDerivative</span><span class="p">))</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="n">remove_if</span><span class="p">(</span><span class="n">integrand</span><span class="p">,</span> <span class="n">partial</span><span class="p">(</span><span class="n">contains</span><span class="p">,</span> <span class="n">summands</span><span class="p">(</span><span class="n">rest</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">Zero</span><span class="p">):</span>
+            <span class="n">time_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">integral</span><span class="o">.</span><span class="n">reconstruct</span><span class="p">(</span><span class="n">integrand</span><span class="o">=</span><span class="n">time</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rest</span><span class="p">,</span> <span class="n">Zero</span><span class="p">):</span>
+            <span class="n">rest_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">integral</span><span class="o">.</span><span class="n">reconstruct</span><span class="p">(</span><span class="n">integrand</span><span class="o">=</span><span class="n">rest</span><span class="p">))</span>
+
+    <span class="n">time_terms</span> <span class="o">=</span> <span class="n">check_integrals</span><span class="p">(</span><span class="n">time_terms</span><span class="p">,</span> <span class="n">expect_time_derivative</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">rest_terms</span> <span class="o">=</span> <span class="n">check_integrals</span><span class="p">(</span><span class="n">rest_terms</span><span class="p">,</span> <span class="n">expect_time_derivative</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">SplitTimeForm</span><span class="p">(</span><span class="n">time</span><span class="o">=</span><span class="n">Form</span><span class="p">(</span><span class="n">time_terms</span><span class="p">),</span> <span class="n">remainder</span><span class="o">=</span><span class="n">Form</span><span class="p">(</span><span class="n">rest_terms</span><span class="p">))</span></div>
+
+
+
+<span class="c1"># Helper function to strip the time derivative from expressions, base case</span>
+<span class="nd">@singledispatch</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">strip_dt</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="bp">self</span><span class="p">):</span>
+    <span class="n">os</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">ufl_operands</span>
+    <span class="k">if</span> <span class="n">os</span><span class="p">:</span>
+        <span class="n">stripped_os</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">os</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ufl_reuse_if_untouched</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="o">*</span><span class="n">stripped_os</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">e</span>
+
+
+<span class="c1"># Case for time derivatives, returning the operand</span>
+<span class="nd">@strip_dt</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">TimeDerivative</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">strip_dt_td</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="bp">self</span><span class="p">):</span>
+    <span class="n">o</span><span class="p">,</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">ufl_operands</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+
+
+<span class="c1"># Helper function to strip all time derivatives from a form</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">strip_dt_form</span><span class="p">(</span><span class="n">F</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">Zero</span><span class="p">):</span>
+        <span class="c1"># Avoid applying the time derivative stripper to zero forms</span>
+        <span class="k">return</span> <span class="n">F</span>
+
+    <span class="n">stripper</span> <span class="o">=</span> <span class="n">Memoizer</span><span class="p">(</span><span class="n">strip_dt</span><span class="p">)</span>
+
+    <span class="c1"># Strip dt from all the integrals in the form</span>
+    <span class="n">Fnew</span> <span class="o">=</span> <span class="n">Form</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">reconstruct</span><span class="p">(</span><span class="n">integrand</span><span class="o">=</span><span class="n">stripper</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">integrand</span><span class="p">()))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">F</span><span class="o">.</span><span class="n">integrals</span><span class="p">()])</span>
+
+    <span class="c1"># Return the form stripped of its time derivatives</span>
+    <span class="k">return</span> <span class="n">Fnew</span>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

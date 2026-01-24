@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.imex &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/imex">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.imex</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">FIAT</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">Function</span><span class="p">,</span> <span class="n">NonlinearVariationalProblem</span><span class="p">,</span>
+                       <span class="n">NonlinearVariationalSolver</span><span class="p">,</span> <span class="n">TestFunction</span><span class="p">,</span>
+                       <span class="n">as_ufl</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">inner</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl</span><span class="w"> </span><span class="kn">import</span> <span class="n">zero</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.ButcherTableaux</span><span class="w"> </span><span class="kn">import</span> <span class="n">RadauIIA</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.deriv</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeDerivative</span><span class="p">,</span> <span class="n">expand_time_derivatives</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.stage_value</span><span class="w"> </span><span class="kn">import</span> <span class="n">getFormStage</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">AI</span><span class="p">,</span> <span class="n">ConstantOrZero</span><span class="p">,</span> <span class="n">IA</span><span class="p">,</span> <span class="n">MeshConstant</span><span class="p">,</span> <span class="n">reshape</span><span class="p">,</span> <span class="n">replace</span><span class="p">,</span> <span class="n">getNullspace</span><span class="p">,</span> <span class="n">get_stage_space</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.bcs</span><span class="w"> </span><span class="kn">import</span> <span class="n">bc2space</span>
+
+
+<div class="viewcode-block" id="riia_explicit_coeffs">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.riia_explicit_coeffs">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">riia_explicit_coeffs</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the coefficients needed for the explicit part</span>
+<span class="sd">    of a RadauIIA-IMEX method.&quot;&quot;&quot;</span>
+    <span class="n">U</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">GaussRadau</span><span class="p">(</span><span class="n">U</span><span class="p">,</span> <span class="n">k</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">Q</span> <span class="o">=</span> <span class="n">FIAT</span><span class="o">.</span><span class="n">make_quadrature</span><span class="p">(</span><span class="n">L</span><span class="o">.</span><span class="n">ref_el</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">k</span><span class="p">)</span>
+    <span class="n">qpts</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_points</span><span class="p">()</span>
+    <span class="n">qwts</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+
+    <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ell</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">L</span><span class="o">.</span><span class="n">dual</span><span class="o">.</span><span class="n">nodes</span><span class="p">):</span>
+        <span class="n">pt</span><span class="p">,</span> <span class="o">=</span> <span class="n">ell</span><span class="o">.</span><span class="n">pt_dict</span>
+        <span class="n">ci</span><span class="p">,</span> <span class="o">=</span> <span class="n">pt</span>
+        <span class="n">qpts_i</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">qpts</span> <span class="o">*</span> <span class="n">ci</span>
+        <span class="n">qwts_i</span> <span class="o">=</span> <span class="n">qwts</span> <span class="o">*</span> <span class="n">ci</span>
+        <span class="n">Lvals_i</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">tabulate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">qpts_i</span><span class="p">)[(</span><span class="mi">0</span><span class="p">,)]</span>
+        <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">Lvals_i</span> <span class="o">@</span> <span class="n">qwts_i</span>
+
+    <span class="k">return</span> <span class="n">A</span></div>
+
+
+
+<div class="viewcode-block" id="getFormExplicit">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.getFormExplicit">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">getFormExplicit</span><span class="p">(</span><span class="n">Fexp</span><span class="p">,</span> <span class="n">butch</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">UU</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">splitting</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Processes the explicitly split-off part for a RadauIIA-IMEX</span>
+<span class="sd">    method.  Returns the forms for both the iterator and propagator,</span>
+<span class="sd">    which really just differ by which constants are in them.&quot;&quot;&quot;</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">Fexp</span><span class="o">.</span><span class="n">arguments</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">Vbig</span> <span class="o">=</span> <span class="n">UU</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+    <span class="n">VV</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">Vbig</span><span class="p">)</span>
+
+    <span class="n">num_stages</span> <span class="o">=</span> <span class="n">butch</span><span class="o">.</span><span class="n">num_stages</span>
+
+    <span class="n">Aexp</span> <span class="o">=</span> <span class="n">riia_explicit_coeffs</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)</span>
+
+    <span class="n">vecconst</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vectorize</span><span class="p">(</span><span class="n">ConstantOrZero</span><span class="p">)</span>
+
+    <span class="n">Aprop</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">Aexp</span><span class="p">)</span>
+    <span class="n">Ait</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">A</span><span class="p">)</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+
+    <span class="n">v_np</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">VV</span><span class="p">,</span> <span class="p">(</span><span class="n">num_stages</span><span class="p">,</span> <span class="o">*</span><span class="n">u0</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+    <span class="n">u_np</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">UU</span><span class="p">,</span> <span class="p">(</span><span class="n">num_stages</span><span class="p">,</span> <span class="o">*</span><span class="n">u0</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+
+    <span class="n">Fit</span> <span class="o">=</span> <span class="n">zero</span><span class="p">()</span>
+    <span class="n">Fprop</span> <span class="o">=</span> <span class="n">zero</span><span class="p">()</span>
+
+    <span class="c1"># preprocess time derivatives</span>
+    <span class="n">Fexp</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">Fexp</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+
+    <span class="k">if</span> <span class="n">splitting</span> <span class="o">==</span> <span class="n">AI</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="c1"># replace test function</span>
+            <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">v_np</span><span class="p">[</span><span class="n">i</span><span class="p">]}</span>
+            <span class="n">Ftmp</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">Fexp</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+            <span class="c1"># replace the solution with stage values</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+                <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">C</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                        <span class="n">u0</span><span class="p">:</span> <span class="n">u_np</span><span class="p">[</span><span class="n">j</span><span class="p">]}</span>
+
+                <span class="c1"># and sum the contribution</span>
+                <span class="n">replF</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">Ftmp</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+                <span class="n">Fit</span> <span class="o">+=</span> <span class="n">Ait</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">replF</span>
+                <span class="n">Fprop</span> <span class="o">+=</span> <span class="n">Aprop</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">replF</span>
+    <span class="k">elif</span> <span class="n">splitting</span> <span class="o">==</span> <span class="n">IA</span><span class="p">:</span>
+        <span class="c1"># diagonal contribution to iterator</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">+</span><span class="n">C</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">dt</span><span class="p">,</span>
+                    <span class="n">u0</span><span class="p">:</span> <span class="n">u_np</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                    <span class="n">v</span><span class="p">:</span> <span class="n">v_np</span><span class="p">[</span><span class="n">i</span><span class="p">]}</span>
+
+            <span class="n">Fit</span> <span class="o">+=</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">replace</span><span class="p">(</span><span class="n">Fexp</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+        <span class="c1"># dense contribution to propagator</span>
+        <span class="n">AinvAexp</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="n">Aexp</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="c1"># replace test function</span>
+            <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">v_np</span><span class="p">[</span><span class="n">i</span><span class="p">]}</span>
+            <span class="n">Ftmp</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">Fexp</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+            <span class="c1"># replace the solution with stage values</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+                <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">C</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                        <span class="n">u0</span><span class="p">:</span> <span class="n">u_np</span><span class="p">[</span><span class="n">j</span><span class="p">]}</span>
+
+                <span class="c1"># and sum the contribution</span>
+                <span class="n">Fprop</span> <span class="o">+=</span> <span class="n">AinvAexp</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">replace</span><span class="p">(</span><span class="n">Ftmp</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+            <span class="s2">&quot;Must specify splitting to either IA or AI&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">Fit</span><span class="p">,</span> <span class="n">Fprop</span></div>
+
+
+
+<div class="viewcode-block" id="RadauIIAIMEXMethod">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.RadauIIAIMEXMethod">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">RadauIIAIMEXMethod</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Class for advancing a time-dependent PDE via a polynomial</span>
+<span class="sd">    IMEX/RadauIIA method.  This requires one to split the PDE into</span>
+<span class="sd">    an implicit and explicit part.</span>
+<span class="sd">    The class sets up two methods -- `advance` and `iterate`.</span>
+<span class="sd">    The former is used to move the solution forward in time,</span>
+<span class="sd">    while the latter is used both to start the method (filling up</span>
+<span class="sd">    the initial stage values) and can be used at each time step</span>
+<span class="sd">    to increase the accuracy/stability.  In the limit as</span>
+<span class="sd">    the iterator is applied many times per time step,</span>
+<span class="sd">    one expects convergence to the solution that would have been</span>
+<span class="sd">    obtained from fully-implicit RadauIIA method.</span>
+
+<span class="sd">    :arg F: A :class:`ufl.Form` instance describing the implicit part</span>
+<span class="sd">            of the semi-discrete problem</span>
+<span class="sd">            F(t, u; v) == 0, where `u` is the unknown</span>
+<span class="sd">            :class:`firedrake.Function and `v` is the</span>
+<span class="sd">            :class:firedrake.TestFunction`.</span>
+<span class="sd">    :arg Fexp: A :class:`ufl.Form` instance describing the part of the</span>
+<span class="sd">            PDE that is explicitly split off.</span>
+<span class="sd">    :arg butcher_tableau: A :class:`ButcherTableau` instance giving</span>
+<span class="sd">            the Runge-Kutta method to be used for time marching.</span>
+<span class="sd">            Only RadauIIA is allowed here (but it can be any number of stages).</span>
+<span class="sd">    :arg t: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time.</span>
+<span class="sd">    :arg dt: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time step.</span>
+<span class="sd">         The user may adjust this value between time steps.</span>
+<span class="sd">    :arg u0: A :class:`firedrake.Function` containing the current</span>
+<span class="sd">            state of the problem to be solved.</span>
+<span class="sd">    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing</span>
+<span class="sd">            the strongly-enforced boundary conditions.  Irksome will</span>
+<span class="sd">            manipulate these to obtain boundary conditions for each</span>
+<span class="sd">            stage of the RK method.</span>
+<span class="sd">    :arg it_solver_parameters: A :class:`dict` of solver parameters that</span>
+<span class="sd">            will be used in solving the algebraic problem associated</span>
+<span class="sd">            with the iterator.</span>
+<span class="sd">    :arg prop_solver_parameters: A :class:`dict` of solver parameters that</span>
+<span class="sd">            will be used in solving the algebraic problem associated</span>
+<span class="sd">            with the propagator.</span>
+<span class="sd">    :arg splitting: A callable used to factor the Butcher matrix,</span>
+<span class="sd">            currently, only AI is supported.</span>
+<span class="sd">    :arg appctx: An optional :class:`dict` containing application context.</span>
+<span class="sd">    :arg nullspace: An optional null space object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">Fexp</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span>
+                 <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">it_solver_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">prop_solver_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">splitting</span><span class="o">=</span><span class="n">AI</span><span class="p">,</span>
+                 <span class="n">appctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">nullspace</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">num_its_initial</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                 <span class="n">num_its_per_step</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">RadauIIA</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">u0</span> <span class="o">=</span> <span class="n">u0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">t</span> <span class="o">=</span> <span class="n">t</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="n">dt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">butcher_tableau</span><span class="o">.</span><span class="n">b</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span> <span class="o">=</span> <span class="n">butcher_tableau</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_its_initial</span> <span class="o">=</span> <span class="n">num_its_initial</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_its_per_step</span> <span class="o">=</span> <span class="n">num_its_per_step</span>
+
+        <span class="c1"># solver statistics</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_steps</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_props</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_its</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations_prop</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations_it</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations_prop</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations_it</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># Since this assumes stiff accuracy, we drop</span>
+        <span class="c1"># the update information on the floor.</span>
+        <span class="n">V</span> <span class="o">=</span> <span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+        <span class="n">Vbig</span> <span class="o">=</span> <span class="n">get_stage_space</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span><span class="p">)</span>
+        <span class="n">UU</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">Vbig</span><span class="p">)</span>
+
+        <span class="n">Fbig</span><span class="p">,</span> <span class="n">bigBCs</span> <span class="o">=</span> <span class="n">getFormStage</span><span class="p">(</span>
+            <span class="n">F</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">UU</span><span class="p">,</span> <span class="n">bcs</span><span class="p">,</span>
+            <span class="n">splitting</span><span class="o">=</span><span class="n">splitting</span><span class="p">)</span>
+
+        <span class="n">nsp</span> <span class="o">=</span> <span class="n">getNullspace</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">(),</span>
+                           <span class="n">UU</span><span class="o">.</span><span class="n">function_space</span><span class="p">(),</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">nullspace</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">UU</span> <span class="o">=</span> <span class="n">UU</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">UU_old</span> <span class="o">=</span> <span class="n">UU_old</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">UU</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">UU_old_split</span> <span class="o">=</span> <span class="n">UU_old</span><span class="o">.</span><span class="n">subfunctions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bigBCs</span> <span class="o">=</span> <span class="n">bigBCs</span>
+
+        <span class="n">Fit</span><span class="p">,</span> <span class="n">Fprop</span> <span class="o">=</span> <span class="n">getFormExplicit</span><span class="p">(</span>
+            <span class="n">Fexp</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">UU_old</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">splitting</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">itprob</span> <span class="o">=</span> <span class="n">NonlinearVariationalProblem</span><span class="p">(</span>
+            <span class="n">Fbig</span> <span class="o">+</span> <span class="n">Fit</span><span class="p">,</span> <span class="n">UU</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bigBCs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">propprob</span> <span class="o">=</span> <span class="n">NonlinearVariationalProblem</span><span class="p">(</span>
+            <span class="n">Fbig</span> <span class="o">+</span> <span class="n">Fprop</span><span class="p">,</span> <span class="n">UU</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bigBCs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">F</span> <span class="o">=</span> <span class="n">F</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">orig_bcs</span> <span class="o">=</span> <span class="n">bcs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">splitting</span> <span class="o">=</span> <span class="n">splitting</span>
+
+        <span class="n">appctx_irksome</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;stepper&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="p">}</span>
+
+        <span class="k">if</span> <span class="n">appctx</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">appctx</span> <span class="o">=</span> <span class="n">appctx_irksome</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">appctx</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">appctx</span><span class="p">,</span> <span class="o">**</span><span class="n">appctx_irksome</span><span class="p">}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">it_solver</span> <span class="o">=</span> <span class="n">NonlinearVariationalSolver</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">itprob</span><span class="p">,</span> <span class="n">appctx</span><span class="o">=</span><span class="n">appctx</span><span class="p">,</span>
+            <span class="n">solver_parameters</span><span class="o">=</span><span class="n">it_solver_parameters</span><span class="p">,</span>
+            <span class="n">nullspace</span><span class="o">=</span><span class="n">nsp</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prop_solver</span> <span class="o">=</span> <span class="n">NonlinearVariationalSolver</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">propprob</span><span class="p">,</span> <span class="n">appctx</span><span class="o">=</span><span class="n">appctx</span><span class="p">,</span>
+            <span class="n">solver_parameters</span><span class="o">=</span><span class="n">prop_solver_parameters</span><span class="p">,</span>
+            <span class="n">nullspace</span><span class="o">=</span><span class="n">nsp</span><span class="p">)</span>
+
+        <span class="n">num_fields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+        <span class="n">u0split</span> <span class="o">=</span> <span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">u0bit</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">u0split</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span><span class="p">):</span>
+                <span class="n">ii</span> <span class="o">=</span> <span class="n">s</span> <span class="o">*</span> <span class="n">num_fields</span> <span class="o">+</span> <span class="n">i</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">UU_old_split</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">u0bit</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_its_initial</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">iterate</span><span class="p">()</span>
+
+<div class="viewcode-block" id="RadauIIAIMEXMethod.iterate">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.RadauIIAIMEXMethod.iterate">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">iterate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Called 1 or more times to set up the initial state of the</span>
+<span class="sd">        system before time-stepping.  Can also be called after each</span>
+<span class="sd">        call to `advance`&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">it_solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">UU_old</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">UU</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_its</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations_it</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">it_solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getIterationNumber</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations_it</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">it_solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getLinearSolveIterations</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="RadauIIAIMEXMethod.propagate">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.RadauIIAIMEXMethod.propagate">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">propagate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Moves the solution forward in time, to be followed by 0 or</span>
+<span class="sd">        more calls to `iterate`.&quot;&quot;&quot;</span>
+
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span>
+        <span class="n">nf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span>
+        <span class="n">u0split</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">u0bit</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">u0split</span><span class="p">):</span>
+            <span class="n">u0bit</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">UU_old_split</span><span class="p">[(</span><span class="n">ns</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">nf</span> <span class="o">+</span> <span class="n">i</span><span class="p">])</span>
+
+        <span class="n">ps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prop_solver</span>
+        <span class="n">ps</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">UU_old</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">UU</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_props</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations_prop</span> <span class="o">+=</span> <span class="n">ps</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getIterationNumber</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations_prop</span> <span class="o">+=</span> <span class="n">ps</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getLinearSolveIterations</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="RadauIIAIMEXMethod.advance">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.RadauIIAIMEXMethod.advance">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">propagate</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_its_per_step</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">iterate</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_steps</span> <span class="o">+=</span> <span class="mi">1</span></div>
+
+
+<div class="viewcode-block" id="RadauIIAIMEXMethod.solver_stats">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.RadauIIAIMEXMethod.solver_stats">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">solver_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_steps</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_props</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_its</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations_prop</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations_prop</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations_it</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations_it</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RadauIIAIMEXMethod.get_form_and_bcs">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.RadauIIAIMEXMethod.get_form_and_bcs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_form_and_bcs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">tableau</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">F</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">getFormStage</span><span class="p">(</span><span class="n">F</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">F</span><span class="p">,</span>
+                            <span class="n">tableau</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="p">,</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="p">,</span>
+                            <span class="n">stages</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">orig_bcs</span><span class="p">,</span>
+                            <span class="n">splitting</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">splitting</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="getFormsDIRKIMEX">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.getFormsDIRKIMEX">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">getFormsDIRKIMEX</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">Fexp</span><span class="p">,</span> <span class="n">ks</span><span class="p">,</span> <span class="n">khats</span><span class="p">,</span> <span class="n">butch</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">bcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bcs</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># preprocess time derivatives</span>
+    <span class="n">F</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+    <span class="n">Fexp</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">Fexp</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+
+    <span class="n">v</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">arguments</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">V</span> <span class="o">==</span> <span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+
+    <span class="n">num_stages</span> <span class="o">=</span> <span class="n">butch</span><span class="o">.</span><span class="n">num_stages</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+
+    <span class="n">khat</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+    <span class="n">ghat</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+    <span class="n">vhat</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+
+    <span class="c1"># Note: the Constant c is used for substitution in both the</span>
+    <span class="c1"># implicit variational form and BC&#39;s, and we update it for each stage in</span>
+    <span class="c1"># the loop over stages in the advance method.  The Constants a and chat are</span>
+    <span class="c1"># used similarly in the variational forms</span>
+    <span class="n">msh</span> <span class="o">=</span> <span class="n">V</span><span class="o">.</span><span class="n">mesh</span><span class="p">()</span>
+    <span class="n">MC</span> <span class="o">=</span> <span class="n">MeshConstant</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">chat</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="c1"># preprocess time derivatives</span>
+    <span class="n">F</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+    <span class="n">Fexp</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">Fexp</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+
+    <span class="c1"># Implicit replacement, solve at time t + c * dt, for k</span>
+    <span class="n">repl</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+            <span class="n">u0</span><span class="p">:</span> <span class="n">g</span> <span class="o">+</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="n">k</span><span class="p">,</span>
+            <span class="n">TimeDerivative</span><span class="p">(</span><span class="n">u0</span><span class="p">):</span> <span class="n">k</span><span class="p">}</span>
+    <span class="n">stage_F</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">repl</span><span class="p">)</span>
+
+    <span class="c1"># Explicit replacement, solve at time t + chat * dt, for khat</span>
+    <span class="n">replhat</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">chat</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+               <span class="n">u0</span><span class="p">:</span> <span class="n">ghat</span><span class="p">}</span>
+
+    <span class="n">Fhat</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">khat</span><span class="p">,</span> <span class="n">vhat</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">+</span> <span class="n">replace</span><span class="p">(</span><span class="n">Fexp</span><span class="p">,</span> <span class="n">replhat</span><span class="p">)</span>
+
+    <span class="n">bcnew</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># For the DIRK-IMEX case, we need one new BC for each old one</span>
+    <span class="c1"># (rather than one per stage), but we need a `Function` inside of</span>
+    <span class="c1"># each BC and a rule for computing that function at each time for</span>
+    <span class="c1"># each stage.</span>
+
+    <span class="n">a_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)],</span>
+                      <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+    <span class="n">ahat_vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)],</span>
+                         <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+    <span class="n">d_val</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="n">bcs</span><span class="p">:</span>
+        <span class="n">bcarg</span> <span class="o">=</span> <span class="n">as_ufl</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">_original_arg</span><span class="p">)</span>
+        <span class="n">bcarg_stage</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">bcarg</span><span class="p">,</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">+</span><span class="n">c</span><span class="o">*</span><span class="n">dt</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">bcarg_stage</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Homogeneous BC, just zero out stage dofs</span>
+            <span class="n">bcnew</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">reconstruct</span><span class="p">(</span><span class="n">g</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+            <span class="k">continue</span>
+
+        <span class="n">gdat</span> <span class="o">=</span> <span class="n">bcarg_stage</span> <span class="o">-</span> <span class="n">bc2space</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">u0</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+            <span class="n">gdat</span> <span class="o">-=</span> <span class="n">dt</span><span class="o">*</span><span class="p">(</span><span class="n">a_vals</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">bc2space</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">ks</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="n">ahat_vals</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">bc2space</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">khats</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+
+        <span class="n">gdat</span> <span class="o">/=</span> <span class="n">dt</span><span class="o">*</span><span class="n">d_val</span>
+        <span class="n">bcnew</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">reconstruct</span><span class="p">(</span><span class="n">g</span><span class="o">=</span><span class="n">gdat</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">stage_F</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="n">bcnew</span><span class="p">,</span> <span class="n">Fhat</span><span class="p">,</span> <span class="p">(</span><span class="n">khat</span><span class="p">,</span> <span class="n">ghat</span><span class="p">,</span> <span class="n">chat</span><span class="p">),</span> <span class="p">(</span><span class="n">a_vals</span><span class="p">,</span> <span class="n">ahat_vals</span><span class="p">,</span> <span class="n">d_val</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="DIRKIMEXMethod">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.DIRKIMEXMethod">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DIRKIMEXMethod</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Front-end class for advancing a time-dependent PDE via a</span>
+<span class="sd">    diagonally-implicit Runge-Kutta IMEX method formulated in terms of</span>
+<span class="sd">    stage derivatives.  This implementation assumes a weak form</span>
+<span class="sd">    written as F + F_explicit = 0, where both F and F_explicit are UFL</span>
+<span class="sd">    Forms, with terms in F to be handled implicitly and those in</span>
+<span class="sd">    F_explicit to be handled explicitly</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">F_explicit</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">solver_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mass_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">appctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nullspace</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">is_dirk_imex</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_steps</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_mass_nonlinear_iterations</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_mass_linear_iterations</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span> <span class="o">=</span> <span class="n">butcher_tableau</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">num_stages</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">V</span> <span class="o">=</span> <span class="n">V</span> <span class="o">=</span> <span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">u0</span> <span class="o">=</span> <span class="n">u0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">t</span> <span class="o">=</span> <span class="n">t</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="n">dt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ks</span> <span class="o">=</span> <span class="p">[</span><span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k_hat_s</span> <span class="o">=</span> <span class="p">[</span><span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span><span class="p">)]</span>
+
+        <span class="n">stage_F</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="n">bcnew</span><span class="p">,</span> <span class="n">Fhat</span><span class="p">,</span> <span class="p">(</span><span class="n">khat</span><span class="p">,</span> <span class="n">ghat</span><span class="p">,</span> <span class="n">chat</span><span class="p">),</span> <span class="p">(</span><span class="n">a_vals</span><span class="p">,</span> <span class="n">ahat_vals</span><span class="p">,</span> <span class="n">d_val</span><span class="p">)</span> <span class="o">=</span> <span class="n">getFormsDIRKIMEX</span><span class="p">(</span>
+            <span class="n">F</span><span class="p">,</span> <span class="n">F_explicit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ks</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_hat_s</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">bcnew</span> <span class="o">=</span> <span class="n">bcnew</span>
+
+        <span class="n">appctx_irksome</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;F&quot;</span><span class="p">:</span> <span class="n">F</span><span class="p">,</span>
+                          <span class="s2">&quot;F_explicit&quot;</span><span class="p">:</span> <span class="n">F_explicit</span><span class="p">,</span>
+                          <span class="s2">&quot;butcher_tableau&quot;</span><span class="p">:</span> <span class="n">butcher_tableau</span><span class="p">,</span>
+                          <span class="s2">&quot;t&quot;</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span>
+                          <span class="s2">&quot;dt&quot;</span><span class="p">:</span> <span class="n">dt</span><span class="p">,</span>
+                          <span class="s2">&quot;u0&quot;</span><span class="p">:</span> <span class="n">u0</span><span class="p">,</span>
+                          <span class="s2">&quot;bcs&quot;</span><span class="p">:</span> <span class="n">bcs</span><span class="p">,</span>
+                          <span class="s2">&quot;bc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;DAE&quot;</span><span class="p">,</span>
+                          <span class="s2">&quot;stage_type&quot;</span><span class="p">:</span> <span class="s2">&quot;dirkimex&quot;</span><span class="p">,</span>
+                          <span class="s2">&quot;nullspace&quot;</span><span class="p">:</span> <span class="n">nullspace</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">appctx</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">appctx</span> <span class="o">=</span> <span class="n">appctx_irksome</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">appctx</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">appctx</span><span class="p">,</span> <span class="o">**</span><span class="n">appctx_irksome</span><span class="p">}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">problem</span> <span class="o">=</span> <span class="n">NonlinearVariationalProblem</span><span class="p">(</span><span class="n">stage_F</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">bcnew</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span> <span class="o">=</span> <span class="n">NonlinearVariationalSolver</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="p">,</span> <span class="n">appctx</span><span class="o">=</span><span class="n">appctx</span><span class="p">,</span>
+                                                 <span class="n">solver_parameters</span><span class="o">=</span><span class="n">solver_parameters</span><span class="p">,</span>
+                                                 <span class="n">nullspace</span><span class="o">=</span><span class="n">nullspace</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">mass_problem</span> <span class="o">=</span> <span class="n">NonlinearVariationalProblem</span><span class="p">(</span><span class="n">Fhat</span><span class="p">,</span> <span class="n">khat</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mass_solver</span> <span class="o">=</span> <span class="n">NonlinearVariationalSolver</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mass_problem</span><span class="p">,</span>
+                                                      <span class="n">solver_parameters</span><span class="o">=</span><span class="n">mass_parameters</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">kgac</span> <span class="o">=</span> <span class="n">k</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">c</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kgchat</span> <span class="o">=</span> <span class="n">khat</span><span class="p">,</span> <span class="n">ghat</span><span class="p">,</span> <span class="n">chat</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bc_constants</span> <span class="o">=</span> <span class="n">a_vals</span><span class="p">,</span> <span class="n">ahat_vals</span><span class="p">,</span> <span class="n">d_val</span>
+
+        <span class="n">AA</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">A</span>
+        <span class="n">A_hat</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">A_hat</span>
+        <span class="n">BB</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">b</span>
+        <span class="n">B_hat</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">b_hat</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">&lt;=</span> <span class="mf">1e-15</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_explicit</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_implicit</span>
+
+        <span class="k">if</span> <span class="n">B_hat</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">BB</span><span class="p">)</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">A_hat</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">B_hat</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_finalize</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_finalize_stiffly_accurate</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_finalize</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_finalize_no_last_explicit</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_finalize</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_finalize_general</span>
+
+<div class="viewcode-block" id="DIRKIMEXMethod.advance">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.DIRKIMEXMethod.advance">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">k</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kgac</span>
+        <span class="n">khat</span><span class="p">,</span> <span class="n">ghat</span><span class="p">,</span> <span class="n">chat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kgchat</span>
+        <span class="n">ks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ks</span>
+        <span class="n">k_hat_s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_hat_s</span>
+        <span class="n">u0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span>
+        <span class="n">dtc</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">)</span>
+        <span class="n">bt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span>
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span>
+        <span class="n">AA</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">A</span>
+        <span class="n">A_hat</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">A_hat</span>
+        <span class="n">CC</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">c</span>
+        <span class="n">C_hat</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">c_hat</span>
+        <span class="n">a_vals</span><span class="p">,</span> <span class="n">ahat_vals</span><span class="p">,</span> <span class="n">d_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bc_constants</span>
+
+        <span class="c1"># Calculating the first stage outside the loop allows boundary conditions to be enforced at</span>
+        <span class="c1"># the end of each stage</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialize</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ns</span><span class="p">):</span>
+
+            <span class="c1"># Solve explicit part for previous iteration</span>
+            <span class="n">chat</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">C_hat</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mass_solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_mass_nonlinear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mass_solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getIterationNumber</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_mass_linear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mass_solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getLinearSolveIterations</span><span class="p">()</span>
+            <span class="n">k_hat_s</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">khat</span><span class="p">)</span>
+
+            <span class="n">g</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">u0</span><span class="p">)</span>
+            <span class="c1"># Update g with contributions from previous stages</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                <span class="n">ksplit</span> <span class="o">=</span> <span class="n">ks</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">subfunctions</span>
+                <span class="n">k_hat_split</span> <span class="o">=</span> <span class="n">k_hat_s</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">subfunctions</span>
+                <span class="k">for</span> <span class="n">gbit</span><span class="p">,</span> <span class="n">kbit</span><span class="p">,</span> <span class="n">k_hat_bit</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">ksplit</span><span class="p">,</span> <span class="n">k_hat_split</span><span class="p">):</span>
+                    <span class="n">gbit</span> <span class="o">+=</span> <span class="n">dtc</span> <span class="o">*</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span> <span class="o">*</span> <span class="n">kbit</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">A_hat</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span> <span class="o">*</span> <span class="n">k_hat_bit</span><span class="p">)</span>
+
+            <span class="c1"># Solve for current stage</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                <span class="n">a_vals</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span>
+                <span class="n">ahat_vals</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">A_hat</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ns</span><span class="p">):</span>
+                <span class="n">a_vals</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">ahat_vals</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">d_val</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">])</span>
+
+            <span class="c1"># Solve the nonlinear problem at stage i</span>
+            <span class="n">a</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">])</span>
+            <span class="n">c</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">CC</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getIterationNumber</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getLinearSolveIterations</span><span class="p">()</span>
+            <span class="n">ks</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+
+            <span class="c1"># Update the solution for next stage</span>
+            <span class="k">for</span> <span class="n">ghatbit</span><span class="p">,</span> <span class="n">gbit</span><span class="p">,</span> <span class="n">kbit</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ghat</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">g</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">ks</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">):</span>
+                <span class="n">ghatbit</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">gbit</span><span class="p">)</span>
+                <span class="n">ghatbit</span> <span class="o">+=</span> <span class="n">dtc</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">])</span> <span class="o">*</span> <span class="n">kbit</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_finalize</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_steps</span> <span class="o">+=</span> <span class="mi">1</span></div>
+
+
+    <span class="c1"># No implicit first step, like in ARS schemes</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_explicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">khat</span><span class="p">,</span> <span class="n">ghat</span><span class="p">,</span> <span class="n">chat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kgchat</span>
+        <span class="n">u0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span>
+        <span class="n">ghat</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">u0</span><span class="p">)</span>
+
+    <span class="c1"># Implicit first stage in general case</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_implicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">k</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kgac</span>
+        <span class="n">khat</span><span class="p">,</span> <span class="n">ghat</span><span class="p">,</span> <span class="n">chat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kgchat</span>
+        <span class="n">ks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ks</span>
+        <span class="n">u0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span>
+        <span class="n">dtc</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">)</span>
+        <span class="n">bt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span>
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span>
+        <span class="n">AA</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">A</span>
+        <span class="n">CC</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">c</span>
+        <span class="n">a_vals</span><span class="p">,</span> <span class="n">ahat_vals</span><span class="p">,</span> <span class="n">d_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bc_constants</span>
+
+        <span class="n">g</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">u0</span><span class="p">)</span>
+
+        <span class="c1"># Solve for first stage</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ns</span><span class="p">):</span>
+            <span class="n">a_vals</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">ahat_vals</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">d_val</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+
+        <span class="n">a</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">CC</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getIterationNumber</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getLinearSolveIterations</span><span class="p">()</span>
+        <span class="n">ks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+
+        <span class="c1"># Update the solution for second stage</span>
+        <span class="k">for</span> <span class="n">ghatbit</span><span class="p">,</span> <span class="n">gbit</span><span class="p">,</span> <span class="n">kbit</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ghat</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">g</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">ks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">):</span>
+            <span class="n">ghatbit</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">gbit</span><span class="p">)</span>
+            <span class="n">ghatbit</span> <span class="o">+=</span> <span class="n">dtc</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">AA</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">*</span> <span class="n">kbit</span>
+
+    <span class="c1"># Last part of advance for the general case, where last explicit stage is calculated and used</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_finalize_general</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">khat</span><span class="p">,</span> <span class="n">ghat</span><span class="p">,</span> <span class="n">chat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kgchat</span>
+        <span class="n">ks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ks</span>
+        <span class="n">k_hat_s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_hat_s</span>
+        <span class="n">u0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span>
+        <span class="n">dtc</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">)</span>
+        <span class="n">bt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span>
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span>
+        <span class="n">C_hat</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">c_hat</span>
+        <span class="n">BB</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">b</span>
+        <span class="n">B_hat</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">b_hat</span>
+
+        <span class="n">chat</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">C_hat</span><span class="p">[</span><span class="n">ns</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mass_solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_mass_nonlinear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mass_solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getIterationNumber</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_mass_linear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mass_solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getLinearSolveIterations</span><span class="p">()</span>
+        <span class="n">k_hat_s</span><span class="p">[</span><span class="n">ns</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">khat</span><span class="p">)</span>
+
+        <span class="c1"># Final solution update</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ns</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">u0bit</span><span class="p">,</span> <span class="n">kbit</span><span class="p">,</span> <span class="n">k_hat_bit</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">ks</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span>
+                                              <span class="n">k_hat_s</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">):</span>
+                <span class="n">u0bit</span> <span class="o">+=</span> <span class="n">dtc</span> <span class="o">*</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">BB</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">*</span> <span class="n">kbit</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">B_hat</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">*</span> <span class="n">k_hat_bit</span><span class="p">)</span>
+
+    <span class="c1"># Last part of advance for the case where last explicit stage is not used</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_finalize_no_last_explicit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ks</span>
+        <span class="n">k_hat_s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_hat_s</span>
+        <span class="n">u0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span>
+        <span class="n">dtc</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">)</span>
+        <span class="n">bt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span>
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span>
+        <span class="n">BB</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">b</span>
+        <span class="n">B_hat</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">b_hat</span>
+
+        <span class="c1"># Final solution update</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ns</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">u0bit</span><span class="p">,</span> <span class="n">kbit</span><span class="p">,</span> <span class="n">k_hat_bit</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">ks</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span>
+                                              <span class="n">k_hat_s</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">):</span>
+                <span class="n">u0bit</span> <span class="o">+=</span> <span class="n">dtc</span> <span class="o">*</span> <span class="p">(</span><span class="n">BB</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">kbit</span> <span class="o">+</span> <span class="n">B_hat</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">k_hat_bit</span><span class="p">)</span>
+
+    <span class="c1"># Last part of advance for the case where last implicit stage is new solution</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_finalize_stiffly_accurate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">khat</span><span class="p">,</span> <span class="n">ghat</span><span class="p">,</span> <span class="n">chat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kgchat</span>
+        <span class="n">u0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span>
+        <span class="k">for</span> <span class="n">u0bit</span><span class="p">,</span> <span class="n">ghatbit</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">,</span> <span class="n">ghat</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">):</span>
+            <span class="n">u0bit</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">ghatbit</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DIRKIMEXMethod.solver_stats">
+<a class="viewcode-back" href="../../irksome.html#irksome.imex.DIRKIMEXMethod.solver_stats">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">solver_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_steps</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_mass_nonlinear_iterations</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_mass_linear_iterations</span></div>
+</div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

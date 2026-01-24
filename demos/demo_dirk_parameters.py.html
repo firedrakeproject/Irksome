@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Accessing DIRK methods &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/fenics.css?v=c6f455f8" />
+    <script src="../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Solving the Heat Equation with a DIRK in Irksome" href="demo_heat_dirk.py.html" />
+    <link rel="prev" title="Rana/Howle/et al preconditioning" href="demo_heat_rana.py.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../index.html"><img src="../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="demos/demo_dirk_parameters.py">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="accessing-dirk-methods">
+<h1>Accessing DIRK methods<a class="headerlink" href="#accessing-dirk-methods" title="Link to this heading">¶</a></h1>
+<p>Many practitioners favor diagonally implicit methods over fully implicit
+ones since the stages can be computed sequentially rather than concurrently.
+We support a range of DIRK methods and provide a convenient high-level interface
+that is very similar to other RK schemes.
+This demo is intended to show how to access DIRK methods seamlessly in Irksome.</p>
+<p>This example uses the Qin Zhang symplectic DIRK to attack the mixed form of the wave
+equation. Let <span class="math notranslate nohighlight">\(\Omega\)</span> be the unit square with boundary <span class="math notranslate nohighlight">\(\Gamma\)</span>.  We write
+the wave equation as a first-order system of PDE:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}u_t + \nabla p &amp; = 0\\p_t + \nabla \cdot u &amp; = 0\end{aligned}\end{align} \]</div>
+<p>together with homogeneous Dirichlet boundary conditions</p>
+<div class="math notranslate nohighlight">
+\[p = 0 {\quad} \textrm{on}\ \Gamma\]</div>
+<p>In this form, at each time, <span class="math notranslate nohighlight">\(u\)</span> is a vector-valued function in
+the Sobolev space <span class="math notranslate nohighlight">\(H(\mathrm{div})\)</span> and <cite>p</cite> is a scalar-valued
+function.  If we select appropriate test functions <span class="math notranslate nohighlight">\(v\)</span> and
+<span class="math notranslate nohighlight">\(w\)</span>, then we can arrive at the weak form (see the mixed wave
+demos for more information):</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}(u_t, v) - (p, \nabla \cdot v) &amp; = 0\\(p_t, w) + (\nabla \cdot u, w) &amp; = 0\end{aligned}\end{align} \]</div>
+<p>As in that case, we will use the next-to-lowest order Raviart-Thomas
+space for <span class="math notranslate nohighlight">\(u\)</span> and discontinuous piecewise linear elements for
+<span class="math notranslate nohighlight">\(p\)</span>.</p>
+<p>As an example, we will use the two-stage A-stable and symplectic DIRK of Qin and
+Zhang, given by Butcher tableau:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\begin{array}{c|cc}
+1/4 &amp; 1/4 &amp; 0  \\
+3/4 &amp; 1/2 &amp; 1/4  \\ \hline
+    &amp; 1/2 &amp; 1/2
+\end{array}\end{split}\]</div>
+<p>Imports from Firedrake and Irksome:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">irksome</span><span class="w"> </span><span class="kn">import</span> <span class="n">QinZhang</span><span class="p">,</span> <span class="n">Dt</span><span class="p">,</span> <span class="n">MeshConstant</span><span class="p">,</span> <span class="n">TimeStepper</span>
+</pre></div>
+</div>
+<p>We configure the discretization:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">N</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">msh</span> <span class="o">=</span> <span class="n">UnitSquareMesh</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">)</span>
+
+<span class="n">MC</span> <span class="o">=</span> <span class="n">MeshConstant</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+<span class="n">t</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">dt</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="o">/</span><span class="n">N</span><span class="p">)</span>
+
+<span class="n">V</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;RT&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">W</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;DG&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">Z</span> <span class="o">=</span> <span class="n">V</span><span class="o">*</span><span class="n">W</span>
+
+<span class="n">v</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">TestFunctions</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+
+<span class="n">butcher_tableau</span> <span class="o">=</span> <span class="n">QinZhang</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>And set up the initial condition and variational problem:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">SpatialCoordinate</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+<span class="n">up0</span> <span class="o">=</span> <span class="n">project</span><span class="p">(</span><span class="n">as_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">sin</span><span class="p">(</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">*</span><span class="n">sin</span><span class="p">(</span><span class="n">pi</span><span class="o">*</span><span class="n">y</span><span class="p">)]),</span> <span class="n">Z</span><span class="p">)</span>
+
+<span class="n">u0</span><span class="p">,</span> <span class="n">p0</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">up0</span><span class="p">)</span>
+
+<span class="n">F</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">u0</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">div</span><span class="p">(</span><span class="n">u0</span><span class="p">),</span> <span class="n">w</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">p0</span><span class="p">),</span> <span class="n">w</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">-</span> <span class="n">inner</span><span class="p">(</span><span class="n">p0</span><span class="p">,</span> <span class="n">div</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="o">*</span> <span class="n">dx</span>
+</pre></div>
+</div>
+<p>We will keep track of the energy to determine whether we’re
+sufficiently accurate in solving the linear system:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">E</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">inner</span><span class="p">(</span><span class="n">u0</span><span class="p">,</span> <span class="n">u0</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">p0</span><span class="p">,</span> <span class="n">p0</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>When stepping with a DIRK, we only solve for one stage at a time.  Although we could configure
+PETSc to try some iterative solver, here we will just use a direct method:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;mat_type&quot;</span><span class="p">:</span> <span class="s2">&quot;aij&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;snes_type&quot;</span><span class="p">:</span> <span class="s2">&quot;ksponly&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;preonly&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;lu&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>Now, we just set the stage type to be “dirk” in Irksome and we’re ready to advance in time:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">stepper</span> <span class="o">=</span> <span class="n">TimeStepper</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">up0</span><span class="p">,</span>
+                      <span class="n">stage_type</span><span class="o">=</span><span class="s2">&quot;dirk&quot;</span><span class="p">,</span>
+                      <span class="n">solver_parameters</span><span class="o">=</span><span class="n">params</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Time    Energy&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;==============&quot;</span><span class="p">)</span>
+<span class="k">while</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">1.0</span><span class="p">:</span>
+        <span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+
+    <span class="n">stepper</span><span class="o">.</span><span class="n">advance</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0:1.1e}</span><span class="s2"> </span><span class="si">{1:5e}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">),</span> <span class="n">assemble</span><span class="p">(</span><span class="n">E</span><span class="p">)))</span>
+
+    <span class="n">t</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>If all is right in the universe, you should see that the energy
+remains constant.</p>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

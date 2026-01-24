@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.estimate_degrees &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/estimate_degrees">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.estimate_degrees</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">singledispatchmethod</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.corealg.dag_traverser</span><span class="w"> </span><span class="kn">import</span> <span class="n">DAGTraverser</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_ufl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.constantvalue</span><span class="w"> </span><span class="kn">import</span> <span class="n">IntValue</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.classes</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Argument</span><span class="p">,</span> <span class="n">ConstantValue</span><span class="p">,</span> <span class="n">Coefficient</span><span class="p">,</span> <span class="n">SpatialCoordinate</span><span class="p">,</span>
+    <span class="n">Abs</span><span class="p">,</span> <span class="n">Conj</span><span class="p">,</span> <span class="n">Curl</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">,</span> <span class="n">Div</span><span class="p">,</span> <span class="n">Grad</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">ReferenceGrad</span><span class="p">,</span>
+    <span class="n">ReferenceValue</span><span class="p">,</span> <span class="n">Variable</span><span class="p">,</span> <span class="n">ComponentTensor</span><span class="p">,</span> <span class="n">IndexSum</span><span class="p">,</span> <span class="n">Skew</span><span class="p">,</span> <span class="n">Sym</span><span class="p">,</span> <span class="n">Trace</span><span class="p">,</span>
+    <span class="n">Transposed</span><span class="p">,</span> <span class="n">Determinant</span><span class="p">,</span> <span class="n">Inverse</span><span class="p">,</span> <span class="n">Division</span><span class="p">,</span> <span class="n">Product</span><span class="p">,</span> <span class="n">Inner</span><span class="p">,</span> <span class="n">Dot</span><span class="p">,</span> <span class="n">Outer</span><span class="p">,</span>
+    <span class="n">Cross</span><span class="p">,</span> <span class="n">Sum</span><span class="p">,</span> <span class="n">ListTensor</span><span class="p">,</span> <span class="n">ExprList</span><span class="p">,</span> <span class="n">ExprMapping</span><span class="p">,</span> <span class="n">Power</span><span class="p">,</span> <span class="n">MathFunction</span><span class="p">,</span>
+    <span class="n">Conditional</span><span class="p">,</span> <span class="n">Condition</span><span class="p">,</span> <span class="n">MultiIndex</span><span class="p">,</span> <span class="n">MaxValue</span><span class="p">,</span> <span class="n">MinValue</span><span class="p">,</span> <span class="n">Form</span><span class="p">,</span> <span class="n">Integral</span><span class="p">,</span> <span class="n">Label</span><span class="p">,</span>
+    <span class="n">Cofactor</span><span class="p">,</span> <span class="n">FormSum</span><span class="p">,</span> <span class="n">Interpolate</span><span class="p">,</span> <span class="n">Cofunction</span><span class="p">,</span> <span class="n">BaseForm</span>
+<span class="p">)</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.deriv</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeDerivative</span>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TimeDegreeEstimator</span><span class="p">(</span><span class="n">DAGTraverser</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Time degree estimator.</span>
+
+<span class="sd">    This algorithm is exact for a few operators and heuristic for many.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">degree_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">degree_mapping</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">degree_mapping</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">degree_mapping</span> <span class="o">=</span> <span class="n">degree_mapping</span>
+
+    <span class="c1"># Work around singledispatchmethod inheritance issue;</span>
+    <span class="c1"># see https://bugs.python.org/issue36457.</span>
+<div class="viewcode-block" id="TimeDegreeEstimator.process">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.process">[docs]</a>
+    <span class="nd">@singledispatchmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">o</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.formsum">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.formsum">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">FormSum</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">formsum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="p">(</span><span class="n">as_ufl</span><span class="p">(</span><span class="n">w</span><span class="p">))</span> <span class="o">+</span> <span class="bp">self</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                   <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">weights</span><span class="p">(),</span> <span class="n">o</span><span class="o">.</span><span class="n">components</span><span class="p">()))</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.interpolate">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.interpolate">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Interpolate</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">argument_slots</span><span class="p">()))</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.form">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.form">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Form</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">form</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">empty</span><span class="p">()</span> <span class="k">else</span> <span class="nb">max</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">integrals</span><span class="p">()))</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.integral">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.integral">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Integral</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">integrand</span><span class="p">())</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.terminal">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.terminal">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Argument</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Cofunction</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Coefficient</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ConstantValue</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">SpatialCoordinate</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">terminal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">degree_mapping</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.time_derivative">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.time_derivative">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">TimeDerivative</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">time_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">degree</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="n">degree</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.terminal_modifier">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.terminal_modifier">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Abs</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Conj</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Curl</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Derivative</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Div</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Grad</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Indexed</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ReferenceGrad</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ReferenceValue</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Variable</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ComponentTensor</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">IndexSum</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">terminal_modifier</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="o">*</span><span class="n">ops</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">degree</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.not_handled">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.not_handled">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Cofactor</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Skew</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Sym</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Trace</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Transposed</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Determinant</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Inverse</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">not_handled</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="n">ops</span><span class="p">):</span>
+        <span class="c1"># We should not be here after preprocessing with apply_algebra_lowering</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Degree estimation for </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> not handled.&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.max_degree">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.max_degree">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Sum</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ListTensor</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ExprList</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ExprMapping</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">max_degree</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="n">ops</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">0</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ops</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="nb">max</span><span class="p">(</span><span class="n">ops</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.add_degrees">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.add_degrees">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Division</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Product</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Inner</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Dot</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Outer</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Cross</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_degrees</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="n">ops</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">ops</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.power">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.power">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Power</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">power</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply to power.</span>
+
+<span class="sd">        If b is a positive integer: degree(a**b) == degree(a)*b</span>
+<span class="sd">        otherwise use the heuristic: degree(a**b) == degree(a) + 2.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">_f</span><span class="p">,</span> <span class="n">g</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">ufl_operands</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">IntValue</span><span class="p">):</span>
+            <span class="n">gi</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">value</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">gi</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">a</span> <span class="o">*</span> <span class="n">gi</span>
+        <span class="c1"># Something to a non-(positive integer) power, e.g. float,</span>
+        <span class="c1"># negative integer, Coefficient, etc.</span>
+        <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">2</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.math_function">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.math_function">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">MathFunction</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">math_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">a</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply to math_function.</span>
+
+<span class="sd">        Using the heuristic:</span>
+<span class="sd">        degree(sin(const)) == 0</span>
+<span class="sd">        degree(sin(a)) == degree(a)+2</span>
+<span class="sd">        which can be wildly inaccurate but at least gives a somewhat</span>
+<span class="sd">        high integration degree.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">a</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">2</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">a</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.conditional">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.conditional">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Conditional</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">conditional</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="o">*</span><span class="n">ops</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="o">*</span><span class="n">ops</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.minmax">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.minmax">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">MinValue</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">MaxValue</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">minmax</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="n">ops</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="o">*</span><span class="n">ops</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDegreeEstimator.non_numeric">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.TimeDegreeEstimator.non_numeric">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Label</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Condition</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">MultiIndex</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">non_numeric</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="get_degree_mapping">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.get_degree_mapping">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_degree_mapping</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">test_degree</span><span class="p">,</span> <span class="n">trial_degree</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Map time-dependent terminals to their polynomial degree.</span>
+
+<span class="sd">    :arg expression: a :class:`ufl.BaseForm` or :class:`ufl.Expr`.</span>
+<span class="sd">    :arg test_degree: the temporal polynomial degree of the test space.</span>
+<span class="sd">    :arg trial_degree: the temporal polynomial degree of the trial space.</span>
+<span class="sd">    :kwarg t: the time variable as a :class:`Constant` or :class:`Function` in the Real space.</span>
+<span class="sd">    :kwarg timedep_coeffs: a list of :class:`Function` that depend on time.</span>
+
+<span class="sd">    :returns: a `dict` mapping time-dependent terminals to their degree in time.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">degree_mapping</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">BaseForm</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expression</span><span class="o">.</span><span class="n">arguments</span><span class="p">():</span>
+            <span class="n">degree_mapping</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span> <span class="o">=</span> <span class="n">test_degree</span> <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">number</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">trial_degree</span>
+
+    <span class="k">if</span> <span class="n">t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">degree_mapping</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">if</span> <span class="n">timedep_coeffs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">timedep_coeffs</span><span class="p">:</span>
+            <span class="n">degree_mapping</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">trial_degree</span>
+    <span class="k">return</span> <span class="n">degree_mapping</span></div>
+
+
+
+<div class="viewcode-block" id="estimate_time_degree">
+<a class="viewcode-back" href="../../irksome.html#irksome.estimate_degrees.estimate_time_degree">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">estimate_time_degree</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">test_degree</span><span class="p">,</span> <span class="n">trial_degree</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">degree_mapping</span> <span class="o">=</span> <span class="n">get_degree_mapping</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">test_degree</span><span class="p">,</span> <span class="n">trial_degree</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="n">timedep_coeffs</span><span class="p">)</span>
+    <span class="n">degree_estimator</span> <span class="o">=</span> <span class="n">TimeDegreeEstimator</span><span class="p">(</span><span class="n">degree_mapping</span><span class="o">=</span><span class="n">degree_mapping</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">degree_estimator</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.stage_derivative &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/stage_derivative">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.stage_derivative</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">TestFunction</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonlinearVariationalProblem</span> <span class="k">as</span> <span class="n">NLVP</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonlinearVariationalSolver</span> <span class="k">as</span> <span class="n">NLVS</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="n">assemble</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">inner</span><span class="p">,</span> <span class="n">norm</span><span class="p">,</span> <span class="n">as_tensor</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake.bcs</span><span class="w"> </span><span class="kn">import</span> <span class="n">EquationBC</span><span class="p">,</span> <span class="n">EquationBCSplit</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.constantvalue</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_ufl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">AI</span><span class="p">,</span> <span class="n">dot</span><span class="p">,</span> <span class="n">replace</span><span class="p">,</span> <span class="n">reshape</span><span class="p">,</span> <span class="n">vecconst</span><span class="p">,</span> <span class="n">fields_to_components</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.deriv</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dt</span><span class="p">,</span> <span class="n">TimeDerivative</span><span class="p">,</span> <span class="n">expand_time_derivatives</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.bcs</span><span class="w"> </span><span class="kn">import</span> <span class="n">EmbeddedBCData</span><span class="p">,</span> <span class="n">BCStageData</span><span class="p">,</span> <span class="n">extract_bcs</span><span class="p">,</span> <span class="n">bc2space</span><span class="p">,</span> <span class="n">stage2spaces4bc</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.manipulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract_terms</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.base_time_stepper</span><span class="w"> </span><span class="kn">import</span> <span class="n">StageCoupledTimeStepper</span>
+
+
+<div class="viewcode-block" id="getForm">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_derivative.getForm">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">getForm</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">butch</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bc_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">splitting</span><span class="o">=</span><span class="n">AI</span><span class="p">,</span> <span class="n">aux_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Given a time-dependent variational form and a</span>
+<span class="sd">    :class:`ButcherTableau`, produce UFL for the s-stage RK method.</span>
+
+<span class="sd">    :arg F: UFL form for the semidiscrete ODE/DAE</span>
+<span class="sd">    :arg butch: the :class:`ButcherTableau` for the RK method being used to</span>
+<span class="sd">         advance in time.</span>
+<span class="sd">    :arg t: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time.</span>
+<span class="sd">    :arg dt: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time step.</span>
+<span class="sd">         The user may adjust this value between time steps.</span>
+<span class="sd">    :arg u0: a :class:`Function` referring to the state of</span>
+<span class="sd">         the PDE system at time `t`</span>
+<span class="sd">    :arg stages: a :class:`Function` representing the stages to be solved for.</span>
+<span class="sd">    :kwarg bcs: optionally, a :class:`DirichletBC` or :class:`EquationBC`</span>
+<span class="sd">         object (or iterable thereof) containing (possibly time-dependent)</span>
+<span class="sd">         boundary conditions imposed on the system.</span>
+<span class="sd">    :kwarg bc_type: How to manipulate the strongly-enforced boundary</span>
+<span class="sd">         conditions to derive the stage boundary conditions.  Should</span>
+<span class="sd">         be a string, either &quot;DAE&quot;, which implements BCs as</span>
+<span class="sd">         constraints in the style of a differential-algebraic</span>
+<span class="sd">         equation, or &quot;ODE&quot;, which takes the time derivative of the</span>
+<span class="sd">         boundary data and evaluates this for the stage values.</span>
+<span class="sd">         Support for `firedrake.EquationBC` in `bcs` is limited</span>
+<span class="sd">         to DAE style BCs.</span>
+<span class="sd">    :kwarg splitting: a callable that maps the (floating point) Butcher matrix</span>
+<span class="sd">         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used</span>
+<span class="sd">         to vary between the classical RK formulation and Butcher&#39;s reformulation</span>
+<span class="sd">         that leads to a denser mass matrix with block-diagonal stiffness.</span>
+<span class="sd">         Some choices of function will assume that `butch.A` is invertible.</span>
+<span class="sd">    :kwarg aux_indices: a list of field indices to be discretized as :class:`TimeDerivative`,</span>
+<span class="sd">         analogouos to :class:`ContinouosPetrovGalerkinTimeStepper`.</span>
+
+<span class="sd">    :returns: a 2-tuple of</span>
+<span class="sd">       - `Fnew`, the :class:`Form`</span>
+<span class="sd">       - `bcnew`, a list of :class:`firedrake.DirichletBC` or :class:`EquationBC`</span>
+<span class="sd">         objects to be posed on the stages</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">bc_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bc_type</span> <span class="o">=</span> <span class="s2">&quot;DAE&quot;</span>
+
+    <span class="c1"># preprocess time derivatives</span>
+    <span class="n">F</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+    <span class="n">v</span><span class="p">,</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">arguments</span><span class="p">()</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">V</span> <span class="o">==</span> <span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">bA1</span><span class="p">,</span> <span class="n">bA2</span> <span class="o">=</span> <span class="n">splitting</span><span class="p">(</span><span class="n">butch</span><span class="o">.</span><span class="n">A</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">bA2inv</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">bA2</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;We require A = A1 A2 with A2 invertible&quot;</span><span class="p">)</span>
+    <span class="n">A1</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">bA1</span><span class="p">)</span>
+    <span class="n">A2inv</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">bA2inv</span><span class="p">)</span>
+
+    <span class="c1"># s-way product space for the stage variables</span>
+    <span class="n">num_stages</span> <span class="o">=</span> <span class="n">butch</span><span class="o">.</span><span class="n">num_stages</span>
+    <span class="n">Vbig</span> <span class="o">=</span> <span class="n">stages</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span>
+    <span class="n">test</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">Vbig</span><span class="p">)</span>
+
+    <span class="c1"># set up the pieces we need to work with to do our substitutions</span>
+    <span class="n">v_np</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="p">(</span><span class="n">num_stages</span><span class="p">,</span> <span class="o">*</span><span class="n">v</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+    <span class="n">w_np</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">stages</span><span class="p">,</span> <span class="p">(</span><span class="n">num_stages</span><span class="p">,</span> <span class="o">*</span><span class="n">u0</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">))</span>
+    <span class="n">A1w</span> <span class="o">=</span> <span class="n">dot</span><span class="p">(</span><span class="n">A1</span><span class="p">,</span> <span class="n">w_np</span><span class="p">)</span>
+    <span class="n">A2invw</span> <span class="o">=</span> <span class="n">dot</span><span class="p">(</span><span class="n">A2inv</span><span class="p">,</span> <span class="n">w_np</span><span class="p">)</span>
+    <span class="n">dtu</span> <span class="o">=</span> <span class="n">TimeDerivative</span><span class="p">(</span><span class="n">u0</span><span class="p">)</span>
+
+    <span class="n">aux_components</span> <span class="o">=</span> <span class="n">fields_to_components</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">aux_indices</span> <span class="ow">or</span> <span class="p">[])</span>
+
+    <span class="n">repl</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">):</span>
+        <span class="n">usub</span> <span class="o">=</span> <span class="n">u0</span> <span class="o">+</span> <span class="n">as_tensor</span><span class="p">(</span><span class="n">A1w</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">*</span> <span class="n">dt</span>
+        <span class="n">dtusub</span> <span class="o">=</span> <span class="n">A2invw</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">aux_components</span><span class="p">:</span>
+            <span class="c1"># Apply TimeDerivative substitution to auxiliary fields</span>
+            <span class="n">usub</span> <span class="o">=</span> <span class="n">reshape</span><span class="p">(</span><span class="n">usub</span><span class="p">,</span> <span class="n">u0</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">)</span>
+            <span class="n">usub</span><span class="p">[</span><span class="n">aux_components</span><span class="p">]</span> <span class="o">=</span> <span class="n">dtusub</span><span class="p">[</span><span class="n">aux_components</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span>
+
+        <span class="n">repl</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">,</span>
+                   <span class="n">v</span><span class="p">:</span> <span class="n">v_np</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                   <span class="n">u0</span><span class="p">:</span> <span class="n">usub</span><span class="p">,</span>
+                   <span class="n">dtu</span><span class="p">:</span> <span class="n">dtusub</span><span class="p">}</span>
+
+    <span class="n">Fnew</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">replace</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">repl</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">bcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bcs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">bc_type</span> <span class="o">==</span> <span class="s2">&quot;ODE&quot;</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">splitting</span> <span class="o">==</span> <span class="n">AI</span><span class="p">,</span> <span class="s2">&quot;ODE-type BC aren&#39;t implemented for this splitting strategy&quot;</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">bc2stagebc</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">EquationBCSplit</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;EquationBC not implemented for ODE formulation&quot;</span><span class="p">)</span>
+            <span class="n">gorig</span> <span class="o">=</span> <span class="n">as_ufl</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">_original_arg</span><span class="p">)</span>
+            <span class="n">gfoo</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">gorig</span><span class="p">),</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+            <span class="n">gcur</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">gfoo</span><span class="p">,</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">})</span>
+            <span class="k">return</span> <span class="n">BCStageData</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">gcur</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">bc_type</span> <span class="o">==</span> <span class="s2">&quot;DAE&quot;</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">bA1inv</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">bA1</span><span class="p">)</span>
+            <span class="n">A1inv</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">bA1inv</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Cannot have DAE BCs for this Butcher Tableau/splitting&quot;</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">bc2stagebc</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">EquationBCSplit</span><span class="p">):</span>
+                <span class="n">F_bc_orig</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">f</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+                <span class="n">F_bc_new</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">F_bc_orig</span><span class="p">,</span> <span class="n">repl</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="n">Vbigi</span> <span class="o">=</span> <span class="n">stage2spaces4bc</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="n">Vbig</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">EquationBC</span><span class="p">(</span><span class="n">F_bc_new</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">bc</span><span class="o">.</span><span class="n">sub_domain</span><span class="p">,</span> <span class="n">V</span><span class="o">=</span><span class="n">Vbigi</span><span class="p">,</span>
+                                  <span class="n">bcs</span><span class="o">=</span><span class="p">[</span><span class="n">bc2stagebc</span><span class="p">(</span><span class="n">innerbc</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">innerbc</span> <span class="ow">in</span> <span class="n">extract_bcs</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">bcs</span><span class="p">)])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">gcur</span> <span class="o">=</span> <span class="n">bc</span><span class="o">.</span><span class="n">_original_arg</span>
+                <span class="k">if</span> <span class="n">gcur</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">gorig</span> <span class="o">=</span> <span class="n">as_ufl</span><span class="p">(</span><span class="n">gcur</span><span class="p">)</span>
+                    <span class="n">ucur</span> <span class="o">=</span> <span class="n">bc2space</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">u0</span><span class="p">)</span>
+                    <span class="n">gcur</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">dt</span><span class="p">)</span> <span class="o">*</span> <span class="nb">sum</span><span class="p">((</span><span class="n">replace</span><span class="p">(</span><span class="n">gorig</span><span class="p">,</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">t</span> <span class="o">+</span> <span class="n">c</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">*</span><span class="n">dt</span><span class="p">})</span> <span class="o">-</span> <span class="n">ucur</span><span class="p">)</span> <span class="o">*</span> <span class="n">A1inv</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span>
+                                        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">))</span>
+                <span class="k">return</span> <span class="n">BCStageData</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">gcur</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unrecognised bc_type: </span><span class="si">{</span><span class="n">bc_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># This logic uses information set up in the previous section to</span>
+    <span class="c1"># set up the new BCs for either method</span>
+    <span class="n">bcs</span> <span class="o">=</span> <span class="n">extract_bcs</span><span class="p">(</span><span class="n">bcs</span><span class="p">)</span>
+    <span class="n">bcnew</span> <span class="o">=</span> <span class="p">[</span><span class="n">bc2stagebc</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)</span> <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="n">bcs</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">Fnew</span><span class="p">,</span> <span class="n">bcnew</span></div>
+
+
+
+<div class="viewcode-block" id="StageDerivativeTimeStepper">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_derivative.StageDerivativeTimeStepper">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">StageDerivativeTimeStepper</span><span class="p">(</span><span class="n">StageCoupledTimeStepper</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Front-end class for advancing a time-dependent PDE via a Runge-Kutta</span>
+<span class="sd">    method formulated in terms of stage derivatives.</span>
+
+<span class="sd">    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem</span>
+<span class="sd">            F(t, u; v) == 0, where `u` is the unknown</span>
+<span class="sd">            :class:`firedrake.Function and `v` is the</span>
+<span class="sd">            :class:firedrake.TestFunction`.</span>
+<span class="sd">    :arg butcher_tableau: A :class:`ButcherTableau` instance giving</span>
+<span class="sd">            the Runge-Kutta method to be used for time marching.</span>
+<span class="sd">    :arg t: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time.</span>
+<span class="sd">    :arg dt: a :class:`Function` on the Real space over the same mesh as</span>
+<span class="sd">         `u0`.  This serves as a variable referring to the current time step.</span>
+<span class="sd">         The user may adjust this value between time steps.</span>
+<span class="sd">    :arg u0: A :class:`firedrake.Function` containing the current</span>
+<span class="sd">            state of the problem to be solved.</span>
+<span class="sd">    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`EquationBC`</span>
+<span class="sd">            containing the strongly-enforced boundary conditions.  Irksome will</span>
+<span class="sd">            manipulate these to obtain boundary conditions for each</span>
+<span class="sd">            stage of the RK method.</span>
+<span class="sd">    :arg bc_type: How to manipulate the strongly-enforced boundary</span>
+<span class="sd">            conditions to derive the stage boundary conditions.</span>
+<span class="sd">            Should be a string, either &quot;DAE&quot;, which implements BCs as</span>
+<span class="sd">            constraints in the style of a differential-algebraic</span>
+<span class="sd">            equation, or &quot;ODE&quot;, which takes the time derivative of the</span>
+<span class="sd">            boundary data and evaluates this for the stage values.</span>
+<span class="sd">            Support for `firedrake.EquationBC` in `bcs` is limited</span>
+<span class="sd">            to DAE style BCs.</span>
+<span class="sd">    :arg solver_parameters: A :class:`dict` of solver parameters that</span>
+<span class="sd">            will be used in solving the algebraic problem associated</span>
+<span class="sd">            with each time step.</span>
+<span class="sd">    :arg splitting: An callable used to factor the Butcher matrix</span>
+<span class="sd">    :arg appctx: An optional :class:`dict` containing application context.</span>
+<span class="sd">            This gets included with particular things that Irksome will</span>
+<span class="sd">            pass into the nonlinear solver so that, say, user-defined preconditioners</span>
+<span class="sd">            have access to it.</span>
+<span class="sd">    :arg nullspace: A list of tuples of the form (index, VSB) where</span>
+<span class="sd">            index is an index into the function space associated with</span>
+<span class="sd">            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`</span>
+<span class="sd">            instance to be passed to a</span>
+<span class="sd">            `firedrake.MixedVectorSpaceBasis` over the larger space</span>
+<span class="sd">            associated with the Runge-Kutta method</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">solver_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">splitting</span><span class="o">=</span><span class="n">AI</span><span class="p">,</span>
+                 <span class="n">appctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bc_type</span><span class="o">=</span><span class="s2">&quot;DAE&quot;</span><span class="p">,</span> <span class="n">aux_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span> <span class="o">=</span> <span class="n">butcher_tableau</span>
+        <span class="n">A1</span><span class="p">,</span> <span class="n">A2</span> <span class="o">=</span> <span class="n">splitting</span><span class="p">(</span><span class="n">butcher_tableau</span><span class="o">.</span><span class="n">A</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">updateb</span> <span class="o">=</span> <span class="n">vecconst</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">A2</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">b</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">numpy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;A=A1 A2 splitting needs A2 invertible&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">aux_indices</span> <span class="o">=</span> <span class="n">aux_indices</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span>
+                         <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">num_stages</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span>
+                         <span class="n">solver_parameters</span><span class="o">=</span><span class="n">solver_parameters</span><span class="p">,</span>
+                         <span class="n">appctx</span><span class="o">=</span><span class="n">appctx</span><span class="p">,</span>
+                         <span class="n">splitting</span><span class="o">=</span><span class="n">splitting</span><span class="p">,</span> <span class="n">bc_type</span><span class="o">=</span><span class="n">bc_type</span><span class="p">,</span>
+                         <span class="n">butcher_tableau</span><span class="o">=</span><span class="n">butcher_tableau</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Assuming the algebraic problem for the RK stages has been</span>
+<span class="sd">        solved, updates the solution.  This will not typically be</span>
+<span class="sd">        called by an end user.&quot;&quot;&quot;</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">updateb</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span>
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span>
+        <span class="n">nf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span>
+
+        <span class="c1"># Note: this now catches the optimized/stiffly accurate case as b[s] == Zero() will get dropped</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">u0bit</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">):</span>
+            <span class="n">u0bit</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stages</span><span class="o">.</span><span class="n">subfunctions</span><span class="p">[</span><span class="n">nf</span> <span class="o">*</span> <span class="n">s</span> <span class="o">+</span> <span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="n">s</span><span class="p">]</span> <span class="o">*</span> <span class="n">dt</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ns</span><span class="p">))</span>
+
+<div class="viewcode-block" id="StageDerivativeTimeStepper.get_form_and_bcs">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_derivative.StageDerivativeTimeStepper.get_form_and_bcs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_form_and_bcs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">F</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tableau</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">bcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">bcs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">orig_bcs</span>
+        <span class="k">return</span> <span class="n">getForm</span><span class="p">(</span><span class="n">F</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">F</span><span class="p">,</span>
+                       <span class="n">tableau</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="p">,</span>
+                       <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span>
+                       <span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="p">,</span> <span class="n">stages</span><span class="p">,</span> <span class="n">bcs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bc_type</span><span class="p">,</span>
+                       <span class="n">splitting</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">splitting</span><span class="p">,</span>
+                       <span class="n">aux_indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">aux_indices</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="AdaptiveTimeStepper">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_derivative.AdaptiveTimeStepper">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AdaptiveTimeStepper</span><span class="p">(</span><span class="n">StageDerivativeTimeStepper</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Front-end class for advancing a time-dependent PDE via an adaptive</span>
+<span class="sd">    Runge-Kutta method.</span>
+
+<span class="sd">    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem</span>
+<span class="sd">            F(t, u; v) == 0, where `u` is the unknown</span>
+<span class="sd">            :class:`firedrake.Function and `v` is the</span>
+<span class="sd">            :class:firedrake.TestFunction`.</span>
+<span class="sd">    :arg butcher_tableau: A :class:`ButcherTableau` instance giving</span>
+<span class="sd">            the Runge-Kutta method to be used for time marching.</span>
+<span class="sd">    :arg t: A :class:`firedrake.Constant` instance that always</span>
+<span class="sd">            contains the time value at the beginning of a time step</span>
+<span class="sd">    :arg dt: A :class:`firedrake.Constant` containing the size of the</span>
+<span class="sd">            current time step.  The user may adjust this value between</span>
+<span class="sd">            time steps; however, note that the adaptive time step</span>
+<span class="sd">            controls may adjust this before the step is taken.</span>
+<span class="sd">    :arg u0: A :class:`firedrake.Function` containing the current</span>
+<span class="sd">            state of the problem to be solved.</span>
+<span class="sd">    :arg tol: The temporal truncation error tolerance</span>
+<span class="sd">    :arg dtmin: Minimal acceptable time step.  An exception is raised</span>
+<span class="sd">            if the step size drops below this threshhold.</span>
+<span class="sd">    :arg dtmax: Maximal acceptable time step, imposed as a hard cap;</span>
+<span class="sd">            this can be adjusted externally once the time-stepper is</span>
+<span class="sd">            instantiated, by modifying `stepper.dt_max`</span>
+<span class="sd">    :arg KI: Integration gain for step-size controller.  Should be less</span>
+<span class="sd">            than 1/p, where p is the expected order of the scheme.  Larger</span>
+<span class="sd">            values lead to faster (attempted) increases in time-step size</span>
+<span class="sd">            when steps are accepted.  See Gustafsson, Lundh, and Soderlind,</span>
+<span class="sd">            BIT 1988.</span>
+<span class="sd">    :arg KP: Proportional gain for step-size controller. Controls dependence</span>
+<span class="sd">            on ratio of (error estimate)/(step size) in determining new</span>
+<span class="sd">            time-step size when steps are accepted.  See Gustafsson, Lundh,</span>
+<span class="sd">            and Soderlind, BIT 1988.</span>
+<span class="sd">    :arg max_reject: Maximum number of rejected timesteps in a row that</span>
+<span class="sd">            does not lead to a failure</span>
+<span class="sd">    :arg onscale_factor: Allowable tolerance in determining initial</span>
+<span class="sd">            timestep to be &quot;on scale&quot;</span>
+<span class="sd">    :arg safety_factor: Safety factor used when shrinking timestep if</span>
+<span class="sd">            a proposed step is rejected</span>
+<span class="sd">    :arg gamma0_params: Solver parameters for mass matrix solve when using</span>
+<span class="sd">            an embedded scheme with explicit first stage</span>
+<span class="sd">    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`EquationBC`</span>
+<span class="sd">            containing the strongly-enforced boundary conditions.  Irksome will</span>
+<span class="sd">            manipulate these to obtain boundary conditions for each</span>
+<span class="sd">            stage of the RK method.</span>
+<span class="sd">    :arg solver_parameters: A :class:`dict` of solver parameters that</span>
+<span class="sd">            will be used in solving the algebraic problem associated</span>
+<span class="sd">            with each time step.</span>
+<span class="sd">    :arg nullspace: A list of tuples of the form (index, VSB) where</span>
+<span class="sd">            index is an index into the function space associated with</span>
+<span class="sd">            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`</span>
+<span class="sd">            instance to be passed to a</span>
+<span class="sd">            `firedrake.MixedVectorSpaceBasis` over the larger space</span>
+<span class="sd">            associated with the Runge-Kutta method</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span>
+                 <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">appctx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">solver_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">bc_type</span><span class="o">=</span><span class="s2">&quot;DAE&quot;</span><span class="p">,</span> <span class="n">splitting</span><span class="o">=</span><span class="n">AI</span><span class="p">,</span> <span class="n">nullspace</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">tol</span><span class="o">=</span><span class="mf">1.e-3</span><span class="p">,</span> <span class="n">dtmin</span><span class="o">=</span><span class="mf">1.e-15</span><span class="p">,</span> <span class="n">dtmax</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">KI</span><span class="o">=</span><span class="mi">1</span><span class="o">/</span><span class="mi">15</span><span class="p">,</span> <span class="n">KP</span><span class="o">=</span><span class="mf">0.13</span><span class="p">,</span>
+                 <span class="n">max_reject</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">onscale_factor</span><span class="o">=</span><span class="mf">1.2</span><span class="p">,</span> <span class="n">safety_factor</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>
+                 <span class="n">gamma0_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">btilde</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">AdaptiveTimeStepper</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span>
+                                                  <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span> <span class="n">appctx</span><span class="o">=</span><span class="n">appctx</span><span class="p">,</span> <span class="n">solver_parameters</span><span class="o">=</span><span class="n">solver_parameters</span><span class="p">,</span>
+                                                  <span class="n">bc_type</span><span class="o">=</span><span class="n">bc_type</span><span class="p">,</span> <span class="n">splitting</span><span class="o">=</span><span class="n">splitting</span><span class="p">,</span> <span class="n">nullspace</span><span class="o">=</span><span class="n">nullspace</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">firedrake.petsc</span><span class="w"> </span><span class="kn">import</span> <span class="n">PETSc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">print</span> <span class="o">=</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">Sys</span><span class="o">.</span><span class="n">Print</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt_min</span> <span class="o">=</span> <span class="n">dtmin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt_max</span> <span class="o">=</span> <span class="n">dtmax</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt_old</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">delb</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">btilde</span> <span class="o">-</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma0</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">gamma0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma0_params</span> <span class="o">=</span> <span class="n">gamma0_params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">KI</span> <span class="o">=</span> <span class="n">KI</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">KP</span> <span class="o">=</span> <span class="n">KP</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_reject</span> <span class="o">=</span> <span class="n">max_reject</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">onscale_factor</span> <span class="o">=</span> <span class="n">onscale_factor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">safety_factor</span> <span class="o">=</span> <span class="n">safety_factor</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">error_func</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tol</span> <span class="o">=</span> <span class="n">tol</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">err_old</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">contreject</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">F</span> <span class="o">=</span> <span class="n">expand_time_derivatives</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="p">(</span><span class="n">u0</span><span class="p">,))</span>
+        <span class="n">split_form</span> <span class="o">=</span> <span class="n">extract_terms</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtless_form</span> <span class="o">=</span> <span class="o">-</span><span class="n">split_form</span><span class="o">.</span><span class="n">remainder</span>
+
+        <span class="c1"># Set up and cache boundary conditions for error estimate</span>
+        <span class="n">embbc</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma0</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Grab spaces for BCs</span>
+            <span class="n">embbc</span> <span class="o">=</span> <span class="p">[</span><span class="n">EmbeddedBCData</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stages</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="n">bcs</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">embbc</span> <span class="o">=</span> <span class="n">embbc</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_estimate_error</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Assuming that the RK stages have been evaluated, estimates</span>
+<span class="sd">        the temporal truncation error by taking the norm of the</span>
+<span class="sd">        difference between the new solutions computed by the two</span>
+<span class="sd">        methods.  Typically will not be called by the end user.&quot;&quot;&quot;</span>
+        <span class="n">dtc</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">)</span>
+        <span class="n">delb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delb</span>
+        <span class="n">ws</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stages</span><span class="o">.</span><span class="n">subfunctions</span>
+        <span class="n">nf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fields</span>
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_stages</span>
+        <span class="n">u0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span>
+
+        <span class="c1"># Initialize e to be gamma*h*f(old value of u)</span>
+        <span class="n">error_func</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+        <span class="c1"># Only do the hard stuff if gamma0 is not zero</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma0</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="n">error_test</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">u0</span><span class="o">.</span><span class="n">function_space</span><span class="p">())</span>
+            <span class="n">f_form</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">error_func</span><span class="p">,</span> <span class="n">error_test</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma0</span><span class="o">*</span><span class="n">dtc</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">dtless_form</span>
+            <span class="n">f_problem</span> <span class="o">=</span> <span class="n">NLVP</span><span class="p">(</span><span class="n">f_form</span><span class="p">,</span> <span class="n">error_func</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">embbc</span><span class="p">)</span>
+            <span class="n">f_solver</span> <span class="o">=</span> <span class="n">NLVS</span><span class="p">(</span><span class="n">f_problem</span><span class="p">,</span> <span class="n">solver_parameters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma0_params</span><span class="p">)</span>
+            <span class="n">f_solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+
+        <span class="c1"># Accumulate delta-b terms over stages</span>
+        <span class="n">error_func_bits</span> <span class="o">=</span> <span class="n">error_func</span><span class="o">.</span><span class="n">subfunctions</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ns</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">error_func_bits</span><span class="p">):</span>
+                <span class="n">e</span> <span class="o">+=</span> <span class="n">dtc</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">delb</span><span class="p">[</span><span class="n">s</span><span class="p">])</span><span class="o">*</span><span class="n">ws</span><span class="p">[</span><span class="n">nf</span><span class="o">*</span><span class="n">s</span><span class="o">+</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">norm</span><span class="p">(</span><span class="n">assemble</span><span class="p">(</span><span class="n">error_func</span><span class="p">))</span>
+
+<div class="viewcode-block" id="AdaptiveTimeStepper.advance">
+<a class="viewcode-back" href="../../irksome.html#irksome.stage_derivative.AdaptiveTimeStepper.advance">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attempts to advances the system from time `t` to time `t +</span>
+<span class="sd">        dt`.  If the error threshhold is exceeded, will adaptively</span>
+<span class="sd">        decrease the time step until the step is accepted.  Also</span>
+<span class="sd">        predicts new time step once the step is accepted.</span>
+<span class="sd">        Note: overwrites the value `u0`.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_max</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt_max</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Trying dt = </span><span class="si">%e</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">)))</span>
+        <span class="k">while</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_nonlinear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getIterationNumber</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_linear_iterations</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">snes</span><span class="o">.</span><span class="n">getLinearSolveIterations</span><span class="p">()</span>
+            <span class="n">err_current</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_estimate_error</span><span class="p">())</span>
+            <span class="n">err_old</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">err_old</span><span class="p">)</span>
+            <span class="n">dt_old</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt_old</span><span class="p">)</span>
+            <span class="n">dt_current</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="p">)</span>
+            <span class="n">tol</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tol</span><span class="p">)</span>
+            <span class="n">dt_pred</span> <span class="o">=</span> <span class="n">dt_current</span><span class="o">*</span><span class="p">((</span><span class="n">dt_current</span><span class="o">*</span><span class="n">tol</span><span class="p">)</span><span class="o">/</span><span class="n">err_current</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="o">.</span><span class="n">embedded_order</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Truncation error is </span><span class="si">%e</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">err_current</span><span class="p">))</span>
+
+            <span class="c1"># Rejected step shrinks the time-step</span>
+            <span class="k">if</span> <span class="n">err_current</span> <span class="o">&gt;=</span> <span class="n">dt_current</span><span class="o">*</span><span class="n">tol</span><span class="p">:</span>
+                <span class="n">dtnew</span> <span class="o">=</span> <span class="n">dt_current</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">safety_factor</span><span class="o">*</span><span class="n">dt_current</span><span class="o">*</span><span class="n">tol</span><span class="o">/</span><span class="n">err_current</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">butcher_tableau</span><span class="o">.</span><span class="n">embedded_order</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Shrinking time-step to </span><span class="si">%e</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">dtnew</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">dtnew</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">contreject</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">dtnew</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_min</span> <span class="ow">or</span> <span class="n">numpy</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">dtnew</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;The time-step became an invalid number.&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contreject</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_reject</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The time-step was rejected </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">max_reject</span><span class="si">}</span><span class="s2"> times in a row. Please increase the tolerance or decrease the starting time-step.&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Initial time-step selector</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_steps</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">dt_current</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_max</span> <span class="ow">and</span> <span class="n">dt_pred</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">onscale_factor</span><span class="o">*</span><span class="n">dt_current</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">contreject</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_reject</span><span class="p">:</span>
+
+                <span class="c1"># Increase the initial time-step</span>
+                <span class="n">dtnew</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">dt_pred</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_max</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Increasing time-step to </span><span class="si">%e</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">dtnew</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">dtnew</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">contreject</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="c1"># Accepted step increases the time-step</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">dt_old</span> <span class="o">!=</span> <span class="mf">0.0</span> <span class="ow">and</span> <span class="n">err_old</span> <span class="o">!=</span> <span class="mf">0.0</span> <span class="ow">and</span> <span class="n">dt_current</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_max</span><span class="p">:</span>
+                    <span class="n">dtnew</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">dt_current</span><span class="o">*</span><span class="p">((</span><span class="n">dt_current</span><span class="o">*</span><span class="n">tol</span><span class="p">)</span><span class="o">/</span><span class="n">err_current</span><span class="p">)</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">KI</span><span class="o">*</span><span class="p">(</span><span class="n">err_old</span><span class="o">/</span><span class="n">err_current</span><span class="p">)</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">KP</span><span class="o">*</span><span class="p">(</span><span class="n">dt_current</span><span class="o">/</span><span class="n">dt_old</span><span class="p">)</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">KP</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_max</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">The step was accepted and the new time-step is </span><span class="si">%e</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">dtnew</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">dtnew</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">dt_current</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_max</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">The step was accepted and the time-step remains at </span><span class="si">%e</span><span class="s2"> &quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">dtnew</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_update</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">contreject</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">num_steps</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dt_old</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">dtnew</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">err_old</span> <span class="o">=</span> <span class="n">err_current</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">err_current</span><span class="p">,</span> <span class="n">dt_current</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

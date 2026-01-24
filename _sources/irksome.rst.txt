@@ -1,0 +1,221 @@
+irksome package
+===============
+
+Submodules
+----------
+
+irksome.ButcherTableaux module
+------------------------------
+
+.. automodule:: irksome.ButcherTableaux
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.ars\_dirk\_imex\_tableaux module
+----------------------------------------
+
+.. automodule:: irksome.ars_dirk_imex_tableaux
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.base\_time\_stepper module
+----------------------------------
+
+.. automodule:: irksome.base_time_stepper
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.bcs module
+------------------
+
+.. automodule:: irksome.bcs
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.deriv module
+--------------------
+
+.. automodule:: irksome.deriv
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.dirk\_imex\_tableaux module
+-----------------------------------
+
+.. automodule:: irksome.dirk_imex_tableaux
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.dirk\_stepper module
+----------------------------
+
+.. automodule:: irksome.dirk_stepper
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.discontinuous\_galerkin\_stepper module
+-----------------------------------------------
+
+.. automodule:: irksome.discontinuous_galerkin_stepper
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.estimate\_degrees module
+--------------------------------
+
+.. automodule:: irksome.estimate_degrees
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.explicit\_stepper module
+--------------------------------
+
+.. automodule:: irksome.explicit_stepper
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.galerkin\_stepper module
+--------------------------------
+
+.. automodule:: irksome.galerkin_stepper
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.imex module
+-------------------
+
+.. automodule:: irksome.imex
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.integrated\_lagrange module
+-----------------------------------
+
+.. automodule:: irksome.integrated_lagrange
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.labeling module
+-----------------------
+
+.. automodule:: irksome.labeling
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.manipulation module
+---------------------------
+
+.. automodule:: irksome.manipulation
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.nystrom\_dirk\_stepper module
+-------------------------------------
+
+.. automodule:: irksome.nystrom_dirk_stepper
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.nystrom\_stepper module
+-------------------------------
+
+.. automodule:: irksome.nystrom_stepper
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.pc module
+-----------------
+
+.. automodule:: irksome.pc
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.pep\_explicit\_rk module
+--------------------------------
+
+.. automodule:: irksome.pep_explicit_rk
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.scheme module
+---------------------
+
+.. automodule:: irksome.scheme
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.sspk\_tableau module
+----------------------------
+
+.. automodule:: irksome.sspk_tableau
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.stage\_derivative module
+--------------------------------
+
+.. automodule:: irksome.stage_derivative
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.stage\_value module
+---------------------------
+
+.. automodule:: irksome.stage_value
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.stepper module
+----------------------
+
+.. automodule:: irksome.stepper
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.tools module
+--------------------
+
+.. automodule:: irksome.tools
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.wso\_dirk\_tableaux module
+----------------------------------
+
+.. automodule:: irksome.wso_dirk_tableaux
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: irksome
+   :members:
+   :show-inheritance:
+   :undoc-members:

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.pep_explicit_rk &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/pep_explicit_rk">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.pep_explicit_rk</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">.ButcherTableaux</span><span class="w"> </span><span class="kn">import</span> <span class="n">ButcherTableau</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+
+<span class="n">pep425A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mi">1</span><span class="o">/</span><span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mi">35816</span><span class="o">/</span><span class="mi">35721</span><span class="p">,</span> <span class="mi">56795</span><span class="o">/</span><span class="mi">35721</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mi">11994761</span><span class="o">/</span><span class="mi">5328000</span><span class="p">,</span> <span class="o">-</span><span class="mi">11002961</span><span class="o">/</span><span class="mi">4420800</span><span class="p">,</span> <span class="mi">215846127</span><span class="o">/</span><span class="mi">181744000</span><span class="p">,</span> <span class="mi">0</span><span class="p">]])</span>
+<span class="n">pep425b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="mi">17</span><span class="o">/</span><span class="mi">222</span><span class="p">,</span> <span class="mi">6250</span><span class="o">/</span><span class="mi">15657</span><span class="p">,</span> <span class="mi">5250987</span><span class="o">/</span><span class="mi">10382126</span><span class="p">,</span> <span class="mi">4000</span><span class="o">/</span><span class="mi">23307</span><span class="p">])</span>
+<span class="n">pep425c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="mi">10</span><span class="p">,</span> <span class="mi">19</span><span class="o">/</span><span class="mi">20</span><span class="p">,</span> <span class="mi">37</span><span class="o">/</span><span class="mi">63</span><span class="p">])</span>
+
+<span class="n">pep526A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.193445628056365</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">0.090431947690469</span><span class="p">,</span> <span class="mf">0.646659568003039</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">0.059239621354435</span><span class="p">,</span> <span class="mf">0.598571867726670</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.010476084304794</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.173154586278662</span><span class="p">,</span> <span class="mf">0.043637751980064</span><span class="p">,</span> <span class="mf">0.949323298732961</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.262838451019868</span><span class="p">,</span> <span class="mi">0</span><span class="p">]])</span>
+<span class="n">pep526b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.054828314201395</span><span class="p">,</span> <span class="mf">0.310080077556546</span><span class="p">,</span> <span class="mf">0.531276882919990</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.135494569336049</span><span class="p">,</span> <span class="mf">0.239309294658118</span><span class="p">])</span>
+<span class="n">pep526c</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.193445628056365</span><span class="p">,</span> <span class="mf">0.55622762031257</span><span class="p">,</span> <span class="mf">0.528856162067441</span><span class="p">,</span> <span class="mf">0.9032771859718189</span><span class="p">]</span>
+
+<span class="n">pep636A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.12316523079127038</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">0.53348119048187126</span><span class="p">,</span> <span class="mf">1.1200645707708279</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.35987162974687092</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.17675778446586507</span><span class="p">,</span> <span class="mf">0.7331973326225617</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.015700424346522388</span><span class="p">,</span> <span class="mf">0.02862938097533644</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.014047147149911631</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.015653338246176568</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">1.9608805853984794</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.82154709029385564</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.0033631561953843502</span><span class="p">,</span> <span class="mf">0.046367461001250457</span><span class="p">,</span> <span class="mf">2.782035718578454</span><span class="p">,</span> <span class="mi">0</span><span class="p">]])</span>
+<span class="n">pep636b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.78642719559722885</span><span class="p">,</span> <span class="mf">0.69510370728230297</span><span class="p">,</span> <span class="mf">0.42190724518033551</span><span class="p">,</span> <span class="mf">0.21262030193155254</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.70167978222250704</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.41437866776891263</span><span class="p">])</span>
+<span class="n">pep636c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.12316523079127044</span><span class="p">,</span> <span class="mf">0.58658338028895673</span><span class="p">,</span> <span class="mf">0.91631117790356775</span><span class="p">,</span> <span class="mf">0.014629319925770667</span><span class="p">,</span> <span class="mf">0.042612347691984923</span><span class="p">])</span>
+
+<span class="n">pep746A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">0.10731260966924323</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.14772934954602848</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.12537555684690285</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.7016079790308741</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.75094597518803941</span><span class="p">,</span> <span class="mf">0.76631666070124027</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">0.8967481787471202</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.43795858531068965</span><span class="p">,</span> <span class="mf">1.7727346351832869</span><span class="p">,</span> <span class="mf">0.1706052810617312</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">1.6243872270239892</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.69700589895015241</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3861309831750398</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.032848941899304235</span><span class="p">,</span> <span class="mf">0.30227620385295728</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">0.32463926305048885</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3480143346241919</span><span class="p">,</span> <span class="mf">1.3500419757109139</span><span class="p">,</span> <span class="mf">0.039096802121597336</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.17851883247877129</span><span class="p">,</span> <span class="mf">0.010142489530892661</span><span class="p">,</span> <span class="mi">0</span><span class="p">]])</span>
+<span class="n">pep746b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="mf">0.69203318482299292</span><span class="p">,</span> <span class="mf">0.0074442860308153933</span><span class="p">,</span> <span class="mf">0.93216717844052677</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.159431111205361</span><span class="p">,</span> <span class="mf">0.27787978605406632</span><span class="p">,</span> <span class="mf">0.93890392164164138</span><span class="p">,</span> <span class="mf">0.69506912386130404</span><span class="p">])</span>
+<span class="n">pep746c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.10731260966924323</span><span class="p">,</span> <span class="mf">0.022353792699125609</span><span class="p">,</span> <span class="mf">0.71697866454407488</span><span class="p">,</span> <span class="mf">0.60863315218720804</span><span class="p">,</span> <span class="mf">0.81067760685245005</span><span class="p">,</span> <span class="mf">0.54810883720995185</span><span class="p">])</span>
+
+<span class="n">pep756A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.34288981581855521</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.16800230418143236</span><span class="p">,</span> <span class="mf">0.1262987524809161</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.4326925567104672</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.24221982610439177</span><span class="p">,</span> <span class="mf">0.15241708521248304</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">0.019843989305203335</span><span class="p">,</span> <span class="mf">0.20330206481276515</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3494376489494413</span><span class="p">,</span> <span class="mf">0.09780248603799992</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="mf">3.5441758455721732</span><span class="p">,</span> <span class="mf">9.884560134482289</span><span class="p">,</span> <span class="o">-</span><span class="mf">3.7993663287883006</span><span class="p">,</span> <span class="o">-</span><span class="mf">6.07804112569088</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.820029405964353</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+     <span class="p">[</span><span class="o">-</span><span class="mf">16.625817935606782</span><span class="p">,</span> <span class="o">-</span><span class="mf">49.999620978741511</span><span class="p">,</span> <span class="mf">22.3661445506308</span><span class="p">,</span> <span class="mf">30.50526767511958</span><span class="p">,</span> <span class="mf">13.408435545803448</span><span class="p">,</span> <span class="mf">1.3455911427944685</span><span class="p">,</span> <span class="mi">0</span><span class="p">]])</span>
+<span class="n">pep756b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.15881394125505754</span><span class="p">,</span> <span class="mf">3.390357323579911e-13</span><span class="p">,</span> <span class="mf">0.4109696726168125</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.6409254928717294e-13</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.056173857997504642</span><span class="p">,</span> <span class="mf">0.40542999348169673</span><span class="p">,</span> <span class="mf">0.08096025064376304</span><span class="p">])</span>
+<span class="n">pep756c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.34288981581855521</span><span class="p">,</span> <span class="mf">0.2943010566234846</span><span class="p">,</span> <span class="mf">0.34288981581855849</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.028489108793472939</span><span class="p">,</span> <span class="mf">0.73129911961092908</span><span class="p">,</span> <span class="mf">1.0000000000000007</span><span class="p">])</span>
+
+<span class="n">pepdict</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span> <span class="p">(</span><span class="n">pep425A</span><span class="p">,</span> <span class="n">pep425b</span><span class="p">,</span> <span class="n">pep425c</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span> <span class="p">(</span><span class="n">pep526A</span><span class="p">,</span> <span class="n">pep526b</span><span class="p">,</span> <span class="n">pep526c</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span> <span class="p">(</span><span class="n">pep636A</span><span class="p">,</span> <span class="n">pep636b</span><span class="p">,</span> <span class="n">pep636c</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span> <span class="p">(</span><span class="n">pep746A</span><span class="p">,</span> <span class="n">pep746b</span><span class="p">,</span> <span class="n">pep746c</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span> <span class="p">(</span><span class="n">pep756A</span><span class="p">,</span> <span class="n">pep756b</span><span class="p">,</span> <span class="n">pep756c</span><span class="p">)</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="PEPRK">
+<a class="viewcode-back" href="../../irksome.html#irksome.pep_explicit_rk.PEPRK">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PEPRK</span><span class="p">(</span><span class="n">ButcherTableau</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ns</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">peporder</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">pepdict</span><span class="p">[</span><span class="n">ns</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">peporder</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;No PEP method for that combination of stages, order and pseudo-energy preserving order&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">peporder</span> <span class="o">=</span> <span class="n">peporder</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">PEPRK</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

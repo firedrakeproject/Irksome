@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.integrated_lagrange &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/integrated_lagrange">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.integrated_lagrange</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">FIAT</span><span class="w"> </span><span class="kn">import</span> <span class="n">finite_element</span><span class="p">,</span> <span class="n">dual_set</span><span class="p">,</span> <span class="n">functional</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">FIAT.reference_element</span><span class="w"> </span><span class="kn">import</span> <span class="n">LINE</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">FIAT.barycentric_interpolation</span><span class="w"> </span><span class="kn">import</span> <span class="n">LagrangePolynomialSet</span><span class="p">,</span> <span class="n">get_lagrange_points</span>
+
+
+<div class="viewcode-block" id="IntegratedLagrangeDualSet">
+<a class="viewcode-back" href="../../irksome.html#irksome.integrated_lagrange.IntegratedLagrangeDualSet">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">IntegratedLagrangeDualSet</span><span class="p">(</span><span class="n">dual_set</span><span class="o">.</span><span class="n">DualSet</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The dual basis for 1D Integrated Lagrange elements.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ref_el</span><span class="p">,</span> <span class="n">points</span><span class="p">):</span>
+        <span class="n">entity_ids</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">:</span> <span class="p">[]},</span>
+                      <span class="mi">1</span><span class="p">:</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">points</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">))}}</span>
+
+        <span class="n">dpts</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+        <span class="n">dpts</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">pt</span><span class="p">,</span> <span class="o">=</span> <span class="n">ref_el</span><span class="o">.</span><span class="n">make_points</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pt</span> <span class="ow">in</span> <span class="n">dpts</span><span class="p">:</span>
+            <span class="n">basis_pt</span> <span class="o">=</span> <span class="p">((</span><span class="n">dpts</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">dpts</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span><span class="p">,)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">basis_pt</span> <span class="o">=</span> <span class="n">pt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="p">[</span><span class="n">basis_pt</span><span class="p">,</span> <span class="o">*</span><span class="n">dpts</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">points</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+        <span class="n">nodes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">functional</span><span class="o">.</span><span class="n">PointEvaluation</span><span class="p">(</span><span class="n">ref_el</span><span class="p">,</span> <span class="n">pt</span><span class="p">))</span>
+        <span class="n">nodes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">functional</span><span class="o">.</span><span class="n">PointDerivative</span><span class="p">(</span><span class="n">ref_el</span><span class="p">,</span> <span class="n">pt</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,))</span> <span class="k">for</span> <span class="n">pt</span> <span class="ow">in</span> <span class="n">dpts</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">ref_el</span><span class="p">,</span> <span class="n">entity_ids</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="IntegratedLagrange">
+<a class="viewcode-back" href="../../irksome.html#irksome.integrated_lagrange.IntegratedLagrange">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">IntegratedLagrange</span><span class="p">(</span><span class="n">finite_element</span><span class="o">.</span><span class="n">CiarletElement</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;1D element with derivate DOFs on quadrature points.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element</span><span class="p">):</span>
+        <span class="n">ref_el</span> <span class="o">=</span> <span class="n">element</span><span class="o">.</span><span class="n">get_reference_element</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">ref_el</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">LINE</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> only defined in one dimension.&quot;</span><span class="p">)</span>
+
+        <span class="n">degree</span> <span class="o">=</span> <span class="n">element</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">points</span> <span class="o">=</span> <span class="n">get_lagrange_points</span><span class="p">(</span><span class="n">element</span><span class="o">.</span><span class="n">dual_basis</span><span class="p">())</span>
+        <span class="n">dual</span> <span class="o">=</span> <span class="n">IntegratedLagrangeDualSet</span><span class="p">(</span><span class="n">ref_el</span><span class="p">,</span> <span class="n">points</span><span class="p">)</span>
+        <span class="n">poly_set</span> <span class="o">=</span> <span class="n">LagrangePolynomialSet</span><span class="p">(</span><span class="n">ref_el</span><span class="p">,</span> <span class="n">dual</span><span class="o">.</span><span class="n">points</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">poly_set</span><span class="p">,</span> <span class="n">dual</span><span class="p">,</span> <span class="n">degree</span><span class="p">)</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

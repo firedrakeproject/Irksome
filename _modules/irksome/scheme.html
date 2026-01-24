@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.scheme &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/scheme">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.scheme</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">FIAT</span><span class="w"> </span><span class="kn">import</span> <span class="n">ufc_simplex</span><span class="p">,</span> <span class="n">create_quadrature</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">FIAT.quadrature</span><span class="w"> </span><span class="kn">import</span> <span class="n">RadauQuadratureLineRule</span><span class="p">,</span> <span class="n">GaussLobattoLegendreQuadratureLineRule</span>
+
+
+<span class="n">ufc_line</span> <span class="o">=</span> <span class="n">ufc_simplex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="GalerkinScheme">
+<a class="viewcode-back" href="../../irksome.html#irksome.scheme.GalerkinScheme">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GalerkinScheme</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for describing Galerkin-in-time methods in lieu of</span>
+<span class="sd">    a Butcher tableau.</span>
+
+<span class="sd">    :arg order: An integer indicating the order of the method</span>
+<span class="sd">    :kwarg basis_type: A string (or tuple of strings) indicating the finite</span>
+<span class="sd">        element family (either `&#39;Lagrange&#39;` or `&#39;Bernstein&#39;`) or the</span>
+<span class="sd">        Lagrange variant (either `&#39;equispaced&#39;`, `&#39;spectral&#39;`, `&#39;chebyshev&#39;`,</span>
+<span class="sd">        or `&#39;integral&#39;`) for the test/trial spaces.</span>
+<span class="sd">        Defaults to equispaced Lagrange elements.</span>
+<span class="sd">    :kwarg quadrature_degree: An integer indicating the degree of the</span>
+<span class="sd">        quadrature to be use in time. Defaults to the sum</span>
+<span class="sd">        of the degrees of the trial and test spaces.</span>
+<span class="sd">    :kwarg quadrature_scheme: A string indicating the quadrature scheme</span>
+<span class="sd">        to be used in time. Defaults to Gauss-Legendre.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span>
+                 <span class="n">basis_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">quadrature_degree</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">quadrature_scheme</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="n">order</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">basis_type</span> <span class="o">=</span> <span class="n">basis_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">quadrature_degree</span> <span class="o">=</span> <span class="n">quadrature_degree</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">quadrature_scheme</span> <span class="o">=</span> <span class="n">quadrature_scheme</span></div>
+
+
+
+<div class="viewcode-block" id="DiscontinuousGalerkinScheme">
+<a class="viewcode-back" href="../../irksome.html#irksome.scheme.DiscontinuousGalerkinScheme">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DiscontinuousGalerkinScheme</span><span class="p">(</span><span class="n">GalerkinScheme</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Class for describing DG-in-time methods&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span>
+                 <span class="n">basis_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">quadrature_degree</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">quadrature_scheme</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">order</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> must have order &gt;= 0&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="n">basis_type</span><span class="p">,</span>
+                         <span class="n">quadrature_degree</span><span class="o">=</span><span class="n">quadrature_degree</span><span class="p">,</span>
+                         <span class="n">quadrature_scheme</span><span class="o">=</span><span class="n">quadrature_scheme</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ContinuousPetrovGalerkinScheme">
+<a class="viewcode-back" href="../../irksome.html#irksome.scheme.ContinuousPetrovGalerkinScheme">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ContinuousPetrovGalerkinScheme</span><span class="p">(</span><span class="n">GalerkinScheme</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Class for describing cPG-in-time methods&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span>
+                 <span class="n">basis_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">quadrature_degree</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">quadrature_scheme</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">order</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> must have order &gt;= 1&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="n">basis_type</span><span class="p">,</span>
+                         <span class="n">quadrature_degree</span><span class="o">=</span><span class="n">quadrature_degree</span><span class="p">,</span>
+                         <span class="n">quadrature_scheme</span><span class="o">=</span><span class="n">quadrature_scheme</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="GalerkinCollocationScheme">
+<a class="viewcode-back" href="../../irksome.html#irksome.scheme.GalerkinCollocationScheme">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GalerkinCollocationScheme</span><span class="p">(</span><span class="n">ContinuousPetrovGalerkinScheme</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Class for describing collocation cPG-in-time methods&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span>
+                 <span class="n">stage_type</span><span class="o">=</span><span class="s2">&quot;deriv&quot;</span><span class="p">,</span>
+                 <span class="n">quadrature_degree</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">quadrature_scheme</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">order</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> must have order &gt;= 1&quot;</span>
+        <span class="k">if</span> <span class="n">quadrature_scheme</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">test_type</span> <span class="o">=</span> <span class="s2">&quot;spectral&quot;</span>
+        <span class="k">elif</span> <span class="n">quadrature_scheme</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;radau&quot;</span><span class="p">,</span> <span class="s2">&quot;lobatto&quot;</span><span class="p">}:</span>
+            <span class="n">test_type</span> <span class="o">=</span> <span class="n">quadrature_scheme</span>
+            <span class="k">if</span> <span class="n">quadrature_degree</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># Default to under-integration!</span>
+                <span class="k">if</span> <span class="n">quadrature_scheme</span> <span class="o">==</span> <span class="s2">&quot;radau&quot;</span><span class="p">:</span>
+                    <span class="n">quadrature_degree</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">order</span><span class="o">-</span><span class="mi">2</span>
+                <span class="k">elif</span> <span class="n">quadrature_scheme</span> <span class="o">==</span> <span class="s2">&quot;lobatto&quot;</span><span class="p">:</span>
+                    <span class="n">quadrature_degree</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">order</span><span class="o">-</span><span class="mi">3</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported quadrature scheme </span><span class="si">{</span><span class="n">quadrature_scheme</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">stage_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;deriv&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported stage type </span><span class="si">{</span><span class="n">stage_type</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+        <span class="n">trial_type</span> <span class="o">=</span> <span class="n">stage_type</span>
+        <span class="n">basis_type</span> <span class="o">=</span> <span class="p">(</span><span class="n">trial_type</span><span class="p">,</span> <span class="n">test_type</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">basis_type</span><span class="o">=</span><span class="n">basis_type</span><span class="p">,</span>
+                         <span class="n">quadrature_degree</span><span class="o">=</span><span class="n">quadrature_degree</span><span class="p">,</span>
+                         <span class="n">quadrature_scheme</span><span class="o">=</span><span class="n">quadrature_scheme</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="create_time_quadrature">
+<a class="viewcode-back" href="../../irksome.html#irksome.scheme.create_time_quadrature">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_time_quadrature</span><span class="p">(</span><span class="n">degree</span><span class="p">,</span> <span class="n">scheme</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">scheme</span> <span class="o">==</span> <span class="s2">&quot;radau&quot;</span><span class="p">:</span>
+        <span class="n">num_points</span> <span class="o">=</span> <span class="p">(</span><span class="n">degree</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">RadauQuadratureLineRule</span><span class="p">(</span><span class="n">ufc_line</span><span class="p">,</span> <span class="n">num_points</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">scheme</span> <span class="o">==</span> <span class="s2">&quot;lobatto&quot;</span><span class="p">:</span>
+        <span class="n">num_points</span> <span class="o">=</span> <span class="n">degree</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="n">GaussLobattoLegendreQuadratureLineRule</span><span class="p">(</span><span class="n">ufc_line</span><span class="p">,</span> <span class="n">num_points</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">create_quadrature</span><span class="p">(</span><span class="n">ufc_line</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="n">scheme</span><span class="o">=</span><span class="n">scheme</span> <span class="ow">or</span> <span class="s2">&quot;default&quot;</span><span class="p">)</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

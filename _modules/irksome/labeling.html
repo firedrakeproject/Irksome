@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.labeling &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/labeling">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.labeling</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">ufl.algorithms.apply_algebra_lowering</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_algebra_lowering</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseForm</span><span class="p">,</span> <span class="n">Form</span><span class="p">,</span> <span class="n">FormSum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake.fml</span><span class="w"> </span><span class="kn">import</span> <span class="n">Label</span><span class="p">,</span> <span class="n">keep</span><span class="p">,</span> <span class="n">drop</span><span class="p">,</span> <span class="n">LabelledForm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.scheme</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_time_quadrature</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">explicit</span> <span class="o">=</span> <span class="n">Label</span><span class="p">(</span><span class="s2">&quot;explicit&quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="TimeQuadratureLabel">
+<a class="viewcode-back" href="../../irksome.html#irksome.labeling.TimeQuadratureLabel">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TimeQuadratureLabel</span><span class="p">(</span><span class="n">Label</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;If the constructor gets one argument, it&#39;s an integer for the</span>
+<span class="sd">    order of the quadrature rule.</span>
+<span class="sd">    If there are two arguments, assume they are the points and weights.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">scheme</span><span class="o">=</span><span class="s2">&quot;default&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">Q</span> <span class="o">=</span> <span class="n">create_time_quadrature</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">scheme</span><span class="o">=</span><span class="n">scheme</span><span class="p">)</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_points</span><span class="p">(),</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal input to TimeQuadratureLabel&quot;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">TimeQuadratureRule</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">w</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="TimeQuadratureRule">
+<a class="viewcode-back" href="../../irksome.html#irksome.labeling.TimeQuadratureRule">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TimeQuadratureRule</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">w</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">w</span>
+
+<div class="viewcode-block" id="TimeQuadratureRule.get_points">
+<a class="viewcode-back" href="../../irksome.html#irksome.labeling.TimeQuadratureRule.get_points">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_points</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeQuadratureRule.get_weights">
+<a class="viewcode-back" href="../../irksome.html#irksome.labeling.TimeQuadratureRule.get_weights">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="has_quad_labels">
+<a class="viewcode-back" href="../../irksome.html#irksome.labeling.has_quad_labels">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">has_quad_labels</span><span class="p">(</span><span class="n">term</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="n">TimeQuadratureRule</span><span class="p">)</span> <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">term</span><span class="o">.</span><span class="n">labels</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="apply_time_quadrature_labels">
+<a class="viewcode-back" href="../../irksome.html#irksome.labeling.apply_time_quadrature_labels">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_time_quadrature_labels</span><span class="p">(</span><span class="n">form</span><span class="p">,</span> <span class="n">degree_estimator</span><span class="p">,</span> <span class="n">scheme</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Estimates the polynomial degree in time for each integral in the given form and labels</span>
+<span class="sd">    each term with a quadrature rule to be used for time integration.</span>
+
+<span class="sd">    :arg form: a :class:`BaseForm` or a partially labelled :class:`LabelledForm`.</span>
+<span class="sd">    :arg degree_estimator: a :class:`TimeDegreeEstimator` instance.</span>
+<span class="sd">    :kwarg scheme: a string with the quadrature scheme.</span>
+
+<span class="sd">    :returns: a :class:`LabelledForm` labelled by :class:`TimeQuaradratureRule` instances.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Split labelled and unlabelled parts</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">form</span><span class="p">,</span> <span class="n">LabelledForm</span><span class="p">):</span>
+        <span class="n">F</span> <span class="o">=</span> <span class="n">form</span><span class="o">.</span><span class="n">label_map</span><span class="p">(</span><span class="n">has_quad_labels</span><span class="p">,</span> <span class="n">map_if_true</span><span class="o">=</span><span class="n">keep</span><span class="p">,</span> <span class="n">map_if_false</span><span class="o">=</span><span class="n">drop</span><span class="p">)</span>
+        <span class="n">form</span> <span class="o">=</span> <span class="n">as_form</span><span class="p">(</span><span class="n">form</span><span class="o">.</span><span class="n">label_map</span><span class="p">(</span><span class="n">has_quad_labels</span><span class="p">,</span> <span class="n">map_if_true</span><span class="o">=</span><span class="n">drop</span><span class="p">,</span> <span class="n">map_if_false</span><span class="o">=</span><span class="n">keep</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">form</span><span class="p">,</span> <span class="n">BaseForm</span><span class="p">):</span>
+        <span class="n">F</span> <span class="o">=</span> <span class="n">LabelledForm</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expecting a BaseForm or a LabelledForm, not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">form</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">form</span><span class="p">,</span> <span class="n">Form</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">form</span><span class="p">,</span> <span class="n">BaseForm</span><span class="p">):</span>
+        <span class="c1"># Label the non-integral components</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">form</span><span class="p">,</span> <span class="n">FormSum</span><span class="p">):</span>
+            <span class="n">ws</span> <span class="o">=</span> <span class="n">form</span><span class="o">.</span><span class="n">weights</span><span class="p">()</span>
+            <span class="n">fs</span> <span class="o">=</span> <span class="n">form</span><span class="o">.</span><span class="n">components</span><span class="p">()</span>
+            <span class="n">form</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">((</span><span class="n">w</span><span class="o">*</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">ws</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Form</span><span class="p">)),</span> <span class="n">Form</span><span class="p">([]))</span>
+            <span class="n">base_form</span> <span class="o">=</span> <span class="n">FormSum</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">f</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">ws</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Form</span><span class="p">)))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">base_form</span> <span class="o">=</span> <span class="n">form</span>
+            <span class="n">form</span> <span class="o">=</span> <span class="n">Form</span><span class="p">([])</span>
+
+        <span class="n">degree</span> <span class="o">=</span> <span class="n">degree_estimator</span><span class="p">(</span><span class="n">apply_algebra_lowering</span><span class="p">(</span><span class="n">base_form</span><span class="p">))</span>
+        <span class="n">label</span> <span class="o">=</span> <span class="n">TimeQuadratureLabel</span><span class="p">(</span><span class="n">degree</span><span class="p">,</span> <span class="n">scheme</span><span class="o">=</span><span class="n">scheme</span><span class="p">)</span>
+        <span class="n">F</span> <span class="o">+=</span> <span class="n">label</span><span class="p">(</span><span class="n">base_form</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">form</span><span class="p">,</span> <span class="n">Form</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expecting a Form, not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">form</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Need to preprocess Inverse and Determinant</span>
+    <span class="n">form</span> <span class="o">=</span> <span class="n">apply_algebra_lowering</span><span class="p">(</span><span class="n">form</span><span class="p">)</span>
+
+    <span class="c1"># Group integrals by degree</span>
+    <span class="n">terms</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">it</span> <span class="ow">in</span> <span class="n">form</span><span class="o">.</span><span class="n">integrals</span><span class="p">():</span>
+        <span class="n">terms</span><span class="p">[</span><span class="n">degree_estimator</span><span class="p">(</span><span class="n">it</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">it</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">degree</span><span class="p">,</span> <span class="n">integrals</span> <span class="ow">in</span> <span class="n">terms</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">label</span> <span class="o">=</span> <span class="n">TimeQuadratureLabel</span><span class="p">(</span><span class="n">degree</span><span class="p">,</span> <span class="n">scheme</span><span class="o">=</span><span class="n">scheme</span><span class="p">)</span>
+        <span class="n">F</span> <span class="o">+=</span> <span class="n">label</span><span class="p">(</span><span class="n">Form</span><span class="p">(</span><span class="n">integrals</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">F</span></div>
+
+
+
+<div class="viewcode-block" id="split_quadrature">
+<a class="viewcode-back" href="../../irksome.html#irksome.labeling.split_quadrature">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_quadrature</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">degree_estimator</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Qdefault</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Splits a :class:`LabelledForm` into the terms to be integrated in time by the</span>
+<span class="sd">    different :class:`TimeQuadratureRule` objects used as labels.</span>
+
+<span class="sd">    :arg F: a :class:`Form` or a :class:`LabelledForm`.</span>
+<span class="sd">    :kwarg degree_estimator: a :class:`TimeDegreeEstimator` instance.</span>
+<span class="sd">    :kwarg Qdefault: the :class:`TimeQuadratureRule` to be applied on unlabelled terms.</span>
+<span class="sd">        Alternatively, a string indicating the quadrature scheme,</span>
+<span class="sd">        in which case the degree is automatically estimated for each unlabelled term.</span>
+
+<span class="sd">    :returns: a `dict` mapping unique :class:`TimeQuadratureRule` objects to the :class:`Form` to be integrated in time.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">do_estimate_degrees</span> <span class="o">=</span> <span class="n">Qdefault</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">Qdefault</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">do_estimate_degrees</span><span class="p">:</span>
+        <span class="n">scheme</span> <span class="o">=</span> <span class="n">Qdefault</span>
+        <span class="n">F</span> <span class="o">=</span> <span class="n">apply_time_quadrature_labels</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">degree_estimator</span><span class="p">,</span> <span class="n">scheme</span><span class="o">=</span><span class="n">scheme</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">LabelledForm</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">Qdefault</span><span class="p">:</span> <span class="n">F</span><span class="p">}</span>
+
+    <span class="n">quad_labels</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">F</span><span class="o">.</span><span class="n">terms</span><span class="p">:</span>
+        <span class="n">cur_labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">label</span> <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">term</span><span class="o">.</span><span class="n">labels</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="n">TimeQuadratureRule</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cur_labels</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">quad_labels</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">cur_labels</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">cur_labels</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Multiple quadrature labels on one term.&quot;</span><span class="p">)</span>
+
+    <span class="n">splitting</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">Fdefault</span> <span class="o">=</span> <span class="n">as_form</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">label_map</span><span class="p">(</span><span class="n">has_quad_labels</span><span class="p">,</span> <span class="n">map_if_true</span><span class="o">=</span><span class="n">drop</span><span class="p">,</span> <span class="n">map_if_false</span><span class="o">=</span><span class="n">keep</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">do_estimate_degrees</span><span class="p">:</span>
+        <span class="c1"># every term must have been labelled at this point</span>
+        <span class="k">assert</span> <span class="n">Fdefault</span><span class="o">.</span><span class="n">empty</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">splitting</span><span class="p">[</span><span class="n">Qdefault</span><span class="p">]</span> <span class="o">=</span> <span class="n">Fdefault</span>
+    <span class="k">for</span> <span class="n">Q</span> <span class="ow">in</span> <span class="n">quad_labels</span><span class="p">:</span>
+        <span class="n">splitting</span><span class="p">[</span><span class="n">Q</span><span class="p">]</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">label_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">Q</span> <span class="ow">in</span> <span class="n">t</span><span class="o">.</span><span class="n">labels</span><span class="p">,</span> <span class="n">map_if_true</span><span class="o">=</span><span class="n">keep</span><span class="p">,</span> <span class="n">map_if_false</span><span class="o">=</span><span class="n">drop</span><span class="p">)</span>
+
+    <span class="c1"># collapse TimeQuadratureRules based on numerical equality</span>
+    <span class="n">rule_equals</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">Q1</span><span class="p">,</span> <span class="n">Q2</span><span class="p">:</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">Q1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">type</span><span class="p">(</span><span class="n">Q2</span><span class="p">)</span>
+                                  <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">Q1</span><span class="o">.</span><span class="n">get_points</span><span class="p">(),</span> <span class="n">Q2</span><span class="o">.</span><span class="n">get_points</span><span class="p">())</span>
+                                  <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">Q1</span><span class="o">.</span><span class="n">get_weights</span><span class="p">(),</span> <span class="n">Q2</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()))</span>
+
+    <span class="n">forms</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">Form</span><span class="p">([]))</span>
+    <span class="k">for</span> <span class="n">Q</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">splitting</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">Q</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">get_points</span><span class="p">()),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">form</span> <span class="o">=</span> <span class="n">as_form</span><span class="p">(</span><span class="n">splitting</span><span class="p">[</span><span class="n">Q</span><span class="p">])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">form</span><span class="o">.</span><span class="n">empty</span><span class="p">():</span>
+            <span class="n">Q_unique</span> <span class="o">=</span> <span class="nb">next</span><span class="p">((</span><span class="n">Qk</span> <span class="k">for</span> <span class="n">Qk</span> <span class="ow">in</span> <span class="n">forms</span> <span class="k">if</span> <span class="n">rule_equals</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">Qk</span><span class="p">)),</span> <span class="n">Q</span><span class="p">)</span>
+            <span class="n">forms</span><span class="p">[</span><span class="n">Q_unique</span><span class="p">]</span> <span class="o">+=</span> <span class="n">form</span>
+    <span class="k">return</span> <span class="n">forms</span></div>
+
+
+
+<div class="viewcode-block" id="split_explicit">
+<a class="viewcode-back" href="../../irksome.html#irksome.labeling.split_explicit">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_explicit</span><span class="p">(</span><span class="n">F</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">LabelledForm</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">exp_part</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">label_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">has_label</span><span class="p">(</span><span class="n">explicit</span><span class="p">),</span>
+                           <span class="n">map_if_true</span><span class="o">=</span><span class="n">keep</span><span class="p">,</span>
+                           <span class="n">map_if_false</span><span class="o">=</span><span class="n">drop</span><span class="p">)</span>
+
+    <span class="n">imp_part</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">label_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">labels</span> <span class="o">==</span> <span class="p">{},</span>
+                           <span class="n">map_if_true</span><span class="o">=</span><span class="n">keep</span><span class="p">,</span> <span class="n">map_if_false</span><span class="o">=</span><span class="n">drop</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">as_form</span><span class="p">(</span><span class="n">imp_part</span><span class="p">),</span> <span class="n">as_form</span><span class="p">(</span><span class="n">exp_part</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="as_form">
+<a class="viewcode-back" href="../../irksome.html#irksome.labeling.as_form">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">as_form</span><span class="p">(</span><span class="n">form</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extracts the :class:`Form` from a :class:`LabelledForm`.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">form</span><span class="p">,</span> <span class="n">LabelledForm</span><span class="p">):</span>
+        <span class="n">form</span> <span class="o">=</span> <span class="n">Form</span><span class="p">([])</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">form</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">form</span><span class="o">.</span><span class="n">form</span>
+    <span class="k">return</span> <span class="n">form</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

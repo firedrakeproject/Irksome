@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.deriv &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../index.html"><img src="../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/deriv">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.deriv</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">singledispatchmethod</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.constantvalue</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_ufl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.core.ufl_type</span><span class="w"> </span><span class="kn">import</span> <span class="n">ufl_type</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.corealg.dag_traverser</span><span class="w"> </span><span class="kn">import</span> <span class="n">DAGTraverser</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.algorithms.map_integrands</span><span class="w"> </span><span class="kn">import</span> <span class="n">map_integrands</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.algorithms.apply_derivatives</span><span class="w"> </span><span class="kn">import</span> <span class="n">GenericDerivativeRuleset</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.algorithms.apply_algebra_lowering</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_algebra_lowering</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.form</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseForm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ufl.classes</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">Coefficient</span><span class="p">,</span> <span class="n">Conj</span><span class="p">,</span> <span class="n">Curl</span><span class="p">,</span> <span class="n">ConstantValue</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">,</span>
+                         <span class="n">Div</span><span class="p">,</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Grad</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">ReferenceGrad</span><span class="p">,</span>
+                         <span class="n">ReferenceValue</span><span class="p">,</span> <span class="n">SpatialCoordinate</span><span class="p">,</span> <span class="n">Variable</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="TimeDerivative">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivative">[docs]</a>
+<span class="nd">@ufl_type</span><span class="p">(</span><span class="n">num_ops</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+          <span class="n">inherit_shape_from_operand</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+          <span class="n">inherit_indices_from_operand</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TimeDerivative</span><span class="p">(</span><span class="n">Derivative</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;UFL node representing a time derivative of some quantity/field.</span>
+<span class="sd">    Note: Currently form compilers do not understand how to process</span>
+<span class="sd">    these nodes.  Instead, Irksome pre-processes forms containing</span>
+<span class="sd">    `TimeDerivative` nodes.&quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Derivative</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+        <span class="n">Derivative</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="p">(</span><span class="n">f</span><span class="p">,))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;d{</span><span class="si">%s</span><span class="s2">}/dt&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span></div>
+
+
+
+<div class="viewcode-block" id="Dt">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.Dt">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">Dt</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Short-hand function to produce a :class:`TimeDerivative` of a given order.&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">order</span><span class="p">):</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">TimeDerivative</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span></div>
+
+
+
+<div class="viewcode-block" id="TimeDerivativeRuleset">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivativeRuleset">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TimeDerivativeRuleset</span><span class="p">(</span><span class="n">GenericDerivativeRuleset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply AD rules to time derivative expressions.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">GenericDerivativeRuleset</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">t</span> <span class="o">=</span> <span class="n">t</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_Id</span> <span class="o">=</span> <span class="n">as_ufl</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timedep_coeffs</span> <span class="o">=</span> <span class="n">timedep_coeffs</span>
+
+    <span class="c1"># Work around singledispatchmethod inheritance issue;</span>
+    <span class="c1"># see https://bugs.python.org/issue36457.</span>
+<div class="viewcode-block" id="TimeDerivativeRuleset.process">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivativeRuleset.process">[docs]</a>
+    <span class="nd">@singledispatchmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">o</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDerivativeRuleset.constant">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivativeRuleset.constant">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ConstantValue</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">constant</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">o</span> <span class="ow">is</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Id</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">independent_terminal</span><span class="p">(</span><span class="n">o</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDerivativeRuleset.terminal">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivativeRuleset.terminal">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Coefficient</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">SpatialCoordinate</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">terminal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">o</span> <span class="ow">is</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_Id</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">timedep_coeffs</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">o</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">timedep_coeffs</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">TimeDerivative</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">independent_terminal</span><span class="p">(</span><span class="n">o</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDerivativeRuleset.time_derivative">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivativeRuleset.time_derivative">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">TimeDerivative</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">time_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">TimeDerivative</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">TimeDerivative</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="p">(</span><span class="n">f</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDerivativeRuleset.terminal_modifier">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivativeRuleset.terminal_modifier">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Conj</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Curl</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Derivative</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Div</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Grad</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Indexed</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ReferenceGrad</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">ReferenceValue</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Variable</span><span class="p">)</span>
+    <span class="nd">@DAGTraverser</span><span class="o">.</span><span class="n">postorder</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">terminal_modifier</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">operands</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">o</span><span class="o">.</span><span class="n">_ufl_expr_reconstruct_</span><span class="p">(</span><span class="o">*</span><span class="n">operands</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="TimeDerivativeRuleDispatcher">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivativeRuleDispatcher">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TimeDerivativeRuleDispatcher</span><span class="p">(</span><span class="n">DAGTraverser</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Mapping rules to splat out time derivatives so that replacement should</span>
+<span class="sd">    work on more complex problems.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rules</span> <span class="o">=</span> <span class="n">TimeDerivativeRuleset</span><span class="p">(</span><span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="n">timedep_coeffs</span><span class="p">)</span>
+
+    <span class="c1"># Work around singledispatchmethod inheritance issue;</span>
+    <span class="c1"># see https://bugs.python.org/issue36457.</span>
+<div class="viewcode-block" id="TimeDerivativeRuleDispatcher.process">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivativeRuleDispatcher.process">[docs]</a>
+    <span class="nd">@singledispatchmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">o</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeDerivativeRuleDispatcher.time_derivative">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.TimeDerivativeRuleDispatcher.time_derivative">[docs]</a>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">TimeDerivative</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">time_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">f</span><span class="p">,</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">ufl_operands</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rules</span><span class="p">(</span><span class="n">f</span><span class="p">)</span></div>
+
+
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Expr</span><span class="p">)</span>
+    <span class="nd">@process</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">BaseForm</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_generic</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reuse_if_untouched</span><span class="p">(</span><span class="n">o</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="apply_time_derivatives">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.apply_time_derivatives">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_time_derivatives</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">rules</span> <span class="o">=</span> <span class="n">TimeDerivativeRuleDispatcher</span><span class="p">(</span><span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="n">timedep_coeffs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">map_integrands</span><span class="p">(</span><span class="n">rules</span><span class="p">,</span> <span class="n">expression</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="expand_time_derivatives">
+<a class="viewcode-back" href="../../irksome.html#irksome.deriv.expand_time_derivatives">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">expand_time_derivatives</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">expression</span> <span class="o">=</span> <span class="n">apply_algebra_lowering</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span>
+    <span class="n">expression</span> <span class="o">=</span> <span class="n">apply_time_derivatives</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">timedep_coeffs</span><span class="o">=</span><span class="n">timedep_coeffs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">expression</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
