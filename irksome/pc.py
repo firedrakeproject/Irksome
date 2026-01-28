@@ -1,6 +1,7 @@
 import copy
 
 import numpy
+from .labeling import as_form
 from firedrake import AuxiliaryOperatorPC, derivative
 from firedrake.dmhooks import get_appctx
 
@@ -51,7 +52,7 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         appctx = self.get_appctx(pc)
         stepper = appctx["stepper"]
         butcher = stepper.butcher_tableau
-        F = stepper.F
+        F = as_form(stepper.F)
         u0 = stepper.u0
         bcs = stepper.orig_bcs
         v0, = F.arguments()

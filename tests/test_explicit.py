@@ -3,7 +3,6 @@ from math import isclose
 import pytest
 from firedrake import *
 from irksome import PEPRK, Dt, MeshConstant, TimeStepper, SSPButcherTableau
-from ufl.algorithms.ad import expand_derivatives
 
 peprks = [PEPRK(*x) for x in ((4, 2, 5), (5, 2, 6))]
 ssprks = [SSPButcherTableau(2, 2), SSPButcherTableau(2, 3), SSPButcherTableau(3, 3)]
@@ -44,7 +43,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         + u_0
         + ((x - x0) / x1) * (u_1 - u_0)
     )
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)

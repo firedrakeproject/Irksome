@@ -2,18 +2,18 @@ import numpy
 from firedrake import Function, TestFunction
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import assemble, dx, inner, norm
+from firedrake import assemble, dx, inner, norm, as_tensor
 from firedrake.bcs import EquationBC, EquationBCSplit
 
 from ufl.constantvalue import as_ufl
-from .tools import AI, replace, vecconst
+from .tools import AI, dot, replace, reshape, vecconst, fields_to_components
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
 from .ufl import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
 
-def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
+def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, aux_indices=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -25,18 +25,13 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     :arg dt: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time step.
          The user may adjust this value between time steps.
-    :arg splitting: a callable that maps the (floating point) Butcher matrix
-         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
-         to vary between the classical RK formulation and Butcher's reformulation
-         that leads to a denser mass matrix with block-diagonal stiffness.
-         Some choices of function will assume that `butch.A` is invertible.
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :arg bcs: optionally, a :class:`DirichletBC` or :class:`EquationBC`
+    :kwarg bcs: optionally, a :class:`DirichletBC` or :class:`EquationBC`
          object (or iterable thereof) containing (possibly time-dependent)
          boundary conditions imposed on the system.
-    :arg bc_type: How to manipulate the strongly-enforced boundary
+    :kwarg bc_type: How to manipulate the strongly-enforced boundary
          conditions to derive the stage boundary conditions.  Should
          be a string, either "DAE", which implements BCs as
          constraints in the style of a differential-algebraic
@@ -44,12 +39,18 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
          boundary data and evaluates this for the stage values.
          Support for `firedrake.EquationBC` in `bcs` is limited
          to DAE style BCs.
+    :kwarg splitting: a callable that maps the (floating point) Butcher matrix
+         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
+         to vary between the classical RK formulation and Butcher's reformulation
+         that leads to a denser mass matrix with block-diagonal stiffness.
+         Some choices of function will assume that `butch.A` is invertible.
+    :kwarg aux_indices: a list of field indices to be discretized as :class:`TimeDerivative`,
+         analogouos to :class:`ContinouosPetrovGalerkinTimeStepper`.
 
-    On output, we return a tuple consisting of four parts:
-
-       - Fnew, the :class:`Form`
+    :returns: a 2-tuple of
+       - `Fnew`, the :class:`Form`
        - `bcnew`, a list of :class:`firedrake.DirichletBC` or :class:`EquationBC`
-         objects to be posed on the stages,
+         objects to be posed on the stages
     """
     if bc_type is None:
         bc_type = "DAE"
@@ -75,18 +76,27 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
     test = TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
-    w_np = numpy.reshape(stages, (num_stages, *u0.ufl_shape))
-    A1w = A1 @ w_np
-    A2invw = A2inv @ w_np
-
+    v_np = reshape(test, (num_stages, *v.ufl_shape))
+    w_np = reshape(stages, (num_stages, *u0.ufl_shape))
+    A1w = dot(A1, w_np)
+    A2invw = dot(A2inv, w_np)
     dtu = TimeDerivative(u0)
+
+    aux_components = fields_to_components(V, aux_indices or [])
+
     repl = {}
     for i in range(num_stages):
+        usub = u0 + as_tensor(A1w[i]) * dt
+        dtusub = A2invw[i]
+        if aux_components:
+            # Apply TimeDerivative substitution to auxiliary fields
+            usub = reshape(usub, u0.ufl_shape)
+            usub[aux_components] = dtusub[aux_components] * dt
+
         repl[i] = {t: t + c[i] * dt,
                    v: v_np[i],
-                   u0: u0 + A1w[i] * dt,
-                   dtu: A2invw[i]}
+                   u0: usub,
+                   dtu: dtusub}
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 
@@ -118,13 +128,15 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI):
                 return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
                                   bcs=[bc2stagebc(innerbc, i) for innerbc in extract_bcs(bc.bcs)])
             else:
-                gorig = as_ufl(bc._original_arg)
-                ucur = bc2space(bc, u0)
-                gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur) * A1inv[i, j]
-                                    for j in range(num_stages))
+                gcur = bc._original_arg
+                if gcur != 0:
+                    gorig = as_ufl(gcur)
+                    ucur = bc2space(bc, u0)
+                    gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur) * A1inv[i, j]
+                                        for j in range(num_stages))
                 return BCStageData(bc, gcur, u0, stages, i)
     else:
-        raise ValueError("Unrecognised bc_type: %s", bc_type)
+        raise ValueError(f"Unrecognised bc_type: {bc_type}")
 
     # This logic uses information set up in the previous section to
     # set up the new BCs for either method
@@ -180,7 +192,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
-                 appctx=None, bc_type="DAE", **kwargs):
+                 appctx=None, bc_type="DAE", aux_indices=None, **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
@@ -190,6 +202,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
 
+        self.aux_indices = aux_indices
         super().__init__(F, t, dt, u0,
                          butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
@@ -211,12 +224,15 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         return getForm(F or self.F,
                        tableau or self.butcher_tableau,
                        self.t, self.dt,
-                       self.u0, stages, self.orig_bcs, self.bc_type,
-                       self.splitting)
+                       self.u0, stages, bcs, self.bc_type,
+                       splitting=self.splitting,
+                       aux_indices=self.aux_indices)
 
 
 class AdaptiveTimeStepper(StageDerivativeTimeStepper):
@@ -279,11 +295,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                  bc_type="DAE", splitting=AI, nullspace=None,
                  tol=1.e-3, dtmin=1.e-15, dtmax=1.0, KI=1/15, KP=0.13,
                  max_reject=10, onscale_factor=1.2, safety_factor=0.9,
-                 gamma0_params=None):
+                 gamma0_params=None, **kwargs):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
-                                                  bc_type=bc_type, splitting=splitting, nullspace=nullspace)
+                                                  bc_type=bc_type, splitting=splitting, nullspace=nullspace, **kwargs)
 
         from firedrake.petsc import PETSc
         self.print = PETSc.Sys.Print

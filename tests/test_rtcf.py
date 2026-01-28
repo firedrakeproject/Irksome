@@ -2,7 +2,6 @@ import pytest
 from firedrake import *
 from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
 from irksome.tools import AI, IA
-from ufl.algorithms.ad import expand_derivatives
 
 
 def curlcross(a, b):
@@ -24,7 +23,7 @@ def RTCFtest(N, deg, butcher_tableau, splitting=AI):
     x, y = SpatialCoordinate(msh)
 
     uexact = as_vector([t + 2*t*x + 4*t*y, 7*t + 5*t*x + 6*t*y])
-    rhs = expand_derivatives(diff(uexact, t)) + grad(div(uexact))
+    rhs = Dt(uexact) + grad(div(uexact))
 
     u = project(uexact, V)
 

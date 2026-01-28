@@ -32,7 +32,7 @@ We are mainly interested in accuracy and in conserving these quantities reasonab
 Firedrake imports::
 
   from firedrake import *
-  from irksome import Dt, GalerkinTimeStepper, MeshConstant
+  from irksome import Dt, TimeStepper, MeshConstant, ContinuousPetrovGalerkinScheme
 
 This function seems to be left out of UFL, but solitary wave solutions for BBM need it::
 
@@ -80,8 +80,8 @@ For a 1d problem, we don't worry much about efficient solvers.::
 
 The Galerkin-in-Time approach should have symplectic properties::
 
-  stepper = GalerkinTimeStepper(F, 2, t, dt, u,
-                        solver_parameters=params)
+  scheme = ContinuousPetrovGalerkinScheme(2)
+  stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=params)
 
 UFL for the mathematical invariants and containers to track them over time::
 

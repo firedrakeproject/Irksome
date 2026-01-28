@@ -5,7 +5,7 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
-from ufl import zero
+from ufl import as_tensor, zero
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
@@ -24,15 +24,15 @@ def to_value(u0, stages, vandermonde):
     Since u0 is not part of the unknown vector of stages, we disassemble
     the Vandermonde matrix (first row is [1, 0, ...]).
     """
-    ZZ_np = numpy.reshape(stages, (-1, *u0.ufl_shape))
+    ZZ_np = reshape(stages, (-1, *u0.ufl_shape))
     if vandermonde is None:
         return ZZ_np
-    u0_np = numpy.reshape(u0, (-1, *u0.ufl_shape))
+    u0_np = reshape(u0, (-1, *u0.ufl_shape))
     u_np = numpy.concatenate((u0_np, ZZ_np))
-    return vandermonde[1:] @ u_np
+    return dot(vandermonde[1:], u_np)
 
 
-def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermonde=None):
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -50,36 +50,34 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
          It lives in a :class:`firedrake.FunctionSpace` corresponding to the
          s-way tensor product of the space on which the semidiscrete
          form lives.
-    :arg splitting: a callable that maps the (floating point) Butcher matrix
+    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
+         containing (possibly time-dependent) boundary conditions imposed
+         on the system.
+    :kwarg splitting: a callable that maps the (floating point) Butcher matrix
          a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
          to vary between the classical RK formulation and Butcher's reformulation
          that leads to a denser mass matrix with block-diagonal stiffness.
          Only `AI` and `IA` are currently supported.
-    :arg vandermonde: a numpy array encoding a change of basis to the Lagrange
+    :kwarg vandermonde: a numpy array encoding a change of basis to the Lagrange
          polynomials associated with the collocation nodes from some other
          (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
          coefficients in some basis rather than the values at particular stages,
          which can be useful for satisfying bounds constraints.
          If none is provided, we assume it is the identity, working in the
          Lagrange basis.
-    :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possibly time-dependent) boundary conditions imposed
-         on the system.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-         index is an index into the function space associated with `u`
-         and VSB is a :class: `firedrake.VectorSpaceBasis` instance to
-         be passed to a `firedrake.MixedVectorSpaceBasis` over the
-         larger space associated with the Runge-Kutta method
+    :kwarg aux_indices: a list of field indices, currently ignored.
 
-    On output, we return a tuple consisting of several parts:
-
+    :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
-         on the stages,
+         on the stages
     """
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v = F.arguments()[0]
+    # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
+    assert is_ode(F, u0) or butch.is_stiffly_accurate
+
+    v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
 
@@ -98,16 +96,15 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     test = TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
+    v_np = reshape(test, (num_stages, *v.ufl_shape))
     w_np = to_value(u0, stages, vandermonde)
-    A1Tv = A1.T @ v_np
-    A2invTv = A2inv.T @ v_np
+    A1Tv = dot(A1.T, v_np)
+    A2invTv = dot(A2inv.T, v_np)
 
     # first, process terms with a time derivative.  I'm
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     split_form = extract_terms(F)
     F_dtless = strip_dt_form(split_form.time)
     F_remainder = split_form.remainder
@@ -117,7 +114,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: A2invTv[i],
-                u0: w_np[i] - u0}
+                u0: as_tensor(w_np[i]) - u0}
         Fnew += replace(F_dtless, repl)
 
     # Handle the rest of the terms
@@ -148,7 +145,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=None, vandermo
 
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.extend(bc.reconstruct(V=Vbigi, g=g_np[i]))
+            bcsnew.extend(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
 
@@ -160,9 +157,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                  appctx=None, bounds=None,
                  use_collocation_update=False,
                  **kwargs):
-
-        # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
-        assert is_ode(F, u0) or butcher_tableau.is_stiffly_accurate
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
@@ -218,8 +212,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def get_update_solver(self, update_solver_parameters):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
+        F = expand_time_derivatives(self.F, t=self.t, timedep_coeffs=(self.u0,))
+        v, = F.arguments()
         unew = Function(self.u0.function_space())
-        v, = self.F.arguments()
         Fupdate = inner(unew - self.u0, v) * dx
 
         C = vecconst(self.butcher_tableau.c)
@@ -227,7 +222,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         t = self.t
         dt = self.dt
         u0 = self.u0
-        split_form = extract_terms(self.F)
+        split_form = extract_terms(F)
         u_np = to_value(self.u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
@@ -260,10 +255,12 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(stage_vals[i::self.num_fields] @ self.collocation_vander)
 
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         return getFormStage(F or self.F,
                             tableau or self.butcher_tableau,
                             self.t, self.dt, self.u0,
-                            stages, bcs=self.orig_bcs,
+                            stages, bcs=bcs,
                             splitting=self.splitting,
                             vandermonde=self.vandermonde)
