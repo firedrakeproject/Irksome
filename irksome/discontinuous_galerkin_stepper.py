@@ -5,7 +5,7 @@ from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .deriv import expand_time_derivatives
-from .manipulation import extract_terms, strip_dt_form
+from .ufl import extract_terms, strip_dt_form
 from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace, vecconst
 import numpy as np

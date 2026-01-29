@@ -9,7 +9,7 @@ from ufl.constantvalue import as_ufl
 from .tools import AI, dot, replace, reshape, vecconst, fields_to_components
 from .deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
-from .manipulation import extract_terms
+from .ufl import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
 
