@@ -4,7 +4,7 @@ from firedrake import (derivative, Function,
                        NonlinearVariationalSolver)
 from ufl.constantvalue import as_ufl
 
-from .deriv import TimeDerivative, expand_time_derivatives
+from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .tools import replace, vecconst, MeshConstant
 from .bcs import bc2space
 

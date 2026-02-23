@@ -4,7 +4,7 @@ from firedrake import (Function,
                        NonlinearVariationalSolver)
 from ufl.constantvalue import as_ufl
 
-from .deriv import Dt, expand_time_derivatives
+from .ufl.deriv import Dt, expand_time_derivatives
 from .tools import replace, MeshConstant, vecconst
 from .bcs import bc2space
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau

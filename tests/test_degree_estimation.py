@@ -2,7 +2,7 @@ import pytest
 from irksome import Dt
 from firedrake import *
 
-from irksome.estimate_degrees import estimate_time_degree
+from irksome.ufl.estimate_degrees import estimate_time_degree
 
 
 @pytest.fixture

@@ -6,15 +6,15 @@ from ufl import as_ufl, as_tensor
 
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, extract_bcs, stage2spaces4bc
-from .deriv import TimeDerivative, expand_time_derivatives
-from .estimate_degrees import TimeDegreeEstimator, get_degree_mapping
+from .ufl.deriv import TimeDerivative, expand_time_derivatives
+from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
 from .tools import AI, IA, dot, fields_to_components, reshape, replace, vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
 
-from .ButcherTableaux import CollocationButcherTableau
+from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .stage_derivative import getForm
 from .stage_value import getFormStage
 

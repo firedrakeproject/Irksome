@@ -8,7 +8,7 @@ from ufl import replace as ufl_replace
 from ufl.domain import as_domain
 from pyop2.types import MixedDat
 
-from irksome.deriv import TimeDerivative
+from .ufl.deriv import TimeDerivative
 
 
 def dot(A, B):
