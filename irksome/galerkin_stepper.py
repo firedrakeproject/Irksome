@@ -10,7 +10,8 @@ from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
-from .tools import AI, IA, dot, fields_to_components, reshape, replace, vecconst
+from .tools import AI, IA, dot, fields_to_components, reshape, replace
+from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
 

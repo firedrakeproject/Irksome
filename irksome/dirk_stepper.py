@@ -5,7 +5,9 @@ from firedrake import (derivative, Function,
 from ufl.constantvalue import as_ufl
 
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
-from .tools import replace, vecconst, MeshConstant
+from .constant import vecconst
+from .tools import replace
+from .constant import MeshConstant
 from .bcs import bc2space
 
 

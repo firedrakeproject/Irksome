@@ -8,9 +8,9 @@ from ufl import zero
 from .tableaux.ButcherTableaux import RadauIIA
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .stage_value import getFormStage
-from .tools import AI, ConstantOrZero, IA, MeshConstant, reshape, replace, getNullspace, get_stage_space
+from .tools import AI, IA, reshape, replace, getNullspace, get_stage_space
 from .bcs import bc2space
-
+from .constant import MeshConstant, ConstantOrZero
 
 def riia_explicit_coeffs(k):
     """Computes the coefficients needed for the explicit part

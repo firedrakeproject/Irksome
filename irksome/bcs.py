@@ -1,8 +1,9 @@
 from firedrake.solving import _extract_bcs
 from firedrake import (DirichletBC, Function, TestFunction,
-                       NonlinearVariationalProblem,
-                       NonlinearVariationalSolver,
-                       replace, inner, dx)
+                    NonlinearVariationalProblem,
+                    NonlinearVariationalSolver,
+                    replace, inner, dx)
+
 from ufl import as_ufl
 
 

@@ -12,7 +12,8 @@ from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import extract_terms, strip_dt_form
-from .tools import AI, is_ode, dot, reshape, replace, vecconst
+from .tools import AI, is_ode, dot, reshape, replace
+from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
 

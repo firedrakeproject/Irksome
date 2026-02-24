@@ -5,8 +5,9 @@ from firedrake import (Function,
 from ufl.constantvalue import as_ufl
 
 from .ufl.deriv import Dt, expand_time_derivatives
-from .tools import replace, MeshConstant, vecconst
+from .tools import replace
 from .bcs import bc2space
+from .constant import MeshConstant, vecconst
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
 
 
