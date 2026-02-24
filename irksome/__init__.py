@@ -20,8 +20,6 @@ from .scheme import create_time_quadrature
 from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 from .scheme import GalerkinCollocationScheme
 
-
-
 __all__ = [
     "Alexander",
     "ARS_DIRK_IMEX",
