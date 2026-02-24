@@ -20,7 +20,6 @@ def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ufl.Coefficient
     Returns:
         A coefficient in the new function space
     """
-    breakpoint()
     if V.num_sub_spaces == 0:
         el = basix.ufl.mixed_element([V.ufl_element()]*num_stages)
     else:
