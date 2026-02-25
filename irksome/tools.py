@@ -3,13 +3,12 @@ from functools import reduce
 import numpy
 from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
-from ufl import as_tensor, zero
+from ufl import as_tensor
 from ufl import replace as ufl_replace
-import ufl
 from pyop2.types import MixedDat
 
 from .ufl.deriv import TimeDerivative
-from .backend import Backend, get_backend
+
 
 def dot(A, B):
     return numpy.tensordot(A, B, (-1, 0))
@@ -119,5 +118,3 @@ def is_ode(f, u):
         Dtbits.extend(op[i] for i in numpy.ndindex(op.ufl_shape))
     ubits = [u[i] for i in numpy.ndindex(u.ufl_shape)]
     return set(Dtbits) == set(ubits)
-
-

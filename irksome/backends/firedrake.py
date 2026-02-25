@@ -4,7 +4,8 @@ import firedrake
 import ufl
 from ..tools import get_stage_space
 
-def function_space(u: ufl.Coefficient) -> firedrake.FunctionSpace:
+
+def get_function_space(u: ufl.Coefficient) -> firedrake.FunctionSpace:
     return u.function_space()
 
 
@@ -24,14 +25,14 @@ def get_stages(V: firedrake.FunctionSpace, num_stages: int) -> firedrake.Functio
     return firedrake.Function(Vbig)
 
 
-
 class MeshConstant(object):
     def __init__(self, msh: ufl.Mesh):
         self.msh = ufl.domain.as_domain(msh)
-        self.V = firedrake.FunctionSpace(self.msh, 'R', 0)
+        self.V = firedrake.FunctionSpace(self.msh, "R", 0)
 
-    def Constant(self, val=0.0)->ufl.Coefficient:
+    def Constant(self, val=0.0) -> ufl.Coefficient:
         return firedrake.Function(self.V).assign(val)
 
-def get_mesh_constant(MC: MeshConstant|None):
+
+def get_mesh_constant(MC: MeshConstant | None):
     return MC.Constant if MC else firedrake.Constant
