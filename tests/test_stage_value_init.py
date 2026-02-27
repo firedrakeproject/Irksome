@@ -1,8 +1,11 @@
 from firedrake import *
-from irksome import Dt, TimeStepper, BackwardEuler
+from irksome import Dt, TimeStepper, BackwardEuler, RadauIIA
+import pytest
 
 
-def test_stage_value_init():
+@pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein"])
+@pytest.mark.parametrize("degree", [1, 2])
+def test_stage_value_init(basis_type, degree):
     nx = 16
     lx = 1.0
     mesh = IntervalMesh(nx, lx)
@@ -31,13 +34,13 @@ def test_stage_value_init():
     F_outflow = p * max_value(0, inner(u, n)) * q * ds
     F = F_cells + F_facets + F_inflow + F_outflow
 
-    method = BackwardEuler()
+    method = BackwardEuler() if degree == 1 else RadauIIA(2)
     t = Constant(0.0)
     timestep = 0.5 / nx
     dt = Constant(timestep)
     params = {
         "stage_type": "value",
-        "basis_type": "Bernstein",
+        "basis_type": basis_type,
         "solver_parameters": {"snes_monitor": None},
     }
     stepper = TimeStepper(F, method, t, dt, p, **params)
