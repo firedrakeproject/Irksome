@@ -20,9 +20,9 @@ def test_stage_value_init(basis_type, degree):
     q = TestFunction(Q)
 
     u_0 = Constant(1.0)
-    δu = Constant(1.0)
+    du = Constant(1.0)
     Lx = Constant(lx)
-    u = as_vector((u_0 + δu * x / Lx,))
+    u = as_vector((u_0 + du * x / Lx,))
 
     p_max = Constant(2.0)
     s = p_max / p - 1
@@ -34,7 +34,7 @@ def test_stage_value_init(basis_type, degree):
     F_outflow = p * max_value(0, inner(u, n)) * q * ds
     F = F_cells + F_facets + F_inflow + F_outflow
 
-    method = BackwardEuler() if degree == 1 else RadauIIA(2)
+    method = BackwardEuler() if degree == 1 else RadauIIA(degree)
     t = Constant(0.0)
     timestep = 0.5 / nx
     dt = Constant(timestep)
