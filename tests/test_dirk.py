@@ -257,8 +257,7 @@ def test_stokes_bcs(butcher_tableau, bctype):
          - inner(p_rhs, q)*dx)
     Fdirk = replace(F, {z: z_dirk})
 
-    nsp = [(1, VectorSpaceBasis(constant=True))]
-    nsp_dirk = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True)])
+    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=mesh.comm)])
 
     u, p = z.subfunctions
     u.interpolate(uexact)
@@ -279,7 +278,7 @@ def test_stokes_bcs(butcher_tableau, bctype):
 
     stepperdirk = TimeStepper(
         Fdirk, butcher_tableau, t, dt, z_dirk,
-        bcs=bcs, solver_parameters=lu, nullspace=nsp_dirk,
+        bcs=bcs, solver_parameters=lu, nullspace=nsp,
         stage_type="dirk")
 
     for i in range(10):

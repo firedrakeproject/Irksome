@@ -34,11 +34,6 @@ We will also need to import certain items from irksome::
 
   from irksome import Alexander, Dt, MeshConstant, TimeStepper
 
-And we will need a little bit of UFL to support using the method of
-manufactured solutions::
-
-  from ufl.algorithms.ad import expand_derivatives
-
 We will create the Butcher tableau for a three-stage L-stable DIRK
 due to Alexander (SINUM 14(6): 1006-1021, 1977).::
 
@@ -71,7 +66,7 @@ This defines the right-hand side using the method of manufactured solutions::
   B = (x-Constant(x0))*(x-Constant(x1))*(y-Constant(y0))*(y-Constant(y1))/C
   R = (x * x + y * y) ** 0.5
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
-  rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+  rhs = Dt(uexact) - div(grad(uexact))
 
 We define the initial condition for the fully discrete problem, which
 will get overwritten at each time step::

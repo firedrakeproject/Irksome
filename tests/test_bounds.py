@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
 from firedrake import (assemble, ds, cos, DirichletBC, Function, FunctionSpace, SpatialCoordinate, TestFunction,
-                       TestFunctions, UnitSquareMesh, diff, div, dx, exp, grad, inner,
+                       TestFunctions, UnitSquareMesh, div, dx, exp, grad, inner,
                        norm, pi, sin, split, tanh, sqrt, NonlinearVariationalProblem,
                        NonlinearVariationalSolver)
 from irksome import (Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC)
-from ufl.algorithms import expand_derivatives, replace
+from ufl.algorithms import replace
 
 lu_params = {
     "snes_type": "ksponly",
@@ -36,7 +36,7 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
 
     uexact = 0.5 * exp(-t) * (1 + (tanh((0.1 - sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2)) / 0.015)))
 
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
     v = TestFunction(V)
     u_init = Function(V)
@@ -109,7 +109,7 @@ def heat_BC(N, butcher_tableau):
     x, y = SpatialCoordinate(msh)
 
     uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
     lb = Function(V).assign(0)
     ub = Function(V).assign(np.inf)

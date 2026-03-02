@@ -1,6 +1,5 @@
 import pytest
 from firedrake import *
-from ufl.algorithms.ad import expand_derivatives
 from irksome import Dt, MeshConstant, TimeStepper, RadauIIA, LobattoIIIC
 
 
@@ -16,7 +15,7 @@ def adapt_scalar_heat(N, butcher_tableau):
     n = FacetNormal(msh)
 
     uexact = t*(x+y)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
     u = Function(V)
     u.interpolate(uexact)
@@ -54,7 +53,7 @@ def compare_scalar_heat(N, butcher_tableau):
     x, y = SpatialCoordinate(msh)
 
     uexact = sin(pi*x)*sin(pi*y)*(1-exp(-5*t))
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
     u = Function(V)
     u.interpolate(uexact)
@@ -116,7 +115,7 @@ def adapt_vector_heat(N, butcher_tableau):
     uexact_1 = t*(x+y)
     uexact_2 = 2*t*(x-y)
     uexact = as_vector([uexact_1, uexact_2])
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
     u = Function(V)
     u.interpolate(uexact)
@@ -159,9 +158,9 @@ def adapt_mixed_heat(N, butcher_tableau):
     n = FacetNormal(msh)
 
     uexact_1 = t*(x+y)
-    rhs_1 = expand_derivatives(diff(uexact_1, t)) - div(grad(uexact_1))
+    rhs_1 = Dt(uexact_1) - div(grad(uexact_1))
     uexact_2 = as_vector([2*t*(x-y), t*t*(x*y-2)])
-    rhs_2 = expand_derivatives(diff(uexact_2, t)) - div(grad(uexact_2))
+    rhs_2 = Dt(uexact_2) - div(grad(uexact_2))
 
     w = Function(W)
     (u1, u2) = split(w)

@@ -1,5 +1,5 @@
 import numpy
-from firedrake import (Function,
+from firedrake import (derivative, Function,
                        NonlinearVariationalProblem,
                        NonlinearVariationalSolver)
 from ufl.constantvalue import as_ufl
@@ -9,7 +9,7 @@ from .tools import replace, vecconst, MeshConstant
 from .bcs import bc2space
 
 
-def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
+def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None):
     if bcs is None:
         bcs = []
 
@@ -18,16 +18,19 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
     assert V == u0.function_space()
 
     num_stages = butch.num_stages
-    k = Function(V)
-    g = Function(V)
 
     # Note: the Constant c is used for substitution in both the
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constant a is
     # used similarly in the variational form
     MC = MeshConstant(V.mesh())
-    c = MC.Constant(1.0)
-    a = MC.Constant(1.0)
+    if kgac is None:
+        k = Function(V)
+        g = Function(V)
+        a = MC.Constant(1.0)
+        c = MC.Constant(1.0)
+    else:
+        k, g, a, c = kgac
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
@@ -65,7 +68,7 @@ class DIRKTimeStepper:
     """Front-end class for advancing a time-dependent PDE via a diagonally-implicit
     Runge-Kutta method formulated in terms of stage derivatives."""
 
-    def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
+    def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None, Fp=None,
                  solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
@@ -105,6 +108,7 @@ class DIRKTimeStepper:
         self.u0 = u0
         self.t = t
         self.dt = dt
+        self.orig_bcs = bcs
         self.num_fields = len(u0.function_space())
         self.ks = [Function(V) for _ in range(num_stages)]
 
@@ -114,10 +118,17 @@ class DIRKTimeStepper:
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
 
-        stage_F, (k, g, a, c), bcnew, (a_vals, d_val) = getFormDIRK(
+        stage_F, kgac, bcnew, (a_vals, d_val) = getFormDIRK(
             F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
-
+        k, g, a, c = kgac
+        self.kgac = kgac
         self.bcnew = bcnew
+        self.bc_constants = a_vals, d_val
+
+        stage_Jp = None
+        if Fp is not None:
+            stage_Fp, *_ = self.get_form_and_bcs(self.ks, F=Fp, bcs=())
+            stage_Jp = derivative(stage_Fp, k)
 
         appctx_irksome = {"stepper": self}
         if appctx is None:
@@ -127,7 +138,7 @@ class DIRKTimeStepper:
         self.appctx = appctx
 
         self.problem = NonlinearVariationalProblem(
-            stage_F, k, bcs=bcnew,
+            stage_F, k, bcs=bcnew, Jp=stage_Jp,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
@@ -140,9 +151,6 @@ class DIRKTimeStepper:
             solver_parameters=solver_parameters,
             **kwargs,
         )
-
-        self.kgac = k, g, a, c
-        self.bc_constants = a_vals, d_val
 
     def update_bc_constants(self, i, c):
         AAb = self.AAb
@@ -191,9 +199,12 @@ class DIRKTimeStepper:
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
 
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         return getFormDIRK(F or self.F,
                            stages,
                            tableau or self.butcher_tableau,
                            self.t, self.dt,
-                           self.u0, bcs=self.orig_bcs)
+                           self.u0,
+                           bcs=bcs, kgac=self.kgac)

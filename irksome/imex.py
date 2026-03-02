@@ -8,7 +8,7 @@ from ufl import zero
 from .ButcherTableaux import RadauIIA
 from .deriv import TimeDerivative, expand_time_derivatives
 from .stage_value import getFormStage
-from .tools import AI, ConstantOrZero, IA, MeshConstant, replace, getNullspace, get_stage_space
+from .tools import AI, ConstantOrZero, IA, MeshConstant, reshape, replace, getNullspace, get_stage_space
 from .bcs import bc2space
 
 
@@ -52,8 +52,8 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     Ait = vecconst(butch.A)
     C = vecconst(butch.c)
 
-    v_np = np.reshape(VV, (num_stages, *u0.ufl_shape))
-    u_np = np.reshape(UU, (num_stages, *u0.ufl_shape))
+    v_np = reshape(VV, (num_stages, *u0.ufl_shape))
+    u_np = reshape(UU, (num_stages, *u0.ufl_shape))
 
     Fit = zero()
     Fprop = zero()
@@ -296,7 +296,6 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
 
     v = F.arguments()[0]
     V = v.function_space()
-    msh = V.mesh()
     assert V == u0.function_space()
 
     num_stages = butch.num_stages
@@ -311,6 +310,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     # implicit variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constants a and chat are
     # used similarly in the variational forms
+    msh = V.mesh()
     MC = MeshConstant(msh)
     c = MC.Constant(1.0)
     chat = MC.Constant(1.0)

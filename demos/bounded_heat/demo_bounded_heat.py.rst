@@ -42,10 +42,6 @@ First, we must import firedrake and certain items from Irksome: ::
     from firedrake import *
     from irksome import Dt, MeshConstant, RadauIIA, TimeStepper, BoundsConstrainedDirichletBC
 
-We also need some UFL tools in order to manufacture a solution: ::
-
-    from ufl.algorithms import expand_derivatives
-
 Finally, numpy provides us with the upper bound of infinity: ::
 
     import numpy as np
@@ -98,7 +94,7 @@ We now define the right-hand side using the method of manufactured solutions: ::
 
     uexact = 0.5 * exp(-t) * (1 + (tanh((0.1 - sqrt((x - 0.5) ** 2 + (y - 0.5) ** 2)) / 0.015)))
 
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
 Note that the exact solution is uniformly positive in space and time. Using a manufactured 
 solution, one usually interpolates or projects the exact solution at time :math:`t = 0` onto the 

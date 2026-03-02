@@ -3,12 +3,11 @@ import pytest
 from firedrake import (BrokenElement, DirichletBC, FacetNormal, FiniteElement,
                        Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, TestFunctions, UnitIntervalMesh,
-                       UnitSquareMesh, cos, diff, div, dot, ds, dx, errornorm,
+                       UnitSquareMesh, cos, div, dot, ds, dx, errornorm,
                        exp, grad, inner, norm, pi, project, sin, split,
                        triangle)
 from firedrake.petsc import PETSc
 from irksome import Dt, GaussLegendre, MeshConstant, RadauIIA, TimeStepper
-from ufl.algorithms import expand_derivatives
 
 lu_params = {
     "snes_type": "ksponly",
@@ -106,7 +105,7 @@ def mixed_heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs
 
     n = FacetNormal(msh)
 
-    rhs = expand_derivatives(diff(pexact, t) + div(uexact))
+    rhs = Dt(pexact) + div(uexact)
 
     F = (inner(Dt(p), w) * dx
          + inner(div(u), w) * dx

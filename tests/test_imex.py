@@ -4,7 +4,6 @@ import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, TimeStepper, ARS_DIRK_IMEX, SSPK_DIRK_IMEX
 from irksome.labeling import explicit
-from ufl.algorithms.ad import expand_derivatives
 
 
 def convdiff_neumannbc(butcher_tableau, order, N, labeled=False):
@@ -98,7 +97,7 @@ def heat_dirichletbc(butcher_tableau):
         + u_0
         + ((x - x0) / x1) * (u_1 - u_0)
     )
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)
@@ -154,7 +153,7 @@ def vecconvdiff_neumannbc(butcher_tableau, order, N):
 
     # Choose uexact so rhs is nonzero
     uexact = as_vector([cos(pi*x)*exp(-t), cos(2*pi*x)*exp(-2*t)])
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + uexact.dx(0)
+    rhs = Dt(uexact) - div(grad(uexact)) + uexact.dx(0)
     u = Function(V)
     u.interpolate(uexact)
 
@@ -216,7 +215,7 @@ def mixed_convdiff(butcher_tableau, order, N):
     pexact = exp(-t)*cos(2*pi*x)
     uexact = -pexact.dx(0)
     c = Constant(1.0)
-    rhs = expand_derivatives(diff(pexact, t)) - div(grad(pexact)) - c*pexact.dx(0)
+    rhs = Dt(pexact) - div(grad(pexact)) - c*pexact.dx(0)
 
     bc = DirichletBC(Z.sub(0), 0, "on_boundary")
     F = inner(Dt(p), w) * dx + inner(u.dx(0), w) * dx + inner(u, v) * dx - inner(p, v.dx(0)) * dx - inner(rhs, w) * dx

@@ -12,7 +12,6 @@ We're solving the same problem that is done in the heat equation demos.
 Imports::
 
   from firedrake import *
-  from ufl.algorithms.ad import expand_derivatives
 
   from irksome import GaussLegendre, getForm, Dt, MeshConstant
   from irksome.tools import get_stage_space
@@ -45,7 +44,7 @@ Continuing::
   R = (x * x + y * y) ** 0.5
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
 
-  rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+  rhs = Dt(uexact) - div(grad(uexact))
 
   u = Function(V)
   u.interpolate(uexact)

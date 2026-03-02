@@ -9,7 +9,6 @@ reading through the code.
 Imports::
 
   from firedrake import *
-  from ufl.algorithms.ad import expand_derivatives
 
   from irksome import GaussLegendre, getForm, Dt, MeshConstant
   from irksome.tools import get_stage_space
@@ -27,7 +26,7 @@ Imports::
   x, y = SpatialCoordinate(msh)
 
   uexact = exp(-t) * cos(pi * x) * sin(pi * y)
-  rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+  rhs = Dt(uexact) - div(grad(uexact))
 
   u = Function(V)
   u.interpolate(uexact)
