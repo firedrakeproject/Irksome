@@ -27,7 +27,7 @@ class MultistepTableau(object):
     @property
     def is_implicit(self):
         return not self.is_explicit
-    
+
 
 class MultistepMethod(MultistepTableau):
     def __init__(self, method, order):
@@ -41,6 +41,7 @@ class MultistepMethod(MultistepTableau):
             except KeyError:
                 raise NotImplementedError("Not a recognized multistep method")
         super().__init__(a, b)
+
 
 # BDF Methods
 BDF1a = np.array([-1.0, 1.0])
@@ -89,7 +90,7 @@ def get_weights_AB(s):
 
     integrand = np.zeros(len(qpts))
 
-    for j in range(s):    
+    for j in range(s):
         for ptidx in range(len(qpts)):
             prod = 1.0
             for i in range(s):
@@ -97,22 +98,22 @@ def get_weights_AB(s):
                     pass
                 else:
                     prod = prod * (qpts[ptidx][0] + i)
-            
+
             integrand[ptidx] = prod
-        b[s - j - 1] = ((-1.0) ** j / (math.factorial(j) * math.factorial(s - j - 1))) *(qwts @ integrand)
+        b[s - j - 1] = ((-1.0) ** j / (math.factorial(j) * math.factorial(s - j - 1))) * (qwts @ integrand)
 
     return a, b
 
 
 def get_weights_AM(s):
-    '''compute the weights a, b, for the Adams-Moulton method seeking y^{n + s}. 
+    '''compute the weights a, b, for the Adams-Moulton method seeking y^{n + s}.
        s = 0 corresponds to backward Euler--handled separately'''
 
     assert s >= 0
 
     if s == 0:
         return np.array([-1.0, 1.0]), np.array([0.0, 1.0])
-    
+
     a = np.zeros(s + 1)
     b = np.zeros(s + 1)
 
@@ -127,7 +128,7 @@ def get_weights_AM(s):
 
     integrand = np.zeros(len(qpts))
 
-    for j in range(s + 1):    
+    for j in range(s + 1):
         for ptidx in range(len(qpts)):
             prod = 1.0
             for i in range(s + 1):
@@ -135,8 +136,8 @@ def get_weights_AM(s):
                     pass
                 else:
                     prod = prod * (qpts[ptidx][0] + i - 1)
-            
+
             integrand[ptidx] = prod
-        b[s - j] = ((-1.0) ** j / (math.factorial(j) * math.factorial(s - j))) *(qwts @ integrand)
+        b[s - j] = ((-1.0) ** j / (math.factorial(j) * math.factorial(s - j))) * (qwts @ integrand)
 
     return a, b

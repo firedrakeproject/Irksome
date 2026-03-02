@@ -1,7 +1,7 @@
 import pytest
 from firedrake import (TestFunction, NonlinearVariationalProblem, NonlinearVariationalSolver,
-                       UnitSquareMesh, FunctionSpace, Function, grad, sin, pi, cos, project, 
-                       SpatialCoordinate, split, TestFunctions, Constant, exp, conditional, 
+                       UnitSquareMesh, FunctionSpace, Function, grad, sin, pi, cos, project,
+                       SpatialCoordinate, split, TestFunctions, Constant, exp, conditional,
                        Or, And, inner, dx, div, norm, replace, diff, DirichletBC)
 from irksome import (Dt, MeshConstant, TimeStepper, MultistepTimeStepper, MultistepMethod, MultistepTableau, RadauIIA, GaussLegendre)
 from ufl.algorithms import expand_derivatives
@@ -32,8 +32,8 @@ def heat_BE(msh, N, spatial_degree):
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -51,6 +51,7 @@ def heat_BE(msh, N, spatial_degree):
 
     return u
 
+
 def heat_BDF1(msh, N, spatial_degree):
 
     V = FunctionSpace(msh, "Bernstein", spatial_degree)
@@ -60,8 +61,8 @@ def heat_BDF1(msh, N, spatial_degree):
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -89,8 +90,8 @@ def heat(msh, N, spatial_degree):
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -111,7 +112,7 @@ def heat(msh, N, spatial_degree):
         stepper_solver.solve()
         u0.assign(u1)
         u1.assign(u2)
-        
+
     return u2
 
 
@@ -124,8 +125,8 @@ def heat_mech(msh, N, spatial_degree):
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -162,8 +163,8 @@ def heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -191,15 +192,15 @@ def heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
 
     stepper_kwargs = {'solver_parameters': vi_params,
                       'stage_type': 'value',
-                      'basis_type': 'Bernstein', 
-                      'bounds': startup_bounds 
+                      'basis_type': 'Bernstein',
+                      'bounds': startup_bounds
                       }
 
     startup_parameters = {'tableau': startup_tableau,
                           'dt_div': 2,
                           'stepper_kwargs': stepper_kwargs
-                         }
-    
+                          }
+
     if bounds_flag:
         bounds = (lower, upper)
     else:
@@ -231,11 +232,10 @@ def CH_hand(msh, spatial_degree, startup_tableau):
                                 And(y > 1/8, y < 1/2)),
                             And(And(x > 1/2, x < 7/8),
                                 And(y > 1/2, y < 7/8))),
-                        Constant(1),
-                        Constant(-1))
+                         Constant(1),
+                         Constant(-1))
 
     c_mu.subfunctions[0].interpolate(c_init)
-
 
     kappa = Constant(2**(-10))
     M = Constant(1)
@@ -244,9 +244,9 @@ def CH_hand(msh, spatial_degree, startup_tableau):
     c, mu = split(c_mu)
 
     F_DT = (inner(Dt(c), v) * dx
-        + M * inner(grad(mu), grad(v)) * dx
-        + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx
-        - kappa * inner(grad(c), grad(w)) * dx)
+            + M * inner(grad(mu), grad(v)) * dx
+            + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx
+            - kappa * inner(grad(c), grad(w)) * dx)
 
     c_mu0 = Function(c_mu)
 
@@ -294,8 +294,8 @@ def CH_mech(msh, spatial_degree, startup_tableau):
                                 And(y > 1/8, y < 1/2)),
                             And(And(x > 1/2, x < 7/8),
                                 And(y > 1/2, y < 7/8))),
-                        Constant(1),
-                        Constant(-1))
+                         Constant(1),
+                         Constant(-1))
 
     c_mu.subfunctions[0].interpolate(c_init)
 
@@ -306,9 +306,9 @@ def CH_mech(msh, spatial_degree, startup_tableau):
     c, mu = split(c_mu)
 
     F_DT = (inner(Dt(c), v) * dx
-        + M * inner(grad(mu), grad(v)) * dx
-        + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx
-        - kappa * inner(grad(c), grad(w)) * dx)
+            + M * inner(grad(mu), grad(v)) * dx
+            + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx
+            - kappa * inner(grad(c), grad(w)) * dx)
 
     startup_parameters = {'tableau': startup_tableau, 'dt_div': 4}
 
@@ -332,8 +332,8 @@ def heat_AB2_hand(msh, N, spatial_basis):
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -360,8 +360,10 @@ def heat_AB2_hand(msh, N, spatial_basis):
     rhsu1 = replace(rhs, {t: t - 1 * dt})
     rhsu0 = replace(rhs, {t: t - 2 * dt})
 
-    F_AB2 = inner(u2, v) * dx - (inner(u1, v) * dx + dt * ((3.0 / 2.0) * (inner(rhsu1, v) * dx - inner(grad(u1), grad(v)) * dx) + 
-                                (- 1.0 / 2.0) * (inner(rhsu0, v) * dx - inner(grad(u0), grad(v)) * dx)))
+    F_AB2 = (inner(u2, v) * dx
+             - (inner(u1, v) * dx
+                + dt * ((3.0 / 2.0) * (inner(rhsu1, v) * dx - inner(grad(u1), grad(v)) * dx)
+                        + (- 1.0 / 2.0) * (inner(rhsu0, v) * dx - inner(grad(u0), grad(v)) * dx))))
 
     stepper_prob = NonlinearVariationalProblem(F_AB2, u2, bcs=bc)
     stepper = NonlinearVariationalSolver(stepper_prob)
@@ -371,12 +373,12 @@ def heat_AB2_hand(msh, N, spatial_basis):
         stepper.solve()
         u0.assign(u1)
         u1.assign(u2)
-    
+
     return u2
 
 
 def heat_AB2_mech(msh, N, spatial_basis):
-    
+
     dt_in = 0.01 / N ** 2
     V = FunctionSpace(msh, spatial_basis, 2)
 
@@ -385,8 +387,8 @@ def heat_AB2_mech(msh, N, spatial_basis):
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -408,7 +410,7 @@ def heat_AB2_mech(msh, N, spatial_basis):
     return u2
 
 
-def heat_Q_hand(msh, N, spatial_basis):
+def heat_cust_hand(msh, N, spatial_basis):
 
     dt_in = 0.01 / N ** 2
     V = FunctionSpace(msh, spatial_basis, 2)
@@ -418,8 +420,8 @@ def heat_Q_hand(msh, N, spatial_basis):
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     bc = DirichletBC(V, uexact, "on_boundary")
     v = TestFunction(V)
@@ -457,12 +459,12 @@ def heat_Q_hand(msh, N, spatial_basis):
     rhsu3 = replace(rhs, {t: t - 2 * dt})
     rhsu0 = replace(rhs, {t: t - 5 * dt})
 
-    F_Q = inner(u5, v) * dx - 0.5 * inner(u3, v) * dx - 0.5 * inner(u2, v) * dx - (
-        dt * ((3.0 / 4.0) * (inner(rhsu4, v) * dx - inner(grad(u4), grad(v)) * dx) + 
-            (3.0 / 4.0) * (inner(rhsu3, v) * dx - inner(grad(u3), grad(v)) * dx) +
-            (- 1.0 / 2.0) * (inner(rhsu0, v) * dx - inner(grad(u0), grad(v)) * dx)))
+    F_cust = (inner(u5, v) * dx - 0.5 * inner(u3, v) * dx - 0.5 * inner(u2, v) * dx
+              - (dt * ((3.0 / 4.0) * (inner(rhsu4, v) * dx - inner(grad(u4), grad(v)) * dx)
+                       + (3.0 / 4.0) * (inner(rhsu3, v) * dx - inner(grad(u3), grad(v)) * dx)
+                       + (- 1.0 / 2.0) * (inner(rhsu0, v) * dx - inner(grad(u0), grad(v)) * dx))))
 
-    stepper_prob = NonlinearVariationalProblem(F_Q, u5, bcs=bc)
+    stepper_prob = NonlinearVariationalProblem(F_cust, u5, bcs=bc)
     stepper = NonlinearVariationalSolver(stepper_prob)
 
     for i in range(10):
@@ -473,12 +475,12 @@ def heat_Q_hand(msh, N, spatial_basis):
         u2.assign(u3)
         u3.assign(u4)
         u4.assign(u5)
-    
+
     return u5
 
 
-def heat_Q_mech(msh, N, spatial_basis):
-    
+def heat_cust_mech(msh, N, spatial_basis):
+
     dt_in = 0.01 / N ** 2
     V = FunctionSpace(msh, spatial_basis, 2)
 
@@ -487,8 +489,8 @@ def heat_Q_mech(msh, N, spatial_basis):
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2* pi * y) ** 2
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) 
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -496,8 +498,8 @@ def heat_Q_mech(msh, N, spatial_basis):
     u = project(uexact, V, bcs=bc)
     F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
 
-    a = np.array([0.0,        0.0, -0.5, -0.5,       0.0,       1.0])
-    b = np.array([-1.0 / 2.0, 0.0,  0.0,  3.0 / 4.0, 3.0 / 4.0, 0.0])
+    a = np.array([0.0, 0.0, -0.5, -0.5, 0.0, 1.0])
+    b = np.array([-1.0 / 2.0, 0.0, 0.0, 3.0 / 4.0, 3.0 / 4.0, 0.0])
 
     method = MultistepTableau(a, b)
 
@@ -545,8 +547,8 @@ def test_CH(N, spatial_degree, startup_tableau):
     msh = UnitSquareMesh(N, N)
     c_mu_hand = CH_hand(msh, spatial_degree, startup_tableau)
     c_mu_mech = CH_mech(msh, spatial_degree, startup_tableau)
-    assert (norm(c_mu_hand.subfunctions[0] - c_mu_mech.subfunctions[0]) / norm(c_mu_hand.subfunctions[0]) < 1e-13 and 
-            norm(c_mu_hand.subfunctions[1] - c_mu_mech.subfunctions[1]) / norm(c_mu_hand.subfunctions[1]) < 1e-13)
+    assert (norm(c_mu_hand.subfunctions[0] - c_mu_mech.subfunctions[0]) / norm(c_mu_hand.subfunctions[0]) < 1e-13
+            and norm(c_mu_hand.subfunctions[1] - c_mu_mech.subfunctions[1]) / norm(c_mu_hand.subfunctions[1]) < 1e-13)
 
 
 @pytest.mark.parametrize('N', [8, 16])
@@ -560,8 +562,8 @@ def test_AB2_mech(N, spatial_basis):
 
 @pytest.mark.parametrize('N', [8, 16])
 @pytest.mark.parametrize('spatial_basis', ["Lagrange", "Bernstein"])
-def test_Q_mech(N, spatial_basis):
+def test_cust_mech(N, spatial_basis):
     msh = UnitSquareMesh(N, N)
-    u1 = heat_Q_hand(msh, N, spatial_basis)
-    u2 = heat_Q_mech(msh, N, spatial_basis)
+    u1 = heat_cust_hand(msh, N, spatial_basis)
+    u2 = heat_cust_mech(msh, N, spatial_basis)
     assert norm(u1 - u2) / norm(u1) < 1e-13

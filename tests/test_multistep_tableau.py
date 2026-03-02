@@ -8,26 +8,27 @@ from numpy import allclose, array
 
 def test_Adams_Moulton_zero():
     bt = MultistepMethod('AM', 0)
-    a = array([-1.,  1.])
-    b = array([0.0,  1.0])
+    a = array([-1., 1.])
+    b = array([0.0, 1.0])
     for (X, Y) in zip([a, b], [bt.a, bt.b]):
         assert allclose(X, Y)
 
 
 def test_Adams_Moulton():
     bt = MultistepMethod('AM', 4)
-    a = array([ 0.,  0.,  0., -1.,  1.])
-    b = array([-0.02638889,  0.14722222, -0.36666667,  0.89722222,  0.34861111])
+    a = array([0., 0., 0., -1., 1.])
+    b = array([-0.02638889, 0.14722222, -0.36666667, 0.89722222, 0.34861111])
     for (X, Y) in zip([a, b], [bt.a, bt.b]):
         assert allclose(X, Y)
 
 
 def test_Adams_Bashforth():
     bt = MultistepMethod('AB', 5)
-    a = array([ 0.,  0.,  0.,  0., -1.,  1.])
-    b = array([ 0.34861111, -1.76944444,  3.63333333, -3.85277778,  2.64027778, 0.])
+    a = array([0., 0., 0., 0., -1., 1.])
+    b = array([0.34861111, -1.76944444, 3.63333333, -3.85277778, 2.64027778, 0.])
     for (X, Y) in zip([a, b], [bt.a, bt.b]):
         assert allclose(X, Y)
+
 
 def test_BDF():
     bt = MultistepMethod('BDF', 5)
@@ -35,6 +36,7 @@ def test_BDF():
     b = array([0.0, 0.0, 0.0, 0.0, 0.0, 0.43795620437956206])
     for (X, Y) in zip([a, b], [bt.a, bt.b]):
         assert allclose(X, Y)
+
 
 @pytest.mark.parametrize('method', tuple([('BDF', k) for k in (1, 2, 3)] + [('AM', k) for k in (0, 2, 5)]))
 def test_not_explicit(method):

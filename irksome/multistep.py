@@ -1,4 +1,4 @@
-from .tools import replace, vecconst, getNullspace
+from .tools import replace, vecconst
 from .manipulation import extract_terms
 from .deriv import expand_time_derivatives, TimeDerivative
 from .stepper import TimeStepper, valid_base_kwargs
@@ -10,9 +10,9 @@ from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, d
 
 
 class MultistepStepper(BaseTimeStepper):
-    
+
     """front-end class for advancing time-dependent PDE via the BDF2 Method
-    
+
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
         F(t, u; v) == 0, where `u` is the unknown
         :class:`firedrake.Function and `v` is the
@@ -34,7 +34,7 @@ class MultistepStepper(BaseTimeStepper):
             This gets included with particular things that Irksome will
             pass into the nonlinear solver so that, say, user-defined preconditioners
             have access to it.
-    :arg startup_parameters: An optional :class:`dict` used to construct a single-step TimeStepper to be used 
+    :arg startup_parameters: An optional :class:`dict` used to construct a single-step TimeStepper to be used
             to find the required starting values.
     """
 
@@ -43,7 +43,7 @@ class MultistepStepper(BaseTimeStepper):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
-        
+
         assert isinstance(method, MultistepTableau)
 
         self.s = len(method.b) - 1
@@ -60,27 +60,25 @@ class MultistepStepper(BaseTimeStepper):
             J = None
 
         self.problem = NonlinearVariationalProblem(Fnew, self.us[-1], J=J, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
-            is_linear=kwargs.pop("is_linear", False),
-            restrict=kwargs.pop("restrict", False))
+                                                   is_linear=kwargs.pop("is_linear", False),
+                                                   restrict=kwargs.pop("restrict", False))
 
-        self.solver = NonlinearVariationalSolver(
-            self.problem, appctx=self.appctx,
-            nullspace=nullspace,
-            transpose_nullspace=transpose_nullspace,
-            near_nullspace=near_nullspace,
-            solver_parameters=solver_parameters,
-            **kwargs
-            )
+        self.solver = NonlinearVariationalSolver(self.problem, appctx=self.appctx,
+                                                 nullspace=nullspace,
+                                                 transpose_nullspace=transpose_nullspace,
+                                                 near_nullspace=near_nullspace,
+                                                 solver_parameters=solver_parameters,
+                                                 **kwargs
+                                                 )
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
-        if bool(startup_parameters): 
+        if bool(startup_parameters):
             self.mechanized_startup(F, t, dt, u0, startup_parameters, bcs=bcs)
 
         self.bounds = bounds
-
 
     def get_form_and_bcs(self, F, t, dt, u0, a, b, bcs=None):
 
@@ -110,7 +108,7 @@ class MultistepStepper(BaseTimeStepper):
             if coeff is zero():
                 pass
             else:
-                Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i], 
+                Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i],
                                                            t: t + (i - self.s + 1) * dt})
         if bcs is None:
             bcs = []
@@ -121,9 +119,8 @@ class MultistepStepper(BaseTimeStepper):
             g0 = as_ufl(bc._original_arg)
             g0new = replace(g0, {t: t + dt})
             bcsnew.append(bc.reconstruct(V=V, g=g0new))
-        
-        return Fnew, bcsnew
 
+        return Fnew, bcsnew
 
     def advance(self):
 
@@ -138,12 +135,12 @@ class MultistepStepper(BaseTimeStepper):
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
 
-
     # an optional method to mechanically find the required starting values via a single step method
     def mechanized_startup(self, F, t, dt, u0, startup_parameters, bcs=None):
-        if self.s == 1: # No startup required
-            return 
-            
+
+        if self.s == 1:  # No startup required
+            return
+
         butcher_tableau = startup_parameters.get('tableau', None)
         stepper_kwargs = startup_parameters.get('stepper_kwargs', {})
         startup_dt_div = startup_parameters.get('dt_div', 1)
@@ -152,10 +149,9 @@ class MultistepStepper(BaseTimeStepper):
         self.us[0].assign(u0)
         self.TS = TimeStepper(F, butcher_tableau, t, dt, u0, bcs=bcs, **stepper_kwargs)
 
-        
         # modify the timestep
         dt.assign(dt / startup_dt_div)
-        
+
         # advance the system and assign values to previous steps
         for i in range(self.s - 1):
             for substep in range(startup_dt_div):
@@ -163,7 +159,6 @@ class MultistepStepper(BaseTimeStepper):
                 t.assign(t + dt)
             self.us[i + 1].assign(u0)
         dt.assign(dt * startup_dt_div)
-
 
     def solver_stats(self):
 
@@ -179,12 +174,12 @@ def MultistepTimeStepper(F, method, t, dt, u0, **kwargs):
         if k in kwargs:
             base_kwargs[k] = kwargs.pop(k)
 
-    bcs = kwargs.pop("bcs", None)
+    bcs = base_kwargs.pop("bcs", None)
     for cur_kwarg in kwargs.keys():
         if cur_kwarg not in valid_multistep_kwargs:
             raise ValueError(f"kwarg {cur_kwarg} is not allowable for MultistepTimeStepper")
-        
+
     bounds = kwargs.pop('bounds', None)
     Fp = kwargs.pop('Fp', None)
     startup_parameters = kwargs.pop('startup_parameters', {})
-    return MultistepStepper(F, method, t, dt, u0, bcs, Fp=Fp, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
+    return MultistepStepper(F, method, t, dt, u0, bcs=bcs, Fp=Fp, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
