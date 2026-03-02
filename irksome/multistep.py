@@ -54,7 +54,6 @@ class MultistepStepper(BaseTimeStepper):
         Fnew, bcsnew = self.get_form_and_bcs(F, t, dt, u0, self.a, self.b, bcs=bcs)
 
         if Fp is not None:
-            print('im right here!!')
             Fpnew, _ = self.get_form_and_bcs(Fp, t, dt, u0, self.a, self.b, bcs=bcs)
             J = derivative(Fpnew, self.us[-1])
         else:
