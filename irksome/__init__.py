@@ -34,4 +34,7 @@ from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme 
 from .scheme import GalerkinCollocationScheme  # noqa: F401
 from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper  # noqa: F401
 from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper  # noqa: F401
+from .multistep import MultistepTimeStepper       # noqa: F401
+from .multistep_tableaux import MultistepMethod   # noqa: F401
+from .multistep_tableaux import MultistepTableau  # noqa: F401
 from .labeling import TimeQuadratureLabel  # noqa: F401
