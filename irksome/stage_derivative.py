@@ -6,10 +6,11 @@ from firedrake import assemble, dx, inner, norm, as_tensor
 from firedrake.bcs import EquationBC, EquationBCSplit
 
 from ufl.constantvalue import as_ufl
-from .tools import AI, dot, replace, reshape, vecconst, fields_to_components
-from .deriv import Dt, TimeDerivative, expand_time_derivatives
+from .constant import vecconst
+from .tools import AI, dot, replace, reshape, fields_to_components
+from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
-from .manipulation import extract_terms
+from .ufl.manipulation import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
 
@@ -295,11 +296,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                  bc_type="DAE", splitting=AI, nullspace=None,
                  tol=1.e-3, dtmin=1.e-15, dtmax=1.0, KI=1/15, KP=0.13,
                  max_reject=10, onscale_factor=1.2, safety_factor=0.9,
-                 gamma0_params=None):
+                 gamma0_params=None, **kwargs):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
-                                                  bc_type=bc_type, splitting=splitting, nullspace=nullspace)
+                                                  bc_type=bc_type, splitting=splitting, nullspace=nullspace, **kwargs)
 
         from firedrake.petsc import PETSc
         self.print = PETSc.Sys.Print

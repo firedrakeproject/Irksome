@@ -5,12 +5,13 @@ from ufl import as_ufl, as_tensor
 from ufl.algorithms.analysis import has_type
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
-from .deriv import TimeDerivative, expand_time_derivatives
-from .estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
-from .manipulation import extract_terms, strip_dt_form
+from .estimate_degrees import TimeDegreeEstimator, get_degree_mapping
+from .ufl.deriv import TimeDerivative, expand_time_derivatives
+from .ufl.manipulation import extract_terms, strip_dt_form
 from .scheme import create_time_quadrature, ufc_line
-from .tools import dot, reshape, replace, vecconst
+from .tools import dot, reshape, replace
+from .constant import vecconst
 import numpy as np
 from firedrake import TestFunction
 

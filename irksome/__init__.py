@@ -1,37 +1,103 @@
-from .bcs import BoundsConstrainedDirichletBC  # noqa: F401
-from .ButcherTableaux import Alexander      # noqa: F401
-from .ButcherTableaux import BackwardEuler  # noqa: F401
-from .ButcherTableaux import GaussLegendre  # noqa: F401
-from .ButcherTableaux import LobattoIIIA    # noqa: F401
-from .ButcherTableaux import LobattoIIIC    # noqa: F401
-from .ButcherTableaux import PareschiRusso  # noqa: F401
-from .ButcherTableaux import QinZhang       # noqa: F401
-from .ButcherTableaux import RadauIIA       # noqa: F401
-from .pep_explicit_rk import PEPRK          # noqa: F401
-from .deriv import Dt, expand_time_derivatives  # noqa: F401
-from .dirk_imex_tableaux import DIRK_IMEX   # noqa: F401
-from .ars_dirk_imex_tableaux import ARS_DIRK_IMEX  # noqa: F401
-from .sspk_tableau import SSPK_DIRK_IMEX  # noqa: F401
-from .sspk_tableau import SSPButcherTableau  # noqa: F401
-from .dirk_stepper import DIRKTimeStepper   # noqa: F401
-from .stage_derivative import getForm       # noqa: F401
-from .imex import RadauIIAIMEXMethod        # noqa: F401
-from .imex import DIRKIMEXMethod            # noqa: F401
-from .nystrom_dirk_stepper import DIRKNystromTimeStepper   # noqa: F401
-from .nystrom_dirk_stepper import ExplicitNystromTimeStepper   # noqa: F401
-from .nystrom_stepper import StageDerivativeNystromTimeStepper   # noqa: F401
-from .nystrom_stepper import ClassicNystrom4Tableau  # noqa: F401
-from .pc import ClinesBase, ClinesLD        # noqa: F401
-from .pc import NystromAuxiliaryOperatorPC  # noqa: F401
-from .pc import RanaBase, RanaDU, RanaLD    # noqa: F401
-from .pc import IRKAuxiliaryOperatorPC      # noqa: F401
-from .stage_value import StageValueTimeStepper  # noqa: F401
-from .stepper import TimeStepper            # noqa: F401
-from .tools import MeshConstant             # noqa: F401
-from .wso_dirk_tableaux import WSODIRK      # noqa: F401
-from .scheme import create_time_quadrature  # noqa: F401
-from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme  # noqa: F401
-from .scheme import GalerkinCollocationScheme  # noqa: F401
-from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper  # noqa: F401
-from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper  # noqa: F401
-from .labeling import TimeQuadratureLabel  # noqa: F401
+from .tableaux.ButcherTableaux import (
+    Alexander,
+    BackwardEuler,
+    GaussLegendre,
+    LobattoIIIA,
+    LobattoIIIC,
+    PareschiRusso,
+    QinZhang,
+    RadauIIA,
+)
+from .tableaux.pep_explicit_rk import PEPRK
+from .ufl.deriv import Dt, expand_time_derivatives
+from .tableaux.dirk_imex_tableaux import DIRK_IMEX
+from .tableaux.ars_dirk_imex_tableaux import ARS_DIRK_IMEX
+from .tableaux.sspk_tableau import SSPK_DIRK_IMEX, SSPButcherTableau
+
+from .constant import MeshConstant
+from .tableaux.wso_dirk_tableaux import WSODIRK
+from .scheme import create_time_quadrature
+from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
+from .scheme import GalerkinCollocationScheme
+
+__all__ = [
+    "Alexander",
+    "ARS_DIRK_IMEX",
+    "BackwardEuler",
+    "ContinuousPetrovGalerkinScheme",
+    "create_time_quadrature",
+    "DIRK_IMEX",
+    "DIRKTimeStepper",
+    "DiscontinuousGalerkinScheme",
+    "Dt",
+    "expand_time_derivatives",
+    "GalerkinCollocationScheme",
+    "GaussLegendre",
+    "LobattoIIIA",
+    "LobattoIIIC",
+    "MeshConstant",
+    "PareschiRusso",
+    "PEPRK",
+    "QinZhang",
+    "RadauIIA",
+    "SSPButcherTableau",
+    "SSPK_DIRK_IMEX",
+    "WSODIRK",
+]
+
+
+try:
+    import importlib
+
+    importlib.import_module("firedrake")
+    from .bcs import BoundsConstrainedDirichletBC
+    from .dirk_stepper import DIRKTimeStepper
+    from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
+    from .stage_derivative import getForm
+    from .nystrom_dirk_stepper import DIRKNystromTimeStepper, ExplicitNystromTimeStepper
+    from .nystrom_stepper import (
+        StageDerivativeNystromTimeStepper,
+        ClassicNystrom4Tableau,
+    )
+    from .stage_value import StageValueTimeStepper
+
+    from .pc import (
+        ClinesBase,
+        ClinesLD,
+        NystromAuxiliaryOperatorPC,
+        RanaBase,
+        RanaDU,
+        RanaLD,
+        IRKAuxiliaryOperatorPC,
+    )
+    from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
+    from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
+    from .labeling import TimeQuadratureLabel
+    from .stepper import TimeStepper
+
+    __all__ += [
+        "DIRKTimeStepper",
+        "BoundsConstrainedDirichletBC",
+        "getForm",
+        "RadauIIAIMEXMethod",
+        "DIRKIMEXMethod",
+        "DIRKNystromTimeStepper",
+        "ExplicitNystromTimeStepper",
+        "StageDerivativeNystromTimeStepper",
+        "ClassicNystrom4Tableau",
+        "ClinesBase",
+        "ClinesLD",
+        "IRKAuxiliaryOperatorPC",
+        "NystromAuxiliaryOperatorPC",
+        "RanaBase",
+        "RanaDU",
+        "RanaLD",
+        "StageValueTimeStepper",
+        "ContinuousPetrovGalerkinTimeStepper",
+        "DiscontinuousGalerkinTimeStepper",
+        "TimeQuadratureLabel",
+        "TimeStepper",
+    ]
+
+except ModuleNotFoundError:
+    pass

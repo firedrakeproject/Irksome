@@ -1,6 +1,7 @@
 import pytest
 from firedrake import *
 from irksome import Dt, LobattoIIIC, MeshConstant, RadauIIA, TimeStepper
+from irksome import DiscontinousGalerkinScheme
 from irksome.tools import AI, IA
 
 # test the accuracy of the 2d Stokes heat equation using CG elements
@@ -81,7 +82,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
     }
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
-                          stage_type=stage_type,
+                          stage_type=stage_type, splitting=splitting,
                           bcs=bcs, solver_parameters=solver_params,
                           nullspace=nsp)
 
@@ -103,7 +104,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 # make sure things run on a driven cavity.  We time step a while
 # and check that the velocity is the right size (as observed from
 # a "by-hand" backward Euler code in Firedrake
-def NSETest(butch, stage_type, splitting):
+def NSETest(butch, stage_type=None, splitting=None):
     N = 4
     M = UnitSquareMesh(N, N)
     mh = MeshHierarchy(M, 2)
@@ -171,7 +172,7 @@ def NSETest(butch, stage_type, splitting):
     stepper = TimeStepper(F, butch,
                           t, dt, up,
                           bcs=bcs,
-                          stage_type="value",
+                          stage_type=stage_type, splitting=splitting,
                           solver_parameters=solver_params,
                           nullspace=nsp)
 
@@ -193,7 +194,7 @@ def NSETest(butch, stage_type, splitting):
 @pytest.mark.parametrize('N', [2**j for j in range(3, 4)])
 @pytest.mark.parametrize('time_stages', (2, 3))
 @pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
-def test_Stokes(N, butch, time_stages, stage_type, splitting):
+def test_stokes(N, butch, time_stages, stage_type, splitting):
     error = StokesTest(N, butch(time_stages), stage_type, splitting)
     assert abs(error) < 3e-8
 
@@ -201,11 +202,14 @@ def test_Stokes(N, butch, time_stages, stage_type, splitting):
 @pytest.mark.parametrize('stage_type', ("deriv", "value"))
 @pytest.mark.parametrize('time_stages', (2,))
 @pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
-def test_NSE(butch, time_stages, stage_type):
+def test_navier_stokes(butch, time_stages, stage_type):
     unrm = NSETest(butch(time_stages), stage_type, IA)
     assert abs(unrm - 0.216) < 5e-3
 
 
-if __name__ == "__main__":
-    # test_Stokes(4, RadauIIA, 2, "deriv", IA)
-    test_NSE(RadauIIA, 2, "deriv")
+@pytest.mark.parametrize('quad_degree', (None, "auto"))
+@pytest.mark.parametrize('degree', (1,))
+def test_navier_stokes_dg(degree, quad_degree):
+    scheme = DiscontinousGalerkinScheme(degree, quadrature_degree=quad_degree)
+    unrm = NSETest(scheme)
+    assert abs(unrm - 0.216) < 5e-3
