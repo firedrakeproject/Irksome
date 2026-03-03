@@ -6,7 +6,7 @@ from ufl.algorithms.analysis import has_type
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .labeling import split_quadrature, as_form
-from .estimate_degrees import TimeDegreeEstimator, get_degree_mapping
+from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import extract_terms, strip_dt_form
 from .scheme import create_time_quadrature, ufc_line
@@ -45,10 +45,9 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     V = v.function_space()
     assert V == u0.function_space()
 
-    num_stages = L.space_dimension()
     qpts = Q.get_points()
     qwts = Q.get_weights()
-    assert np.size(qpts) >= num_stages
+    assert qpts.size >= L.space_dimension()-1
 
     tabulate_basis = L.tabulate(1, qpts)
     basis_vals = tabulate_basis[(0,)]
@@ -61,8 +60,8 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     qpts = vecconst(qpts.reshape((-1,)))
 
     # set up the pieces we need to work with to do our substitutions
-    v_np = reshape(test, (num_stages, *u0.ufl_shape))
-    u_np = reshape(stages, (num_stages, *u0.ufl_shape))
+    v_np = reshape(test, (-1, *u0.ufl_shape))
+    u_np = reshape(stages, (-1, *u0.ufl_shape))
     vsub = dot(test_vals_w.T, v_np)
     usub = dot(trial_vals.T, u_np)
     dtu0sub = dot(trial_dvals.T, u_np)
