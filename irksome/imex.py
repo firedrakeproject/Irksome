@@ -12,6 +12,7 @@ from .tools import AI, IA, reshape, replace, getNullspace, get_stage_space
 from .bcs import bc2space
 from .constant import MeshConstant, ConstantOrZero
 
+
 def riia_explicit_coeffs(k):
     """Computes the coefficients needed for the explicit part
     of a RadauIIA-IMEX method."""

@@ -1,8 +1,14 @@
 from firedrake.solving import _extract_bcs
-from firedrake import (DirichletBC, Function, TestFunction,
-                    NonlinearVariationalProblem,
-                    NonlinearVariationalSolver,
-                    replace, inner, dx)
+from firedrake import (
+    DirichletBC,
+    Function,
+    TestFunction,
+    NonlinearVariationalProblem,
+    NonlinearVariationalSolver,
+    replace,
+    inner,
+    dx,
+)
 
 from ufl import as_ufl
 
@@ -27,7 +33,7 @@ def stage2spaces4bc(bc, V, Vbig, i):
     """used to figure out how to apply Dirichlet BC to each stage"""
     field = 0 if len(V) == 1 else bc.function_space_index()
     comp = (bc.function_space().component,)
-    return get_sub(Vbig[field + len(V)*i], comp)
+    return get_sub(Vbig[field + len(V) * i], comp)
 
 
 def BCStageData(bc, gcur, u0, stages, i):
@@ -59,12 +65,13 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
 
 class BoundsConstrainedDirichletBC(DirichletBC):
     """A DirichletBC with bounds-constrained data."""
+
     def __init__(self, V, g, sub_domain, bounds, solver_parameters=None):
         if solver_parameters is None:
             solver_parameters = {
                 "snes_type": "vinewtonrsls",
                 "snes_max_it": 300,
-                "snes_atol": 1.e-8,
+                "snes_atol": 1.0e-8,
                 "ksp_type": "preonly",
                 "mat_type": "aij",
             }
@@ -75,18 +82,20 @@ class BoundsConstrainedDirichletBC(DirichletBC):
         self.gnew = Function(V)
         F = inner(self.gnew - g, TestFunction(V)) * dx
         problem = NonlinearVariationalProblem(F, self.gnew)
-        self.solver = NonlinearVariationalSolver(problem, solver_parameters=self.solver_parameters)
+        self.solver = NonlinearVariationalSolver(
+            problem, solver_parameters=self.solver_parameters
+        )
         super().__init__(V, g, sub_domain)
 
     @property
     def function_arg(self):
-        '''The value of this boundary condition.'''
+        """The value of this boundary condition."""
         self.solver.solve(bounds=self.bounds)
         return self.gnew
 
     @function_arg.setter
     def function_arg(self, g):
-        '''Set the value of this boundary condition.'''
+        """Set the value of this boundary condition."""
         self.solver.solve(bounds=self.bounds)
         return self.gnew
 

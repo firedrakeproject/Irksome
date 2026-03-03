@@ -5,6 +5,7 @@ from .tools import AI, getNullspace, flatten_dats
 from .backend import get_backend
 import ufl
 
+
 class BaseTimeStepper:
     """Base class for various time steppers.  This is mainly to give code reuse stashing
     objects that are common to all the time steppers.  It's a developer-level class.
@@ -20,7 +21,7 @@ class BaseTimeStepper:
             bcs = ()
         self.orig_bcs = bcs
         self.nullspace = nullspace
-        self.V = self._backend.function_space(u0)
+        self.V = self._backend.get_function_space(u0)
 
         appctx_base = {"stepper": self}
 
