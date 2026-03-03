@@ -75,7 +75,7 @@ class MultistepStepper(BaseTimeStepper):
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
-        if bool(startup_parameters):
+        if startup_parameters is not None:
             self.mechanized_startup(F, t, dt, u0, startup_parameters, bcs=bcs)
 
         self.bounds = bounds
@@ -181,5 +181,5 @@ def MultistepTimeStepper(F, method, t, dt, u0, **kwargs):
 
     bounds = kwargs.pop('bounds', None)
     Fp = kwargs.pop('Fp', None)
-    startup_parameters = kwargs.pop('startup_parameters', {})
+    startup_parameters = kwargs.pop('startup_parameters', None)
     return MultistepStepper(F, method, t, dt, u0, bcs=bcs, Fp=Fp, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
