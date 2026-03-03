@@ -93,7 +93,7 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
                   "pc_factor_mat_solver_type": "mumps"}
               }
   
-These solver parameters work just fine using a :class:`.DiscontinuousGalerkinScheme`::
+These solver parameters work just fine using a :class:`~irksome.DiscontinuousGalerkinScheme`::
 
   scheme = DiscontinuousGalerkinScheme(2)
   stepper = TimeStepper(F, scheme, t, dt, u, bcs=bc, solver_parameters=mgparams)

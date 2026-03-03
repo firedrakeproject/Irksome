@@ -6,10 +6,11 @@ from firedrake import assemble, dx, inner, norm, as_tensor
 from firedrake.bcs import EquationBC, EquationBCSplit
 
 from ufl.constantvalue import as_ufl
-from .tools import AI, dot, replace, reshape, vecconst, fields_to_components
-from .deriv import Dt, TimeDerivative, expand_time_derivatives
+from .constant import vecconst
+from .tools import AI, dot, replace, reshape, fields_to_components
+from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
-from .manipulation import extract_terms
+from .ufl.manipulation import extract_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
 

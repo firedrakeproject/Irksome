@@ -1,7 +1,9 @@
 from abc import abstractmethod
 from firedrake import derivative, Function, NonlinearVariationalProblem, NonlinearVariationalSolver
 from firedrake.petsc import PETSc
-from .tools import AI, get_stage_space, getNullspace, flatten_dats
+from .tools import AI, getNullspace, flatten_dats
+from .backend import get_backend
+import ufl
 
 
 class BaseTimeStepper:
@@ -9,7 +11,8 @@ class BaseTimeStepper:
     objects that are common to all the time steppers.  It's a developer-level class.
     """
     def __init__(self, F, t, dt, u0,
-                 bcs=None, appctx=None, nullspace=None):
+                 bcs=None, appctx=None, nullspace=None, backend: str = "firedrake"):
+        self._backend = get_backend(backend)
         self.F = F
         self.t = t
         self.dt = dt
@@ -18,7 +21,7 @@ class BaseTimeStepper:
             bcs = ()
         self.orig_bcs = bcs
         self.nullspace = nullspace
-        self.V = u0.function_space()
+        self.V = self._backend.get_function_space(u0)
 
         appctx_base = {"stepper": self}
 
@@ -157,9 +160,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     def solver_stats(self):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
 
-    def get_stages(self):
-        Vbig = get_stage_space(self.V, self.num_stages)
-        return Function(Vbig)
+    def get_stages(self) -> ufl.Coefficient:
+        return self._backend.get_stages(self.V, self.num_stages)
 
     def get_stage_bounds(self, bounds=None):
         if bounds is None:

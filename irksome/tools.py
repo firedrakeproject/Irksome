@@ -1,14 +1,13 @@
 from operator import mul
 from functools import reduce
 import numpy
-from firedrake import Function, FunctionSpace, VectorSpaceBasis, MixedVectorSpaceBasis, Constant
+from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
-from ufl import as_tensor, zero
+from ufl import as_tensor
 from ufl import replace as ufl_replace
-from ufl.domain import as_domain
 from pyop2.types import MixedDat
 
-from irksome.deriv import TimeDerivative
+from .ufl.deriv import TimeDerivative
 
 
 def dot(A, B):
@@ -119,21 +118,3 @@ def is_ode(f, u):
         Dtbits.extend(op[i] for i in numpy.ndindex(op.ufl_shape))
     ubits = [u[i] for i in numpy.ndindex(u.ufl_shape)]
     return set(Dtbits) == set(ubits)
-
-
-# Utility class for constants on a mesh
-class MeshConstant(object):
-    def __init__(self, msh):
-        self.msh = as_domain(msh)
-        self.V = FunctionSpace(self.msh, 'R', 0)
-
-    def Constant(self, val=0.0):
-        return Function(self.V).assign(val)
-
-
-def ConstantOrZero(x, MC=None):
-    const = MC.Constant if MC else Constant
-    return zero() if abs(complex(x)) < 1.e-10 else const(x)
-
-
-vecconst = numpy.vectorize(ConstantOrZero)

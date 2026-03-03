@@ -32,7 +32,7 @@ from ufl.tensoralgebra import Dot, Inner, Outer
 from ufl.tensors import ComponentTensor, ListTensor
 from ufl.variable import Variable
 
-from irksome.deriv import TimeDerivative
+from .deriv import TimeDerivative
 
 __all__ = ("SplitTimeForm", "check_integrals", "extract_terms")
 
