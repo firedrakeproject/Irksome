@@ -22,7 +22,7 @@ class MultistepTableau(object):
 
     @property
     def is_explicit(self):
-        return self.b[-1] < 1e-10
+        return np.abs(self.b[-1]) < 1e-10
 
     @property
     def is_implicit(self):

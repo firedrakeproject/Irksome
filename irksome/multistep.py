@@ -41,10 +41,10 @@ class MultistepStepper(BaseTimeStepper):
     def __init__(self, F, method, t, dt, u0, bcs=None, Fp=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None, startup_parameters=None, **kwargs):
 
+        assert isinstance(method, MultistepTableau)
+
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
-
-        assert isinstance(method, MultistepTableau)
 
         self.s = len(method.b) - 1
         self.a = vecconst(method.a)
@@ -55,11 +55,11 @@ class MultistepStepper(BaseTimeStepper):
 
         if Fp is not None:
             Fpnew, _ = self.get_form_and_bcs(Fp, t, dt, u0, self.a, self.b, bcs=bcs)
-            J = derivative(Fpnew, self.us[-1])
+            Jp = derivative(Fpnew, self.us[-1])
         else:
-            J = None
+            Jp = None
 
-        self.problem = NonlinearVariationalProblem(Fnew, self.us[-1], J=J, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+        self.problem = NonlinearVariationalProblem(Fnew, self.us[-1], J=Jp, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
                                                    is_linear=kwargs.pop("is_linear", False),
                                                    restrict=kwargs.pop("restrict", False))
 
