@@ -10,6 +10,7 @@ from .tableaux.ButcherTableaux import (
 )
 from .tableaux.pep_explicit_rk import PEPRK
 from .ufl.deriv import Dt, expand_time_derivatives
+from .ufl.time_projector import TimeProjector
 from .tableaux.dirk_imex_tableaux import DIRK_IMEX
 from .tableaux.ars_dirk_imex_tableaux import ARS_DIRK_IMEX
 from .tableaux.sspk_tableau import SSPK_DIRK_IMEX, SSPButcherTableau
@@ -42,6 +43,7 @@ __all__ = [
     "RadauIIA",
     "SSPButcherTableau",
     "SSPK_DIRK_IMEX",
+    "TimeProjector",
     "WSODIRK",
 ]
 
@@ -70,7 +72,7 @@ try:
         RanaLD,
         IRKAuxiliaryOperatorPC,
     )
-    from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper, TimeProjector
+    from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
     from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
     from .labeling import TimeQuadratureLabel
     from .stepper import TimeStepper
@@ -95,7 +97,6 @@ try:
         "StageValueTimeStepper",
         "ContinuousPetrovGalerkinTimeStepper",
         "DiscontinuousGalerkinTimeStepper",
-        "TimeProjector",
         "TimeQuadratureLabel",
         "TimeStepper",
     ]

@@ -5,6 +5,7 @@ from firedrake import *
 from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme, TimeStepper, TimeProjector, GaussLegendre
 from irksome.labeling import TimeQuadratureLabel
 from irksome.scheme import create_time_quadrature
+import numpy as np
 
 
 def run_1d_heat_dirichletbc(scheme, **kwargs):
@@ -279,7 +280,7 @@ def kepler_naive(V, order, t, dt, u0, solver_parameters):
     F = inner(Dt(u), test)*dx - dHdu(dot(J.T, test))
     scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree="auto")
     stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=solver_parameters)
-    return stepper, [H*dx]
+    return stepper, [H]
 
 
 def kepler_aux_variable(V, order, t, dt, u0, solver_parameters):
@@ -356,8 +357,6 @@ def kepler_projector(V, order, t, dt, u0, solver_parameters):
     dA1du = diff(A1, uv)
     dA2du = diff(A2, uv)
 
-    Llow = TimeQuadratureLabel(2*order-2)
-
     Qproj = create_time_quadrature(25)
     w0 = TimeProjector(dHdu, order-1, Qproj)
     w1 = TimeProjector(dA1du, order-1, Qproj)
@@ -365,9 +364,9 @@ def kepler_projector(V, order, t, dt, u0, solver_parameters):
     determinant_forms = [v, w0, w1, w2]
     tensor = as_tensor(determinant_forms)
 
-    F = Llow(inner(Dt(u), v)*dx) - (det(tensor) / (2*L*H))*dx
+    F = inner(Dt(u), v)*dx - (det(tensor) / (2*L*H))*dx
 
-    scheme = ContinuousPetrovGalerkinScheme(order)
+    scheme = ContinuousPetrovGalerkinScheme(order, quadrature_degree="auto")
     stepper = TimeStepper(F, scheme, t, dt, u,
                           solver_parameters=solver_parameters)
     return stepper, invariants
