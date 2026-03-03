@@ -1,27 +1,37 @@
-from FIAT import (Bernstein, DiscontinuousElement,
-                  DiscontinuousLagrange,
-                  Legendre)
+from FIAT import (Bernstein,
+                  DiscontinuousLagrange, Legendre,
+                  GaussLobattoLegendre, GaussRadau)
 from ufl.constantvalue import as_ufl
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
-from .deriv import expand_time_derivatives
-from .manipulation import extract_terms, strip_dt_form
+from .ufl.deriv import expand_time_derivatives
+from .ufl.manipulation import extract_terms, strip_dt_form
 from .scheme import create_time_quadrature, ufc_line
-from .tools import dot, reshape, replace, vecconst
+from .tools import dot, reshape, replace
+from .constant import vecconst
 import numpy as np
 from firedrake import TestFunction
 
 
 def getElement(basis_type, order):
-    if order == 0:
-        return DiscontinuousLagrange(ufc_line, order)
-    elif basis_type == "Bernstein":
-        return DiscontinuousElement(Bernstein(ufc_line, order))
+    if basis_type is not None:
+        basis_type = basis_type.lower()
+    if basis_type == "lobatto":
+        if order == 0:
+            raise ValueError("Lobatto test element needs degree > 0")
+        return GaussLobattoLegendre(ufc_line, order)
+    elif basis_type == "radau":
+        return GaussRadau(ufc_line, order)
     elif basis_type == "integral":
         return Legendre(ufc_line, order)
+    elif basis_type == "bernstein":
+        if order == 0:
+            return DiscontinuousLagrange(ufc_line, order)
+        else:
+            return Bernstein(ufc_line, order)
     else:
         # Let recursivenodes handle the general case
-        variant = None if basis_type == "Lagrange" else basis_type
+        variant = None if basis_type == "lagrange" else basis_type
         return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
@@ -195,7 +205,9 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
 
-    def get_form_and_bcs(self, stages, basis_type=None, order=None, quadrature=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, basis_type=None, order=None, quadrature=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
         if order is None:
@@ -207,7 +219,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         return getFormDiscGalerkin(F or self.F,
                                    el,
                                    quadrature or self.quadrature,
-                                   self.t, self.dt, self.u0, stages, self.orig_bcs)
+                                   self.t, self.dt, self.u0, stages, bcs)
 
     def _update(self):
         stages_np = np.array(self.stages.subfunctions, dtype=object)

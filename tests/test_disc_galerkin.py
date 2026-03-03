@@ -42,17 +42,15 @@ def test_1d_heat_dirichletbc(order, basis_type):
         + inner(grad(u), grad(v)) * dx
         - inner(rhs, v) * dx
     )
-    bc = [
+    bcs = [
         DirichletBC(V, u_1, 2),
         DirichletBC(V, u_0, 1),
     ]
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = DiscontinuousGalerkinScheme(order, basis_type)
-    stepper = TimeStepper(
-        F, scheme, t, dt, u, bcs=bc, solver_parameters=luparams
-    )
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
     t_end = 2.0
     while float(t) < t_end:
@@ -75,7 +73,6 @@ def test_1d_heat_neumannbc(order):
     dt = MC.Constant(1.0 / N)
     t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(msh)
-    butcher_tableau = RadauIIA(order+1)
 
     uexact = cos(pi*x)*exp(-(pi**2)*t)
     rhs = Dt(uexact) - div(grad(uexact))
@@ -92,13 +89,14 @@ def test_1d_heat_neumannbc(order):
     )
     F_Radau = replace(F, {u: u_Radau})
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = DiscontinuousGalerkinScheme(order, quadrature_scheme="radau")
-    stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=luparams)
-    stepper_Radau = TimeStepper(
-        F_Radau, butcher_tableau, t, dt, u_Radau, solver_parameters=luparams
-    )
+    stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=sparams)
+
+    butcher_tableau = RadauIIA(order+1)
+    stepper_Radau = TimeStepper(F_Radau, butcher_tableau, t, dt, u_Radau,
+                                solver_parameters=sparams)
 
     t_end = 1.0
     while float(t) < t_end:
@@ -119,7 +117,6 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     dt = MC.Constant(1.0 / N)
     t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(msh)
-    butcher_tableau = RadauIIA(order+1)
 
     uexact = sin(pi*x)*exp(-(pi**2)*t)
     rhs = Dt(uexact) - div(grad(uexact))
@@ -137,17 +134,14 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     )
     F_Radau = replace(F, {u: u_Radau})
 
-    luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
+    sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = DiscontinuousGalerkinScheme(order, quadrature_scheme="radau")
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
-    stepper = TimeStepper(
-        F, scheme, t, dt, u, bcs=bcs, solver_parameters=luparams)
-
-    stepper_Radau = TimeStepper(
-        F_Radau, butcher_tableau, t, dt, u_Radau,
-        bcs=bcs, solver_parameters=luparams
-    )
+    butcher_tableau = RadauIIA(order+1)
+    stepper_Radau = TimeStepper(F_Radau, butcher_tableau, t, dt, u_Radau, bcs=bcs,
+                                solver_parameters=sparams)
 
     t_end = 1.0
     while float(t) < t_end:

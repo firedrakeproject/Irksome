@@ -1,7 +1,9 @@
 from abc import abstractmethod
-from firedrake import Function, NonlinearVariationalProblem, NonlinearVariationalSolver
+from firedrake import derivative, Function, NonlinearVariationalProblem, NonlinearVariationalSolver
 from firedrake.petsc import PETSc
-from .tools import AI, get_stage_space, getNullspace, flatten_dats
+from .tools import AI, getNullspace, flatten_dats
+from .backend import get_backend
+import ufl
 
 
 class BaseTimeStepper:
@@ -9,7 +11,8 @@ class BaseTimeStepper:
     objects that are common to all the time steppers.  It's a developer-level class.
     """
     def __init__(self, F, t, dt, u0,
-                 bcs=None, appctx=None, nullspace=None):
+                 bcs=None, appctx=None, nullspace=None, backend: str = "firedrake"):
+        self._backend = get_backend(backend)
         self.F = F
         self.t = t
         self.dt = dt
@@ -18,7 +21,7 @@ class BaseTimeStepper:
             bcs = ()
         self.orig_bcs = bcs
         self.nullspace = nullspace
-        self.V = u0.function_space()
+        self.V = self._backend.get_function_space(u0)
 
         appctx_base = {"stepper": self}
 
@@ -59,6 +62,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             manipulate these to obtain boundary conditions for each
             stage of the RK method.  Support for `firedrake.EquationBC` is limited
             to the stage derivative formulation with DAE style BCs.
+    :arg Fp: A :class:`ufl.Form` instance to precondition the semi-discrete linearization.
     :arg solver_parameters: An optional :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
             with each time step.
@@ -79,7 +83,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     """
     def __init__(self, F, t, dt, u0, num_stages,
-                 bcs=None, solver_parameters=None,
+                 bcs=None, Fp=None, solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
                  splitting=None, bc_type=None,
@@ -104,7 +108,11 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         stages = self.get_stages()
         self.stages = stages
 
-        Fbig, bigBCs = self.get_form_and_bcs(self.stages)
+        Fbig, bigBCs = self.get_form_and_bcs(stages)
+        Jpbig = None
+        if Fp is not None:
+            Fpbig, _ = self.get_form_and_bcs(stages, F=Fp, bcs=())
+            Jpbig = derivative(Fpbig, stages)
 
         V = u0.function_space()
         Vbig = stages.function_space()
@@ -115,7 +123,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.bigBCs = bigBCs
 
         self.problem = NonlinearVariationalProblem(
-            Fbig, stages, bcs=bigBCs,
+            Fbig, stages, bcs=bigBCs, Jp=Jpbig,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
@@ -152,9 +160,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     def solver_stats(self):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
 
-    def get_stages(self):
-        Vbig = get_stage_space(self.V, self.num_stages)
-        return Function(Vbig)
+    def get_stages(self) -> ufl.Coefficient:
+        return self._backend.get_stages(self.V, self.num_stages)
 
     def get_stage_bounds(self, bounds=None):
         if bounds is None:
