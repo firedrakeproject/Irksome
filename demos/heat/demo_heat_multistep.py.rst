@@ -94,7 +94,7 @@ set these values. If you wish to set the starting values manually, you can creat
 then access the list :class:`.MultistepTimeStepper.us` which contains the starting approximations, assign the desired starting values, and advance `t` by hand. 
 On the other hand, if you wish to use a method which Irksome supports to obtain these starting values, then Irksome allows this process to be completed automatically.
 
-We'll use the automated startup procedure. This requires defining a :class:`dict` of keyword arguments used to setup a :class:`.TimeStepper`. The :class:`.TimeStepper` is then used to compute the 
+We'll showcase both methods. The automatic process requires defining a :class:`dict` of keyword arguments used to setup a :class:`.TimeStepper`. The :class:`.TimeStepper` is then used to compute the 
 initial approximations needed to start the method. We'll import RadauIIA and use the backward Euler method to obtain our starting values. Formally, the backward Euler method is only first order accurate, 
 and we wish to use it obtain the starting values for the third-order accurate BDF(3) method. A crude way to increase the accuracy of the starting values is to use a smaller timestep for the startup procedure. 
 Here, we use timesteps of size :math:`\Delta t / 8` for the backward Euler method which is accessible through the keyword `dt_div`. The keyword `stepper_kwargs` allows for easy customization of the startup :class:`.TimeStepper`.::
@@ -121,7 +121,24 @@ values, and advance `t` to `t + (s-1)*dt`:::
   stepper.startup()
   print(f'The starting values have been computed. The current time is {float(t)}')
 
-This logic is pretty self-explanatory.  We use the
+If you would rather set the starting values by hand (for instance, in this case the exact solution is available) the process is straightforward. We'll first reset `t` so that everything is consistent, and then begin projecting the exact solution 
+into our space and assigning the required starting values.::
+
+  print()
+  print('Resetting dt and assigning starting values by hand.')
+  t.assign(0.0)
+  u0 = project(uexact, V, bcs=bc)
+  stepper.us[0].assign(u0)
+  
+  t.assign(t + dt)
+  u1 = project(uexact, V, bcs=bc)
+  stepper.us[1].assign(u1)
+
+  t.assign(t + dt)
+  u2 = project(uexact, V, bcs=bc)
+  stepper.us[2].assign(u2)
+
+This remaining logic is pretty self-explanatory.  We use the
 :class:`.MultistepTimeStepper`'s :meth:`~.MultistepTimeStepper.advance` method, which solves the variational
 problem to compute the next approximate value and updates the solution.::
 

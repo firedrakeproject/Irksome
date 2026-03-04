@@ -136,7 +136,7 @@ and for adaptive IRK methods:
 
    demos/demo_heat_adapt.py
 
-and for general multistep method:
+and for general multistep methods:
 
 .. toctree::
    :maxdepth: 1
