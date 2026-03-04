@@ -5,7 +5,6 @@ from .stepper import TimeStepper, valid_base_kwargs
 from .base_time_stepper import BaseTimeStepper
 from .multistep_tableaux import MultistepTableau
 from ufl.constantvalue import as_ufl
-from ufl import zero
 from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative
 
 
@@ -75,10 +74,42 @@ class MultistepStepper(BaseTimeStepper):
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
-        if startup_parameters is not None:
-            self.mechanized_startup(F, t, dt, u0, startup_parameters, bcs=bcs)
-
+        self.F = F
+        self.t = t
+        self.dt = dt
+        self.u0 = u0
+        self.startup_parameters = startup_parameters
+        self.bcs = bcs
         self.bounds = bounds
+
+    # optional method to mechanically find the required starting values via a single step method
+    # WARNING: This overwrites the value of t.
+    def startup(self):
+
+        if self.startup_parameters is None:
+            return ValueError('No startup parameters provided')
+        else:
+            if self.s == 1:  # No startup required
+                return
+
+            butcher_tableau = self.startup_parameters.get('tableau', None)
+            stepper_kwargs = self.startup_parameters.get('stepper_kwargs', {})
+            startup_dt_div = self.startup_parameters.get('dt_div', 1)
+            assert isinstance(startup_dt_div, int) and startup_dt_div > 0
+
+            self.us[0].assign(self.u0)
+            self.TS = TimeStepper(self.F, butcher_tableau, self.t, self.dt, self.u0, bcs=self.bcs, **stepper_kwargs)
+
+            # modify the timestep
+            self.dt.assign(self.dt / startup_dt_div)
+
+            # advance the system and assign values to previous steps
+            for i in range(self.s - 1):
+                for substep in range(startup_dt_div):
+                    self.TS.advance()
+                    self.t.assign(self.t + self.dt)
+                self.us[i + 1].assign(self.u0)
+            self.dt.assign(self.dt * startup_dt_div)
 
     def get_form_and_bcs(self, F, t, dt, u0, a, b, bcs=None):
 
@@ -102,11 +133,8 @@ class MultistepStepper(BaseTimeStepper):
 
         # form the right hand side
         for (i, coeff) in enumerate(b):
-            if coeff is zero():
-                pass
-            else:
-                Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i],
-                                                           t: t + (i - self.s + 1) * dt})
+            Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i],
+                                                       t: t + (i - self.s + 1) * dt})
         if bcs is None:
             bcs = []
         bcsnew = []
@@ -131,31 +159,6 @@ class MultistepStepper(BaseTimeStepper):
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
-
-    # an optional method to mechanically find the required starting values via a single step method
-    def mechanized_startup(self, F, t, dt, u0, startup_parameters, bcs=None):
-
-        if self.s == 1:  # No startup required
-            return
-
-        butcher_tableau = startup_parameters.get('tableau', None)
-        stepper_kwargs = startup_parameters.get('stepper_kwargs', {})
-        startup_dt_div = startup_parameters.get('dt_div', 1)
-        assert isinstance(startup_dt_div, int) and startup_dt_div > 0
-
-        self.us[0].assign(u0)
-        self.TS = TimeStepper(F, butcher_tableau, t, dt, u0, bcs=bcs, **stepper_kwargs)
-
-        # modify the timestep
-        dt.assign(dt / startup_dt_div)
-
-        # advance the system and assign values to previous steps
-        for i in range(self.s - 1):
-            for substep in range(startup_dt_div):
-                self.TS.advance()
-                t.assign(t + dt)
-            self.us[i + 1].assign(u0)
-        dt.assign(dt * startup_dt_div)
 
     def solver_stats(self):
 

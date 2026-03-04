@@ -207,6 +207,7 @@ def heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
         bounds = None
 
     stepper = MultistepTimeStepper(F, BDF2, t, dt, u, bcs=bc, bounds=bounds, solver_parameters=vi_params, startup_parameters=startup_parameters)
+    stepper.startup()
 
     min_init = min(stepper.us[0].dat.data)
     min_step1 = min(stepper.us[1].dat.data)
@@ -314,6 +315,7 @@ def CH_mech(msh, spatial_degree, startup_tableau):
 
     BDF2 = MultistepMethod('BDF', 2)
     stepper = MultistepTimeStepper(F_DT, BDF2, t, dt, c_mu, startup_parameters=startup_parameters)
+    stepper.startup()
 
     for i in range(5):
         stepper.advance()
@@ -402,6 +404,7 @@ def heat_AB2_mech(msh, N, spatial_basis):
 
     AB2 = MultistepMethod('AB', 2)
     stepper = MultistepTimeStepper(F, AB2, t, dt, u2, bcs=bc, startup_parameters=startup_parameters)
+    stepper.startup()
 
     for i in range(10):
         stepper.advance()
@@ -506,6 +509,7 @@ def heat_cust_mech(msh, N, spatial_basis):
     startup_parameters = {'tableau': RadauIIA(1), 'dt_div': 4}
 
     stepper = MultistepTimeStepper(F, method, t, dt, u, bcs=bc, startup_parameters=startup_parameters)
+    stepper.startup()
 
     for i in range(10):
         stepper.advance()

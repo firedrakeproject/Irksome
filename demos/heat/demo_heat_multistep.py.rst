@@ -114,9 +114,11 @@ We can then set up the :class:`.MultistepTimeStepper` as follows::
                                  solver_parameters=luparams, 
                                  startup_parameters=startup_parameters)
 
-Note that the creation of a :class:`.MultistepTimeStepper` with parameters for the startup procedure will automatically solve for the required starting values and advance `t` to `t + (s-1)*dt`. This is not the case 
-if startup parameters are not provided. In that case, the user is responsible for setting the initial values and advancing `t` to the appropriate value. In our case, we see that time has been advances:::
+Note that the creation of a :class:`.MultistepTimeStepper` with parameters for the startup procedure will not automatically solve for the required starting values. 
+One must call the :class:`.MultistepTimeStepper`'s :meth:`~.MultistepTimeStepper.startup` method, which will internally construct a :class:`.TimeStepper`, solve the the required starting 
+values, and advance `t` to `t + (s-1)*dt`:::
 
+  stepper.startup()
   print(f'The starting values have been computed. The current time is {float(t)}')
 
 This logic is pretty self-explanatory.  We use the
