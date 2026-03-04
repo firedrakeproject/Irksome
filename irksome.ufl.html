@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>irksome.ufl package &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/fenics.css?v=c6f455f8" />
+    <script src="_static/documentation_options.js?v=41c113e4"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="irksome.backends package" href="irksome.backends.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="index.html"><img src="_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="irksome.ufl">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="irksome-ufl-package">
+<h1>irksome.ufl package<a class="headerlink" href="#irksome-ufl-package" title="Link to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-irksome.ufl.deriv">
+<span id="irksome-ufl-deriv-module"></span><h2>irksome.ufl.deriv module<a class="headerlink" href="#module-irksome.ufl.deriv" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.Dt">
+<span class="sig-prename descclassname"><span class="pre">irksome.ufl.deriv.</span></span><span class="sig-name descname"><span class="pre">Dt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#Dt"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.Dt" title="Link to this definition">¶</a></dt>
+<dd><p>Short-hand function to produce a <a class="reference internal" href="#irksome.ufl.deriv.TimeDerivative" title="irksome.ufl.deriv.TimeDerivative"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeDerivative</span></code></a> of a given order.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivative">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">irksome.ufl.deriv.</span></span><span class="sig-name descname"><span class="pre">TimeDerivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivative" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Derivative" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Derivative</span></code></a></p>
+<p>UFL node representing a time derivative of some quantity/field.
+Note: Currently form compilers do not understand how to process
+these nodes.  Instead, Irksome pre-processes forms containing
+<cite>TimeDerivative</cite> nodes.</p>
+<p>Initalise.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivative.ufl_free_indices">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ufl_free_indices</span></span><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivative.ufl_free_indices" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivative.ufl_index_dimensions">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ufl_index_dimensions</span></span><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivative.ufl_index_dimensions" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivative.ufl_shape">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ufl_shape</span></span><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivative.ufl_shape" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivativeRuleDispatcher">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">irksome.ufl.deriv.</span></span><span class="sig-name descname"><span class="pre">TimeDerivativeRuleDispatcher</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timedep_coeffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivativeRuleDispatcher"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivativeRuleDispatcher" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">DAGTraverser</span></code></p>
+<p>Mapping rules to splat out time derivatives so that replacement should
+work on more complex problems.</p>
+<p>Initialise.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivativeRuleDispatcher.process">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivativeRuleDispatcher.process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivativeRuleDispatcher.process" title="Link to this definition">¶</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#irksome.ufl.deriv.TimeDerivative" title="irksome.ufl.deriv.TimeDerivative"><span class="pre">TimeDerivative</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">BaseForm</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.core.html#ufl.core.expr.Expr" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Expr</span></a></span></em><span class="sig-paren">)</span></dt>
+<dd><p>Process node by type.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>o: <cite>Expr</cite> to start DAG traversal from.
+<a href="#id1"><span class="problematic" id="id2">**</span></a>kwargs: keyword arguments for the <code class="docutils literal notranslate"><span class="pre">process</span></code> singledispatchmethod.</p>
+</dd>
+<dt>Returns:</dt><dd><p>Processed <cite>Expr</cite>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivativeRuleDispatcher.time_derivative">
+<span class="sig-name descname"><span class="pre">time_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivativeRuleDispatcher.time_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivativeRuleDispatcher.time_derivative" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivativeRuleset">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">irksome.ufl.deriv.</span></span><span class="sig-name descname"><span class="pre">TimeDerivativeRuleset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timedep_coeffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivativeRuleset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivativeRuleset" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.algorithms.html#ufl.algorithms.apply_derivatives.GenericDerivativeRuleset" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">GenericDerivativeRuleset</span></code></a></p>
+<p>Apply AD rules to time derivative expressions.</p>
+<p>Initialise.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivativeRuleset.constant">
+<span class="sig-name descname"><span class="pre">constant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivativeRuleset.constant"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivativeRuleset.constant" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivativeRuleset.process">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivativeRuleset.process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivativeRuleset.process" title="Link to this definition">¶</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.constantvalue.ConstantValue" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ConstantValue</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.geometry.SpatialCoordinate" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">SpatialCoordinate</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.coefficient.Coefficient" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Coefficient</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#irksome.ufl.deriv.TimeDerivative" title="irksome.ufl.deriv.TimeDerivative"><span class="pre">TimeDerivative</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">f</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.variable.Variable" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Variable</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.referencevalue.ReferenceValue" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ReferenceValue</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.ReferenceGrad" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ReferenceGrad</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.indexed.Indexed" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Indexed</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Grad" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Grad</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Div" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Div</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Derivative" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Derivative</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Curl" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Curl</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.algebra.Conj" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Conj</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span></dt>
+<dd><p>Process <code class="docutils literal notranslate"><span class="pre">o</span></code>.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>o: <cite>Expr</cite> to be processed.</p>
+</dd>
+<dt>Returns:</dt><dd><p>Processed object.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivativeRuleset.terminal">
+<span class="sig-name descname"><span class="pre">terminal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivativeRuleset.terminal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivativeRuleset.terminal" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivativeRuleset.terminal_modifier">
+<span class="sig-name descname"><span class="pre">terminal_modifier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">operands</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivativeRuleset.terminal_modifier"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivativeRuleset.terminal_modifier" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.TimeDerivativeRuleset.time_derivative">
+<span class="sig-name descname"><span class="pre">time_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#TimeDerivativeRuleset.time_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.TimeDerivativeRuleset.time_derivative" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.apply_time_derivatives">
+<span class="sig-prename descclassname"><span class="pre">irksome.ufl.deriv.</span></span><span class="sig-name descname"><span class="pre">apply_time_derivatives</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expression</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timedep_coeffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#apply_time_derivatives"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.apply_time_derivatives" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.ufl.deriv.expand_time_derivatives">
+<span class="sig-prename descclassname"><span class="pre">irksome.ufl.deriv.</span></span><span class="sig-name descname"><span class="pre">expand_time_derivatives</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expression</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timedep_coeffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/deriv.html#expand_time_derivatives"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.deriv.expand_time_derivatives" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-irksome.ufl.estimate_degrees">
+<span id="irksome-ufl-estimate-degrees-module"></span><h2>irksome.ufl.estimate_degrees module<a class="headerlink" href="#module-irksome.ufl.estimate_degrees" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">irksome.ufl.estimate_degrees.</span></span><span class="sig-name descname"><span class="pre">TimeDegreeEstimator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">degree_mapping</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">DAGTraverser</span></code></p>
+<p>Time degree estimator.</p>
+<p>This algorithm is exact for a few operators and heuristic for many.</p>
+<p>Initialise.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.add_degrees">
+<span class="sig-name descname"><span class="pre">add_degrees</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.add_degrees"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.add_degrees" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.conditional">
+<span class="sig-name descname"><span class="pre">conditional</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.conditional"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.conditional" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.form">
+<span class="sig-name descname"><span class="pre">form</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.form"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.form" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.formsum">
+<span class="sig-name descname"><span class="pre">formsum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.formsum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.formsum" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.integral">
+<span class="sig-name descname"><span class="pre">integral</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.integral"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.integral" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.interpolate">
+<span class="sig-name descname"><span class="pre">interpolate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.interpolate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.interpolate" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.math_function">
+<span class="sig-name descname"><span class="pre">math_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.math_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.math_function" title="Link to this definition">¶</a></dt>
+<dd><p>Apply to math_function.</p>
+<p>Using the heuristic:
+degree(sin(const)) == 0
+degree(sin(a)) == degree(a)+2
+which can be wildly inaccurate but at least gives a somewhat
+high integration degree.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.max_degree">
+<span class="sig-name descname"><span class="pre">max_degree</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.max_degree"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.max_degree" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.minmax">
+<span class="sig-name descname"><span class="pre">minmax</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.minmax"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.minmax" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.non_numeric">
+<span class="sig-name descname"><span class="pre">non_numeric</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.non_numeric"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.non_numeric" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.not_handled">
+<span class="sig-name descname"><span class="pre">not_handled</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.not_handled"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.not_handled" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.power">
+<span class="sig-name descname"><span class="pre">power</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.power"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.power" title="Link to this definition">¶</a></dt>
+<dd><p>Apply to power.</p>
+<p>If b is a positive integer: degree(a**b) == degree(a)*b
+otherwise use the heuristic: degree(a**b) == degree(a) + 2.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.process">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.process" title="Link to this definition">¶</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">FormSum</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Interpolate</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.integral.Integral" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Integral</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.geometry.SpatialCoordinate" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">SpatialCoordinate</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.constantvalue.ConstantValue" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ConstantValue</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.coefficient.Coefficient" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Coefficient</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Cofunction</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.argument.Argument" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Argument</span></a></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#irksome.ufl.deriv.TimeDerivative" title="irksome.ufl.deriv.TimeDerivative"><span class="pre">TimeDerivative</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.indexsum.IndexSum" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">IndexSum</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensors.ComponentTensor" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ComponentTensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.variable.Variable" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Variable</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.referencevalue.ReferenceValue" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ReferenceValue</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.ReferenceGrad" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ReferenceGrad</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.indexed.Indexed" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Indexed</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Grad" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Grad</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Div" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Div</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Derivative" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Derivative</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.differentiation.Curl" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Curl</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.algebra.Conj" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Conj</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.algebra.Abs" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Abs</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Inverse" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Inverse</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Determinant" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Determinant</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Transposed" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Transposed</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Trace" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Trace</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Sym" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Sym</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Skew" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Skew</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Cofactor" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Cofactor</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.exprcontainers.ExprMapping" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ExprMapping</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.exprcontainers.ExprList" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ExprList</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensors.ListTensor" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">ListTensor</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.algebra.Sum" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Sum</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Cross" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Cross</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Outer" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Outer</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Dot" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Dot</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.tensoralgebra.Inner" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Inner</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.algebra.Product" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Product</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.algebra.Division" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Division</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.algebra.Power" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Power</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.mathfunctions.MathFunction" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">MathFunction</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.conditional.Conditional" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Conditional</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.conditional.MaxValue" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">MaxValue</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.conditional.MinValue" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">MinValue</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.core.html#ufl.core.multiindex.MultiIndex" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">MultiIndex</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.conditional.Condition" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Condition</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.variable.Label" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Label</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span></dt>
+<dd><p>Process node by type.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>o: <cite>Expr</cite> to start DAG traversal from.
+<a href="#id3"><span class="problematic" id="id4">**</span></a>kwargs: keyword arguments for the <code class="docutils literal notranslate"><span class="pre">process</span></code> singledispatchmethod.</p>
+</dd>
+<dt>Returns:</dt><dd><p>Processed <cite>Expr</cite>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.terminal">
+<span class="sig-name descname"><span class="pre">terminal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.terminal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.terminal" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.terminal_modifier">
+<span class="sig-name descname"><span class="pre">terminal_modifier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">ops</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.terminal_modifier"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.terminal_modifier" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.TimeDegreeEstimator.time_derivative">
+<span class="sig-name descname"><span class="pre">time_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">degree</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#TimeDegreeEstimator.time_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.TimeDegreeEstimator.time_derivative" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.estimate_time_degree">
+<span class="sig-prename descclassname"><span class="pre">irksome.ufl.estimate_degrees.</span></span><span class="sig-name descname"><span class="pre">estimate_time_degree</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expression</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test_degree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trial_degree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timedep_coeffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#estimate_time_degree"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.estimate_time_degree" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.ufl.estimate_degrees.get_degree_mapping">
+<span class="sig-prename descclassname"><span class="pre">irksome.ufl.estimate_degrees.</span></span><span class="sig-name descname"><span class="pre">get_degree_mapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expression</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test_degree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trial_degree</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timedep_coeffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/estimate_degrees.html#get_degree_mapping"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.estimate_degrees.get_degree_mapping" title="Link to this definition">¶</a></dt>
+<dd><p>Map time-dependent terminals to their polynomial degree.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>expression</strong> – a <code class="xref py py-class docutils literal notranslate"><span class="pre">ufl.BaseForm</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">ufl.Expr</span></code>.</p></li>
+<li><p><strong>test_degree</strong> – the temporal polynomial degree of the test space.</p></li>
+<li><p><strong>trial_degree</strong> – the temporal polynomial degree of the trial space.</p></li>
+<li><p><strong>t</strong> – the time variable as a <code class="xref py py-class docutils literal notranslate"><span class="pre">Constant</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> in the Real space.</p></li>
+<li><p><strong>timedep_coeffs</strong> – a list of <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> that depend on time.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>a <cite>dict</cite> mapping time-dependent terminals to their degree in time.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-irksome.ufl.manipulation">
+<span id="irksome-ufl-manipulation-module"></span><h2>irksome.ufl.manipulation module<a class="headerlink" href="#module-irksome.ufl.manipulation" title="Link to this heading">¶</a></h2>
+<p>Manipulation of expressions containing <a class="reference internal" href="#irksome.ufl.deriv.TimeDerivative" title="irksome.ufl.deriv.TimeDerivative"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeDerivative</span></code></a>
+terms.</p>
+<p>These can be used to do some basic checking of the suitability of a
+<a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Form</span></code></a> for use in Irksome (via <a class="reference internal" href="#irksome.ufl.manipulation.check_integrals" title="irksome.ufl.manipulation.check_integrals"><code class="xref py py-func docutils literal notranslate"><span class="pre">check_integrals</span></code></a>), and
+splitting out terms in the <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Form</span></code></a> that contain a time
+derivative from those that don’t (via <a class="reference internal" href="#irksome.ufl.manipulation.extract_terms" title="irksome.ufl.manipulation.extract_terms"><code class="xref py py-func docutils literal notranslate"><span class="pre">extract_terms</span></code></a>).</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.ufl.manipulation.SplitTimeForm">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">irksome.ufl.manipulation.</span></span><span class="sig-name descname"><span class="pre">SplitTimeForm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">remainder</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/ufl/manipulation.html#SplitTimeForm"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.manipulation.SplitTimeForm" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></a></p>
+<p>A container for a form split into time terms and a remainder.</p>
+<p>Create new instance of SplitTimeForm(time, remainder)</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="irksome.ufl.manipulation.SplitTimeForm.remainder">
+<span class="sig-name descname"><span class="pre">remainder</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></span><a class="headerlink" href="#irksome.ufl.manipulation.SplitTimeForm.remainder" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="irksome.ufl.manipulation.SplitTimeForm.time">
+<span class="sig-name descname"><span class="pre">time</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></span><a class="headerlink" href="#irksome.ufl.manipulation.SplitTimeForm.time" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.ufl.manipulation.check_integrals">
+<span class="sig-prename descclassname"><span class="pre">irksome.ufl.manipulation.</span></span><span class="sig-name descname"><span class="pre">check_integrals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">integrals</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.integral.Integral" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Integral</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expect_time_derivative</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.integral.Integral" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Integral</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/irksome/ufl/manipulation.html#check_integrals"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.manipulation.check_integrals" title="Link to this definition">¶</a></dt>
+<dd><p>Check a list of integrals for linearity in the time derivative.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>integrals</strong> – list of integrals.</p></li>
+<li><p><strong>expect_time_derivative</strong> – Are we expecting to see a time
+derivative?</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – if we are expecting a time derivative and
+don’t see one, or time derivatives are applied nonlinearly, to
+more than one coefficient, or more than first order.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.ufl.manipulation.extract_terms">
+<span class="sig-prename descclassname"><span class="pre">irksome.ufl.manipulation.</span></span><span class="sig-name descname"><span class="pre">extract_terms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">form</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.form.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Form</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#irksome.ufl.manipulation.SplitTimeForm" title="irksome.ufl.manipulation.SplitTimeForm"><span class="pre">SplitTimeForm</span></a></span></span><a class="reference internal" href="_modules/irksome/ufl/manipulation.html#extract_terms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.ufl.manipulation.extract_terms" title="Link to this definition">¶</a></dt>
+<dd><p>Extract terms from a <a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.Form" title="(in Unified Form Language (UFL) v2021.1.0)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Form</span></code></a>.</p>
+<p>This splits a form (a sum of integrals) into those integrals which
+do contain a <a class="reference internal" href="#irksome.ufl.deriv.TimeDerivative" title="irksome.ufl.deriv.TimeDerivative"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeDerivative</span></code></a> and those that don’t.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>form</strong> – The form to split.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>a <a class="reference internal" href="#irksome.ufl.manipulation.SplitTimeForm" title="irksome.ufl.manipulation.SplitTimeForm"><code class="xref py py-class docutils literal notranslate"><span class="pre">SplitTimeForm</span></code></a> tuple.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – if the form does not apply anything other than
+first-order time derivatives to a single coefficient.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-irksome.ufl">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-irksome.ufl" title="Link to this heading">¶</a></h2>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

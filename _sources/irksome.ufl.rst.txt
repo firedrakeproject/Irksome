@@ -1,0 +1,37 @@
+irksome.ufl package
+===================
+
+Submodules
+----------
+
+irksome.ufl.deriv module
+------------------------
+
+.. automodule:: irksome.ufl.deriv
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.ufl.estimate\_degrees module
+------------------------------------
+
+.. automodule:: irksome.ufl.estimate_degrees
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.ufl.manipulation module
+-------------------------------
+
+.. automodule:: irksome.ufl.manipulation
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: irksome.ufl
+   :members:
+   :show-inheritance:
+   :undoc-members:

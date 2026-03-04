@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>irksome.backends package &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/fenics.css?v=c6f455f8" />
+    <script src="_static/documentation_options.js?v=41c113e4"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="irksome.ufl package" href="irksome.ufl.html" />
+    <link rel="prev" title="irksome package" href="irksome.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="index.html"><img src="_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="irksome.backends">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="irksome-backends-package">
+<h1>irksome.backends package<a class="headerlink" href="#irksome-backends-package" title="Link to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-irksome.backends.dolfinx">
+<span id="irksome-backends-dolfinx-module"></span><h2>irksome.backends.dolfinx module<a class="headerlink" href="#module-irksome.backends.dolfinx" title="Link to this heading">¶</a></h2>
+<p>DOLFINx backend for Irksome</p>
+</section>
+<section id="module-irksome.backends.firedrake">
+<span id="irksome-backends-firedrake-module"></span><h2>irksome.backends.firedrake module<a class="headerlink" href="#module-irksome.backends.firedrake" title="Link to this heading">¶</a></h2>
+<p>Firedrake backend for Irksome</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="irksome.backends.firedrake.MeshConstant">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">irksome.backends.firedrake.</span></span><span class="sig-name descname"><span class="pre">MeshConstant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.domain.Mesh" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Mesh</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/backends/firedrake.html#MeshConstant"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.backends.firedrake.MeshConstant" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="irksome.backends.firedrake.MeshConstant.Constant">
+<span class="sig-name descname"><span class="pre">Constant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.coefficient.Coefficient" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Coefficient</span></a></span></span><a class="reference internal" href="_modules/irksome/backends/firedrake.html#MeshConstant.Constant"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.backends.firedrake.MeshConstant.Constant" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.backends.firedrake.get_function_space">
+<span class="sig-prename descclassname"><span class="pre">irksome.backends.firedrake.</span></span><span class="sig-name descname"><span class="pre">get_function_space</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">u</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://fenics.readthedocs.io/projects/ufl/en/latest/api-doc/ufl.html#ufl.coefficient.Coefficient" title="(in Unified Form Language (UFL) v2021.1.0)"><span class="pre">Coefficient</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">FunctionSpace</span></span></span><a class="reference internal" href="_modules/irksome/backends/firedrake.html#get_function_space"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.backends.firedrake.get_function_space" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.backends.firedrake.get_mesh_constant">
+<span class="sig-prename descclassname"><span class="pre">irksome.backends.firedrake.</span></span><span class="sig-name descname"><span class="pre">get_mesh_constant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">MC</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#irksome.backends.firedrake.MeshConstant" title="irksome.backends.firedrake.MeshConstant"><span class="pre">MeshConstant</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/irksome/backends/firedrake.html#get_mesh_constant"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.backends.firedrake.get_mesh_constant" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="irksome.backends.firedrake.get_stages">
+<span class="sig-prename descclassname"><span class="pre">irksome.backends.firedrake.</span></span><span class="sig-name descname"><span class="pre">get_stages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">V</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">FunctionSpace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_stages</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://www.firedrakeproject.org/firedrake.html#firedrake.function.Function" title="(in Firedrake v2025.10.3)"><span class="pre">Function</span></a></span></span><a class="reference internal" href="_modules/irksome/backends/firedrake.html#get_stages"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#irksome.backends.firedrake.get_stages" title="Link to this definition">¶</a></dt>
+<dd><p>Given a function space for a single time-step, get a duplicate of this space,
+repeated <cite>num_stages</cite> times.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>V: Space for single step
+num_stages: Number of stages</p>
+</dd>
+<dt>Returns:</dt><dd><p>A coefficient in the new function space</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-irksome.backends">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-irksome.backends" title="Link to this heading">¶</a></h2>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
