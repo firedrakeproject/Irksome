@@ -11,7 +11,7 @@ from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, d
 
 class MultistepStepper(BaseTimeStepper):
 
-    """front-end class for advancing time-dependent PDE via the BDF2 Method
+    """front-end class for advancing time-dependent PDE via a general multistep method
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
         F(t, u; v) == 0, where `u` is the unknown
@@ -95,10 +95,7 @@ class MultistepStepper(BaseTimeStepper):
         # replace the time derivative with a linear combination of the previous steps
         temp_form = 0.0
         for (i, coeff) in enumerate(a):
-            if coeff is zero():
-                pass
-            else:
-                temp_form += coeff * self.us[i]
+            temp_form += coeff * self.us[i]
 
         dtu = TimeDerivative(u0)
         Fnew = replace(F_dt, {dtu: temp_form})
