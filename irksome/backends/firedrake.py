@@ -1,9 +1,32 @@
 """Firedrake backend for Irksome"""
 
+
+from operator import mul
+from functools import reduce
+
 import firedrake
 import ufl
 from ..tools import get_stage_space
+import typing
 
+TestFunction = firedrake.TestFunction
+
+
+def get_stage_space(V: ufl.FunctionSpace, num_stages:int)->ufl.FunctionSpace:
+    return reduce(mul, (V for _ in range(num_stages)))
+
+
+def extract_bcs(bcs: typing.Any)->tuple[typing.Any]:
+    """Return an iterable of boundary conditions on the residual form"""
+    return tuple(bc.extract_form("F") for bc in firedrake.solving._extract_bcs(bcs))
+
+
+def create_nonlinearvariational_problem(F: ufl.Form, u: ufl.Coefficient, solver_parameters: dict):
+    """Create a non-linear variational solver that uses PETSc SNES."""
+    problem = firedrake.NonlinearVariationalProblem(F, u)
+    return firedrake.NonlinearVariationalSolver(
+            problem, solver_parameters=solver_parameters
+        )
 
 def get_function_space(u: ufl.Coefficient) -> firedrake.FunctionSpace:
     return u.function_space()

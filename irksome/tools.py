@@ -1,11 +1,8 @@
-from operator import mul
-from functools import reduce
+from .backend import get_backend
 import numpy
-from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
 from ufl import replace as ufl_replace
-from pyop2.types import MixedDat
 
 from .ufl.deriv import TimeDerivative
 
@@ -19,6 +16,7 @@ def reshape(expr, shape):
 
 
 def flatten_dats(dats):
+    from pyop2.types import MixedDat
     flat_dat = []
     for dat in dats:
         if isinstance(dat, (tuple, list, MixedDat)):
@@ -28,8 +26,9 @@ def flatten_dats(dats):
     return MixedDat(flat_dat)
 
 
-def get_stage_space(V, num_stages):
-    return reduce(mul, (V for _ in range(num_stages)))
+def get_stage_space(V, num_stages, backend:str="firedrake"):
+    backend_cls = get_backend(backend)
+    return backend_cls.get_stage_space(V, num_stages)
 
 
 def fields_to_components(V, fields):
@@ -45,6 +44,8 @@ def fields_to_components(V, fields):
     """
     cur = 0
     components = []
+    if len(fields) == 0:
+        return components
     for i, Vi in enumerate(V):
         if i in fields:
             components.extend(range(cur, cur+Vi.value_size))
@@ -64,6 +65,7 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     On output, we produce a :class:`MixedVectorSpaceBasis` defining the nullspace
     for the multistage problem.
     """
+    from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 
     num_fields = len(V)
     if nullspace is None:
