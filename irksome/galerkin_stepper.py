@@ -5,7 +5,7 @@ from ufl.classes import Zero
 from ufl import as_ufl, as_tensor
 
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import bc2space, extract_bcs, stage2spaces4bc
+from .bcs import bc2space, stage2spaces4bc
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
@@ -14,9 +14,9 @@ from .tools import AI, IA, dot, fields_to_components, reshape, replace
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
-
+from .backends.firedrake import extract_bcs
 from .tableaux.ButcherTableaux import CollocationButcherTableau
-from .stage_derivative import getForm
+from .form_manipulation import getForm
 from .stage_value import getFormStage
 
 import numpy as np

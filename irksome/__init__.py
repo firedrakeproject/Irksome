@@ -20,6 +20,8 @@ from .scheme import create_time_quadrature
 from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 from .scheme import GalerkinCollocationScheme
 
+from .form_manipulation import getForm
+
 __all__ = [
     "Alexander",
     "ARS_DIRK_IMEX",
@@ -31,6 +33,7 @@ __all__ = [
     "DiscontinuousGalerkinScheme",
     "Dt",
     "expand_time_derivatives",
+    "getForm",
     "GalerkinCollocationScheme",
     "GaussLegendre",
     "LobattoIIIA",
@@ -53,7 +56,6 @@ try:
     from .bcs import BoundsConstrainedDirichletBC
     from .dirk_stepper import DIRKTimeStepper
     from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
-    from .stage_derivative import getForm
     from .nystrom_dirk_stepper import DIRKNystromTimeStepper, ExplicitNystromTimeStepper
     from .nystrom_stepper import (
         StageDerivativeNystromTimeStepper,
@@ -78,7 +80,6 @@ try:
     __all__ += [
         "DIRKTimeStepper",
         "BoundsConstrainedDirichletBC",
-        "getForm",
         "RadauIIAIMEXMethod",
         "DIRKIMEXMethod",
         "DIRKNystromTimeStepper",

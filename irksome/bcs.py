@@ -1,21 +1,12 @@
-from firedrake.solving import _extract_bcs
 from firedrake import (
     DirichletBC,
     Function,
-    TestFunction,
-    NonlinearVariationalProblem,
-    NonlinearVariationalSolver,
     replace,
     inner,
     dx,
 )
-
+from .backend import get_backend
 from ufl import as_ufl
-
-
-def extract_bcs(bcs):
-    """Return an iterable of boundary conditions on the residual form"""
-    return tuple(bc.extract_form("F") for bc in _extract_bcs(bcs))
 
 
 def get_sub(u, indices):
@@ -66,7 +57,15 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
 class BoundsConstrainedDirichletBC(DirichletBC):
     """A DirichletBC with bounds-constrained data."""
 
-    def __init__(self, V, g, sub_domain, bounds, solver_parameters=None):
+    def __init__(self, V, g, sub_domain, bounds, solver_parameters=None, backend:str="firedrake"):
+
+        self.g = g
+        self.solver_parameters = solver_parameters
+        self.bounds = bounds
+        self.gnew = Function(V)
+        backend_cls = get_backend(backend)
+        F = inner(self.gnew - g, backend_cls.TestFunction(V)) * dx
+
         if solver_parameters is None:
             solver_parameters = {
                 "snes_type": "vinewtonrsls",
@@ -74,17 +73,8 @@ class BoundsConstrainedDirichletBC(DirichletBC):
                 "snes_atol": 1.0e-8,
                 "ksp_type": "preonly",
                 "mat_type": "aij",
-            }
-        self.g = g
-        self.solver_parameters = solver_parameters
-        self.bounds = bounds
-
-        self.gnew = Function(V)
-        F = inner(self.gnew - g, TestFunction(V)) * dx
-        problem = NonlinearVariationalProblem(F, self.gnew)
-        self.solver = NonlinearVariationalSolver(
-            problem, solver_parameters=self.solver_parameters
-        )
+            }       
+        self.solver = backend_cls.create_nonlinearvariational_problem(F, self.gnew, solver_parameters)
         super().__init__(V, g, sub_domain)
 
     @property
