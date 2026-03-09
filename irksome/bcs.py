@@ -63,10 +63,9 @@ class BoundsConstrainedDirichletBC(DirichletBC):
         self.solver_parameters = solver_parameters
         self.bounds = bounds
         self.gnew = Function(V)
- 
+        backend_cls = get_backend(backend)
         F = inner(self.gnew - g, backend_cls.TestFunction(V)) * dx
 
-        backend_cls = get_backend(backend)
         if solver_parameters is None:
             solver_parameters = {
                 "snes_type": "vinewtonrsls",
@@ -75,7 +74,7 @@ class BoundsConstrainedDirichletBC(DirichletBC):
                 "ksp_type": "preonly",
                 "mat_type": "aij",
             }       
-        backend_cls.create_nonlinearvariational_problem(F, self.gnew, solver_parameters)
+        self.solver = backend_cls.create_nonlinearvariational_problem(F, self.gnew, solver_parameters)
         super().__init__(V, g, sub_domain)
 
     @property
