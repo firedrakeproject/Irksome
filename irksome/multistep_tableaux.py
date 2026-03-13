@@ -55,7 +55,7 @@ def get_weights_BDF(order):
 
     _, perm = get_lagrange_permutation(L)
 
-    vals = L.tabulate(1, (1.,))[1,][perm]
+    vals = L.tabulate(1, (1.,))[1, ][perm]
     beta = vals[-1]
 
     a = vals / beta
