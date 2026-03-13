@@ -1,6 +1,7 @@
 import FIAT
 import numpy as np
 import math
+from .tools import get_lagrange_permutation
 
 
 class MultistepTableau(object):
@@ -36,40 +37,27 @@ class MultistepMethod(MultistepTableau):
         elif method == 'AM':
             a, b = get_weights_AM(order)
         else:
-            try:
-                a, b = multistep_dict[method, order]
-            except KeyError:
-                raise NotImplementedError("Not a recognized multistep method")
+            a, b = get_weights_BDF(order)
+
         super().__init__(a, b)
 
 
-# BDF Methods
-BDF1a = np.array([-1.0, 1.0])
-BDF1b = np.array([0.0, 1.0])
+def get_weights_BDF(order):
+    if order < 1 or order > 6:
+        raise ValueError("BDF only valid for orders 1 through 6")
+    uint = FIAT.ufc_simplex(1)
+    L = FIAT.Lagrange(uint, order, variant="equispaced")
 
-BDF2a = np.array([0.3333333333333333, -1.3333333333333333, 1.0])
-BDF2b = np.array([0.0, 0.0, 0.6666666666666666])
+    _, perm = get_lagrange_permutation(L)
 
-BDF3a = np.array([-0.18181818181818182, 0.8181818181818182, -1.6363636363636365, 1.0])
-BDF3b = np.array([0.0, 0.0, 0.0, 0.5454545454545454])
+    vals = L.tabulate(1, (1.,))[1,][perm]
+    beta = vals[-1]
 
-BDF4a = np.array([0.12, -0.64, 1.44, -1.92, 1.0])
-BDF4b = np.array([0.0, 0.0, 0.0, 0.0, 0.48])
+    a = vals / beta
+    b = np.zeros(order+1)
+    b[-1] = order / beta
 
-BDF5a = np.array([-0.08759124087591241, 0.5474452554744526, -1.4598540145985401, 2.18978102189781, -2.18978102189781, 1.0])
-BDF5b = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.43795620437956206])
-
-BDF6a = np.array([0.06802721088435375, -0.4897959183673469, 1.530612244897959, -2.7210884353741496, 3.061224489795918, -2.4489795918367347, 1.0])
-BDF6b = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.40816326530612246])
-
-multistep_dict = {
-    ('BDF', 1): (BDF1a, BDF1b),
-    ('BDF', 2): (BDF2a, BDF2b),
-    ('BDF', 3): (BDF3a, BDF3b),
-    ('BDF', 4): (BDF4a, BDF4b),
-    ('BDF', 5): (BDF5a, BDF5b),
-    ('BDF', 6): (BDF6a, BDF6b),
-}
+    return a, b
 
 
 def get_weights_AB(s):
