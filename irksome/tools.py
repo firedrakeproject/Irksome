@@ -7,6 +7,7 @@ from ufl import as_tensor, zero
 from ufl import replace as ufl_replace
 from ufl.domain import as_domain
 from pyop2.types import MixedDat
+import FIAT
 
 from irksome.deriv import TimeDerivative
 
@@ -137,3 +138,21 @@ def ConstantOrZero(x, MC=None):
 
 
 vecconst = numpy.vectorize(ConstantOrZero)
+
+
+def get_lagrange_permutation(L):
+    """Given a univariate Lagrange element, return the
+    points ordered from left to right and the permutation of the
+    dofs required to obtain this re-ordering."""
+    assert L.ref_el.get_spatial_dimension() == 1
+
+    points = []
+    for ell in L.dual.nodes:
+        assert isinstance(ell, FIAT.functional.PointEvaluation)
+        pt, = ell.get_point_dict().keys()
+        points.append(pt[0])
+
+    c = numpy.asarray(points)
+    perm = numpy.argsort(c)
+
+    return c[perm], perm
