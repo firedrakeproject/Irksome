@@ -16,9 +16,14 @@ class MultistepTableau(object):
         self.b = b
 
     @property
-    def num_steps(self):
-        """Return the number of stages the method has."""
+    def num_total_steps(self):
+        """Return the number of steps the method has."""
         return len(self.b)
+
+    @property
+    def num_prev_steps(self):
+        """Return the number of previous steps the method requires."""
+        return len(self.b) - 1
 
     @property
     def is_explicit(self):

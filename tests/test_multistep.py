@@ -3,7 +3,7 @@ from firedrake import (TestFunction, NonlinearVariationalProblem, NonlinearVaria
                        UnitSquareMesh, FunctionSpace, Function, grad, sin, pi, cos, project,
                        SpatialCoordinate, split, TestFunctions, Constant, exp, conditional,
                        Or, And, inner, dx, div, norm, replace, diff, DirichletBC)
-from irksome import (Dt, MeshConstant, TimeStepper, MultistepTimeStepper, MultistepMethod, MultistepTableau, RadauIIA, GaussLegendre)
+from irksome import (Dt, MeshConstant, TimeStepper, MultistepMethod, MultistepTableau, RadauIIA, GaussLegendre)
 from ufl.algorithms import expand_derivatives
 import numpy as np
 
@@ -71,7 +71,7 @@ def heat_BDF1(msh, N, spatial_degree):
 
     F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
     BDF1 = MultistepMethod('BDF', 1)
-    stepper = MultistepTimeStepper(F, BDF1, t, dt, u, bcs=bc)
+    stepper = TimeStepper(F, BDF1, t, dt, u, bcs=bc)
 
     for i in range(5):
 
@@ -141,7 +141,7 @@ def heat_mech(msh, N, spatial_degree):
 
     BDF2 = MultistepMethod('BDF', 2)
 
-    stepper = MultistepTimeStepper(F, BDF2, t, dt, u, bcs=bc)
+    stepper = TimeStepper(F, BDF2, t, dt, u, bcs=bc)
     stepper.us[0].assign(u0)
     stepper.us[1].assign(u1)
 
@@ -206,7 +206,7 @@ def heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
     else:
         bounds = None
 
-    stepper = MultistepTimeStepper(F, BDF2, t, dt, u, bcs=bc, bounds=bounds, solver_parameters=vi_params, startup_parameters=startup_parameters)
+    stepper = TimeStepper(F, BDF2, t, dt, u, bcs=bc, bounds=bounds, solver_parameters=vi_params, startup_parameters=startup_parameters)
     stepper.startup()
 
     min_init = min(stepper.us[0].dat.data)
@@ -314,7 +314,7 @@ def CH_mech(msh, spatial_degree, startup_tableau):
     startup_parameters = {'tableau': startup_tableau, 'dt_div': 4}
 
     BDF2 = MultistepMethod('BDF', 2)
-    stepper = MultistepTimeStepper(F_DT, BDF2, t, dt, c_mu, startup_parameters=startup_parameters)
+    stepper = TimeStepper(F_DT, BDF2, t, dt, c_mu, startup_parameters=startup_parameters)
     stepper.startup()
 
     for i in range(5):
@@ -403,7 +403,7 @@ def heat_AB2_mech(msh, N, spatial_basis):
     startup_parameters = {'tableau': RadauIIA(1), 'dt_div': 4}
 
     AB2 = MultistepMethod('AB', 2)
-    stepper = MultistepTimeStepper(F, AB2, t, dt, u2, bcs=bc, startup_parameters=startup_parameters)
+    stepper = TimeStepper(F, AB2, t, dt, u2, bcs=bc, startup_parameters=startup_parameters)
     stepper.startup()
 
     for i in range(10):
@@ -508,7 +508,7 @@ def heat_cust_mech(msh, N, spatial_basis):
 
     startup_parameters = {'tableau': RadauIIA(1), 'dt_div': 4}
 
-    stepper = MultistepTimeStepper(F, method, t, dt, u, bcs=bc, startup_parameters=startup_parameters)
+    stepper = TimeStepper(F, method, t, dt, u, bcs=bc, startup_parameters=startup_parameters)
     stepper.startup()
 
     for i in range(10):
@@ -516,6 +516,46 @@ def heat_cust_mech(msh, N, spatial_basis):
         t.assign(float(t) + float(dt))
 
     return u
+
+
+def heat_startup_tableau(startup_tableau):
+    N = 16
+    msh = UnitSquareMesh(N, N)
+
+    V = FunctionSpace(msh, "Bernstein", 2)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(1 / N)
+    t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+    uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
+    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+
+    bc = DirichletBC(V, uexact, "on_boundary")
+
+    u = Function(V)
+    v = TestFunction(V)
+
+    u = project(uexact, V, bcs=bc)
+
+    F = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
+
+    BDF3 = MultistepMethod('BDF', 3)
+
+    t.assign(0.0)
+
+    stepper_kwargs = {'solver_parameters': vi_params}
+
+    startup_parameters = {'tableau': startup_tableau,
+                          'dt_div': 2,
+                          'stepper_kwargs': stepper_kwargs
+                          }
+
+    stepper = TimeStepper(F, BDF3, t, dt, u, bcs=bc, solver_parameters=vi_params, startup_parameters=startup_parameters)
+    stepper.startup()
+
+    return
 
 
 @pytest.mark.parametrize('N', [8, 16])
@@ -571,3 +611,12 @@ def test_cust_mech(N, spatial_basis):
     u1 = heat_cust_hand(msh, N, spatial_basis)
     u2 = heat_cust_mech(msh, N, spatial_basis)
     assert norm(u1 - u2) / norm(u1) < 1e-13
+
+
+@pytest.mark.parametrize('startup_tableau', tuple([MultistepMethod('AM', i) for i in (0, 1, 2, 3)] + [MultistepMethod('BDF', i) for i in (1, 2, 3)]))
+def test_startup_tableau(startup_tableau):
+    if startup_tableau.num_prev_steps != 1:
+        with pytest.raises(AssertionError, match="Cannot use a multistep method to start a multistep method"):
+            heat_startup_tableau(startup_tableau)
+    else:
+        heat_startup_tableau(startup_tableau)

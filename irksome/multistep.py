@@ -1,14 +1,13 @@
 from .tools import replace, vecconst
 from .manipulation import extract_terms
 from .deriv import expand_time_derivatives, TimeDerivative
-from .stepper import TimeStepper, valid_base_kwargs
 from .base_time_stepper import BaseTimeStepper
 from .multistep_tableaux import MultistepTableau
 from ufl.constantvalue import as_ufl
 from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative
 
 
-class MultistepStepper(BaseTimeStepper):
+class MultistepTimeStepper(BaseTimeStepper):
 
     """front-end class for advancing time-dependent PDE via a general multistep method
 
@@ -45,7 +44,7 @@ class MultistepStepper(BaseTimeStepper):
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
 
-        self.s = len(method.b) - 1
+        self.num_prev_steps = len(method.b) - 1
         self.a = vecconst(method.a)
         self.b = vecconst(method.b)
         self.us = [u0.copy(deepcopy=True) for coeff in self.a[:-1]]
@@ -89,13 +88,18 @@ class MultistepStepper(BaseTimeStepper):
         if self.startup_parameters is None:
             return ValueError('No startup parameters provided')
         else:
-            if self.s == 1:  # No startup required
+            if self.num_prev_steps == 1:  # No startup required
                 return
 
             butcher_tableau = self.startup_parameters.get('tableau', None)
+            if isinstance(butcher_tableau, MultistepTableau):
+                assert butcher_tableau.num_total_steps == 2, "Cannot use a multistep method to start a multistep method"
             stepper_kwargs = self.startup_parameters.get('stepper_kwargs', {})
             startup_dt_div = self.startup_parameters.get('dt_div', 1)
             assert isinstance(startup_dt_div, int) and startup_dt_div > 0
+
+            # delayed import to avoid a circular import
+            from .stepper import TimeStepper
 
             self.us[0].assign(self.u0)
             self.TS = TimeStepper(self.F, butcher_tableau, self.t, self.dt, self.u0, bcs=self.bcs, **stepper_kwargs)
@@ -104,7 +108,7 @@ class MultistepStepper(BaseTimeStepper):
             self.dt.assign(self.dt / startup_dt_div)
 
             # advance the system and assign values to previous steps
-            for i in range(self.s - 1):
+            for i in range(self.num_prev_steps - 1):
                 for substep in range(startup_dt_div):
                     self.TS.advance()
                     self.t.assign(self.t + self.dt)
@@ -134,7 +138,7 @@ class MultistepStepper(BaseTimeStepper):
         # form the right hand side
         for (i, coeff) in enumerate(b):
             Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i],
-                                                       t: t + (i - self.s + 1) * dt})
+                                                       t: t + (i - self.num_prev_steps + 1) * dt})
         if bcs is None:
             bcs = []
         bcsnew = []
@@ -166,20 +170,3 @@ class MultistepStepper(BaseTimeStepper):
 
 
 valid_multistep_kwargs = ("Fp", "bounds", "startup_parameters")
-
-
-def MultistepTimeStepper(F, method, t, dt, u0, **kwargs):
-    base_kwargs = {}
-    for k in valid_base_kwargs:
-        if k in kwargs:
-            base_kwargs[k] = kwargs.pop(k)
-
-    bcs = base_kwargs.pop("bcs", None)
-    for cur_kwarg in kwargs.keys():
-        if cur_kwarg not in valid_multistep_kwargs:
-            raise ValueError(f"kwarg {cur_kwarg} is not allowable for MultistepTimeStepper")
-
-    bounds = kwargs.pop('bounds', None)
-    Fp = kwargs.pop('Fp', None)
-    startup_parameters = kwargs.pop('startup_parameters', None)
-    return MultistepStepper(F, method, t, dt, u0, bcs=bcs, Fp=Fp, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
