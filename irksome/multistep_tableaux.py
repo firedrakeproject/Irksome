@@ -1,6 +1,5 @@
 import FIAT
 import numpy as np
-import math
 from .tools import get_lagrange_permutation
 
 
@@ -65,72 +64,56 @@ def get_weights_BDF(order):
     return a, b
 
 
-def get_weights_AB(s):
-    '''compute the weights a, b, for the Adams-Bashforth method seeking y^{n + s}'''
-    assert s > 0
+def get_weights_AB(order):
 
-    a = np.zeros(s + 1)
-    b = np.zeros(s + 1)
+    assert order > 0
 
-    a[-2] = -1.0
-    a[-1] = 1.0
+    uint = FIAT.ufc_simplex(1)
 
-    L = FIAT.ufc_simplex(1)
+    nodes = [-i for i in range(order)]
+    nodes.reverse()
+    nodes = np.reshape(nodes, (-1, 1))
 
-    Q = FIAT.make_quadrature(L, s)
+    Q = FIAT.make_quadrature(uint, 2*order)
     qpts = Q.get_points()
     qwts = Q.get_weights()
 
-    integrand = np.zeros(len(qpts))
+    L = FIAT.barycentric_interpolation.LagrangePolynomialSet(uint, nodes)
 
-    for j in range(s):
-        for ptidx in range(len(qpts)):
-            prod = 1.0
-            for i in range(s):
-                if i == j:
-                    pass
-                else:
-                    prod = prod * (qpts[ptidx][0] + i)
+    vals = L.tabulate(qpts, 0)[(0,)]
+    b = np.dot(vals, qwts)
+    b = np.insert(b, order, 0)
 
-            integrand[ptidx] = prod
-        b[s - j - 1] = ((-1.0) ** j / (math.factorial(j) * math.factorial(s - j - 1))) * (qwts @ integrand)
+    a = np.zeros(order + 1)
+    a[-1] = 1.0
+    a[-2] = -1.0
 
     return a, b
 
 
-def get_weights_AM(s):
-    '''compute the weights a, b, for the Adams-Moulton method seeking y^{n + s}.
-       s = 0 corresponds to backward Euler--handled separately'''
+def get_weights_AM(order):
 
-    assert s >= 0
+    assert order >= 0
 
-    if s == 0:
+    if order == 0:
         return np.array([-1.0, 1.0]), np.array([0.0, 1.0])
 
-    a = np.zeros(s + 1)
-    b = np.zeros(s + 1)
+    uint = FIAT.ufc_simplex(1)
 
-    a[-2] = -1.0
-    a[-1] = 1.0
+    nodes = [1-i for i in range(order+1)]
+    nodes.reverse()
+    nodes = np.reshape(nodes, (-1, 1))
 
-    L = FIAT.ufc_simplex(1)
-
-    Q = FIAT.make_quadrature(L, s + 1)
+    Q = FIAT.make_quadrature(uint, 2*order)
     qpts = Q.get_points()
     qwts = Q.get_weights()
 
-    integrand = np.zeros(len(qpts))
+    L = FIAT.barycentric_interpolation.LagrangePolynomialSet(uint, nodes)
 
-    for j in range(s + 1):
-        for ptidx in range(len(qpts)):
-            prod = 1.0
-            for i in range(s + 1):
-                if i == j:
-                    pass
-                else:
-                    prod = prod * (qpts[ptidx][0] + i - 1)
-
-            integrand[ptidx] = prod
-        b[s - j] = ((-1.0) ** j / (math.factorial(j) * math.factorial(s - j))) * (qwts @ integrand)
+    vals = L.tabulate(qpts, 0)[(0,)]
+    b = np.dot(vals, qwts)
+    a = np.zeros(order + 1)
+    a[-1] = 1.0
+    a[-2] = -1.0
 
     return a, b
