@@ -31,7 +31,7 @@ As usual, we need to import firedrake::
 
 We will also need to import certain items from irksome::
 
-  from irksome import Dt, MeshConstant, MultistepTimeStepper, MultistepMethod
+  from irksome import Dt, MeshConstant, TimeStepper, MultistepMethod
 
 We will use the 3-step Backward Difference Formula::
 
@@ -84,17 +84,17 @@ We'll use a basic solver for this demo::
               "ksp_type": "preonly",
               "pc_type": "lu"}
 
-Much like Irksome's :class:`.TimeStepper`, the :class:`.MultistepTimeStepper` automates the 
+Irksome's :class:`.TimeStepper` automates the 
 transformation of our semidiscrete form `F` into a fully discrete form for
 the next approximate value and sets up a variational problem to solve at each time step.
 
 
 An s-step multistep method requires starting values :math:`u^0,\dots, u^{s - 1}` in order to begin the approximation. Irksome provides two ways to 
-set these values. If you wish to set the starting values manually, you can create a :class:`.MultistepTimeStepper` as shown below, but with no `startup_parameters`. You can 
-then access the list :class:`.MultistepTimeStepper.us` which contains the starting approximations, assign the desired starting values, and advance `t` by hand. 
+set these values. If you wish to set the starting values manually, you can create a :class:`.TimeStepper` as shown below, but with no `startup_parameters`. You can 
+then access the list :class:`.TimeStepper.us` which contains the starting approximations, assign the desired starting values, and advance `t` by hand. 
 On the other hand, if you wish to use a method which Irksome supports to obtain these starting values, then Irksome allows this process to be completed automatically.
 
-We'll showcase both methods. The automatic process requires defining a :class:`dict` of keyword arguments used to setup a :class:`.TimeStepper`. The :class:`.TimeStepper` is then used to compute the 
+We'll showcase both methods. The automatic process requires defining a :class:`dict` of keyword arguments used to setup a :class:`.TimeStepper` representing a single-step method. This :class:`.TimeStepper` is then used to compute the 
 initial approximations needed to start the method. We'll import RadauIIA and use the backward Euler method to obtain our starting values. Formally, the backward Euler method is only first order accurate, 
 and we wish to use it obtain the starting values for the third-order accurate BDF(3) method. A crude way to increase the accuracy of the starting values is to use a smaller timestep for the startup procedure. 
 Here, we use timesteps of size :math:`\Delta t / 8` for the backward Euler method which is accessible through the keyword `dt_div`. The keyword `stepper_kwargs` allows for easy customization of the startup :class:`.TimeStepper`.::
@@ -108,14 +108,14 @@ Here, we use timesteps of size :math:`\Delta t / 8` for the backward Euler metho
                         'dt_div': 8,
                         'stepper_kwargs': startup_stepper_kwargs}
 
-We can then set up the :class:`.MultistepTimeStepper` as follows::
+We can then set up the :class:`.TimeStepper` as follows::
 
-  stepper = MultistepTimeStepper(F, method, t, dt, u, bcs=bc, 
+  stepper = TimeStepper(F, method, t, dt, u, bcs=bc, 
                                  solver_parameters=luparams, 
                                  startup_parameters=startup_parameters)
 
-Note that the creation of a :class:`.MultistepTimeStepper` with parameters for the startup procedure will not automatically solve for the required starting values. 
-One must call the :class:`.MultistepTimeStepper`'s :meth:`~.MultistepTimeStepper.startup` method, which will internally construct a :class:`.TimeStepper`, solve the the required starting 
+Note that the creation of a :class:`.TimeStepper` configured for a multistep method with parameters for the startup procedure will not automatically solve for the required starting values. 
+One must call the :class:`.TimeSteppers`'s :meth:`~.TimeStepper.startup` method, which will internally construct the single-step :class:`.TimeStepper`, solve the the required starting 
 values, and advance `t` to `t + (s-1)*dt`:::
 
   stepper.startup()
@@ -129,7 +129,7 @@ into our space and assigning the required starting values.::
   t.assign(0.0)
   u0 = project(uexact, V, bcs=bc)
   stepper.us[0].assign(u0)
-  
+
   t.assign(t + dt)
   u1 = project(uexact, V, bcs=bc)
   stepper.us[1].assign(u1)
@@ -139,7 +139,7 @@ into our space and assigning the required starting values.::
   stepper.us[2].assign(u2)
 
 This remaining logic is pretty self-explanatory.  We use the
-:class:`.MultistepTimeStepper`'s :meth:`~.MultistepTimeStepper.advance` method, which solves the variational
+:class:`.TimeStepper`'s :meth:`~.TimeStepper.advance` method, which solves the variational
 problem to compute the next approximate value and updates the solution.::
 
   while (float(t) < 1.0):
@@ -149,7 +149,7 @@ problem to compute the next approximate value and updates the solution.::
     t.assign(float(t) + float(dt))
     print(float(t))
 
-Now, check the relative :math:`L^2` error::
+Finally, check the relative :math:`L^2` error::
 
   print()
   print(norm(u-uexact)/norm(uexact))

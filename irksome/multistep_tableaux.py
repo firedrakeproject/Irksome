@@ -112,6 +112,7 @@ def get_weights_AM(order):
 
     vals = L.tabulate(qpts, 0)[(0,)]
     b = np.dot(vals, qwts)
+
     a = np.zeros(order + 1)
     a[-1] = 1.0
     a[-2] = -1.0
