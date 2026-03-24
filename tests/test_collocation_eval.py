@@ -191,19 +191,21 @@ sample_points = [0.2, 0.5, 0.75, 0.9]
 
 @pytest.mark.parametrize('tableau', [RadauIIA, GaussLegendre])
 @pytest.mark.parametrize('spatial_degree', [1, 2])
-@pytest.mark.parametrize('temporal_basis', ['Bernstein', 'Lagrange'])
 @pytest.mark.parametrize('temporal_degree', [1, 2, 3])
-def test_stage_value(tableau, spatial_degree, temporal_basis, temporal_degree):
-    ts_hand, qs_hand =   heat_value_hand(msh, tableau, 0.125, 'Lagrange', spatial_degree, temporal_basis, temporal_degree, sample_points)
-    ts_stage, qs_stage = heat_value_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, temporal_basis, temporal_degree, sample_points)
+def test_sample_Bernstein(tableau, spatial_degree, temporal_degree):
+    ts_hand, qs_hand =   heat_value_hand(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Bernstein', temporal_degree, sample_points)
+    ts_stage, qs_stage = heat_value_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Bernstein', temporal_degree, sample_points)
     errors = [norm(qs_hand[i] - qs_stage[i]) for i in range(len(qs_hand))]
     assert max(errors) < 1e-11
 
 @pytest.mark.parametrize('tableau', [RadauIIA, GaussLegendre])
 @pytest.mark.parametrize('spatial_degree', [1, 2])
 @pytest.mark.parametrize('temporal_degree', [1, 2, 3])
-def test_stage_deriv(tableau, spatial_degree, temporal_degree):
+def test_sample_Lagrange(tableau, spatial_degree, temporal_degree):
     ts_hand, qs_hand =   heat_value_hand(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Lagrange', temporal_degree, sample_points)
+    ts_value, qs_value = heat_value_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Lagrange', temporal_degree, sample_points)
     ts_deriv, qs_deriv = heat_deriv_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, temporal_degree, sample_points)
-    errors = [norm(qs_hand[i] - qs_deriv[i]) for i in range(len(qs_hand))]
-    assert max(errors) < 1e-11
+    errors_value = [norm(qs_hand[i] - qs_value[i]) for i in range(len(qs_hand))]
+    assert max(errors_value) < 1e-11
+    errors_deriv = [norm(qs_hand[i] - qs_deriv[i]) for i in range(len(qs_hand))]
+    assert max(errors_deriv) < 1e-11
