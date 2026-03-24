@@ -11,7 +11,7 @@ from FIAT.bernstein import Bernstein
 import numpy as np
 
 msh = UnitSquareMesh(20, 20)
-params = {"snes_type": "newtonls", "snes_atol": 1.e-9}
+params = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
 def heat_value_hand(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal_basis, temporal_degree, sample_points):
 
