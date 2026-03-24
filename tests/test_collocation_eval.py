@@ -1,17 +1,16 @@
 import numpy as np
 import pytest
 
-from firedrake import (TestFunction, UnitSquareMesh, FunctionSpace, Function, grad, 
+from firedrake import (TestFunction, UnitSquareMesh, FunctionSpace, Function, grad,
                        project, SpatialCoordinate, inner, dx, cos, pi, norm)
 from irksome import (GaussLegendre, RadauIIA, Dt, MeshConstant, TimeStepper)
 from FIAT import ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from FIAT.bernstein import Bernstein
 
-import numpy as np
-
 msh = UnitSquareMesh(20, 20)
 params = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
+
 
 def heat_value_hand(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal_basis, temporal_degree, sample_points):
 
@@ -57,7 +56,7 @@ def heat_value_hand(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
     stage_vals = k0.subfunctions + stepper.stages.subfunctions
     sample_values = Vander_between.T @ stage_vals
 
-    u_interp = Function(V, name=f'u_interp')
+    u_interp = Function(V, name='u_interp')
 
     qs = []
     ts = []
@@ -67,10 +66,10 @@ def heat_value_hand(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
     ts.append(float(t))
 
     for i in range(2):
-        
+
         stepper.advance()
 
-        ##  Stage Interpolation
+        # Stage Interpolation
         for s in range(num_eval_points):
             u_interp.interpolate(sample_values[s])
             qs.append(u_interp.copy(deepcopy=True))
@@ -79,7 +78,7 @@ def heat_value_hand(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
         k0.assign(u)
 
         u_interp.interpolate(u)
-        qs.append(u_interp.copy(deepcopy=True))       
+        qs.append(u_interp.copy(deepcopy=True))
 
         t.assign(float(t) + float(dt))
         ts.append(float(t))
@@ -98,7 +97,7 @@ def heat_value_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-  
+
     u_init = 1 + cos(2*pi*x) * cos(2*pi*y)
     u = project(u_init, V)
     v = TestFunction(V)
@@ -131,10 +130,10 @@ def heat_value_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
             qs.append(u_interp.copy(deepcopy=True))
 
         qs.append(u.copy(deepcopy=True))
-      
+
         t.assign(float(t) + float(dt))
         ts.append(float(t))
-            
+
     return (ts, qs)
 
 
@@ -149,7 +148,7 @@ def heat_deriv_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
     t = MC.Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
-  
+
     u_init = 1 + cos(2*pi*x) * cos(2*pi*y)
     u = project(u_init, V)
     v = TestFunction(V)
@@ -186,23 +185,26 @@ def heat_deriv_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
 
     return (ts, qs)
 
+
 dt_in = 0.125
 sample_points = [0.2, 0.5, 0.75, 0.9]
+
 
 @pytest.mark.parametrize('tableau', [RadauIIA, GaussLegendre])
 @pytest.mark.parametrize('spatial_degree', [1, 2])
 @pytest.mark.parametrize('temporal_degree', [1, 2, 3])
 def test_sample_Bernstein(tableau, spatial_degree, temporal_degree):
-    ts_hand, qs_hand =   heat_value_hand(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Bernstein', temporal_degree, sample_points)
+    ts_hand, qs_hand = heat_value_hand(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Bernstein', temporal_degree, sample_points)
     ts_stage, qs_stage = heat_value_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Bernstein', temporal_degree, sample_points)
     errors = [norm(qs_hand[i] - qs_stage[i]) for i in range(len(qs_hand))]
     assert max(errors) < 1e-11
+
 
 @pytest.mark.parametrize('tableau', [RadauIIA, GaussLegendre])
 @pytest.mark.parametrize('spatial_degree', [1, 2])
 @pytest.mark.parametrize('temporal_degree', [1, 2, 3])
 def test_sample_Lagrange(tableau, spatial_degree, temporal_degree):
-    ts_hand, qs_hand =   heat_value_hand(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Lagrange', temporal_degree, sample_points)
+    ts_hand, qs_hand = heat_value_hand(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Lagrange', temporal_degree, sample_points)
     ts_value, qs_value = heat_value_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Lagrange', temporal_degree, sample_points)
     ts_deriv, qs_deriv = heat_deriv_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, temporal_degree, sample_points)
     errors_value = [norm(qs_hand[i] - qs_value[i]) for i in range(len(qs_hand))]

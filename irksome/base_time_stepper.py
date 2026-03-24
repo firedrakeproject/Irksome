@@ -81,7 +81,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
             the Runge-Kutta method to be used for time marching.
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
-    :kwarg sample_points: An optional kwarg used to evaluate collocation methods 
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
             at additional points in time.
     """
     def __init__(self, F, t, dt, u0, num_stages,
@@ -151,7 +151,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
-        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()         
+        self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
 
         if self.sample_points is not None:
             self._set_poly()

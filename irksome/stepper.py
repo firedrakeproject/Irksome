@@ -100,7 +100,7 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
     :kwarg aux_indices: Only valid for continuous Petrov Galerkin time scheme.  It
             specifies that some of the variables in `u0` are to be treated as
             auxiliary, that is, discretized in the lower-order DG test space.
-    :kwarg sample_points: An optional kwarg used to evaluate collocation methods 
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
         at additional points in time.
     """
     # first pluck out the cases for Galerkin in time...

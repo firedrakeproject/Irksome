@@ -5,7 +5,7 @@ from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm, as_tensor
 from firedrake.bcs import EquationBC, EquationBCSplit
 
-from FIAT import Bernstein, ufc_simplex
+from FIAT import ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
 from ufl import zero
@@ -195,7 +195,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             instance to be passed to a
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
-    :kwarg sample_points: An optional kwarg used to evaluate collocation methods 
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
             at additional points in time.
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
@@ -216,9 +216,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
-                         butcher_tableau=butcher_tableau, 
+                         butcher_tableau=butcher_tableau,
                          sample_points=sample_points, **kwargs)
-        
+
         if sample_points is not None:
             self.build_poly()
 
@@ -236,14 +236,13 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-
     def build_poly(self):
         assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
         assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
-        
+
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
         nodes = vecconst(nodes)
-    
+
         lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
         evaluation_vander = lag_basis.tabulate(numpy.reshape(self.sample_points, (-1, 1)), 0)[(0,)]
 
@@ -255,7 +254,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         for j in range(self.butcher_tableau.num_stages):
             for i in range(self.butcher_tableau.num_stages):
                 stage_vals_A[j + 1] += self.dt * A_const[j, i] * self.stages.subfunctions[i]
-        
+
         self.sample_values = evaluation_vander.T @ (stage_vals_A + numpy.full(len(stage_vals_A), self.u0_poly))
 
     def _set_poly(self):

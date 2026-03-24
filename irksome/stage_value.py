@@ -67,7 +67,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
          If none is provided, we assume it is the identity, working in the
          Lagrange basis.
     :kwarg aux_indices: a list of field indices, currently ignored.
-    :kwarg sample_points: An optional kwarg used to evaluate collocation methods 
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
         at additional points in time.
 
     :returns: a 2-tuple of
