@@ -73,7 +73,7 @@ Now, we will define the semidiscrete variational problem using
 standard UFL notation, augmented by the ``Dt`` operator from Irksome::
 
   v, w = TestFunctions(Z)
-  F = (inner(Dt(u), v) * dx + inner(dot(u, grad(u)), v) * dx
+  F = (inner(Dt(u), v) * dx + inner(dot(grad(u), u), v) * dx
        + 1/Re * inner(grad(u), grad(v)) * dx - inner(p, div(v)) * dx
        + inner(div(u), w) * dx)
 

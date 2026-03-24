@@ -9,10 +9,11 @@ from ufl import as_tensor, zero
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
-from .ButcherTableaux import CollocationButcherTableau
-from .deriv import expand_time_derivatives
-from .manipulation import extract_terms, strip_dt_form
-from .tools import AI, is_ode, dot, reshape, replace, vecconst
+from .tableaux.ButcherTableaux import CollocationButcherTableau
+from .ufl.deriv import expand_time_derivatives
+from .ufl.manipulation import extract_terms, strip_dt_form
+from .tools import AI, is_ode, dot, reshape, replace
+from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
 
@@ -188,6 +189,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          sample_points=sample_points,
                          **kwargs)
 
+        self.set_initial_guess()
+
         if use_collocation_update:
             # Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.
             # TODO: create an assertion to check for constant-in-time boundary conditions.
@@ -294,3 +297,10 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                             stages, bcs=bcs,
                             splitting=self.splitting,
                             vandermonde=self.vandermonde)
+
+    def set_initial_guess(self):
+        """Set a constant-in-time initial guess"""
+        for k in range(self.num_stages):
+            for i, u0bit in enumerate(self.u0.subfunctions):
+                sbit = self.stages.subfunctions[self.num_fields * k + i]
+                sbit.assign(u0bit)

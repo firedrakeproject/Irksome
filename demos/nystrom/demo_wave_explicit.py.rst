@@ -83,7 +83,7 @@ We're using an explicit scheme, so we only need to solve mass matrices in the up
       mass_params["fieldsplit_%s" % (s,)] = per_field
 
 Most of Irksome's magic happens in the
-:class:`.StageDerivativeNystromTimeStepper`.  It takes our semidiscrete
+:class:`~irksome.StageDerivativeNystromTimeStepper`.  It takes our semidiscrete
 form `F` and the tableau and produces the variational form for
 computing the stage unknowns.  Then, it sets up a variational problem to be
 solved for the stages at each time step.  Here, we use `dDAE` style boundary conditions, which impose boundary conditions on the stages to match those of :math:`u_t` on the boundary, consistent with the underlying partitioned scheme::
