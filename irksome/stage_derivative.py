@@ -8,8 +8,6 @@ from firedrake.bcs import EquationBC, EquationBCSplit
 from FIAT import ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
-from operator import mul
-from functools import reduce
 from ufl.constantvalue import as_ufl
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .constant import vecconst
@@ -247,25 +245,23 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
         evaluation_vander = lag_basis.tabulate(numpy.reshape(self.sample_points, (-1, 1)), 0)[(0,)]
 
-        self.u0_poly = Function(self.u0.function_space()).assign(self.u0)
+        self.u_old = Function(self.u0)
         A_const = vecconst(self.butcher_tableau.A)
 
         # compute the stage values
         num_stages = self.num_stages
         V = self.u0.function_space()
-        stage_vals_space = reduce(mul, (V for _ in range(num_stages+1)))
+        Vbig = self.stages.function_space()
+        stage_vals_space = V * Vbig
 
         stage_vals_A = Function(stage_vals_space)
         stage_vals_A = reshape(stage_vals_A, (num_stages+1, *self.u0.ufl_shape))
         ks = reshape(self.stages, (num_stages, *self.u0.ufl_shape))
         stage_vals_A[1:, ...] = self.dt * dot(A_const, ks)
 
-        u0_poly = reshape(self.u0_poly, (1, *self.u0.ufl_shape))
-        u_at_pts = stage_vals_A + numpy.full((num_stages+1, *self.u0.ufl_shape), u0_poly)
+        u_old = reshape(self.u_old, (1, *self.u0.ufl_shape))
+        u_at_pts = stage_vals_A + numpy.full((num_stages+1, *self.u0.ufl_shape), u_old)
         self.sample_values = dot(evaluation_vander.T, u_at_pts)
-
-    def _set_poly(self):
-        self.u0_poly.assign(self.u0)
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:

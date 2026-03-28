@@ -279,14 +279,12 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             bern_element = Bernstein(ufc_simplex(1), self.butcher_tableau.num_stages)
             evaluation_vander = bern_element.tabulate(0, numpy.reshape(self.sample_points, (-1, 1)))[(0,)]
 
-        self.u0_poly = Function(self.u0.function_space()).assign(self.u0)
 
-        all_stage_vals = self.u0_poly.subfunctions + self.stages.subfunctions
+        self.u_old = Function(self.u0)
+
+        all_stage_vals = self.u_old.subfunctions + self.stages.subfunctions
 
         self.sample_values = evaluation_vander.T @ all_stage_vals
-
-    def _set_poly(self):
-        self.u0_poly.assign(self.u0)
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:

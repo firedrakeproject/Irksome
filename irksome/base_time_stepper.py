@@ -154,7 +154,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
 
         if self.sample_points is not None:
-            self._set_poly()
+            self.u_old.assign(self.u0)
 
         self._update()
 
