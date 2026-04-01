@@ -1,13 +1,12 @@
 from FIAT import (Bernstein,
                   DiscontinuousLagrange, Legendre,
                   GaussLobattoLegendre, GaussRadau)
-from ufl import as_ufl, as_tensor
-from ufl.algorithms.analysis import has_type
+from ufl import as_ufl, as_tensor, Form
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .labeling import split_quadrature, as_form
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
-from .ufl.deriv import TimeDerivative, expand_time_derivatives
+from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import extract_terms, strip_dt_form
 from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace
@@ -39,8 +38,6 @@ def getElement(basis_type, order):
 
 
 def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
@@ -66,11 +63,13 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     usub = dot(trial_vals.T, u_np)
     dtu0sub = dot(trial_dvals.T, u_np)
 
-    if has_type(F, TimeDerivative):
-        split_form = extract_terms(F)
-        F_dtless = strip_dt_form(split_form.time)
-        F_remainder = split_form.remainder
-
+    split_form = extract_terms(F, (u0,))
+    F_time = split_form.time
+    F_remainder = split_form.remainder
+    if F_time.empty():
+        Fnew = Form([])
+    else:
+        F_dtless = strip_dt_form(F_time)
         # Jump terms
         L_at_0 = vecconst(L.tabulate(0, (0.0,))[(0,)])
         u_at_0 = L_at_0 @ u_np
@@ -85,10 +84,9 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
                     v: vsub[q] * dt,
                     u0: dtu0sub[q] / dt}
             Fnew += replace(F_dtless, repl)
-    else:
-        Fnew = 0
-        F_remainder = F
 
+    # preprocess time derivatives
+    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
     # Handle the rest of the terms
     for q in range(len(qpts)):
         repl = {t: t + qpts[q] * dt,

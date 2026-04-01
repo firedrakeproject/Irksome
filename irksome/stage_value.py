@@ -73,8 +73,6 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages
     """
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
     assert is_ode(F, u0) or butch.is_stiffly_accurate
 
@@ -106,9 +104,11 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    split_form = extract_terms(F)
+    split_form = extract_terms(F, (u0,))
     F_dtless = strip_dt_form(split_form.time)
     F_remainder = split_form.remainder
+    # preprocess time derivatives
+    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
 
     Fnew = zero()
     # Terms with time derivatives
@@ -215,23 +215,25 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def get_update_solver(self, update_solver_parameters):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
-        F = expand_time_derivatives(self.F, t=self.t, timedep_coeffs=(self.u0,))
-        v, = F.arguments()
+        v, = self.F.arguments()
         unew = Function(self.u0.function_space())
         Fupdate = inner(unew - self.u0, v) * dx
 
         C = vecconst(self.butcher_tableau.c)
         B = vecconst(self.butcher_tableau.b)
+        F = self.F
         t = self.t
         dt = self.dt
         u0 = self.u0
-        split_form = extract_terms(F)
+        split_form = extract_terms(F, (u0,))
+        F_remainder = split_form.remainder
+        F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
         u_np = to_value(self.u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
                     u0: u_np[i]}
-            Fupdate += dt * B[i] * replace(split_form.remainder, repl)
+            Fupdate += dt * B[i] * replace(F_remainder, repl)
 
         # And the BC's for the update -- just the original BC at t+dt
         update_bcs = []
