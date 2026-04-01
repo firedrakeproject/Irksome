@@ -9,10 +9,10 @@ derivative from those that don't (via :func:`~.extract_terms`).
 from functools import singledispatchmethod
 from typing import NamedTuple, List, Sequence
 
+from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.corealg.dag_traverser import DAGTraverser
-from ufl.classes import (Argument, BaseForm,
-                         Cofunction, Coefficient, ConstantValue,
-                         Expr, Form, FormSum, Integral, SpatialCoordinate)
+from ufl.classes import (BaseForm, Coefficient,
+                         Expr, Form, FormSum, Integral)
 
 from .deriv import TimeDerivative
 
@@ -79,42 +79,14 @@ def check_integrals(integrals: List[Integral], expect_time_derivative: bool = Tr
     return integrals
 
 
-class CoefficientFinder(DAGTraverser):
-    """Determines whether an expression depends on a set of coefficients.
-    """
-    def __init__(self, timedep_coeffs=None, **kwargs):
-        super().__init__(**kwargs)
-        if timedep_coeffs is None:
-            timedep_coeffs = {}
-        self.timedep_coeffs = timedep_coeffs
-
-    # Work around singledispatchmethod inheritance issue;
-    # see https://bugs.python.org/issue36457.
-    @singledispatchmethod
-    def process(self, o):
-        return super().process(o)
-
-    @process.register(BaseForm)
-    @process.register(Expr)
-    @DAGTraverser.postorder
-    def generic(self, o, *ops):
-        return any(ops)
-
-    @process.register(Argument)
-    @process.register(Cofunction)
-    @process.register(Coefficient)
-    @process.register(ConstantValue)
-    @process.register(SpatialCoordinate)
-    def terminal(self, o):
-        return o in self.timedep_coeffs
-
-
 class TimeDerivativeCoefficientFinder(DAGTraverser):
     """Determines whether an expression depends on TimeDerivative of a coefficient
     """
     def __init__(self, timedep_coeffs, **kwargs):
         super().__init__(**kwargs)
-        self.rules = CoefficientFinder(timedep_coeffs=timedep_coeffs)
+        if timedep_coeffs is None:
+            timedep_coeffs = {}
+        self.timedep_coeffs = set(timedep_coeffs)
 
     # Work around singledispatchmethod inheritance issue;
     # see https://bugs.python.org/issue36457.
@@ -135,7 +107,8 @@ class TimeDerivativeCoefficientFinder(DAGTraverser):
     @process.register(TimeDerivative)
     def time_derivative(self, o):
         f, = o.ufl_operands
-        return self.rules(f)
+        terminals = set(traverse_unique_terminals(f))
+        return len(terminals & self.timedep_coeffs) > 0
 
 
 def extract_terms(form: Form, timedep_coeffs: Sequence[Coefficient] | None = None) -> SplitTimeForm:
