@@ -261,7 +261,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
 
         u_old = reshape(self.u_old, (1, *self.u0.ufl_shape))
         u_at_pts = stage_vals_A + numpy.full((num_stages+1, *self.u0.ufl_shape), u_old)
-        self.sample_values = dot(evaluation_vander.T, u_at_pts)
+        sample_np = dot(evaluation_vander.T, u_at_pts)
+        num_samples = numpy.size(self.sample_points)
+        self.sample_values = [as_tensor(sample_np[i]) for i in range(num_samples)]
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
