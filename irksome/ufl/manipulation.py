@@ -16,7 +16,6 @@ from tsfc.ufl_utils import ufl_reuse_if_untouched
 from ufl.algebra import Conj, Division, Product, Sum
 from ufl.averaging import CellAvg, FacetAvg
 from ufl.classes import MultiIndex
-from ufl.coefficient import Coefficient
 from ufl.constantvalue import Zero
 from ufl.core.expr import Expr
 from ufl.core.operator import Operator
@@ -26,11 +25,15 @@ from ufl.differentiation import Derivative
 from ufl.form import Form, FormSum
 from ufl.indexed import Indexed
 from ufl.indexsum import IndexSum
-from ufl.integral import Integral
 from ufl.restriction import NegativeRestricted, PositiveRestricted
 from ufl.tensoralgebra import Dot, Inner, Outer
 from ufl.tensors import ComponentTensor, ListTensor
-from ufl.variable import Variable
+
+from ufl.form import BaseForm
+from ufl.classes import (Argument, Cofunction, Coefficient, ConstantValue,
+                         Integral, SpatialCoordinate, Variable)
+from ufl.corealg.dag_traverser import DAGTraverser
+from functools import singledispatchmethod
 
 from .deriv import TimeDerivative
 
@@ -229,3 +232,77 @@ def strip_dt_form(F):
 
     # Return the form stripped of its time derivatives
     return Fnew
+
+
+class CoefficientFinder(DAGTraverser):
+    """Determines whether an expression depends on a set of coefficients.
+    """
+    def __init__(self, coefficient_mapping=None, **kwargs):
+        super().__init__(**kwargs)
+        if coefficient_mapping is None:
+            coefficient_mapping = {}
+        self.coefficient_mapping = coefficient_mapping
+
+    # Work around singledispatchmethod inheritance issue;
+    # see https://bugs.python.org/issue36457.
+    @singledispatchmethod
+    def process(self, o):
+        return super().process(o)
+
+    @process.register(BaseForm)
+    @process.register(Expr)
+    @DAGTraverser.postorder
+    def generic(self, o, *ops):
+        return any(ops)
+
+    @process.register(Argument)
+    @process.register(Cofunction)
+    @process.register(Coefficient)
+    @process.register(ConstantValue)
+    @process.register(SpatialCoordinate)
+    def terminal(self, o):
+        return o in self.coefficient_mapping
+
+
+class TimeDerivativeCoefficientFinder(DAGTraverser):
+    """Determines whether an expression depends on TimeDerivative of a coefficient
+    """
+    def __init__(self, coefficient_mapping, **kwargs):
+        super().__init__(**kwargs)
+        self.rules = CoefficientFinder(coefficient_mapping=coefficient_mapping)
+
+    # Work around singledispatchmethod inheritance issue;
+    # see https://bugs.python.org/issue36457.
+    @singledispatchmethod
+    def process(self, o):
+        return super().process(o)
+
+    @process.register(TimeDerivative)
+    def time_derivative(self, o):
+        f, = o.ufl_operands
+        return self.rules(f)
+
+    @process.register(BaseForm)
+    @process.register(Expr)
+    @DAGTraverser.postorder
+    def generic(self, o, *ops):
+        return any(ops)
+
+    @process.register(Integral)
+    def integral(self, o):
+        return self(o.integrand())
+
+
+def split_dt_form(form, u0):
+    """Split a Form into terms that contain Dt(g(u)) and the rest
+    """
+    coefficient_mapping = {u0,}
+    coefficient_finder = TimeDerivativeCoefficientFinder(coefficient_mapping=coefficient_mapping)
+    time = []
+    rest = []
+    for itg in form.integrals():
+        if coefficient_finder(itg):
+            time.append(itg)
+        else:
+            rest.append(itg)
+    return Form(time), Form(rest)
