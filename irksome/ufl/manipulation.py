@@ -7,7 +7,7 @@ splitting out terms in the :class:`~ufl.Form` that contain a time
 derivative from those that don't (via :func:`~.extract_terms`).
 """
 from functools import singledispatchmethod
-from typing import NamedTuple, List
+from typing import NamedTuple, List, Sequence
 
 from ufl.corealg.dag_traverser import DAGTraverser
 from ufl.classes import (Argument, BaseForm,
@@ -138,7 +138,7 @@ class TimeDerivativeCoefficientFinder(DAGTraverser):
         return self.rules(f)
 
 
-def extract_terms(form: Form, timedep_coeffs: List[Coefficient]) -> SplitTimeForm:
+def extract_terms(form: Form, timedep_coeffs: Sequence[Coefficient] | None = None) -> SplitTimeForm:
     """Extract terms from a :class:`~ufl.Form`.
 
     This splits a form (a sum of integrals) into those integrals which
@@ -157,7 +157,7 @@ def extract_terms(form: Form, timedep_coeffs: List[Coefficient]) -> SplitTimeFor
         remainder = sum(f for f in terms if not isinstance(f, Form))
         form = sum(f for f in terms if isinstance(f, Form))
 
-    time_finder = TimeDerivativeCoefficientFinder(timedep_coeffs=timedep_coeffs)
+    time_finder = TimeDerivativeCoefficientFinder(timedep_coeffs)
     time_terms = []
     rest_terms = []
     for itg in form.integrals():
@@ -201,7 +201,7 @@ class TimeDerivativeRemover(DAGTraverser):
 
 
 def strip_dt_form(F):
-    """Helper function to strip all time derivatives from a form"""
+    """Helper function to strip all time derivatives from a Form"""
     stripper = TimeDerivativeRemover()
 
     # Strip dt from all the integrals in the form

@@ -225,7 +225,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         t = self.t
         dt = self.dt
         u0 = self.u0
-        split_form = extract_terms(F, (u0,))
+        split_form = extract_terms(F, timedep_coeffs=(u0,))
         F_remainder = split_form.remainder
         F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
         u_np = to_value(self.u0, self.stages, self.vandermonde)

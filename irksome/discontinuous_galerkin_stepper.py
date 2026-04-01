@@ -63,7 +63,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     usub = dot(trial_vals.T, u_np)
     dtu0sub = dot(trial_dvals.T, u_np)
 
-    split_form = extract_terms(F, (u0,))
+    split_form = extract_terms(F, timedep_coeffs=(u0,))
     F_time = split_form.time
     F_remainder = split_form.remainder
     if F_time.empty():
