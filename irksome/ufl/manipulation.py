@@ -7,12 +7,20 @@ splitting out terms in the :class:`~ufl.Form` that contain a time
 derivative from those that don't (via :func:`~.extract_terms`).
 """
 from functools import singledispatchmethod
+from itertools import chain
 from typing import NamedTuple, List, Sequence
 
+from ufl.algorithms import extract_coefficients
 from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.corealg.dag_traverser import DAGTraverser
-from ufl.classes import (BaseForm, Coefficient,
-                         Expr, Form, FormSum, Integral)
+from ufl.classes import (
+    BaseForm, Coefficient,
+    Expr, Form, FormSum, Integral,
+    Division, Product, Dot, Inner, Outer,
+    PositiveRestricted, NegativeRestricted,
+    CellAvg, FacetAvg, Conj, Derivative,
+    Variable, Sum, ListTensor,
+)
 
 from .deriv import TimeDerivative
 
@@ -26,7 +34,8 @@ class SplitTimeForm(NamedTuple):
 
 
 class TimeDerivativeChecker(DAGTraverser):
-    """Determines whether an expression depends on a set of coefficients.
+    """Check that TimeDerivative appears linearly and return the Coefficients
+       under TimeDerivatives.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -37,45 +46,73 @@ class TimeDerivativeChecker(DAGTraverser):
     def process(self, o):
         return super().process(o)
 
-    @process.register(BaseForm)
-    @process.register(Expr)
-    @DAGTraverser.postorder
-    def generic(self, o, *ops):
-        return sum(ops)
-
-    @process.register(TimeDerivative)
-    @DAGTraverser.postorder
-    def time_derivative(self, o, op):
-        return op + 1
-
     @process.register(Integral)
     def integral(self, o):
         return self(o.integrand())
 
-    @process.register(Form)
-    def form(self, o):
-        return sum(self(itg) for itg in o.integrals())
+    @process.register(TimeDerivative)
+    def time_derivative(self, o):
+        f, = o.ufl_operands
+        return tuple(extract_coefficients(f))
+
+    @process.register(Expr)
+    @DAGTraverser.postorder
+    def nonlinear_op(self, o, *ops):
+        if any(ops):
+            raise ValueError("Can't apply nonlinear operator to time derivative")
+        return ()
+
+    @process.register(Division)
+    @process.register(Product)
+    @process.register(Inner)
+    @process.register(Dot)
+    @process.register(Outer)
+    @DAGTraverser.postorder
+    def product(self, o, a, b):
+        if a and b:
+            raise ValueError("Can't take product of time derivatives")
+        return a or b
+
+    @process.register(PositiveRestricted)
+    @process.register(NegativeRestricted)
+    @process.register(CellAvg)
+    @process.register(FacetAvg)
+    @process.register(Conj)
+    @process.register(Derivative)
+    @process.register(Variable)
+    @process.register(Sum)
+    @process.register(ListTensor)
+    @DAGTraverser.postorder
+    def linear_op(self, o, *ops):
+        return tuple(set(chain(*ops)))
 
 
-def check_integrals(integrals: List[Integral], expect_time_derivative: bool = True) -> List[Integral]:
+def check_integrals(integrals: List[Integral],
+                    timedep_coeffs: Sequence[Coefficient] = (),
+                    expect_time_derivative: bool = True) -> List[Integral]:
     """Check a list of integrals for linearity in the time derivative.
 
     :arg integrals: list of integrals.
+    :arg timedep_coeffs: The time-dependent coefficients.
     :arg expect_time_derivative: Are we expecting to see a time
         derivative?
     :raises ValueError: if we are expecting a time derivative and
         don't see one, or time derivatives are applied nonlinearly, to
         more than one coefficient, or more than first order."""
-    return integrals
-    # TODO
+    if len(integrals) == 0:
+        return integrals
+
     mapper = TimeDerivativeChecker()
-    time_derivatives = 0
+    time_derivatives = set()
     for integral in integrals:
-        time_derivatives += mapper(integral)
-    howmany = int(expect_time_derivative)
-    if len(time_derivatives - {()}) != howmany:
-        raise ValueError(f"Expecting time derivative applied to {howmany}"
-                         f"coefficients, not {len(time_derivatives - {()})}")
+        time_derivatives.update(mapper(integral))
+
+    if expect_time_derivative and time_derivatives != set(timedep_coeffs):
+        raise ValueError(f"Expecting 1 TimeDerivative, not {len(time_derivatives)}")
+
+    if not expect_time_derivative and len(time_derivatives & set(timedep_coeffs)) > 0:
+        raise ValueError("Not expecting a TimeDerivative of this coefficient")
+
     return integrals
 
 
@@ -139,8 +176,8 @@ def extract_terms(form: Form, timedep_coeffs: Sequence[Coefficient] | None = Non
         else:
             rest_terms.append(itg)
 
-    time_terms = check_integrals(time_terms, expect_time_derivative=True)
-    rest_terms = check_integrals(rest_terms, expect_time_derivative=False)
+    time_terms = check_integrals(time_terms, timedep_coeffs, expect_time_derivative=True)
+    rest_terms = check_integrals(rest_terms, timedep_coeffs, expect_time_derivative=False)
     return SplitTimeForm(time=Form(time_terms), remainder=Form(rest_terms)+remainder)
 
 
