@@ -279,7 +279,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             bern_element = Bernstein(ufc_simplex(1), self.butcher_tableau.num_stages)
             evaluation_vander = bern_element.tabulate(0, numpy.reshape(self.sample_points, (-1, 1)))[(0,)]
 
-
         self.u_old = Function(self.u0)
 
         all_stage_vals = self.u_old.subfunctions + self.stages.subfunctions
