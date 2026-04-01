@@ -12,7 +12,7 @@ from typing import NamedTuple, List
 from ufl.corealg.dag_traverser import DAGTraverser
 from ufl.classes import (Argument, BaseForm,
                          Cofunction, Coefficient, ConstantValue,
-                         Expr, Form, Integral, SpatialCoordinate)
+                         Expr, Form, FormSum, Integral, SpatialCoordinate)
 
 from .deriv import TimeDerivative
 
@@ -150,18 +150,25 @@ def extract_terms(form: Form, timedep_coeffs: List[Coefficient]) -> SplitTimeFor
     :raises ValueError: if the form does not apply anything other than
         first-order time derivatives to a single coefficient.
     """
-    dt_finder = TimeDerivativeCoefficientFinder(timedep_coeffs=timedep_coeffs)
+    remainder = Form([])
+    if isinstance(form, FormSum):
+        # Assume that TimeDerivative cannot occur on BaseForms
+        terms = form.components()
+        remainder = sum(f for f in terms if not isinstance(f, Form))
+        form = sum(f for f in terms if isinstance(f, Form))
+
+    time_finder = TimeDerivativeCoefficientFinder(timedep_coeffs=timedep_coeffs)
     time_terms = []
     rest_terms = []
     for itg in form.integrals():
-        if dt_finder(itg):
+        if time_finder(itg):
             time_terms.append(itg)
         else:
             rest_terms.append(itg)
 
     time_terms = check_integrals(time_terms, expect_time_derivative=True)
     rest_terms = check_integrals(rest_terms, expect_time_derivative=False)
-    return SplitTimeForm(time=Form(time_terms), remainder=Form(rest_terms))
+    return SplitTimeForm(time=Form(time_terms), remainder=Form(rest_terms)+remainder)
 
 
 class TimeDerivativeRemover(DAGTraverser):
