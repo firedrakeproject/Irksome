@@ -103,9 +103,7 @@ def check_integrals(integrals: List[Integral],
         return integrals
 
     mapper = TimeDerivativeChecker()
-    time_derivatives = set()
-    for integral in integrals:
-        time_derivatives.update(mapper(integral))
+    time_derivatives = set(chain.from_iterable(map(mapper, integrals)))
 
     if expect_time_derivative and time_derivatives != set(timedep_coeffs):
         raise ValueError(f"Expecting 1 TimeDerivative, not {len(time_derivatives)}")
@@ -121,8 +119,6 @@ class TimeDerivativeCoefficientFinder(DAGTraverser):
     """
     def __init__(self, timedep_coeffs, **kwargs):
         super().__init__(**kwargs)
-        if timedep_coeffs is None:
-            timedep_coeffs = {}
         self.timedep_coeffs = set(timedep_coeffs)
 
     # Work around singledispatchmethod inheritance issue;
@@ -148,7 +144,7 @@ class TimeDerivativeCoefficientFinder(DAGTraverser):
         return len(terminals & self.timedep_coeffs) > 0
 
 
-def extract_terms(form: Form, timedep_coeffs: Sequence[Coefficient] | None = None) -> SplitTimeForm:
+def extract_terms(form: Form, timedep_coeffs: Sequence[Coefficient] = ()) -> SplitTimeForm:
     """Extract terms from a :class:`~ufl.Form`.
 
     This splits a form (a sum of integrals) into those integrals which
