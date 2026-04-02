@@ -77,8 +77,11 @@ class TimeDerivativeChecker(DAGTraverser):
     @process.register(Division)
     @DAGTraverser.postorder
     def division(self, o, a, b):
+        oa, ob = o.ufl_operands
         if b:
             raise ValueError("Can't divide by TimeDerivative")
+        if a and self.check_time_dependence(ob):
+            raise ValueError("Can't divide TimeDerivative by time-dependent expression")
         return a
 
     @process.register(Product)
@@ -92,7 +95,7 @@ class TimeDerivativeChecker(DAGTraverser):
         if a and b:
             raise ValueError("Can't take product of TimeDerivatives")
         if (a and self.check_time_dependence(ob)) or (b and self.check_time_dependence(oa)):
-            raise ValueError("Can't take product of TimeDerivative and time-dependent coefficients")
+            raise ValueError("Can't take product of TimeDerivative and time-dependent expression")
         return a or b
 
     @process.register(PositiveRestricted)
