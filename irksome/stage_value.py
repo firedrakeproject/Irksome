@@ -5,7 +5,7 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
-from ufl import as_tensor, zero
+from ufl import as_tensor, Form
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
@@ -104,13 +104,11 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    split_form = extract_terms(F, (u0,))
+    split_form = extract_terms(F, timedep_coeffs=(u0,))
     F_dtless = strip_dt_form(split_form.time)
-    F_remainder = split_form.remainder
-    # preprocess time derivatives
-    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
+    F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
-    Fnew = zero()
+    Fnew = Form([])
     # Terms with time derivatives
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,

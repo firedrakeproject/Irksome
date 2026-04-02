@@ -1,7 +1,7 @@
 from FIAT import (Bernstein,
                   DiscontinuousLagrange, Legendre,
                   GaussLobattoLegendre, GaussRadau)
-from ufl import as_ufl, as_tensor, Form
+from ufl import as_ufl, as_tensor
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .labeling import split_quadrature, as_form
@@ -64,12 +64,11 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     dtu0sub = dot(trial_dvals.T, u_np)
 
     split_form = extract_terms(F, timedep_coeffs=(u0,))
-    F_time = split_form.time
-    F_remainder = split_form.remainder
-    if F_time.empty():
-        Fnew = Form([])
+    F_dtless = strip_dt_form(split_form.time)
+    F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
+    if F_dtless.empty():
+        Fnew = F_dtless
     else:
-        F_dtless = strip_dt_form(F_time)
         # Jump terms
         L_at_0 = vecconst(L.tabulate(0, (0.0,))[(0,)])
         u_at_0 = L_at_0 @ u_np
@@ -85,8 +84,6 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
                     u0: dtu0sub[q] / dt}
             Fnew += replace(F_dtless, repl)
 
-    # preprocess time derivatives
-    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
     # Handle the rest of the terms
     for q in range(len(qpts)):
         repl = {t: t + qpts[q] * dt,
