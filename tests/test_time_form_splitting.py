@@ -5,6 +5,10 @@ from ufl import (Coefficient, FunctionSpace, Mesh,
                  TestFunction, dx, grad, inner, sin, triangle)
 from finat.ufl import FiniteElement, MixedElement, VectorElement
 from ufl.algorithms.domain_analysis import group_form_integrals
+try:
+    from ufl import MeshSequence
+except ImportError:
+    MeshSequence = lambda meshes: meshes[0]
 
 
 def sig(form):
@@ -30,7 +34,7 @@ def Q(mesh):
 
 @pytest.fixture
 def W(V, Q):
-    mesh = V.ufl_domain()
+    mesh = MeshSequence((V.ufl_domain(), Q.ufl_domain()))
     return FunctionSpace(mesh, MixedElement(V.ufl_element(), Q.ufl_element()))
 
 
@@ -44,13 +48,13 @@ def test_can_split(V):
     F = (inner(c, c)*inner(Dt(u), v) + inner(grad(u), grad(v))
          + inner(c, v) + inner(Dt(u), v))*dx
 
-    split = extract_terms(F)
+    split = extract_terms(F, timedep_coeffs=(u,))
 
     expect_t = (inner(c, c)*inner(Dt(u), v) + inner(Dt(u), v))*dx
     expect_no_t = inner(grad(u), grad(v))*dx + inner(c, v)*dx
 
-    assert sig(expect_t) == sig(split.time)
-    assert sig(expect_no_t) == sig(split.remainder)
+    assert sig(expect_t) == sig(split.time), f"{expect_t} \n!= {split.time}"
+    assert sig(expect_no_t) == sig(split.remainder), f"{expect_no_t} \n!= {split.remainder}"
 
 
 def test_can_split_mixed(W):
@@ -63,13 +67,13 @@ def test_can_split_mixed(W):
     F = (inner(c, c)*inner(Dt(u), v) + inner(grad(u), grad(v))
          + inner(c, v) + inner(Dt(u), v))*dx
 
-    split = extract_terms(F)
+    split = extract_terms(F, timedep_coeffs=(u,))
 
     expect_t = (inner(c, c)*inner(Dt(u), v) + inner(Dt(u), v))*dx
     expect_no_t = inner(grad(u), grad(v))*dx + inner(c, v)*dx
 
-    assert sig(expect_t) == sig(split.time)
-    assert sig(expect_no_t) == sig(split.remainder)
+    assert sig(expect_t) == sig(split.time), f"{expect_t} \n!= {split.time}"
+    assert sig(expect_no_t) == sig(split.remainder), f"{expect_no_t} \n!= {split.remainder}"
 
 
 def test_can_split_mixed_split(W):
@@ -85,13 +89,13 @@ def test_can_split_mixed_split(W):
     F = (inner(c, c)*inner(Dt(u0), v0) + inner(grad(u), grad(v))
          + inner(c, v) + inner(Dt(u), v))*dx
 
-    split = extract_terms(F)
+    split = extract_terms(F, timedep_coeffs=(u,))
 
     expect_t = (inner(c, c)*inner(Dt(u0), v0) + inner(Dt(u), v))*dx
     expect_no_t = inner(grad(u), grad(v))*dx + inner(c, v)*dx
 
-    assert sig(expect_t) == sig(split.time)
-    assert sig(expect_no_t) == sig(split.remainder)
+    assert sig(expect_t) == sig(split.time), f"{expect_t} \n!= {split.time}"
+    assert sig(expect_no_t) == sig(split.remainder), f"{expect_no_t} \n!= {split.remainder}"
 
 
 def test_only_first_order(V):
@@ -107,7 +111,7 @@ def test_only_first_order(V):
          + inner(Dt(u), v))*dx
 
     with pytest.raises(ValueError):
-        check_integrals(F.integrals(), expect_time_derivative=True)
+        check_integrals(F.integrals(), timedep_coeffs=(u,), expect_time_derivative=True)
 
 
 @pytest.mark.parametrize("typ", ["mul", "div", "sin"])
@@ -128,7 +132,7 @@ def test_Dt_linear(V, typ):
         F += inner(sin(Dt(u)[0]), v[0])*dx
 
     with pytest.raises(ValueError):
-        check_integrals(F.integrals(), expect_time_derivative=True)
+        check_integrals(F.integrals(), timedep_coeffs=(u,), expect_time_derivative=True)
 
 
 def test_expecting_time_derivative(V):
@@ -141,10 +145,10 @@ def test_expecting_time_derivative(V):
     F = (inner(grad(u), grad(v)) + inner(c, v))*dx
 
     with pytest.raises(ValueError):
-        check_integrals(F.integrals(), expect_time_derivative=True)
+        check_integrals(F.integrals(), timedep_coeffs=(u,), expect_time_derivative=True)
 
-    check_integrals(F.integrals(), expect_time_derivative=False)
+    check_integrals(F.integrals(), timedep_coeffs=(u,), expect_time_derivative=False)
 
     F += inner(Dt(u), v)*dx
     with pytest.raises(ValueError):
-        check_integrals(F.integrals(), expect_time_derivative=False)
+        check_integrals(F.integrals(), timedep_coeffs=(u,), expect_time_derivative=False)

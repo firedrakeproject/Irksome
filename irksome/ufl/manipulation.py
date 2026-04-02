@@ -8,7 +8,8 @@ derivative from those that don't (via :func:`~.extract_terms`).
 """
 from functools import singledispatchmethod
 from itertools import chain
-from typing import NamedTuple, Sequence
+from operator import or_
+from typing import NamedTuple, Sequence, FrozenSet
 
 from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.corealg.dag_traverser import DAGTraverser
@@ -50,7 +51,10 @@ class TimeDerivativeChecker(DAGTraverser):
         return self(o.integrand())
 
     @process.register(TimeDerivative)
-    def time_derivative(self, o):
+    @DAGTraverser.postorder
+    def time_derivative(self, o, *ops):
+        if any(ops):
+            raise ValueError("Can only handle first-order systems")
         f, = o.ufl_operands
         terminals = set(traverse_unique_terminals(f))
         return tuple(terminals & self.timedep_coeffs)
@@ -119,6 +123,18 @@ def check_integrals(integrals: Sequence[Integral],
                          f"coefficients, not {len(time_derivatives)}")
 
 
+def summands(o: Expr) -> FrozenSet[Expr]:
+    """Flatten a sum tree into a set of summands
+
+    :arg o: the expression to flatten.
+    :returns: a frozenset of the summands such that sum(r) == o (up to
+        order of arguments)."""
+    if isinstance(o, Sum):
+        return or_(*map(summands, o.ufl_operands))
+    else:
+        return frozenset([o])
+
+
 def extract_terms(form: BaseForm, timedep_coeffs: Sequence[Coefficient] = ()) -> SplitTimeForm:
     """Extract terms from a :class:`~ufl.Form`.
 
@@ -139,15 +155,22 @@ def extract_terms(form: BaseForm, timedep_coeffs: Sequence[Coefficient] = ()) ->
         remainder = sum(w*f for w, f in zip(weights, components) if not isinstance(f, Form))
         form = sum(w*f for w, f in zip(weights, components) if isinstance(f, Form))
 
-    time_finder = TimeDerivativeChecker(timedep_coeffs)
-    time_terms = []
+    mapper = TimeDerivativeChecker(timedep_coeffs)
     rest_terms = []
-    for itg in form.integrals():
-        tcoeffs = time_finder(itg)
-        if len(tcoeffs) == 0:
-            rest_terms.append(itg)
-        else:
-            time_terms.append(itg)
+    time_terms = []
+    for integral in form.integrals():
+        rest = []
+        time = []
+        for term in summands(integral.integrand()):
+            tcoeffs = mapper(term)
+            if len(tcoeffs) == 0:
+                rest.append(term)
+            else:
+                time.append(term)
+        if len(rest):
+            rest_terms.append(integral.reconstruct(integrand=sum(rest)))
+        if len(time):
+            time_terms.append(integral.reconstruct(integrand=sum(time)))
 
     return SplitTimeForm(time=Form(time_terms), remainder=Form(rest_terms)+remainder)
 
