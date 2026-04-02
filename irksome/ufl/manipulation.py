@@ -13,11 +13,11 @@ from typing import NamedTuple, Sequence
 from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.corealg.dag_traverser import DAGTraverser
 from ufl.classes import (
-    BaseForm, Coefficient, Expr, Form, FormSum, Integral,
-    Division, Product, Dot, Inner, Outer,
-    PositiveRestricted, NegativeRestricted,
-    CellAvg, FacetAvg, Conj, Derivative,
-    Variable, Sum, ListTensor,
+    BaseForm, CellAvg, Coefficient, ComponentTensor,
+    Conj, Derivative, Division, Dot, Expr, FacetAvg,
+    Form, FormSum, Indexed, IndexSum, Inner, Integral,
+    ListTensor, NegativeRestricted, Outer, PositiveRestricted,
+    Product, Sum, Variable,
 )
 
 from .deriv import TimeDerivative
@@ -88,6 +88,9 @@ class TimeDerivativeChecker(DAGTraverser):
     @process.register(Variable)
     @process.register(Sum)
     @process.register(ListTensor)
+    @process.register(Indexed)
+    @process.register(IndexSum)
+    @process.register(ComponentTensor)
     @DAGTraverser.postorder
     def linear_op(self, o, *ops):
         return tuple(set(chain(*ops)))
@@ -112,14 +115,15 @@ def check_integrals(integrals: Sequence[Integral],
     time_derivatives = set(chain.from_iterable(map(mapper, integrals)))
     howmany = int(expect_time_derivative)
     if len(time_derivatives) != howmany:
-        raise ValueError(f"Expecting {howmany} TimeDerivatives, not {len(time_derivatives)}")
+        raise ValueError(f"Expecting time derivative applied to {howmany} "
+                         f"coefficients, not {len(time_derivatives)}")
 
 
 def extract_terms(form: BaseForm, timedep_coeffs: Sequence[Coefficient] = ()) -> SplitTimeForm:
     """Extract terms from a :class:`~ufl.Form`.
 
     This splits a form (a sum of integrals) into those integrals which
-    do contain a :class:`~.TimeDerivative` acting on `u0` and those that don't.
+    do contain a :class:`~.TimeDerivative` acting on `timedep_coeffs` and those that don't.
 
     :arg form: The form to split.
     :arg timedep_coeffs: The time-dependent coefficients.
@@ -130,9 +134,10 @@ def extract_terms(form: BaseForm, timedep_coeffs: Sequence[Coefficient] = ()) ->
     remainder = Form([])
     if isinstance(form, FormSum):
         # Assume that TimeDerivative cannot occur on BaseForms
-        terms = form.components()
-        remainder = sum(f for f in terms if not isinstance(f, Form))
-        form = sum(f for f in terms if isinstance(f, Form))
+        weights = form.weights()
+        components = form.components()
+        remainder = sum(w*f for w, f in zip(weights, components) if not isinstance(f, Form))
+        form = sum(w*f for w, f in zip(weights, components) if isinstance(f, Form))
 
     time_finder = TimeDerivativeChecker(timedep_coeffs)
     time_terms = []
@@ -141,10 +146,8 @@ def extract_terms(form: BaseForm, timedep_coeffs: Sequence[Coefficient] = ()) ->
         tcoeffs = time_finder(itg)
         if len(tcoeffs) == 0:
             rest_terms.append(itg)
-        elif len(tcoeffs) == 1:
-            time_terms.append(itg)
         else:
-            raise ValueError("Expecting 1 or 0 time-dependent coefficients under TimeDerivative")
+            time_terms.append(itg)
 
     return SplitTimeForm(time=Form(time_terms), remainder=Form(rest_terms)+remainder)
 
