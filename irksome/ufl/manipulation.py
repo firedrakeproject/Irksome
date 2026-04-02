@@ -8,14 +8,12 @@ derivative from those that don't (via :func:`~.extract_terms`).
 """
 from functools import singledispatchmethod
 from itertools import chain
-from typing import NamedTuple, List, Sequence
+from typing import NamedTuple, Sequence
 
-from ufl.algorithms import extract_coefficients
 from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.corealg.dag_traverser import DAGTraverser
 from ufl.classes import (
-    BaseForm, Coefficient,
-    Expr, Form, FormSum, Integral,
+    BaseForm, Coefficient, Expr, Form, FormSum, Integral,
     Division, Product, Dot, Inner, Outer,
     PositiveRestricted, NegativeRestricted,
     CellAvg, FacetAvg, Conj, Derivative,
@@ -29,16 +27,17 @@ __all__ = ("SplitTimeForm", "check_integrals", "extract_terms")
 
 class SplitTimeForm(NamedTuple):
     """A container for a form split into time terms and a remainder."""
-    time: Form
-    remainder: Form
+    time: BaseForm
+    remainder: BaseForm
 
 
 class TimeDerivativeChecker(DAGTraverser):
     """Check that TimeDerivative appears linearly and return the Coefficients
        under TimeDerivatives.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, timedep_coeffs, **kwargs):
         super().__init__(**kwargs)
+        self.timedep_coeffs = set(timedep_coeffs)
 
     # Work around singledispatchmethod inheritance issue;
     # see https://bugs.python.org/issue36457.
@@ -53,16 +52,23 @@ class TimeDerivativeChecker(DAGTraverser):
     @process.register(TimeDerivative)
     def time_derivative(self, o):
         f, = o.ufl_operands
-        return tuple(extract_coefficients(f))
+        terminals = set(traverse_unique_terminals(f))
+        return tuple(terminals & self.timedep_coeffs)
 
     @process.register(Expr)
     @DAGTraverser.postorder
     def nonlinear_op(self, o, *ops):
         if any(ops):
-            raise ValueError("Can't apply nonlinear operator to time derivative")
+            raise ValueError("Can't apply nonlinear operator to TimeDerivative")
         return ()
 
     @process.register(Division)
+    @DAGTraverser.postorder
+    def division(self, o, a, b):
+        if b:
+            raise ValueError("Can't divide by TimeDerivative")
+        return a
+
     @process.register(Product)
     @process.register(Inner)
     @process.register(Dot)
@@ -70,7 +76,7 @@ class TimeDerivativeChecker(DAGTraverser):
     @DAGTraverser.postorder
     def product(self, o, a, b):
         if a and b:
-            raise ValueError("Can't take product of time derivatives")
+            raise ValueError("Can't take product of TimeDerivatives")
         return a or b
 
     @process.register(PositiveRestricted)
@@ -87,9 +93,9 @@ class TimeDerivativeChecker(DAGTraverser):
         return tuple(set(chain(*ops)))
 
 
-def check_integrals(integrals: List[Integral],
+def check_integrals(integrals: Sequence[Integral],
                     timedep_coeffs: Sequence[Coefficient] = (),
-                    expect_time_derivative: bool = True) -> List[Integral]:
+                    expect_time_derivative: bool = True):
     """Check a list of integrals for linearity in the time derivative.
 
     :arg integrals: list of integrals.
@@ -102,49 +108,14 @@ def check_integrals(integrals: List[Integral],
     if len(integrals) == 0:
         return integrals
 
-    mapper = TimeDerivativeChecker()
+    mapper = TimeDerivativeChecker(timedep_coeffs)
     time_derivatives = set(chain.from_iterable(map(mapper, integrals)))
-
-    if expect_time_derivative and time_derivatives != set(timedep_coeffs):
-        raise ValueError(f"Expecting 1 TimeDerivative, not {len(time_derivatives)}")
-
-    if not expect_time_derivative and len(time_derivatives & set(timedep_coeffs)) > 0:
-        raise ValueError("Not expecting a TimeDerivative of this coefficient")
-
-    return integrals
+    howmany = int(expect_time_derivative)
+    if len(time_derivatives) != howmany:
+        raise ValueError(f"Expecting {howmany} TimeDerivatives, not {len(time_derivatives)}")
 
 
-class TimeDerivativeCoefficientFinder(DAGTraverser):
-    """Determines whether an expression depends on TimeDerivative of a coefficient
-    """
-    def __init__(self, timedep_coeffs, **kwargs):
-        super().__init__(**kwargs)
-        self.timedep_coeffs = set(timedep_coeffs)
-
-    # Work around singledispatchmethod inheritance issue;
-    # see https://bugs.python.org/issue36457.
-    @singledispatchmethod
-    def process(self, o):
-        return super().process(o)
-
-    @process.register(BaseForm)
-    @process.register(Expr)
-    @DAGTraverser.postorder
-    def generic(self, o, *ops):
-        return any(ops)
-
-    @process.register(Integral)
-    def integral(self, o):
-        return self(o.integrand())
-
-    @process.register(TimeDerivative)
-    def time_derivative(self, o):
-        f, = o.ufl_operands
-        terminals = set(traverse_unique_terminals(f))
-        return len(terminals & self.timedep_coeffs) > 0
-
-
-def extract_terms(form: Form, timedep_coeffs: Sequence[Coefficient] = ()) -> SplitTimeForm:
+def extract_terms(form: BaseForm, timedep_coeffs: Sequence[Coefficient] = ()) -> SplitTimeForm:
     """Extract terms from a :class:`~ufl.Form`.
 
     This splits a form (a sum of integrals) into those integrals which
@@ -163,17 +134,18 @@ def extract_terms(form: Form, timedep_coeffs: Sequence[Coefficient] = ()) -> Spl
         remainder = sum(f for f in terms if not isinstance(f, Form))
         form = sum(f for f in terms if isinstance(f, Form))
 
-    time_finder = TimeDerivativeCoefficientFinder(timedep_coeffs)
+    time_finder = TimeDerivativeChecker(timedep_coeffs)
     time_terms = []
     rest_terms = []
     for itg in form.integrals():
-        if time_finder(itg):
+        tcoeffs = time_finder(itg)
+        if len(tcoeffs) == 0:
+            rest_terms.append(itg)
+        elif len(tcoeffs) == 1:
             time_terms.append(itg)
         else:
-            rest_terms.append(itg)
+            raise ValueError("Expecting 1 or 0 time-dependent coefficients under TimeDerivative")
 
-    time_terms = check_integrals(time_terms, timedep_coeffs, expect_time_derivative=True)
-    rest_terms = check_integrals(rest_terms, timedep_coeffs, expect_time_derivative=False)
     return SplitTimeForm(time=Form(time_terms), remainder=Form(rest_terms)+remainder)
 
 
@@ -206,7 +178,7 @@ class TimeDerivativeRemover(DAGTraverser):
         return f
 
 
-def strip_dt_form(F):
+def strip_dt_form(F: Form):
     """Helper function to strip all time derivatives from a Form"""
     stripper = TimeDerivativeRemover()
 
