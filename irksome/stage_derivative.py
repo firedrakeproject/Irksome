@@ -10,7 +10,7 @@ from .constant import vecconst
 from .tools import AI, dot, replace, reshape, fields_to_components
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
-from .ufl.manipulation import extract_terms
+from .ufl.manipulation import split_time_derivative_terms
 from .base_time_stepper import StageCoupledTimeStepper
 
 
@@ -323,9 +323,9 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.err_old = 0.0
         self.contreject = 0
 
-        F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-        split_form = extract_terms(F)
-        self.dtless_form = -split_form.remainder
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+        F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
+        self.dtless_form = -F_remainder
 
         # Set up and cache boundary conditions for error estimate
         embbc = []
