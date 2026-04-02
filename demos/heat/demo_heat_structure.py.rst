@@ -46,7 +46,7 @@ As usual, we need to import firedrake::
 
 We will also need to import certain items from irksome::
 
-  from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
+  from irksome import GaussLegendre, Dt, TimeStepper
 
 We will create the Butcher tableau for the lowest-order Gauss-Legendre
 Runge-Kutta method, which is equivalent to Crank-Nicolson in this case::
@@ -64,9 +64,8 @@ standard Firedrake fashion::
 
 We define variables to store the time step and current time value::
 
-  MC = MeshConstant(msh)
-  dt = MC.Constant(0.005)
-  t = MC.Constant(0.0)
+  dt = Constant(0.005)
+  t = Constant(0.0)
 
 We use a manufactured solution that gives a zero right-hand side::
 
