@@ -15,9 +15,9 @@ from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.corealg.dag_traverser import DAGTraverser
 from ufl.classes import (
     BaseForm, CellAvg, Coefficient, ComponentTensor,
-    Conj, Derivative, Division, Dot, Expr, FacetAvg,
+    Conj, Cross, Derivative, Division, Dot, Expr, FacetAvg,
     Form, FormSum, Indexed, IndexSum, Inner, Integral,
-    ListTensor, NegativeRestricted, Outer, PositiveRestricted,
+    ListTensor, MultiIndex, NegativeRestricted, Outer, PositiveRestricted,
     Product, Sum, Variable,
 )
 
@@ -38,7 +38,10 @@ class TimeDerivativeChecker(DAGTraverser):
     """
     def __init__(self, timedep_coeffs, **kwargs):
         super().__init__(**kwargs)
-        self.timedep_coeffs = frozenset(timedep_coeffs)
+        terminals = []
+        for c in timedep_coeffs:
+            terminals.extend(ci for ci in traverse_unique_terminals(c) if not isinstance(ci, MultiIndex))
+        self.timedep_coeffs = frozenset(terminals)
 
     # Work around singledispatchmethod inheritance issue;
     # see https://bugs.python.org/issue36457.
@@ -75,12 +78,18 @@ class TimeDerivativeChecker(DAGTraverser):
 
     @process.register(Product)
     @process.register(Inner)
+    @process.register(Cross)
     @process.register(Dot)
     @process.register(Outer)
     @DAGTraverser.postorder
     def product(self, o, a, b):
+        oa, ob = o.ufl_operands
         if a and b:
             raise ValueError("Can't take product of TimeDerivatives")
+        if a and frozenset(traverse_unique_terminals(ob)) & self.timedep_coeffs:
+            raise ValueError("Can't take product of TimeDerivative and time-dependent coefficients")
+        if b and frozenset(traverse_unique_terminals(oa)) & self.timedep_coeffs:
+            raise ValueError("Can't take product of TimeDerivative and time-dependent coefficients")
         return a or b
 
     @process.register(PositiveRestricted)
