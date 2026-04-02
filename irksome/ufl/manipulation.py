@@ -91,9 +91,7 @@ class TimeDerivativeChecker(DAGTraverser):
         oa, ob = o.ufl_operands
         if a and b:
             raise ValueError("Can't take product of TimeDerivatives")
-        if a and self.check_time_dependence(ob):
-            raise ValueError("Can't take product of TimeDerivative and time-dependent coefficients")
-        if b and self.check_time_dependence(oa):
+        if (a and self.check_time_dependence(ob)) or (b and self.check_time_dependence(oa)):
             raise ValueError("Can't take product of TimeDerivative and time-dependent coefficients")
         return a or b
 
