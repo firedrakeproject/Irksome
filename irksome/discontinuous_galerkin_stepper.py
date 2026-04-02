@@ -7,7 +7,7 @@ from .bcs import stage2spaces4bc
 from .labeling import split_quadrature, as_form
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import expand_time_derivatives
-from .ufl.manipulation import extract_terms, strip_dt_form
+from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace
 from .constant import vecconst
@@ -63,8 +63,9 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     usub = dot(trial_vals.T, u_np)
     dtu0sub = dot(trial_dvals.T, u_np)
 
-    split_form = extract_terms(F, timedep_coeffs=(u0,))
-    F_dtless = strip_dt_form(split_form.time)
+    # preprocess time derivatives
+    split_form = split_time_derivative_terms(F, timedep_coeffs=(u0,))
+    F_dtless = remove_time_derivatives(split_form.time)
     F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
     if F_dtless.empty():
         Fnew = F_dtless

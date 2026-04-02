@@ -4,7 +4,7 @@ terms.
 These can be used to do some basic checking of the suitability of a
 :class:`~ufl.Form` for use in Irksome (via :func:`~.check_integrals`), and
 splitting out terms in the :class:`~ufl.Form` that contain a time
-derivative from those that don't (via :func:`~.extract_terms`).
+derivative from those that don't (via :func:`~.split_time_derivative_terms`).
 """
 from functools import singledispatchmethod
 from itertools import chain
@@ -23,7 +23,7 @@ from ufl.classes import (
 
 from .deriv import TimeDerivative
 
-__all__ = ("SplitTimeForm", "check_integrals", "extract_terms")
+__all__ = ("SplitTimeForm", "check_integrals", "split_time_derivative_terms", "remove_time_derivatives")
 
 
 class SplitTimeForm(NamedTuple):
@@ -135,8 +135,8 @@ def summands(o: Expr) -> FrozenSet[Expr]:
         return frozenset([o])
 
 
-def extract_terms(form: BaseForm, timedep_coeffs: Sequence[Coefficient] = ()) -> SplitTimeForm:
-    """Extract terms from a :class:`~ufl.Form`.
+def split_time_derivative_terms(form: BaseForm, timedep_coeffs: Sequence[Coefficient] = ()) -> SplitTimeForm:
+    """Split terms from a :class:`~ufl.Form`.
 
     This splits a form (a sum of integrals) into those integrals which
     do contain a :class:`~.TimeDerivative` acting on `timedep_coeffs` and those that don't.
@@ -204,7 +204,7 @@ class TimeDerivativeRemover(DAGTraverser):
         return f
 
 
-def strip_dt_form(F: Form):
+def remove_time_derivatives(F: Form):
     """Helper function to strip all time derivatives from a Form"""
     stripper = TimeDerivativeRemover()
 

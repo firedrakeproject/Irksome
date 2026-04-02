@@ -11,7 +11,7 @@ from ufl.constantvalue import as_ufl
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
-from .ufl.manipulation import extract_terms, strip_dt_form
+from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .tools import AI, is_ode, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
@@ -104,8 +104,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    split_form = extract_terms(F, timedep_coeffs=(u0,))
-    F_dtless = strip_dt_form(split_form.time)
+    split_form = split_time_derivative_terms(F, timedep_coeffs=(u0,))
+    F_dtless = remove_time_derivatives(split_form.time)
     F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
     Fnew = Form([])
@@ -223,9 +223,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         t = self.t
         dt = self.dt
         u0 = self.u0
-        split_form = extract_terms(F, timedep_coeffs=(u0,))
-        F_remainder = split_form.remainder
-        F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
+        split_form = split_time_derivative_terms(F, timedep_coeffs=(u0,))
+        F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
         u_np = to_value(self.u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):

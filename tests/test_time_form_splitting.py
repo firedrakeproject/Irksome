@@ -1,6 +1,6 @@
 import pytest
 from irksome import Dt
-from irksome.ufl.manipulation import check_integrals, extract_terms
+from irksome.ufl.manipulation import check_integrals, split_time_derivative_terms
 from ufl import (Coefficient, FunctionSpace, Mesh,
                  TestFunction, dx, grad, inner, sin, triangle)
 from finat.ufl import FiniteElement, MixedElement, VectorElement
@@ -48,7 +48,7 @@ def test_can_split(V):
     F = (inner(c, c)*inner(Dt(u), v) + inner(grad(u), grad(v))
          + inner(c, v) + inner(Dt(u), v))*dx
 
-    split = extract_terms(F, timedep_coeffs=(u,))
+    split = split_time_derivative_terms(F, timedep_coeffs=(u,))
 
     expect_t = (inner(c, c)*inner(Dt(u), v) + inner(Dt(u), v))*dx
     expect_no_t = inner(grad(u), grad(v))*dx + inner(c, v)*dx
@@ -67,7 +67,7 @@ def test_can_split_mixed(W):
     F = (inner(c, c)*inner(Dt(u), v) + inner(grad(u), grad(v))
          + inner(c, v) + inner(Dt(u), v))*dx
 
-    split = extract_terms(F, timedep_coeffs=(u,))
+    split = split_time_derivative_terms(F, timedep_coeffs=(u,))
 
     expect_t = (inner(c, c)*inner(Dt(u), v) + inner(Dt(u), v))*dx
     expect_no_t = inner(grad(u), grad(v))*dx + inner(c, v)*dx
@@ -89,7 +89,7 @@ def test_can_split_mixed_split(W):
     F = (inner(c, c)*inner(Dt(u0), v0) + inner(grad(u), grad(v))
          + inner(c, v) + inner(Dt(u), v))*dx
 
-    split = extract_terms(F, timedep_coeffs=(u,))
+    split = split_time_derivative_terms(F, timedep_coeffs=(u,))
 
     expect_t = (inner(c, c)*inner(Dt(u0), v0) + inner(Dt(u), v))*dx
     expect_no_t = inner(grad(u), grad(v))*dx + inner(c, v)*dx
