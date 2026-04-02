@@ -64,7 +64,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     dtu0sub = dot(trial_dvals.T, u_np)
 
     # preprocess time derivatives
-    split_form = split_time_derivative_terms(F, timedep_coeffs=(u0,))
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
     F_dtless = remove_time_derivatives(split_form.time)
     F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
     if F_dtless.empty():

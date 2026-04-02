@@ -104,7 +104,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    split_form = split_time_derivative_terms(F, timedep_coeffs=(u0,))
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
     F_dtless = remove_time_derivatives(split_form.time)
     F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
@@ -223,7 +223,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         t = self.t
         dt = self.dt
         u0 = self.u0
-        split_form = split_time_derivative_terms(F, timedep_coeffs=(u0,))
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
         u_np = to_value(self.u0, self.stages, self.vandermonde)
 

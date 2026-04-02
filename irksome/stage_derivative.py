@@ -323,7 +323,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.err_old = 0.0
         self.contreject = 0
 
-        split_form = split_time_derivative_terms(F, timedep_coeffs=(u0,))
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
         self.dtless_form = -F_remainder
 

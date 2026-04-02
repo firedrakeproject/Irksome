@@ -36,12 +36,17 @@ class TimeDerivativeChecker(DAGTraverser):
     """Check that TimeDerivative appears linearly and return the Coefficients
        under TimeDerivatives.
     """
-    def __init__(self, timedep_coeffs, **kwargs):
+    def __init__(self, t, timedep_coeffs, **kwargs):
         super().__init__(**kwargs)
         terminals = []
         for c in timedep_coeffs:
             terminals.extend(ci for ci in traverse_unique_terminals(c) if not isinstance(ci, MultiIndex))
         self.timedep_coeffs = frozenset(terminals)
+        self.t = t
+
+    def check_time_dependence(self, expr):
+        expr_terminals = frozenset(traverse_unique_terminals(expr))
+        return (self.t in expr_terminals) or len(self.timedep_coeffs & expr_terminals) > 0
 
     # Work around singledispatchmethod inheritance issue;
     # see https://bugs.python.org/issue36457.
@@ -86,9 +91,9 @@ class TimeDerivativeChecker(DAGTraverser):
         oa, ob = o.ufl_operands
         if a and b:
             raise ValueError("Can't take product of TimeDerivatives")
-        if a and frozenset(traverse_unique_terminals(ob)) & self.timedep_coeffs:
+        if a and self.check_time_dependence(ob):
             raise ValueError("Can't take product of TimeDerivative and time-dependent coefficients")
-        if b and frozenset(traverse_unique_terminals(oa)) & self.timedep_coeffs:
+        if b and self.check_time_dependence(oa):
             raise ValueError("Can't take product of TimeDerivative and time-dependent coefficients")
         return a or b
 
@@ -110,6 +115,7 @@ class TimeDerivativeChecker(DAGTraverser):
 
 
 def check_integrals(integrals: Sequence[Integral],
+                    t: Expr = None,
                     timedep_coeffs: Sequence[Coefficient] = (),
                     expect_time_derivative: bool = True):
     """Check a list of integrals for linearity in the time derivative.
@@ -124,7 +130,7 @@ def check_integrals(integrals: Sequence[Integral],
     if len(integrals) == 0:
         return integrals
 
-    mapper = TimeDerivativeChecker(timedep_coeffs)
+    mapper = TimeDerivativeChecker(t, timedep_coeffs)
     time_derivatives = set(chain.from_iterable(map(mapper, integrals)))
     howmany = int(expect_time_derivative)
     if len(time_derivatives) != howmany:
@@ -144,13 +150,17 @@ def summands(o: Expr) -> FrozenSet[Expr]:
         return frozenset([o])
 
 
-def split_time_derivative_terms(form: BaseForm, timedep_coeffs: Sequence[Coefficient] = ()) -> SplitTimeForm:
+def split_time_derivative_terms(form: BaseForm,
+                                t: Expr = None,
+                                timedep_coeffs: Sequence[Coefficient] = ()
+                                ) -> SplitTimeForm:
     """Split terms from a :class:`~ufl.Form`.
 
     This splits a form (a sum of integrals) into those integrals which
     do contain a :class:`~.TimeDerivative` acting on `timedep_coeffs` and those that don't.
 
     :arg form: The form to split.
+    :arg t: The time variable.
     :arg timedep_coeffs: The time-dependent coefficients.
     :returns: a :class:`~.SplitTimeForm` tuple.
     :raises ValueError: if the form does not apply anything other than
@@ -164,7 +174,7 @@ def split_time_derivative_terms(form: BaseForm, timedep_coeffs: Sequence[Coeffic
         remainder = sum(w*f for w, f in zip(weights, components) if not isinstance(f, Form))
         form = sum(w*f for w, f in zip(weights, components) if isinstance(f, Form))
 
-    mapper = TimeDerivativeChecker(timedep_coeffs)
+    mapper = TimeDerivativeChecker(t, timedep_coeffs)
     rest_terms = []
     time_terms = []
     for integral in form.integrals():
