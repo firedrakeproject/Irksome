@@ -38,7 +38,7 @@ class TimeDerivativeChecker(DAGTraverser):
     """
     def __init__(self, timedep_coeffs, **kwargs):
         super().__init__(**kwargs)
-        self.timedep_coeffs = set(timedep_coeffs)
+        self.timedep_coeffs = frozenset(timedep_coeffs)
 
     # Work around singledispatchmethod inheritance issue;
     # see https://bugs.python.org/issue36457.
@@ -57,14 +57,14 @@ class TimeDerivativeChecker(DAGTraverser):
             raise ValueError("Can only handle first-order systems")
         f, = o.ufl_operands
         terminals = set(traverse_unique_terminals(f))
-        return tuple(terminals & self.timedep_coeffs)
+        return frozenset(terminals & self.timedep_coeffs)
 
     @process.register(Expr)
     @DAGTraverser.postorder
     def nonlinear_op(self, o, *ops):
         if any(ops):
             raise ValueError("Can't apply nonlinear operator to TimeDerivative")
-        return ()
+        return frozenset()
 
     @process.register(Division)
     @DAGTraverser.postorder
@@ -97,7 +97,7 @@ class TimeDerivativeChecker(DAGTraverser):
     @process.register(ComponentTensor)
     @DAGTraverser.postorder
     def linear_op(self, o, *ops):
-        return tuple(set(chain(*ops)))
+        return frozenset(chain(*ops))
 
 
 def check_integrals(integrals: Sequence[Integral],
