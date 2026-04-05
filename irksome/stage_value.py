@@ -67,6 +67,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
          If none is provided, we assume it is the identity, working in the
          Lagrange basis.
     :kwarg aux_indices: a list of field indices, currently ignored.
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
+        at additional points in time.
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
@@ -157,6 +159,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                  splitting=AI, basis_type=None,
                  appctx=None, bounds=None,
                  use_collocation_update=False,
+                 sample_points=None,
                  **kwargs):
 
         self.num_fields = len(u0.function_space())
@@ -183,6 +186,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
+                         sample_points=sample_points,
                          **kwargs)
 
         self.set_initial_guess()
@@ -207,6 +211,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             self._update = self._update_general
         else:
             self._update = self._update_stiff_acc
+
+        if sample_points is not None:
+            self.build_poly()
 
     def _update_stiff_acc(self):
         for i, u0bit in enumerate(self.u0.subfunctions):
@@ -257,6 +264,35 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         stage_vals = numpy.array(self.u0.subfunctions + self.stages.subfunctions, dtype=object)
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(stage_vals[i::self.num_fields] @ self.collocation_vander)
+
+    def build_poly(self):
+        assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
+        assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
+
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        nodes = vecconst(nodes)
+
+        ref_el = ufc_simplex(1)
+        pts = numpy.reshape(self.sample_points, (-1, 1))
+        if self.basis_type is None or self.basis_type == "Lagrange":
+            lag_basis = LagrangePolynomialSet(ref_el, nodes)
+            evaluation_vander = lag_basis.tabulate(pts, 0)[(0,)]
+        elif self.basis_type == "Bernstein":
+            bern_element = Bernstein(ref_el, self.butcher_tableau.num_stages)
+            evaluation_vander = bern_element.tabulate(0, pts)[(0,)]
+        else:
+            raise ValueError(f"Unexpected basis type {self.basis_type}.")
+
+        self.u_old = Function(self.u0)
+        num_stages = self.num_stages
+
+        stages = reshape(self.stages, (num_stages, *self.u0.ufl_shape))
+        u_old = reshape(self.u_old, (1, *self.u0.ufl_shape))
+        all_stage_vals = numpy.concatenate((u_old, stages))
+        sample_np = dot(evaluation_vander.T, all_stage_vals)
+        num_samples = numpy.size(self.sample_points)
+
+        self.sample_values = [as_tensor(sample_np[i]) for i in range(num_samples)]
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:

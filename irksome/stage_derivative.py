@@ -5,7 +5,11 @@ from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm, as_tensor
 from firedrake.bcs import EquationBC, EquationBCSplit
 
+from FIAT import ufc_simplex
+from FIAT.barycentric_interpolation import LagrangePolynomialSet
+
 from ufl.constantvalue import as_ufl
+from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .constant import vecconst
 from .tools import AI, dot, replace, reshape, fields_to_components
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
@@ -190,10 +194,12 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             instance to be passed to a
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
+            at additional points in time.
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
-                 appctx=None, bc_type="DAE", aux_indices=None, **kwargs):
+                 appctx=None, bc_type="DAE", aux_indices=None, sample_points=None, **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
@@ -209,7 +215,11 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
-                         butcher_tableau=butcher_tableau, **kwargs)
+                         butcher_tableau=butcher_tableau,
+                         sample_points=sample_points, **kwargs)
+
+        if sample_points is not None:
+            self.build_poly()
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -224,6 +234,35 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
 
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
+
+    def build_poly(self):
+        assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
+        assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
+
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        nodes = vecconst(nodes)
+
+        ref_el = ufc_simplex(1)
+        pts = numpy.reshape(self.sample_points, (-1, 1))
+        lag_basis = LagrangePolynomialSet(ref_el, nodes)
+        evaluation_vander = lag_basis.tabulate(pts, 0)[(0,)]
+
+        self.u_old = Function(self.u0)
+        A_const = vecconst(self.butcher_tableau.A)
+
+        # compute the stage values
+        num_stages = self.num_stages
+        num_samples = numpy.size(self.sample_points)
+
+        V = self.u0.function_space()
+        stage_vals_A = [Function(V) for _ in range(num_stages+1)]
+        ks = reshape(self.stages, (num_stages, *self.u0.ufl_shape))
+        stage_vals_A[1:] = self.dt * dot(A_const, ks)
+
+        u_old = reshape(self.u_old, (1, *self.u0.ufl_shape))
+        u_at_pts = stage_vals_A + numpy.full((num_stages+1, *self.u0.ufl_shape), u_old)
+        sample_np = dot(evaluation_vander.T, u_at_pts)
+        self.sample_values = [as_tensor(sample_np[i]) for i in range(num_samples)]
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
