@@ -272,7 +272,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
         nodes = vecconst(nodes)
 
-        if self.basis_type == "Lagrange":
+        if self.basis_type is None or self.basis_type == "Lagrange":
             lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
             evaluation_vander = lag_basis.tabulate(numpy.reshape(self.sample_points, (-1, 1)), 0)[(0,)]
         elif self.basis_type == "Bernstein":
@@ -280,10 +280,15 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             evaluation_vander = bern_element.tabulate(0, numpy.reshape(self.sample_points, (-1, 1)))[(0,)]
 
         self.u_old = Function(self.u0)
+        num_stages = self.num_stages
 
-        all_stage_vals = self.u_old.subfunctions + self.stages.subfunctions
+        stages = reshape(self.stages, (num_stages, *self.u0.ufl_shape))
+        u_old = reshape(self.u_old, (1, *self.u0.ufl_shape))
+        all_stage_vals = numpy.concatenate((u_old, stages))
+        sample_np = dot(evaluation_vander.T, all_stage_vals)
+        num_samples = numpy.size(self.sample_points)
 
-        self.sample_values = evaluation_vander.T @ all_stage_vals
+        self.sample_values = [as_tensor(sample_np[i]) for i in range(num_samples)]
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:

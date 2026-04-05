@@ -2,8 +2,10 @@ import numpy as np
 import pytest
 
 from firedrake import (TestFunction, UnitSquareMesh, FunctionSpace, Function, grad,
-                       project, SpatialCoordinate, inner, dx, cos, pi, norm)
+                       project, SpatialCoordinate, inner, dx, cos, pi, norm,
+                       as_vector, DirichletBC, div, dot, ds, errornorm, FacetNormal, split, TestFunctions)
 from irksome import (GaussLegendre, RadauIIA, Dt, MeshConstant, TimeStepper)
+from irksome.tools import replace
 from FIAT import ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from FIAT.bernstein import Bernstein
@@ -211,3 +213,58 @@ def test_sample_Lagrange(tableau, spatial_degree, temporal_degree):
     assert max(errors_value) < 1e-11
     errors_deriv = [norm(qs_hand[i] - qs_deriv[i]) for i in range(len(qs_hand))]
     assert max(errors_deriv) < 1e-11
+
+
+@pytest.mark.parametrize('tableau', [RadauIIA, GaussLegendre])
+@pytest.mark.parametrize('temporal_degree', [2, 3])
+@pytest.mark.parametrize('stage_type', ["deriv", "value"])
+def test_mixed_heat(tableau, temporal_degree, stage_type):
+
+    msh = UnitSquareMesh(4, 4)
+    V = FunctionSpace(msh, "RT", 3)
+    W = FunctionSpace(msh, "DG", 2)
+    Z = V * W
+
+    butcher_tableau = tableau(temporal_degree)
+
+    MC = MeshConstant(msh)
+    dt = MC.Constant(0.05)
+    t = MC.Constant(0.0)
+    my_t = MC.Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+
+    u_exact = (x*(1-x)+y*(1-y))*(1+t)
+    q_exact = -grad(u_exact)
+    my_qu = replace(as_vector([q_exact[0], q_exact[1], u_exact]), {t: my_t})
+    f = Dt(u_exact) + div(q_exact)
+
+    qu = project(my_qu, Z)
+    q, u = split(qu)
+
+    v, w = TestFunctions(Z)
+    n = FacetNormal(msh)
+
+    F = (inner(Dt(u), w) * dx + inner(div(q), w) * dx - inner(f, w) * dx
+         + inner(q, v) * dx - inner(u, div(v)) * dx - inner(u_exact, dot(v, n))*ds)
+
+    bc = DirichletBC(Z.sub(0), q_exact, "on_boundary")
+
+    sample_points = [0.3, 0.75]
+    stepper = TimeStepper(F, butcher_tableau, t, dt, qu, bcs=bc,
+                          stage_type=stage_type, sample_points=sample_points)
+
+    e_vals = []
+    check = Function(qu)
+    for i in range(2):
+
+        stepper.advance()
+
+        for (i, val) in enumerate(stepper.sample_values):
+            my_t.assign(float(t) + sample_points[i] * float(dt))
+            check.interpolate(val)
+            e_vals.append(errornorm(my_qu, check))
+
+        t.assign(float(t)+float(dt))
+
+    assert np.allclose(e_vals, 0)
