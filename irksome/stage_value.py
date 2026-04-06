@@ -207,13 +207,29 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             self._update = self._update_collocation
 
         elif (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
-            self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
-            self._update = self._update_general
+            try:
+                Ainv = vecconst(numpy.linalg.inv(butcher_tableau.A))
+                b = vecconst(butcher_tableau.b)
+                self.bAinv = dot(b, Ainv)
+                self.bAinv_one = 1-numpy.sum(self.bAinv)
+                self._update = self._update_Ainv
+            except numpy.linalg.LinAlgError:
+                self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
+                self._update = self._update_general
         else:
             self._update = self._update_stiff_acc
 
         if sample_points is not None:
             self.build_poly()
+
+    def _update_Ainv(self):
+        nf = self.num_fields
+        ns = self.num_stages
+        scale = self.bAinv_one
+        bAinv = self.bAinv
+        for i, u0bit in enumerate(self.u0.subfunctions):
+            u0bit *= scale
+            u0bit += sum(self.stages.subfunctions[nf * s + i] * bAinv[s] for s in range(ns))
 
     def _update_stiff_acc(self):
         for i, u0bit in enumerate(self.u0.subfunctions):
