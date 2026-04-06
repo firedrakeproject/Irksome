@@ -276,10 +276,10 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         pts = numpy.reshape(self.sample_points, (-1, 1))
         if self.basis_type is None or self.basis_type == "Lagrange":
             lag_basis = LagrangePolynomialSet(ref_el, nodes)
-            evaluation_vander = lag_basis.tabulate(pts, 0)[(0,)]
+            evaluation_vander = vecconst(lag_basis.tabulate(pts, 0)[(0,)])
         elif self.basis_type == "Bernstein":
             bern_element = Bernstein(ref_el, self.butcher_tableau.num_stages)
-            evaluation_vander = bern_element.tabulate(0, pts)[(0,)]
+            evaluation_vander = vecconst(bern_element.tabulate(0, pts)[(0,)])
         else:
             raise ValueError(f"Unexpected basis type {self.basis_type}.")
 

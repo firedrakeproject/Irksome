@@ -245,7 +245,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         ref_el = ufc_simplex(1)
         pts = numpy.reshape(self.sample_points, (-1, 1))
         lag_basis = LagrangePolynomialSet(ref_el, nodes)
-        evaluation_vander = lag_basis.tabulate(pts, 0)[(0,)]
+        evaluation_vander = vecconst(lag_basis.tabulate(pts, 0)[(0,)])
 
         self.u_old = Function(self.u0)
         A_const = vecconst(self.butcher_tableau.A)
