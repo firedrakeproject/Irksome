@@ -1,8 +1,12 @@
-from firedrake import (Constant, DirichletBC, FacetNormal, Function, FunctionSpace, SpatialCoordinate, TestFunction, TestFunctions,
-                       UnitTriangleMesh, UnitSquareMesh, VectorFunctionSpace, as_vector, div, dot, ds, dx, errornorm, grad,
-                       inner, project, split)
-from irksome import Dt, GaussLegendre, RadauIIA, TimeStepper
+from firedrake import (Constant, DirichletBC, FacetNormal, Function,
+                       FunctionSpace, SpatialCoordinate, TestFunction,
+                       TestFunctions, UnitTriangleMesh,
+                       UnitSquareMesh, VectorFunctionSpace, as_vector,
+                       div, dot, ds, dx, errornorm, exp, grad, inner,
+                       pi, project, sin, split)
+from irksome import Dt, GaussLegendre, LobattoIIIC, RadauIIA, TimeStepper
 from irksome.tools import is_ode
+from irksome.constant import vecconst
 import pytest
 import numpy as np
 
@@ -88,5 +92,60 @@ def test_mixed_heat(tableau, temporal_degree, stage_type):
 
         t.assign(float(t)+float(dt))
         e_vals.append(errornorm(qu_exact, qu))
+
+    assert np.allclose(e_vals, 0)
+
+
+def test_mixed_heat_twoways():
+
+    msh = UnitSquareMesh(8, 8)
+    V = FunctionSpace(msh, "RT", 2)
+    W = FunctionSpace(msh, "DG", 1)
+    Z = V * W
+
+    butcher_tableau = LobattoIIIC(2)
+
+    dt = Constant(0.05)
+    t = Constant(0.0)
+
+    x, y = SpatialCoordinate(msh)
+
+    u_exact = sin(pi*x)*sin(pi*y)*exp(-2*(pi**2)*t)
+    q_exact = -grad(u_exact)
+    qu_exact = as_vector([q_exact[0], q_exact[1], u_exact])
+
+    qu = project(qu_exact, Z)
+    q, u = split(qu)
+
+    qu2 = project(qu_exact, Z)
+    q2, u2 = split(qu2)
+
+    v, w = TestFunctions(Z)
+    n = FacetNormal(msh)
+
+    F = (inner(Dt(u), w) * dx + inner(div(q), w) * dx
+         + inner(q, v) * dx - inner(u, div(v)) * dx - inner(u_exact, dot(v, n))*ds)
+    F2 = (inner(Dt(u2), w) * dx + inner(div(q2), w) * dx
+          + inner(q2, v) * dx - inner(u2, div(v)) * dx - inner(u_exact, dot(v, n))*ds)
+
+    bc = DirichletBC(Z.sub(0), q_exact, "on_boundary")
+
+    stepper = TimeStepper(F, butcher_tableau, t, dt, qu, bcs=bc,
+                          stage_type="value")
+    stepper2 = TimeStepper(F2, butcher_tableau, t, dt, qu2, bcs=bc,
+                           stage_type="value")
+    A = butcher_tableau.A
+    b = butcher_tableau.b
+    stepper2.bAinv = vecconst(np.linalg.solve(A.T, b))
+    stepper2.update_scale = 1-np.sum(stepper2.bAinv)
+    stepper2._update = stepper2._update_Ainv
+
+    e_vals = []
+    for i in range(2):
+        stepper.advance()
+        stepper2.advance()
+
+        t.assign(float(t)+float(dt))
+        e_vals.append(errornorm(qu2, qu))
 
     assert np.allclose(e_vals, 0)
