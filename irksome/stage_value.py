@@ -204,10 +204,10 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         elif (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
             try:
-                Ainv = vecconst(numpy.linalg.inv(butcher_tableau.A))
-                b = vecconst(butcher_tableau.b)
-                self.bAinv = dot(b, Ainv)
-                self.bAinv_one = 1-numpy.sum(self.bAinv)
+                A = butcher_tableau.A
+                b = butcher_tableau.b
+                self.bAinv = vecconst(numpy.linalg.solve(A.T, b))
+                self.update_scale = 1-numpy.sum(self.bAinv)
                 self._update = self._update_Ainv
             except numpy.linalg.LinAlgError:
                 self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
@@ -218,7 +218,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def _update_Ainv(self):
         nf = self.num_fields
         ns = self.num_stages
-        scale = self.bAinv_one
+        scale = self.update_scale
         bAinv = self.bAinv
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit *= scale
