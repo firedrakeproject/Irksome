@@ -116,7 +116,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     for i in range(num_stages):
         repl_new = {t: t + c[i] * dt,
                     v: A2invTv[i],
-                    u0: as_tensor(w_np[i])}
+                    u0: w_np[i]}
         # Evaluate g at the old solution u0 (not substituted) and
         # old time t (not substituted).
         repl_old = {v: A2invTv[i]}
