@@ -96,8 +96,9 @@ def run_richards(butcher_tableau):
     mass_expr = interpolate(theta(h), V) * dx
     cum_error = 0.0
 
+    curr_mass = assemble(mass_expr)
     for step in range(STEPS):
-        prev_mass = assemble(mass_expr)
+        prev_mass = curr_mass
 
         stepper.advance()
         t.assign(float(t) + float(dt))
