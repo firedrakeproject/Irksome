@@ -93,18 +93,16 @@ def run_richards(butcher_tableau):
                           solver_parameters=SOLVER_PARAMS,
                           stage_type="value")
 
-    theta_buf = Function(V)
+    mass_expr = interpolate(theta(h), V) * dx
     cum_error = 0.0
 
     for step in range(STEPS):
-        theta_buf.interpolate(theta(h))
-        prev_mass = assemble(theta_buf * dx)
+        prev_mass = assemble(mass_expr)
 
         stepper.advance()
         t.assign(float(t) + float(dt))
 
-        theta_buf.interpolate(theta(h))
-        curr_mass = assemble(theta_buf * dx)
+        curr_mass = assemble(mass_expr)
 
         expected_change = DT_VAL * FLUX
         cum_error += abs(abs(curr_mass - prev_mass) - expected_change)
