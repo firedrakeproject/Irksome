@@ -22,7 +22,8 @@ import pytest
 from firedrake import (
     CellVolume, FacetArea, FacetNormal, Function,
     FunctionSpace, TestFunction, UnitSquareMesh,
-    assemble, avg, ds, dS, dx, exp, grad, inner, jump,
+    assemble, avg, ds, dS, dx, exp, grad, inner,
+    interpolate, jump,
 )
 from irksome import BackwardEuler, Dt, MeshConstant, RadauIIA, TimeStepper
 
