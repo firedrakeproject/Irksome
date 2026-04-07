@@ -97,9 +97,11 @@ class TimeDerivativeRuleDispatcher(DAGTraverser):
     Mapping rules to splat out time derivatives so that replacement should
     work on more complex problems.
     '''
-    def __init__(self, t=None, timedep_coeffs=None, **kwargs):
+    def __init__(self, t=None, timedep_coeffs=None, conservative=False,
+                 **kwargs):
         super().__init__(**kwargs)
         self.rules = TimeDerivativeRuleset(t=t, timedep_coeffs=timedep_coeffs)
+        self.conservative = conservative
 
     # Work around singledispatchmethod inheritance issue;
     # see https://bugs.python.org/issue36457.
@@ -110,6 +112,16 @@ class TimeDerivativeRuleDispatcher(DAGTraverser):
     @process.register(TimeDerivative)
     def time_derivative(self, o):
         f, = o.ufl_operands
+        if self.conservative and self.rules.timedep_coeffs:
+            # In conservative mode, skip the chain rule for Dt nodes
+            # whose operand involves a prognostic coefficient.  This
+            # preserves Dt(g(u)) intact for conservative discretisation
+            # while still analytically evaluating Dt of known
+            # time-dependent expressions (e.g. manufactured solutions).
+            from .utils import has_coefficient_in_expr
+            for coeff in self.rules.timedep_coeffs:
+                if has_coefficient_in_expr(f, coeff):
+                    return o
         return self.rules(f)
 
     @process.register(Expr)
@@ -118,12 +130,30 @@ class TimeDerivativeRuleDispatcher(DAGTraverser):
         return self.reuse_if_untouched(o)
 
 
-def apply_time_derivatives(expression, t=None, timedep_coeffs=None):
-    rules = TimeDerivativeRuleDispatcher(t=t, timedep_coeffs=timedep_coeffs)
+def apply_time_derivatives(expression, t=None, timedep_coeffs=None,
+                           conservative=False):
+    rules = TimeDerivativeRuleDispatcher(t=t, timedep_coeffs=timedep_coeffs,
+                                         conservative=conservative)
     return map_integrands(rules, expression)
 
 
 def expand_time_derivatives(expression, t=None, timedep_coeffs=None):
     expression = apply_algebra_lowering(expression)
-    expression = apply_time_derivatives(expression, t=t, timedep_coeffs=timedep_coeffs)
+    expression = apply_time_derivatives(expression, t=t,
+                                        timedep_coeffs=timedep_coeffs)
+    return expression
+
+
+def expand_time_derivatives_conservative(expression, t=None, timedep_coeffs=None):
+    """Like :func:`expand_time_derivatives`, but preserves Dt(g(u)) intact.
+
+    Dt nodes whose operand involves a prognostic coefficient (from
+    ``timedep_coeffs``) are not expanded via the chain rule.  Known
+    time-dependent expressions (e.g. manufactured solutions involving
+    only ``t``) are still evaluated analytically.
+    """
+    expression = apply_algebra_lowering(expression)
+    expression = apply_time_derivatives(expression, t=t,
+                                        timedep_coeffs=timedep_coeffs,
+                                        conservative=True)
     return expression

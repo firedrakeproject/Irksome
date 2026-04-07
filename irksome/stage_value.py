@@ -10,7 +10,8 @@ from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
-from .ufl.deriv import expand_time_derivatives
+from .ufl.deriv import expand_time_derivatives, expand_time_derivatives_conservative
+from .ufl.utils import has_composite_time_derivative
 from .ufl.manipulation import extract_terms, strip_dt_form
 from .tools import AI, is_ode, dot, reshape, replace
 from .constant import vecconst
@@ -73,8 +74,22 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages
     """
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    # Conservative Dt(g(u)) requires stiffly-accurate methods because
+    # the update u_new = U_s only holds when the last stage value equals
+    # the new solution.
+    if has_composite_time_derivative(F, u0) and not butch.is_stiffly_accurate:
+        raise NotImplementedError(
+            "Conservative time discretisation of Dt(g(u)) requires a "
+            "stiffly accurate method (e.g. BackwardEuler, RadauIIA)."
+        )
+
+    # Expand time derivatives in conservative mode: the chain rule is
+    # applied to known time-dependent expressions (e.g. manufactured
+    # solutions) but NOT to Dt(g(u0)) where u0 is the prognostic
+    # variable.  This preserves Dt(g(u)) intact so that the conservative
+    # finite difference g(U_i) - g(u0) is used instead of the linearised
+    # form g'(U_i) * (U_i - u0).
+    F = expand_time_derivatives_conservative(F, t=t, timedep_coeffs=(u0,))
     # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
     assert is_ode(F, u0) or butch.is_stiffly_accurate
 
@@ -102,21 +117,25 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     A1Tv = dot(A1.T, v_np)
     A2invTv = dot(A2inv.T, v_np)
 
-    # first, process terms with a time derivative.  I'm
-    # assuming we have something of the form inner(Dt(g(u0)), v)*dx
-    # For each stage i, this gets replaced with
-    # inner((g(stages[i]) - g(u0))/dt, v)*dx
+    # Process terms with a time derivative.
+    # For each stage i, inner(Dt(g(u0)), v)*dx is replaced with
+    # inner(g(U_i) - g(u0), v)*dx (conservative finite difference).
+    # This uses two evaluations of the stripped expression rather than
+    # a single subtraction trick, so that nonlinear g is handled correctly.
     split_form = extract_terms(F)
     F_dtless = strip_dt_form(split_form.time)
     F_remainder = split_form.remainder
 
     Fnew = zero()
-    # Terms with time derivatives
+    # Terms with time derivatives: conservative two-evaluation form
     for i in range(num_stages):
-        repl = {t: t + c[i] * dt,
-                v: A2invTv[i],
-                u0: as_tensor(w_np[i]) - u0}
-        Fnew += replace(F_dtless, repl)
+        repl_new = {t: t + c[i] * dt,
+                    v: A2invTv[i],
+                    u0: as_tensor(w_np[i])}
+        # repl_old evaluates g at the old solution u0 (not substituted)
+        # and old time t (not substituted).
+        repl_old = {v: A2invTv[i]}
+        Fnew += replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
 
     # Handle the rest of the terms
     for i in range(num_stages):

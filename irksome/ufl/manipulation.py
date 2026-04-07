@@ -85,10 +85,10 @@ def _check_timederiv(o: TimeDerivative, self: Memoizer) -> Result:
     if self(op):
         # op already has a TimeDerivative applied to it
         raise ValueError("Can only handle first-order systems")
-    terminals = tuple(set([x for x in traverse_unique_terminals(op) if not isinstance(x, MultiIndex)]))
-    if len(terminals) != 1 or not isinstance(terminals[0], Coefficient):
+    coefficients = tuple(set([x for x in traverse_unique_terminals(op) if isinstance(x, Coefficient)]))
+    if len(coefficients) != 1:
         raise ValueError("Time derivative must apply to a single coefficient")
-    return terminals
+    return coefficients
 
 
 @_check_time_terms.register(Expr)
