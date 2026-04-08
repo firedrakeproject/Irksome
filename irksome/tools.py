@@ -1,7 +1,7 @@
 from operator import mul
 from functools import reduce
 import numpy
-from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
+from firedrake import Function, VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
 from ufl import replace as ufl_replace
@@ -30,6 +30,18 @@ def flatten_dats(dats):
 
 def get_stage_space(V, num_stages):
     return reduce(mul, (V for _ in range(num_stages)))
+
+
+def split_stages(V, stages):
+    """Reconstruct the stages as a list of Function(V)"""
+    num_fields = len(V)
+    if num_fields == 1:
+        return stages.subfunctions
+
+    dats = stages.dat
+    ks = [Function(V, val=MixedDat(dats[offset:offset+num_fields]))
+          for offset in range(0, len(dats), num_fields)]
+    return ks
 
 
 def fields_to_components(V, fields):

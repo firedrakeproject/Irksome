@@ -12,7 +12,7 @@ from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import extract_terms, strip_dt_form
-from .tools import AI, is_ode, dot, reshape, replace
+from .tools import AI, is_ode, dot, reshape, replace, split_stages
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -308,15 +308,14 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             raise ValueError(f"Unexpected basis type {self.basis_type}.")
 
         self.u_old = Function(self.u0)
-        num_stages = self.num_stages
+        ks = [self.u_old]
+        ks.extend(split_stages(self.u0.function_space(), self.stages))
 
-        stages = reshape(self.stages, (num_stages, *self.u0.ufl_shape))
-        u_old = reshape(self.u_old, (1, *self.u0.ufl_shape))
-        all_stage_vals = numpy.concatenate((u_old, stages))
-        sample_np = dot(evaluation_vander.T, all_stage_vals)
+        num_terms = len(ks)
         num_samples = numpy.size(self.sample_points)
-
-        self.sample_values = [as_tensor(sample_np[i]) for i in range(num_samples)]
+        self.sample_values = [sum(ks[j] * evaluation_vander[j, i]
+                                  for j in range(num_terms))
+                              for i in range(num_samples)]
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:

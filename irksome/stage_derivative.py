@@ -11,7 +11,7 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from ufl.constantvalue import as_ufl
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .constant import vecconst
-from .tools import AI, dot, replace, reshape, fields_to_components
+from .tools import AI, dot, replace, reshape, fields_to_components, split_stages
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
 from .ufl.manipulation import extract_terms
@@ -247,29 +247,27 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
 
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
-        nodes = vecconst(nodes)
 
         ref_el = ufc_simplex(1)
         pts = numpy.reshape(self.sample_points, (-1, 1))
         lag_basis = LagrangePolynomialSet(ref_el, nodes)
         evaluation_vander = vecconst(lag_basis.tabulate(pts, 0)[(0,)])
 
-        self.u_old = Function(self.u0)
         A_const = vecconst(self.butcher_tableau.A)
 
-        # compute the stage values
-        num_stages = self.num_stages
+        self.u_old = Function(self.u0)
+        ks = [self.u_old]
+        ks.extend(split_stages(self.u0.function_space(), self.stages))
+        num_terms = len(ks)
+
+        mat = vecconst(numpy.zeros((num_terms, num_terms)))
+        mat[0, :] = 1
+        mat[1:, 1:] = self.dt * A_const.T
+        mat = mat @ evaluation_vander
+
         num_samples = numpy.size(self.sample_points)
-
-        V = self.u0.function_space()
-        stage_vals_A = [Function(V) for _ in range(num_stages+1)]
-        ks = reshape(self.stages, (num_stages, *self.u0.ufl_shape))
-        stage_vals_A[1:] = self.dt * dot(A_const, ks)
-
-        u_old = reshape(self.u_old, (1, *self.u0.ufl_shape))
-        u_at_pts = stage_vals_A + numpy.full((num_stages+1, *self.u0.ufl_shape), u_old)
-        sample_np = dot(evaluation_vander.T, u_at_pts)
-        self.sample_values = [as_tensor(sample_np[i]) for i in range(num_samples)]
+        self.sample_values = [sum(ks[j] * mat[j, i] for j in range(num_terms))
+                              for i in range(num_samples)]
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
