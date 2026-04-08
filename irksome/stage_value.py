@@ -282,6 +282,14 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             u0bit.assign(stage_vals[i::self.num_fields] @ self.collocation_vander)
 
     def build_poly(self):
+        '''
+        When provided with a list of `sample_points` (intended to be in the interval [0,1]), this
+        builds a symbolic expression for the values of the RK collocation polynomial at the
+        corresponding points on the interval [t_n, t_{n+1}].  These are stored in the list
+        `self.sample_values` as functions in the same FunctionSpace as `self.u0`.  The resulting
+        expressions can then be interpolated into a Function on that same FunctionSpace.
+        '''
+
         assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
         assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
 
