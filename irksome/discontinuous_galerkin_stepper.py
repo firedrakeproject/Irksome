@@ -50,10 +50,11 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     basis_vals = tabulate_basis[(0,)]
     basis_dvals = tabulate_basis[(1,)]
     basis_vals_w = np.multiply(basis_vals, qwts)
+    basis_dvals_w = np.multiply(basis_dvals, qwts)
 
     trial_vals = vecconst(basis_vals)
-    trial_dvals = vecconst(basis_dvals)
     test_vals_w = vecconst(basis_vals_w)
+    test_dvals_w = vecconst(basis_dvals_w)
     qpts = vecconst(qpts.reshape((-1,)))
 
     # set up the pieces we need to work with to do our substitutions
@@ -61,7 +62,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     u_np = reshape(stages, (-1, *u0.ufl_shape))
     vsub = dot(test_vals_w.T, v_np)
     usub = dot(trial_vals.T, u_np)
-    dtu0sub = dot(trial_dvals.T, u_np)
+    dtvsub = dot(test_dvals_w.T, v_np)
 
     # preprocess time derivatives
     split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
@@ -70,20 +71,23 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     if F_dtless.empty():
         Fnew = F_dtless
     else:
-        # Jump terms
-        L_at_0 = vecconst(L.tabulate(0, (0.0,))[(0,)])
-        u_at_0 = L_at_0 @ u_np
-        v_at_0 = L_at_0 @ v_np
-        repl = {u0: u_at_0 - u0,
-                v: v_at_0}
-        Fnew = replace(F_dtless, repl)
+        # Integrate by parts in time (Dt(g(u)), v)
+        # Jump terms: [(g(u), v)](t+dt) - [(g(u), v)](t)
+        ref_el = L.get_reference_element()
+        L_at_01 = vecconst(L.tabulate(0, ref_el.vertices)[(0,)])
+        u_at_01 = dot(L_at_01.T, u_np)
+        v_at_01 = dot(L_at_01.T, v_np)
 
-        # Terms with time derivatives
+        repl_old = {v: v_at_01[0]}
+        repl_new = {v: v_at_01[1], u0: u_at_01[1], t: t + dt}
+        Fnew = replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
+
+        # Terms with time derivatives: -(g(u), Dt(v))
         for q in range(len(qpts)):
             repl = {t: t + qpts[q] * dt,
-                    v: vsub[q] * dt,
-                    u0: dtu0sub[q] / dt}
-            Fnew += replace(F_dtless, repl)
+                    v: dtvsub[q],
+                    u0: usub[q]}
+            Fnew -= replace(F_dtless, repl)
 
     # Handle the rest of the terms
     for q in range(len(qpts)):

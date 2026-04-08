@@ -8,57 +8,44 @@ directly in the stage equations.
 """
 import pytest
 from firedrake import (
-    Function, FunctionSpace, TestFunction,
+    Constant, Function, FunctionSpace, TestFunction,
     UnitSquareMesh, assemble, ds, dx, exp, grad, inner,
 )
-from irksome import BackwardEuler, Dt, MeshConstant, RadauIIA, TimeStepper
+from irksome import BackwardEuler, DiscontinuousGalerkinScheme, Dt, RadauIIA, TimeStepper
 
 
-# Exponential soil model
-theta_r = 0.15
-theta_s = 0.45
-alpha = 0.328
-Ks = 1e-5
-
-N = 10
-dt_val = 100.0
-nstep = 50
-flux = 1e-6
-
-
-def theta(h):
-    return theta_r + (theta_s - theta_r) * exp(alpha * h)
-
-
-def conductivity(h):
-    return Ks * exp(alpha * h)
-
-
-def run_richards(butcher_tableau, stage_type):
+def run_richards(scheme, **kwargs):
     """Run the problem and return cumulative mass balance error."""
+    # Exponential soil model
+    theta_r = 0.15
+    theta_s = 0.45
+    alpha = 0.328
+    Ks = 1e-5
+    theta = lambda h: theta_r + (theta_s - theta_r) * exp(alpha * h)
+    conductivity = lambda h: Ks * exp(alpha * h)
+
+    N = 10
+    dt_val = 100
+    nstep = 50
+    flux = 1e-6
+
     mesh = UnitSquareMesh(N, N)
     V = FunctionSpace(mesh, "CG", 1)
     h = Function(V, name="h").assign(-1.0)
     v = TestFunction(V)
 
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(dt_val)
+    t = Constant(0.0)
+    dt = Constant(dt_val)
 
     F = inner(Dt(theta(h)), v) * dx
     F += inner(conductivity(h) * grad(h), grad(v)) * dx
-    F -= flux * v * ds(4)
+    F -= inner(flux, v) * ds(4)
 
-    stepper = TimeStepper(F, butcher_tableau, t, dt, h,
+    stepper = TimeStepper(F, scheme, t, dt, h,
                           solver_parameters={
-                              "mat_type": "aij",
-                              "snes_type": "newtonls",
-                              "ksp_type": "preonly",
-                              "pc_type": "lu",
-                              "pc_factor_mat_solver_type": "mumps",
                               "snes_atol": 1e-14,
                           },
-                          stage_type=stage_type)
+                          **kwargs)
 
     mass_form = theta(h) * dx
     curr_mass = assemble(mass_form)
@@ -69,25 +56,26 @@ def run_richards(butcher_tableau, stage_type):
         stepper.advance()
         t.assign(float(t) + float(dt))
         curr_mass = assemble(mass_form)
-        cum_error += abs(abs(curr_mass - prev_mass) - dt_val * flux)
+        cum_error += abs(abs(curr_mass - prev_mass) - float(dt) * flux)
 
     return cum_error
 
 
-@pytest.mark.parametrize("tableau", [BackwardEuler(), RadauIIA(2)],
+@pytest.mark.parametrize("scheme", [BackwardEuler(), RadauIIA(2)],
                          ids=["BackwardEuler", "RadauIIA2"])
-def test_mass_conservation_stage_value(tableau):
-    """Stage value stepper with Dt(theta(h)) should conserve mass."""
-    err = run_richards(tableau, "value")
+def test_mass_conservation_stage_value(scheme):
+    """Test mass conservation with Dt(theta(h))"""
+    err = run_richards(scheme, stage_type="value")
     assert err < 1e-10, (
         f"mass error should be near machine precision, got {err:.2e}"
     )
 
 
-def test_mass_conservation_fails_stage_derivative():
-    """Stage derivative must apply the chain rule, so the linearisation
-    error means mass is not conserved to machine precision."""
-    err = run_richards(BackwardEuler(), "deriv")
-    assert err > 1e-8, (
-        f"stage derivative should NOT conserve mass, got {err:.2e}"
+@pytest.mark.parametrize("order", [0, 1])
+def test_mass_conservation_dg(order):
+    """Test mass conservation with Dt(theta(h))"""
+    scheme = DiscontinuousGalerkinScheme(order)
+    err = run_richards(scheme)
+    assert err < 1e-10, (
+        f"mass error should be near machine precision, got {err:.2e}"
     )
