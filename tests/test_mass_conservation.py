@@ -1,113 +1,75 @@
-"""Mass conservation test for nonlinear time derivatives.
+"""Check mass conservation for Dt(theta(h)) with nonlinear theta.
 
-Solves a Richards-like diffusion on a unit square with DQ1 elements and
-an exponential soil model (no G-ADOPT dependency).  A constant flux is
-applied on the top boundary; all other boundaries are no-flux.
-
-The conserved quantity is moisture content theta(h), a nonlinear function
-of pressure head h.  The test checks that the change in total moisture
-matches the boundary flux to machine precision.
-
-With the chain-rule expansion Dt(theta(h)) -> C(h)*Dt(h), the mass
-balance error accumulates systematically over time.  With a conservative
-discretisation that evaluates theta at the stage values directly, the
-error stays near machine precision.
-
-The conservative form requires a stiffly accurate method (where
-u_new = U_s, the last stage value) so that the mass change
-theta(u_new) - theta(u_old) is directly represented in the stage
-equations.
+Richards-like diffusion on a unit square, CG1, exponential soil
+model, pure Neumann BCs.  The total moisture should change by
+exactly the boundary flux each step.  Stiffly accurate methods
+give u_new = U_s, so the conservative finite difference appears
+directly in the stage equations.
 """
 import pytest
 from firedrake import (
-    CellVolume, FacetArea, FacetNormal, Function,
-    FunctionSpace, TestFunction, UnitSquareMesh,
-    assemble, avg, ds, dS, dx, exp, grad, inner, jump,
+    Function, FunctionSpace, TestFunction,
+    UnitSquareMesh, assemble, ds, dx, exp, grad, inner,
 )
 from irksome import BackwardEuler, Dt, MeshConstant, RadauIIA, TimeStepper
 
 
-# -- Exponential soil model (inlined from G-ADOPT) -----------------------
-# theta(h) = theta_r + (theta_s - theta_r) * exp(alpha * h)   for h <= 0
-# K(h)     = Ks * exp(alpha * h)                               for h <= 0
+# Exponential soil model
+theta_r = 0.15
+theta_s = 0.45
+alpha = 0.328
+Ks = 1e-5
 
-THETA_R = 0.15
-THETA_S = 0.45
-ALPHA = 0.328
-KS = 1e-5
+N = 10
+dt_val = 100.0
+nstep = 50
+flux = 1e-6
 
 
 def theta(h):
-    return THETA_R + (THETA_S - THETA_R) * exp(ALPHA * h)
+    return theta_r + (theta_s - theta_r) * exp(alpha * h)
 
 
 def conductivity(h):
-    return KS * exp(ALPHA * h)
+    return Ks * exp(alpha * h)
 
 
-# -- Problem parameters --------------------------------------------------
-
-GRID = 10
-DT_VAL = 100.0
-STEPS = 50
-FLUX = 1e-6
-SIGMA = 10.0
-
-SOLVER_PARAMS = {
-    "mat_type": "aij",
-    "snes_type": "newtonls",
-    "ksp_type": "preonly",
-    "pc_type": "lu",
-    "pc_factor_mat_solver_type": "mumps",
-    "snes_atol": 1e-14,
-}
-
-
-def run_richards(butcher_tableau):
-    """Run Richards problem and return cumulative mass balance error."""
-    mesh = UnitSquareMesh(GRID, GRID, quadrilateral=True)
-    V = FunctionSpace(mesh, "DQ", 1)
+def run_richards(butcher_tableau, stage_type):
+    """Run the problem and return cumulative mass balance error."""
+    mesh = UnitSquareMesh(N, N)
+    V = FunctionSpace(mesh, "CG", 1)
     h = Function(V, name="h").assign(-1.0)
     v = TestFunction(V)
-    n = FacetNormal(mesh)
 
     MC = MeshConstant(mesh)
     t = MC.Constant(0.0)
-    dt = MC.Constant(DT_VAL)
+    dt = MC.Constant(dt_val)
 
-    # Mass term: Dt(theta(h)) -- should be conservative
-    F = inner(v, Dt(theta(h))) * dx
-
-    # SIPG diffusion
-    K = conductivity(h)
-    sigma_int = SIGMA * avg(FacetArea(mesh) / CellVolume(mesh))
-    F += inner(grad(v), K * grad(h)) * dx
-    F += sigma_int * inner(jump(v, n), avg(K) * jump(h, n)) * dS
-    F -= inner(avg(K * grad(v)), jump(h, n)) * dS
-    F -= inner(jump(v, n), avg(K * grad(h))) * dS
-
-    # Flux BC on top (ds(4) is top boundary on UnitSquareMesh)
-    F -= FLUX * v * ds(4)
+    F = inner(Dt(theta(h)), v) * dx
+    F += inner(conductivity(h) * grad(h), grad(v)) * dx
+    F -= flux * v * ds(4)
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, h,
-                          solver_parameters=SOLVER_PARAMS,
-                          stage_type="value")
+                          solver_parameters={
+                              "mat_type": "aij",
+                              "snes_type": "newtonls",
+                              "ksp_type": "preonly",
+                              "pc_type": "lu",
+                              "pc_factor_mat_solver_type": "mumps",
+                              "snes_atol": 1e-14,
+                          },
+                          stage_type=stage_type)
 
-    theta_buf = Function(V)
+    mass_form = theta(h) * dx
+    curr_mass = assemble(mass_form)
     cum_error = 0.0
 
-    for step in range(STEPS):
-        theta_buf.interpolate(theta(h))
-        prev_mass = assemble(theta_buf * dx)
-
+    for step in range(nstep):
+        prev_mass = curr_mass
         stepper.advance()
         t.assign(float(t) + float(dt))
-
-        theta_buf.interpolate(theta(h))
-        curr_mass = assemble(theta_buf * dx)
-
-        expected_change = DT_VAL * FLUX
-        cum_error += abs(abs(curr_mass - prev_mass) - expected_change)
+        curr_mass = assemble(mass_form)
+        cum_error += abs(abs(curr_mass - prev_mass) - dt_val * flux)
 
     return cum_error
 
@@ -115,10 +77,17 @@ def run_richards(butcher_tableau):
 @pytest.mark.parametrize("tableau", [BackwardEuler(), RadauIIA(2)],
                          ids=["BackwardEuler", "RadauIIA2"])
 def test_mass_conservation_stage_value(tableau):
-    """Dt(theta(h)) with stage_type='value' and a stiffly accurate
-    method should conserve mass."""
-    err = run_richards(tableau)
+    """Stage value stepper with Dt(theta(h)) should conserve mass."""
+    err = run_richards(tableau, "value")
     assert err < 1e-10, (
-        f"Stage value stepper mass error should be near machine precision, "
-        f"got {err:.2e}"
+        f"mass error should be near machine precision, got {err:.2e}"
+    )
+
+
+def test_mass_conservation_fails_stage_derivative():
+    """Stage derivative must apply the chain rule, so the linearisation
+    error means mass is not conserved to machine precision."""
+    err = run_richards(BackwardEuler(), "deriv")
+    assert err > 1e-8, (
+        f"stage derivative should NOT conserve mass, got {err:.2e}"
     )
