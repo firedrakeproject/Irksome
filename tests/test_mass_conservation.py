@@ -16,12 +16,13 @@ import numpy as np
 
 
 def run_richards(scheme, **kwargs):
-    """Run the problem and return cumulative mass balance error."""
+    """Run the problem and return mean mass balance error."""
     # Exponential soil model
     theta_r = Constant(0.15)
     theta_s = Constant(0.45)
     alpha = Constant(0.328)
     Ks = Constant(1e-5)
+
     theta = lambda h: theta_r + (theta_s - theta_r) * exp(alpha * h)
     conductivity = lambda h: Ks * exp(alpha * h)
 
@@ -50,14 +51,15 @@ def run_richards(scheme, **kwargs):
                           **kwargs)
 
     area = assemble(1*ds(4, domain=mesh))
-    # Interpolate a Constant into V to force the same quadrature rule
+    # Interpolate a Constant into V to compute mass with the same quadrature rule
     one = Function(V).interpolate(Constant(1))
     mass_form = inner(theta(h), one) * dx
     curr_mass = assemble(mass_form)
     total_error = 0.0
 
     for step in range(nstep):
-        if step == 10:
+        if step > 0 and step % 10 == 0:
+            # Update the time step and the flux
             dt.assign(0.5*dt)
             flux.assign(4*flux)
         expected_mass = curr_mass + area * float(flux) * float(dt)
