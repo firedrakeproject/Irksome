@@ -2,7 +2,7 @@ import numpy
 from firedrake import Function, TestFunction
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import assemble, dx, inner, norm, as_tensor
+from firedrake import assemble, dx, inner, norm, as_tensor, as_vector
 from firedrake.bcs import EquationBC, EquationBCSplit
 
 from FIAT import ufc_simplex
@@ -263,7 +263,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
 
         V = self.u0.function_space()
         stage_vals_A = [Function(V) for _ in range(num_stages+1)]
-        ks = reshape(self.stages, (num_stages, *self.u0.ufl_shape))
+        ks = as_vector([k[i] for k in self.stages.subfunctions for i in numpy.ndindex(k.ufl_shape)])
+        ks = reshape(ks, (num_stages, *self.u0.ufl_shape))
         stage_vals_A[1:] = self.dt * dot(A_const, ks)
 
         u_old = reshape(self.u_old, (1, *self.u0.ufl_shape))

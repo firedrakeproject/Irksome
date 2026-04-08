@@ -5,7 +5,7 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
-from ufl import as_tensor, zero
+from ufl import as_tensor, as_vector, zero
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
@@ -310,7 +310,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.u_old = Function(self.u0)
         num_stages = self.num_stages
 
-        stages = reshape(self.stages, (num_stages, *self.u0.ufl_shape))
+        ks = as_vector([k[i] for k in self.stages.subfunctions for i in numpy.ndindex(k.ufl_shape)])
+        stages = reshape(ks, (num_stages, *self.u0.ufl_shape))
         u_old = reshape(self.u_old, (1, *self.u0.ufl_shape))
         all_stage_vals = numpy.concatenate((u_old, stages))
         sample_np = dot(evaluation_vander.T, all_stage_vals)

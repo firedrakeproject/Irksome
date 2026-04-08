@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
 
-from firedrake import (TestFunction, UnitSquareMesh, FunctionSpace, Function, grad,
+from firedrake import (Constant, TestFunction, UnitSquareMesh, FunctionSpace, Function, grad,
                        project, SpatialCoordinate, inner, dx, cos, pi, norm,
                        as_vector, DirichletBC, div, dot, ds, errornorm, FacetNormal, split, TestFunctions)
-from irksome import (GaussLegendre, RadauIIA, Dt, MeshConstant, TimeStepper)
+from irksome import (GaussLegendre, RadauIIA, Dt, TimeStepper)
 from irksome.tools import replace
 from FIAT import ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
@@ -20,9 +20,8 @@ def heat_value_hand(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
 
     butcher_tableau = tableau(temporal_degree)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(dt_in)
-    t = MC.Constant(0.0)
+    dt = Constant(dt_in)
+    t = Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
 
@@ -94,9 +93,8 @@ def heat_value_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
 
     butcher_tableau = tableau(temporal_degree)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(dt_in)
-    t = MC.Constant(0.0)
+    dt = Constant(dt_in)
+    t = Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
 
@@ -128,7 +126,7 @@ def heat_value_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
 
         for (i, val) in enumerate(stepper.sample_values):
             ts.append(float(t) + sample_points[i] * float(dt))
-            u_interp.interpolate(val)
+            u_interp.assign(val)
             qs.append(u_interp.copy(deepcopy=True))
 
         qs.append(u.copy(deepcopy=True))
@@ -145,9 +143,8 @@ def heat_deriv_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
 
     butcher_tableau = tableau(temporal_degree)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(dt_in)
-    t = MC.Constant(0.0)
+    dt = Constant(dt_in)
+    t = Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
 
@@ -178,7 +175,7 @@ def heat_deriv_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
 
         for (i, val) in enumerate(stepper.sample_values):
             ts.append(float(t) + sample_points[i] * float(dt))
-            u_interp.interpolate(val)
+            u_interp.assign(val)
             qs.append(u_interp.copy(deepcopy=True))
 
         qs.append(u.copy(deepcopy=True))
@@ -227,10 +224,9 @@ def test_mixed_heat(tableau, temporal_degree, stage_type):
 
     butcher_tableau = tableau(temporal_degree)
 
-    MC = MeshConstant(msh)
-    dt = MC.Constant(0.05)
-    t = MC.Constant(0.0)
-    my_t = MC.Constant(0.0)
+    dt = Constant(0.05)
+    t = Constant(0.0)
+    my_t = Constant(0.0)
 
     x, y = SpatialCoordinate(msh)
 
