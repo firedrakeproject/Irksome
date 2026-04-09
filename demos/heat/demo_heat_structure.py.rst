@@ -102,7 +102,7 @@ argument.::
 
   stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                         solver_parameters=luparams,
-			sample_points=sample_point)
+                        sample_points=sample_point)
 
 From here, we use the :class:`.TimeStepper`'s
 :meth:`~.TimeStepper.advance` method to solve the variational problem
@@ -128,4 +128,3 @@ opposite in sign of the gradient norm squared at the midpoints.::
       solution_norms.append(assemble(norm_form))
       deriv_norms.append(assemble(deriv_form))
       print(f"At time {float(t):.3f}, LHS is {(solution_norms[-1]-solution_norms[-2])/(2*float(dt)):.4e}, RHS is {deriv_norms[-1]:.4e}, difference is {(solution_norms[-1]-solution_norms[-2])/(2*float(dt)) + deriv_norms[-1]:.4e}")
-
