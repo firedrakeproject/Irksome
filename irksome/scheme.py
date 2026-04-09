@@ -37,8 +37,11 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
     def __init__(self, order,
                  basis_type=None,
                  quadrature_degree=None,
-                 quadrature_scheme=None):
+                 quadrature_scheme=None,
+                 deriv_type="strong"):
         assert order >= 0, f"{type(self).__name__} must have order >= 0"
+        assert deriv_type in {"weak", "strong"}
+        self.deriv_type = deriv_type
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
                          quadrature_scheme=quadrature_scheme)

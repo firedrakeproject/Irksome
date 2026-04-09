@@ -6,7 +6,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .labeling import split_quadrature, as_form
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
-from .ufl.deriv import expand_time_derivatives
+from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .scheme import create_time_quadrature, ufc_line
 from .tools import dot, reshape, replace
@@ -37,7 +37,7 @@ def getElement(basis_type, order):
         return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
-def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
+def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
     v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
@@ -54,7 +54,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
 
     trial_vals = vecconst(basis_vals)
     test_vals_w = vecconst(basis_vals_w)
-    test_dvals_w = vecconst(basis_dvals_w)
+    trial_dvals = vecconst(basis_dvals)
     qpts = vecconst(qpts.reshape((-1,)))
 
     # set up the pieces we need to work with to do our substitutions
@@ -62,43 +62,63 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test):
     u_np = reshape(stages, (-1, *u0.ufl_shape))
     vsub = dot(test_vals_w.T, v_np)
     usub = dot(trial_vals.T, u_np)
-    dtvsub = dot(test_dvals_w.T, v_np)
+    dtusub = dot(trial_dvals.T, u_np)
 
     # preprocess time derivatives
     split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
     F_dtless = remove_time_derivatives(split_form.time)
-    F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
     if F_dtless.empty():
         Fnew = F_dtless
-    else:
-        # Integrate by parts in time (Dt(g(u)), v)
-        # Jump terms: [(g(u), v)](t+dt) - [(g(u), v)](t)
+        F_remainder = F
+    elif deriv_type == "weak":
+        # Integrate by parts once (Dt(g(u)), v)
+        # Jump terms: [(g(u), v)](t+dt) - [(g(u), v)](t-)
         ref_el = L.get_reference_element()
         L_at_01 = vecconst(L.tabulate(0, ref_el.vertices)[(0,)])
         u_at_01 = dot(L_at_01.T, u_np)
         v_at_01 = dot(L_at_01.T, v_np)
 
-        repl_old = {v: v_at_01[0]}
-        repl_new = {v: v_at_01[1], u0: u_at_01[1], t: t + dt}
-        Fnew = replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
+        repl_tminus = {v: v_at_01[0]}
+        repl_tnew = {v: v_at_01[1], u0: u_at_01[1], t: t + dt}
+        Fnew = replace(F_dtless, repl_tnew) - replace(F_dtless, repl_tminus)
 
         # Terms with time derivatives: -(g(u), Dt(v))
+        test_dvals_w = vecconst(basis_dvals_w)
+        dtvsub = dot(test_dvals_w.T, v_np)
         for q in range(len(qpts)):
             repl = {t: t + qpts[q] * dt,
                     v: dtvsub[q],
                     u0: usub[q]}
             Fnew -= replace(F_dtless, repl)
+        F_remainder = split_form.remainder
+    elif deriv_type == "strong":
+        # Integrate by parts twice (Dt(g(u)), v)
+        # Jump terms: [(g(u), v)](t+) - [(g(u), v)](t-)
+        ref_el = L.get_reference_element()
+        L_at_0 = vecconst(L.tabulate(0, ref_el.vertices[0])[(0,)])
+        u_at_0 = dot(L_at_0.T, u_np)
+        v_at_0 = dot(L_at_0.T, v_np)
+
+        repl_tminus = {v: v_at_0}
+        repl_tplus = {v: v_at_0, u0: u_at_0}
+        Fnew = replace(F_dtless, repl_tplus) - replace(F_dtless, repl_tminus)
+        F_remainder = F
+    else:
+        raise ValueError(f"Unrecongnized deriv_type {deriv_type}")
 
     # Handle the rest of the terms
+    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
+    dtu0 = TimeDerivative(u0)
     for q in range(len(qpts)):
         repl = {t: t + qpts[q] * dt,
                 v: vsub[q] * dt,
-                u0: usub[q]}
+                u0: usub[q],
+                dtu0: dtusub[q] / dt}
         Fnew += replace(F_remainder, repl)
     return Fnew
 
 
-def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None):
+def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong"):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
@@ -116,6 +136,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None):
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
+    :arg deriv_type: either `"weak"` or `"strong"`.
 
     On output, we return a tuple consisting of two parts:
 
@@ -204,6 +225,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         assert order >= 0, "DG must be order >= 0"
 
         self.basis_type = basis_type = scheme.basis_type
+        self.deriv_type = scheme.deriv_type
 
         V = u0.function_space()
         self.num_fields = len(V)
@@ -230,7 +252,8 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
 
-    def get_form_and_bcs(self, stages, F=None, bcs=None, basis_type=None, order=None, quadrature=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, basis_type=None, order=None,
+                         quadrature=None, deriv_type=None):
         if bcs is None:
             bcs = self.orig_bcs
         if basis_type is None:
@@ -241,10 +264,12 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             el = self.el
         else:
             el = getElement(basis_type, order)
+        deriv_type = deriv_type or self.deriv_type
         return getFormDiscGalerkin(F or self.F,
                                    el,
                                    quadrature or self.quadrature,
-                                   self.t, self.dt, self.u0, stages, bcs)
+                                   self.t, self.dt, self.u0, stages,
+                                   bcs=bcs, deriv_type=deriv_type)
 
     def _update(self):
         stages_np = np.array(self.stages.subfunctions, dtype=object)

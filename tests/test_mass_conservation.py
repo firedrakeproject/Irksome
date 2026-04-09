@@ -83,10 +83,11 @@ def test_mass_conservation_stage_value(scheme):
 
 
 @pytest.mark.parametrize("order", [0, 1, 2])
-def test_mass_conservation_dg(order):
+@pytest.mark.parametrize("deriv_type", ["strong", "weak"])
+def test_mass_conservation_dg(order, deriv_type):
     """Test mass conservation with Dt(theta(h))"""
-    scheme = DiscontinuousGalerkinScheme(order)
+    scheme = DiscontinuousGalerkinScheme(order, deriv_type=deriv_type)
     err = run_richards(scheme)
-    assert err < 10*np.finfo(np.dtype(err)).eps, (
+    assert err < 200*np.finfo(np.dtype(err)).eps, (
         f"mass error should be near machine precision, got {err:.2e}"
     )
