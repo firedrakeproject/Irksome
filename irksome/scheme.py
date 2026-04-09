@@ -39,8 +39,10 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
                  quadrature_degree=None,
                  quadrature_scheme=None,
                  deriv_type="strong"):
-        assert order >= 0, f"{type(self).__name__} must have order >= 0"
-        assert deriv_type in {"weak", "strong"}
+        if order < 0:
+            raise ValueError(f"{type(self).__name__} must have order >= 0")
+        if deriv_type not in {"weak", "strong"}:
+            raise ValueError(f"deriv_type must be either weak or strong.")
         self.deriv_type = deriv_type
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
@@ -53,7 +55,8 @@ class ContinuousPetrovGalerkinScheme(GalerkinScheme):
                  basis_type=None,
                  quadrature_degree=None,
                  quadrature_scheme=None):
-        assert order >= 1, f"{type(self).__name__} must have order >= 1"
+        if order < 1:
+            raise ValueError(f"{type(self).__name__} must have order >= 1")
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
                          quadrature_scheme=quadrature_scheme)
@@ -65,7 +68,8 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
                  stage_type="deriv",
                  quadrature_degree=None,
                  quadrature_scheme=None):
-        assert order >= 1, f"{type(self).__name__} must have order >= 1"
+        if order < 1:
+            raise ValueError(f"{type(self).__name__} must have order >= 1")
         if quadrature_scheme is None:
             test_type = "spectral"
         elif quadrature_scheme in {"radau", "lobatto"}:

@@ -70,6 +70,18 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
     if F_dtless.empty():
         Fnew = F_dtless
         F_remainder = F
+    elif deriv_type == "strong":
+        # Integrate by parts twice (Dt(g(u)), v)
+        # Jump terms: [(g(u), v)](t+) - [(g(u), v)](t-)
+        ref_el = L.get_reference_element()
+        L_at_0 = vecconst(L.tabulate(0, ref_el.vertices[0])[(0,)])
+        u_at_0 = dot(L_at_0.T, u_np)
+        v_at_0 = dot(L_at_0.T, v_np)
+
+        repl_tminus = {v: v_at_0}
+        repl_tplus = {v: v_at_0, u0: u_at_0}
+        Fnew = replace(F_dtless, repl_tplus) - replace(F_dtless, repl_tminus)
+        F_remainder = F
     elif deriv_type == "weak":
         # Integrate by parts once (Dt(g(u)), v)
         # Jump terms: [(g(u), v)](t+dt) - [(g(u), v)](t-)
@@ -91,18 +103,6 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
                     u0: usub[q]}
             Fnew -= replace(F_dtless, repl)
         F_remainder = split_form.remainder
-    elif deriv_type == "strong":
-        # Integrate by parts twice (Dt(g(u)), v)
-        # Jump terms: [(g(u), v)](t+) - [(g(u), v)](t-)
-        ref_el = L.get_reference_element()
-        L_at_0 = vecconst(L.tabulate(0, ref_el.vertices[0])[(0,)])
-        u_at_0 = dot(L_at_0.T, u_np)
-        v_at_0 = dot(L_at_0.T, v_np)
-
-        repl_tminus = {v: v_at_0}
-        repl_tplus = {v: v_at_0, u0: u_at_0}
-        Fnew = replace(F_dtless, repl_tplus) - replace(F_dtless, repl_tminus)
-        F_remainder = F
     else:
         raise ValueError(f"Unrecongnized deriv_type {deriv_type}")
 
