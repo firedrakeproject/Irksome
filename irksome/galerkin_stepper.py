@@ -1,12 +1,14 @@
 from FIAT import (Bernstein, DiscontinuousLagrange,
                   GaussRadau, IntegratedLegendre, Lagrange,
-                  NodalEnrichedElement, RestrictedElement)
+                  Legendre, NodalEnrichedElement, RestrictedElement)
 from ufl.classes import Zero
-from ufl import as_ufl, as_tensor
+from ufl import as_ufl, as_tensor, Coefficient
+from ufl.domain import as_domain
 
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import bc2space, extract_bcs, stage2spaces4bc
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
+from .ufl.time_projector import expand_time_projectors
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
@@ -20,7 +22,7 @@ from .stage_derivative import getForm
 from .stage_value import getFormStage
 
 import numpy as np
-from firedrake import TestFunction, Constant
+from firedrake import TestFunction, Constant, Function, VectorFunctionSpace
 from firedrake.bcs import EquationBCSplit
 
 
@@ -65,17 +67,34 @@ def getElements(basis_type, order):
     return L_trial, L_test
 
 
-def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
+def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices=None):
+    qpts = Q.get_points()
+    qwts = Q.get_weights()
+
+    # internal state to be used inside projected expressions
+    u1 = Function(u0)
+    # symbolic Coefficient with the temporal test function
+    mesh = as_domain(u0.function_space().mesh())
+    R = VectorFunctionSpace(mesh, "Real", 0, dim=L_test.space_dimension())
+    phi = Coefficient(R)
+    # apply time projectors
+    F = expand_time_projectors(F, L_trial, t, dt, u0, u1, stages, phi)
+    # tabulate the temporal test function
+    ref_el = L_test.get_reference_element()
+    phisub = vecconst(Legendre(ref_el, L_test.degree()).tabulate(0, qpts)[(0,)].T)
+
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
     V = v.function_space()
-    assert V == u0.function_space()
+
+    # assert V == u0.function_space()
     i0, = L_trial.entity_dofs()[0][0]
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
     assert qpts.size >= L_test.space_dimension()
+
     tabulate_trials = L_trial.tabulate(1, qpts)
     trial_vals = tabulate_trials[(0,)]
     trial_dvals = tabulate_trials[(1,)]
@@ -109,7 +128,10 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
         repl[q] = {t: t + qpts[q] * dt,
                    v: vsub[q] * dt,
                    u0: usub[q],
-                   dtu0: dtu0sub[q] / dt}
+                   dtu0: dtu0sub[q] / dt,
+                   u1: u0,
+                   phi: phisub[q]}
+
     Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
