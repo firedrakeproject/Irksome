@@ -278,6 +278,23 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(stage_vals[i::self.num_fields] @ self.collocation_vander)
 
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
+        return getFormStage(F or self.F,
+                            tableau or self.butcher_tableau,
+                            self.t, self.dt, self.u0,
+                            stages, bcs=bcs,
+                            splitting=self.splitting,
+                            vandermonde=self.vandermonde)
+
+    def set_initial_guess(self):
+        """Set a constant-in-time initial guess"""
+        for k in range(self.num_stages):
+            for i, u0bit in enumerate(self.u0.subfunctions):
+                sbit = self.stages.subfunctions[self.num_fields * k + i]
+                sbit.assign(u0bit)
+
     def tabulate_poly(self, sample_points):
         assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
         assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
@@ -296,20 +313,3 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         else:
             raise ValueError(f"Unexpected basis type {self.basis_type}.")
         return vander
-
-    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
-        if bcs is None:
-            bcs = self.orig_bcs
-        return getFormStage(F or self.F,
-                            tableau or self.butcher_tableau,
-                            self.t, self.dt, self.u0,
-                            stages, bcs=bcs,
-                            splitting=self.splitting,
-                            vandermonde=self.vandermonde)
-
-    def set_initial_guess(self):
-        """Set a constant-in-time initial guess"""
-        for k in range(self.num_stages):
-            for i, u0bit in enumerate(self.u0.subfunctions):
-                sbit = self.stages.subfunctions[self.num_fields * k + i]
-                sbit.assign(u0bit)
