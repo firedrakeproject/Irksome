@@ -169,7 +169,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         if basis_type is None or basis_type == 'Lagrange':
             vandermonde = None
         else:
-            pts = numpy.reshape(numpy.append(0, butcher_tableau.c), (-1, 1))
+            nodes = numpy.insert(butcher_tableau.c, 0, 0.0)
+            pts = numpy.reshape(nodes, (-1, 1))
             vandermonde = self.tabulate_poly(pts).T
         self.vandermonde = vandermonde
 
@@ -189,7 +190,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             self.collocation_vander = self.tabulate_poly((1.0,))
             self._update = self._update_collocation
 
-        elif (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
+        elif (not butcher_tableau.is_stiffly_accurate) and (vandermonde is None):
             try:
                 A = butcher_tableau.A
                 b = butcher_tableau.b
@@ -279,12 +280,14 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                 sbit.assign(u0bit)
 
     def tabulate_poly(self, sample_points):
-        assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
-        assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
+        if not isinstance(self.butcher_tableau, CollocationButcherTableau):
+            raise ValueError("Need a collocation method to evaluate the collocation polynomial")
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        if len(set(nodes)) != len(nodes):
+            raise ValueError("Need non-confluent collocation method for polynomial evaluation")
 
         ref_el = ufc_simplex(1)
         if self.basis_type is None or self.basis_type == "Lagrange":
-            nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
             lag_basis = LagrangePolynomialSet(ref_el, nodes)
             vander = vecconst(lag_basis.tabulate(sample_points, 0)[(0,)])
         elif self.basis_type == "Bernstein":

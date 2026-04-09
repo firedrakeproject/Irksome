@@ -243,20 +243,21 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                        aux_indices=self.aux_indices)
 
     def tabulate_poly(self, sample_points):
-        assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
-        assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
-
-        A_const = vecconst(self.butcher_tableau.A)
+        if not isinstance(self.butcher_tableau, CollocationButcherTableau):
+            raise ValueError("Need a collocation method to evaluate the collocation polynomial")
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        if len(set(nodes)) != len(nodes):
+            raise ValueError("Need non-confluent collocation method for polynomial evaluation")
 
         ref_el = ufc_simplex(1)
         lag_basis = LagrangePolynomialSet(ref_el, nodes)
         evaluation_vander = vecconst(lag_basis.tabulate(sample_points, 0)[(0,)])
 
+        butcher_A = vecconst(self.butcher_tableau.A)
         num_terms = self.num_stages + 1
         coeffs = vecconst(numpy.zeros((num_terms, num_terms)))
         coeffs[0, :] = 1
-        coeffs[1:, 1:] = self.dt * A_const.T
+        coeffs[1:, 1:] = self.dt * butcher_A.T
         vander = coeffs @ evaluation_vander
         return vander
 
