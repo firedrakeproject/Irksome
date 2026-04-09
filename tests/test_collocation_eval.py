@@ -78,9 +78,9 @@ def heat_value_hand(V, butcher_tableau, dt_in, **kwargs):
         stepper.advance()
 
         # Stage Interpolation
-        for s in range(num_eval_points):
-            u_interp.assign(sample_values[s])
-            ts.append(float(t) + sample_points[s] * float(dt))
+        for point, val in zip(sample_points, sample_values):
+            u_interp.assign(val)
+            ts.append(float(t) + point * float(dt))
             qs.append(u_interp.copy(deepcopy=True))
 
         t.assign(t + dt)
