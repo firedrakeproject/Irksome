@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from firedrake import (Constant, TestFunction, UnitSquareMesh, FunctionSpace, Function, grad,
-                       assemble, project, SpatialCoordinate, inner, dx, cos, pi, norm,
+                       project, SpatialCoordinate, inner, dx, cos, pi, norm,
                        as_vector, DirichletBC, div, dot, ds, errornorm, FacetNormal, split, TestFunctions)
 from irksome import (GaussLegendre, RadauIIA, Dt, TimeStepper)
 from irksome.tools import replace

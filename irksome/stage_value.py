@@ -5,7 +5,7 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
-from ufl import as_tensor, zero
+from ufl import as_tensor, as_vector, zero
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc

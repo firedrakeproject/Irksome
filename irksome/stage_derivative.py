@@ -2,7 +2,7 @@ import numpy
 from firedrake import Function, TestFunction
 from firedrake import NonlinearVariationalProblem as NLVP
 from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import assemble, dx, inner, norm, as_tensor
+from firedrake import assemble, dx, inner, norm, as_tensor, as_vector
 from firedrake.bcs import EquationBC, EquationBCSplit
 
 from FIAT import ufc_simplex
