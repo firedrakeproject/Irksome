@@ -12,7 +12,7 @@ from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
-from .tools import AI, is_ode, dot, reshape, replace
+from .tools import AI, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -73,9 +73,6 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages
     """
-    # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
-    assert is_ode(F, u0) or butch.is_stiffly_accurate
-
     v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()

@@ -7,7 +7,7 @@ from ufl import as_tensor
 from ufl import replace as ufl_replace
 from pyop2.types import MixedDat
 
-from .ufl.deriv import TimeDerivative, expand_time_derivatives
+from .ufl.deriv import TimeDerivative
 
 
 def dot(A, B):
@@ -111,7 +111,6 @@ def IA(A):
 def is_ode(f, u):
     """Given a form defined over a function `u`, checks if
     (each bit of) u appears under a time derivative."""
-    f = expand_time_derivatives(f, timedep_coeffs=(u,))
     derivs = extract_type(f, TimeDerivative)
     Dtbits = []
     for k in derivs:
