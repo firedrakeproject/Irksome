@@ -65,7 +65,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
 
 
 @pytest.mark.parametrize("order", [0, 1, 2])
-def test_1d_heat_neumannbc(order):
+@pytest.mark.parametrize("quadrature_degree", [None, "auto"])
+def test_1d_heat_neumannbc(order, quadrature_degree):
     N = 20
     msh = UnitIntervalMesh(N)
     V = FunctionSpace(msh, "CG", 1)
@@ -91,7 +92,7 @@ def test_1d_heat_neumannbc(order):
 
     sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
-    scheme = DiscontinuousGalerkinScheme(order, quadrature_scheme="radau")
+    scheme = DiscontinuousGalerkinScheme(order, quadrature_scheme="radau", quadrature_degree=quadrature_degree)
     stepper = TimeStepper(F, scheme, t, dt, u, solver_parameters=sparams)
 
     butcher_tableau = RadauIIA(order+1)
