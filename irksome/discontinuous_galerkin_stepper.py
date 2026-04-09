@@ -252,7 +252,6 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             u0bit.assign(stages_np[i::self.num_fields] @ self.update_b)
 
     def tabulate_poly(self, sample_points):
-        pts = np.reshape(sample_points, (-1, 1))
         vander = vecconst(np.zeros((self.num_stages+1, len(sample_points))))
-        vander[1:] = vecconst(self.el.tabulate(0, pts)[(0,)])
+        vander[1:] = vecconst(self.el.tabulate(0, sample_points)[(0,)])
         return vander

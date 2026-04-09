@@ -53,8 +53,8 @@ def heat_value_hand(V, butcher_tableau, dt_in, **kwargs):
     t = stepper.t
     dt = stepper.dt
 
+    sample_points = np.reshape(sample_points, (-1, 1))
     if isinstance(butcher_tableau, ButcherTableau):
-        sample_points = np.reshape(sample_points, (-1, 1))
         nodes = butcher_tableau.c
         nodes = np.insert(nodes, 0, 0.0)
         if temporal_basis == "Lagrange":

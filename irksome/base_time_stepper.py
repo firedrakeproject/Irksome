@@ -4,6 +4,7 @@ from firedrake.petsc import PETSc
 from .tools import AI, getNullspace, flatten_dats, split_stages
 from .backend import get_backend
 import ufl
+import numpy
 
 
 class BaseTimeStepper:
@@ -221,7 +222,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         `self.sample_values` as functions in the same FunctionSpace as `self.u0`.  The resulting
         expressions can then be assigned to a Function on that same FunctionSpace.
         '''
-        vander = self.tabulate_poly(self.sample_points)
+        pts = numpy.reshape(self.sample_points, (-1, 1))
+        vander = self.tabulate_poly(pts)
 
         self.u_old = Function(self.u0)
         ks = [self.u_old]
