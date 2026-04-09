@@ -42,7 +42,7 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
         if order < 0:
             raise ValueError(f"{type(self).__name__} must have order >= 0")
         if deriv_type not in {"weak", "strong"}:
-            raise ValueError(f"deriv_type must be either weak or strong.")
+            raise ValueError("deriv_type must be either weak or strong.")
         self.deriv_type = deriv_type
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
