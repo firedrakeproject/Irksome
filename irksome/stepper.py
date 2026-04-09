@@ -22,8 +22,8 @@ valid_kwargs_per_stage_type = {
     "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
              "splitting", "num_its_initial", "num_its_per_step"],
     "dirkimex": ["Fexp", "stage_type", "mass_parameters"],
-    "dg": ["Fp"],
-    "cpg": ["Fp", "bc_type", "aux_indices"]}
+    "dg": ["Fp", "sample_points"],
+    "cpg": ["Fp", "bc_type", "aux_indices", "sample_points"]}
 
 valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "max_reject", "onscale_factor",

@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from firedrake import derivative, Function, NonlinearVariationalProblem, NonlinearVariationalSolver
 from firedrake.petsc import PETSc
-from .tools import AI, getNullspace, flatten_dats
+from .tools import AI, getNullspace, flatten_dats, split_stages
 from .backend import get_backend
 import ufl
 
@@ -143,6 +143,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         # stash these for later in case we do bounds constraints
         self.stage_bounds = self.get_stage_bounds(bounds)
 
+        if sample_points is not None:
+            self.build_poly()
+
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
@@ -206,3 +209,23 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             raise ValueError("Unknown bounds type")
 
         return (slb, sub)
+
+    def tabulate_poly(self, sample_points):
+        raise NotImplementedError("tabulate_poly not implemented")
+
+    def build_poly(self):
+        '''
+        When provided with a list of `sample_points` (intended to be in the interval [0,1]), this
+        builds a symbolic expression for the values of the RK collocation polynomial at the
+        corresponding points on the interval [t_n, t_{n+1}].  These are stored in the list
+        `self.sample_values` as functions in the same FunctionSpace as `self.u0`.  The resulting
+        expressions can then be assigned to a Function on that same FunctionSpace.
+        '''
+        vander = self.tabulate_poly(self.sample_points)
+
+        self.u_old = Function(self.u0)
+        ks = [self.u_old]
+        ks.extend(split_stages(self.u0.function_space(), self.stages))
+        num_samples = vander.shape[1]
+        self.sample_values = [sum(ks[j] * vander[j, i] for j in range(len(ks)))
+                              for i in range(num_samples)]

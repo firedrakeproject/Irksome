@@ -12,7 +12,7 @@ from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import extract_terms, strip_dt_form
-from .tools import AI, is_ode, dot, reshape, replace, split_stages
+from .tools import AI, is_ode, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -219,9 +219,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         else:
             self._update = self._update_stiff_acc
 
-        if sample_points is not None:
-            self.build_poly()
-
     def _update_Ainv(self):
         nf = self.num_fields
         ns = self.num_stages
@@ -281,15 +278,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(stage_vals[i::self.num_fields] @ self.collocation_vander)
 
-    def build_poly(self):
-        '''
-        When provided with a list of `sample_points` (intended to be in the interval [0,1]), this
-        builds a symbolic expression for the values of the RK collocation polynomial at the
-        corresponding points on the interval [t_n, t_{n+1}].  These are stored in the list
-        `self.sample_values` as functions in the same FunctionSpace as `self.u0`.  The resulting
-        expressions can then be assigned to a Function on that same FunctionSpace.
-        '''
-
+    def tabulate_poly(self, sample_points):
         assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method to evaluate the collocation polynomial"
         assert self.butcher_tableau.c[0] != 0.0, "Need non-confluent collocation method for polynomial evaluation"
 
@@ -297,25 +286,16 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         nodes = vecconst(nodes)
 
         ref_el = ufc_simplex(1)
-        pts = numpy.reshape(self.sample_points, (-1, 1))
+        pts = numpy.reshape(sample_points, (-1, 1))
         if self.basis_type is None or self.basis_type == "Lagrange":
             lag_basis = LagrangePolynomialSet(ref_el, nodes)
-            evaluation_vander = vecconst(lag_basis.tabulate(pts, 0)[(0,)])
+            vander = vecconst(lag_basis.tabulate(pts, 0)[(0,)])
         elif self.basis_type == "Bernstein":
             bern_element = Bernstein(ref_el, self.butcher_tableau.num_stages)
-            evaluation_vander = vecconst(bern_element.tabulate(0, pts)[(0,)])
+            vander = vecconst(bern_element.tabulate(0, pts)[(0,)])
         else:
             raise ValueError(f"Unexpected basis type {self.basis_type}.")
-
-        self.u_old = Function(self.u0)
-        ks = [self.u_old]
-        ks.extend(split_stages(self.u0.function_space(), self.stages))
-
-        num_terms = len(ks)
-        num_samples = numpy.size(self.sample_points)
-        self.sample_values = [sum(ks[j] * evaluation_vander[j, i]
-                                  for j in range(num_terms))
-                              for i in range(num_samples)]
+        return vander
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:

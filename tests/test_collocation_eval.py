@@ -4,7 +4,9 @@ import pytest
 from firedrake import (Constant, TestFunction, UnitSquareMesh, FunctionSpace, Function, grad,
                        project, SpatialCoordinate, inner, dx, cos, pi, norm,
                        as_vector, DirichletBC, div, dot, ds, errornorm, FacetNormal, split, TestFunctions)
-from irksome import (GaussLegendre, RadauIIA, Dt, TimeStepper)
+from irksome import (GaussLegendre, RadauIIA, Dt, TimeStepper,
+                     ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme)
+from irksome.tableaux.ButcherTableaux import ButcherTableau
 from irksome.tools import replace
 from FIAT import ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
@@ -43,26 +45,27 @@ def heat_stepper(V, butcher_tableau, dt_in, **kwargs):
 def heat_value_hand(V, butcher_tableau, dt_in, **kwargs):
     sample_points = kwargs.pop("sample_points")
     temporal_basis = kwargs.get("basis_type", "Lagrange")
-    kwargs["stage_type"] = "value"
+    if isinstance(butcher_tableau, ButcherTableau):
+        kwargs["stage_type"] = "value"
 
     stepper = heat_stepper(V, butcher_tableau, dt_in, **kwargs)
     u = stepper.u0
     t = stepper.t
     dt = stepper.dt
 
-    nodes = butcher_tableau.c
-    nodes = np.insert(nodes, 0, 0.0)
+    if isinstance(butcher_tableau, ButcherTableau):
+        sample_points = np.reshape(sample_points, (-1, 1))
+        nodes = butcher_tableau.c
+        nodes = np.insert(nodes, 0, 0.0)
+        if temporal_basis == "Lagrange":
+            lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
+            Vander_between = lag_basis.tabulate(sample_points, 0)[(0,)]
 
-    num_eval_points = len(sample_points)
-    sample_points = np.reshape(sample_points, (-1, 1))
-
-    if temporal_basis == "Lagrange":
-        lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
-        Vander_between = lag_basis.tabulate(sample_points, 0)[(0,)]
-
-    elif temporal_basis == "Bernstein":
-        bern_element = Bernstein(ufc_simplex(1), len(nodes)-1)
-        Vander_between = bern_element.tabulate(0, sample_points)[(0,)]
+        elif temporal_basis == "Bernstein":
+            bern_element = Bernstein(ufc_simplex(1), len(nodes)-1)
+            Vander_between = bern_element.tabulate(0, sample_points)[(0,)]
+    else:
+        Vander_between = stepper.tabulate_poly(sample_points)
 
     u_old = Function(u)
     stage_vals = u_old.subfunctions + stepper.stages.subfunctions
@@ -141,6 +144,22 @@ def test_sample_Bernstein(V, scheme, temporal_degree):
 def test_sample_Lagrange(V, scheme, temporal_degree, stage_type):
     kwargs = dict(
         stage_type=stage_type,
+        solver_parameters=params,
+        sample_points=[0.2, 0.5, 0.75, 0.9],
+    )
+    tableau = scheme(temporal_degree)
+    dt_in = 0.125
+
+    ts_hand, qs_hand = heat_value_hand(V, tableau, dt_in, **kwargs)
+    ts_mech, qs_mech = heat_mech(V, tableau, dt_in, **kwargs)
+    errors = [norm(qs_hand[i] - qs_mech[i]) for i in range(len(qs_hand))]
+    assert max(errors) < 1e-11
+
+
+@pytest.mark.parametrize('scheme', [ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme])
+@pytest.mark.parametrize('temporal_degree', [1, 2])
+def test_sample_galerkin(V, scheme, temporal_degree):
+    kwargs = dict(
         solver_parameters=params,
         sample_points=[0.2, 0.5, 0.75, 0.9],
     )

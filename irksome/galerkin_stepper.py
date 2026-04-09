@@ -431,3 +431,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                     sbit.zero()
                 else:
                     sbit.assign(u0bit * dof)
+
+    def tabulate_poly(self, sample_points):
+        pts = np.reshape(sample_points, (-1, 1))
+        vander = vecconst(self.trial_el.tabulate(0, pts)[(0,)])
+        return vander
