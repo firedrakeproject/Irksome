@@ -10,31 +10,29 @@ from FIAT import ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from FIAT.bernstein import Bernstein
 
-msh = UnitSquareMesh(20, 20)
 params = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
 
-def heat_value_hand(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal_basis, temporal_degree, sample_points):
+@pytest.fixture
+def msh():
+    return UnitSquareMesh(20, 20)
 
-    V = FunctionSpace(msh, spatial_basis, spatial_degree)
 
-    butcher_tableau = tableau(temporal_degree)
+def heat_value_hand(V, butcher_tableau, dt_in, **kwargs):
+    sample_points = kwargs.pop("sample_points")
+    temporal_basis = kwargs.get("basis_type", "Lagrange")
+    kwargs["stage_type"] = "value"
 
     dt = Constant(dt_in)
     t = Constant(0.0)
 
-    x, y = SpatialCoordinate(msh)
+    x, y = SpatialCoordinate(V.mesh())
 
     u_init = 1 + cos(2*pi*x) * cos(2*pi*y)
     u = project(u_init, V)
     v = TestFunction(V)
 
     F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx)
-
-    kwargs = {"stage_type": "value",
-              "basis_type": temporal_basis,
-              "solver_parameters": params,
-              }
 
     stepper = TimeStepper(F, butcher_tableau, t, dt, u, **kwargs)
 
@@ -49,30 +47,25 @@ def heat_value_hand(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
         Vander_between = lag_basis.tabulate(sample_points, 0)[(0,)]
 
     elif temporal_basis == "Bernstein":
-        bern_element = Bernstein(ufc_simplex(1), temporal_degree)
+        bern_element = Bernstein(ufc_simplex(1), len(nodes)-1)
         Vander_between = bern_element.tabulate(0, sample_points)[(0,)]
 
-    k0 = Function(V)
-    k0.assign(u)
+    k0 = Function(u)
     stage_vals = k0.subfunctions + stepper.stages.subfunctions
     sample_values = Vander_between.T @ stage_vals
 
-    u_interp = Function(V, name='u_interp')
+    u_interp = Function(u, name='u_interp')
 
-    qs = []
-    ts = []
+    qs = [u_interp.copy(deepcopy=True)]
+    ts = [float(t)]
 
-    u_interp.interpolate(u)
-    qs.append(u_interp.copy(deepcopy=True))
-    ts.append(float(t))
-
-    for i in range(2):
+    for step in range(2):
 
         stepper.advance()
 
         # Stage Interpolation
         for s in range(num_eval_points):
-            u_interp.interpolate(sample_values[s])
+            u_interp.assign(sample_values[s])
             qs.append(u_interp.copy(deepcopy=True))
             ts.append(float(t) + sample_points[s] * float(dt))
 
@@ -87,16 +80,12 @@ def heat_value_hand(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
     return (ts, qs)
 
 
-def heat_value_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal_basis, temporal_degree, sample_points):
-
-    V = FunctionSpace(msh, spatial_basis, spatial_degree)
-
-    butcher_tableau = tableau(temporal_degree)
+def heat_mech(V, butcher_tableau, dt_in, **kwargs):
 
     dt = Constant(dt_in)
     t = Constant(0.0)
 
-    x, y = SpatialCoordinate(msh)
+    x, y = SpatialCoordinate(V.mesh())
 
     u_init = 1 + cos(2*pi*x) * cos(2*pi*y)
     u = project(u_init, V)
@@ -104,23 +93,14 @@ def heat_value_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
 
     F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx)
 
-    kwargs = {"stage_type": "value",
-              "basis_type": temporal_basis,
-              "solver_parameters": params,
-              "sample_points": sample_points
-              }
-
     stepper = TimeStepper(F, butcher_tableau, t, dt, u, **kwargs)
 
-    qs = []
-    ts = []
-
     u_interp = u.copy(deepcopy=True)
-
     qs = [u_interp.copy(deepcopy=True)]
-    ts.append(float(t))
+    ts = [float(t)]
 
-    for i in range(2):
+    sample_points = kwargs["sample_points"]
+    for step in range(2):
 
         stepper.advance()
 
@@ -137,92 +117,57 @@ def heat_value_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal
     return (ts, qs)
 
 
-def heat_deriv_mech(msh, tableau, dt_in, spatial_basis, spatial_degree, temporal_degree, sample_points):
-
-    V = FunctionSpace(msh, spatial_basis, spatial_degree)
-
-    butcher_tableau = tableau(temporal_degree)
-
-    dt = Constant(dt_in)
-    t = Constant(0.0)
-
-    x, y = SpatialCoordinate(msh)
-
-    u_init = 1 + cos(2*pi*x) * cos(2*pi*y)
-    u = project(u_init, V)
-    v = TestFunction(V)
-
-    F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx)
-
-    kwargs = {"stage_type": "deriv",
-              "solver_parameters": params,
-              "sample_points": sample_points
-              }
-
-    stepper = TimeStepper(F, butcher_tableau, t, dt, u, **kwargs)
-
-    qs = []
-    ts = []
-
-    u_interp = u.copy(deepcopy=True)
-
-    qs = [u_interp.copy(deepcopy=True)]
-    ts.append(float(t))
-
-    for i in range(2):
-
-        stepper.advance()
-
-        for (i, val) in enumerate(stepper.sample_values):
-            ts.append(float(t) + sample_points[i] * float(dt))
-            u_interp.assign(val)
-            qs.append(u_interp.copy(deepcopy=True))
-
-        qs.append(u.copy(deepcopy=True))
-        t.assign(float(t) + float(dt))
-        ts.append(float(t))
-
-    return (ts, qs)
+@pytest.fixture(params=[1, 2])
+def V(msh, request):
+    degree = request.param
+    return FunctionSpace(msh, "Lagrange", degree)
 
 
-dt_in = 0.125
-sample_points = [0.2, 0.5, 0.75, 0.9]
-
-
-@pytest.mark.parametrize('tableau', [RadauIIA, GaussLegendre])
-@pytest.mark.parametrize('spatial_degree', [1, 2])
+@pytest.mark.parametrize('scheme', [RadauIIA, GaussLegendre])
 @pytest.mark.parametrize('temporal_degree', [1, 2, 3])
-def test_sample_Bernstein(tableau, spatial_degree, temporal_degree):
-    ts_hand, qs_hand = heat_value_hand(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Bernstein', temporal_degree, sample_points)
-    ts_stage, qs_stage = heat_value_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Bernstein', temporal_degree, sample_points)
-    errors = [norm(qs_hand[i] - qs_stage[i]) for i in range(len(qs_hand))]
+def test_sample_Bernstein(V, scheme, temporal_degree):
+    kwargs = dict(
+        stage_type="value",
+        basis_type="Bernstein",
+        solver_parameters=params,
+        sample_points=[0.2, 0.5, 0.75, 0.9],
+    )
+    tableau = scheme(temporal_degree)
+    dt_in = 0.125
+
+    ts_hand, qs_hand = heat_value_hand(V, tableau, dt_in, **kwargs)
+    ts_mech, qs_mech = heat_mech(V, tableau, dt_in, **kwargs)
+    errors = [norm(qs_hand[i] - qs_mech[i]) for i in range(len(qs_hand))]
     assert max(errors) < 1e-11
 
 
-@pytest.mark.parametrize('tableau', [RadauIIA, GaussLegendre])
-@pytest.mark.parametrize('spatial_degree', [1, 2])
+@pytest.mark.parametrize('scheme', [RadauIIA, GaussLegendre])
 @pytest.mark.parametrize('temporal_degree', [1, 2, 3])
-def test_sample_Lagrange(tableau, spatial_degree, temporal_degree):
-    ts_hand, qs_hand = heat_value_hand(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Lagrange', temporal_degree, sample_points)
-    ts_value, qs_value = heat_value_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, 'Lagrange', temporal_degree, sample_points)
-    ts_deriv, qs_deriv = heat_deriv_mech(msh, tableau, 0.125, 'Lagrange', spatial_degree, temporal_degree, sample_points)
-    errors_value = [norm(qs_hand[i] - qs_value[i]) for i in range(len(qs_hand))]
-    assert max(errors_value) < 1e-11
-    errors_deriv = [norm(qs_hand[i] - qs_deriv[i]) for i in range(len(qs_hand))]
-    assert max(errors_deriv) < 1e-11
+@pytest.mark.parametrize('stage_type', ["value", "deriv"])
+def test_sample_Lagrange(V, scheme, temporal_degree, stage_type):
+    kwargs = dict(
+        stage_type=stage_type,
+        solver_parameters=params,
+        sample_points=[0.2, 0.5, 0.75, 0.9],
+    )
+    tableau = scheme(temporal_degree)
+    dt_in = 0.125
+
+    ts_hand, qs_hand = heat_value_hand(V, tableau, dt_in, **kwargs)
+    ts_mech, qs_mech = heat_mech(V, tableau, dt_in, **kwargs)
+    errors = [norm(qs_hand[i] - qs_mech[i]) for i in range(len(qs_hand))]
+    assert max(errors) < 1e-11
 
 
-@pytest.mark.parametrize('tableau', [RadauIIA, GaussLegendre])
+@pytest.mark.parametrize('scheme', [RadauIIA, GaussLegendre])
 @pytest.mark.parametrize('temporal_degree', [2, 3])
 @pytest.mark.parametrize('stage_type', ["deriv", "value"])
-def test_mixed_heat(tableau, temporal_degree, stage_type):
+def test_mixed_heat(scheme, temporal_degree, stage_type):
 
     msh = UnitSquareMesh(4, 4)
     V = FunctionSpace(msh, "RT", 3)
     W = FunctionSpace(msh, "DG", 2)
     Z = V * W
-
-    butcher_tableau = tableau(temporal_degree)
 
     dt = Constant(0.05)
     t = Constant(0.0)
@@ -247,12 +192,12 @@ def test_mixed_heat(tableau, temporal_degree, stage_type):
     bc = DirichletBC(Z.sub(0), q_exact, "on_boundary")
 
     sample_points = [0.3, 0.75]
-    stepper = TimeStepper(F, butcher_tableau, t, dt, qu, bcs=bc,
+    stepper = TimeStepper(F, scheme(temporal_degree), t, dt, qu, bcs=bc,
                           stage_type=stage_type, sample_points=sample_points)
 
     e_vals = []
     check = Function(qu)
-    for i in range(2):
+    for step in range(2):
 
         stepper.advance()
 
