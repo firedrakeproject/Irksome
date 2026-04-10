@@ -10,6 +10,28 @@ from ufl.form import BaseForm
 from ufl.classes import (Coefficient, Conj, Curl, ConstantValue, Derivative,
                          Div, Expr, Grad, Indexed, ReferenceGrad,
                          ReferenceValue, SpatialCoordinate, Variable)
+from ufl.corealg.multifunction import MultiFunction
+
+
+class IrksomeImportOrderException(Exception):
+    pass
+
+
+def check_irksome_import_order():
+    """Check that irksome has been imported early enough.
+
+    Due to the inadequacies of the UFL type system, it is not possible to
+    define a new UFL type once any ufl MultiFunction has been used.
+
+    This restriction can be removed once all MultiFunctions have been
+    transitioned to ufl.corealg.dag_traverser.DAGTraverser."""
+
+    if MultiFunction._handlers_cache:
+        raise IrksomeImportOrderException(
+            """A UFL multifunction has already run.
+            Irksome needs to be imported earlier.
+            """
+        )
 
 
 @ufl_type(num_ops=1,
