@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Solving the Navier-Stokes Equations with Irksome &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/fenics.css?v=c6f455f8" />
+    <script src="../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Block diagonal preconditioners for the heat equation" href="demo_heat_pc.py.html" />
+    <link rel="prev" title="Solving the Mixed Wave Equation: Energy conservation" href="demo_RTwave.py.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../index.html"><img src="../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="demos/demo_nse.py">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="solving-the-navier-stokes-equations-with-irksome">
+<h1>Solving the Navier-Stokes Equations with Irksome<a class="headerlink" href="#solving-the-navier-stokes-equations-with-irksome" title="Link to this heading">¶</a></h1>
+<p>Let’s consider the lid-driven cavity problem on <span class="math notranslate nohighlight">\(\Omega = [0,1]
+\times [0,1]\)</span>, with boundary <span class="math notranslate nohighlight">\(\Gamma_T \cup \Gamma\)</span>, where
+<span class="math notranslate nohighlight">\(\Gamma_T\)</span> is the top of the domain, <span class="math notranslate nohighlight">\(0 \leq x \leq 1, y=1\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}u_t + u \cdot \nabla u - \frac{1}{Re}\Delta u + \nabla p &amp;= 0\\\nabla\cdot u &amp; = 0\\u &amp; = (0,0) \quad \textrm{on}\ \Gamma\\u &amp; = (1,0) \quad \textrm{on}\ \Gamma_T\end{aligned}\end{align} \]</div>
+<p>At each time <span class="math notranslate nohighlight">\(t\)</span>, the solution to this equation will be some
+functions <span class="math notranslate nohighlight">\((u,p)\in V\times W\)</span>, for a suitable function spaces
+<span class="math notranslate nohighlight">\(V, W\)</span>.</p>
+<p>We transform this into weak form by multiplying arbitrary test
+functions <span class="math notranslate nohighlight">\(v\in V\)</span> and <span class="math notranslate nohighlight">\(w\in W\)</span> and integrating over
+<span class="math notranslate nohighlight">\(\Omega\)</span>.  This gives the variational problem of finding
+<span class="math notranslate nohighlight">\(u:[0,T]\rightarrow V\)</span> and <span class="math notranslate nohighlight">\(p:[0,T]\rightarrow W\)</span> such
+that</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}(u_t, v) + (u \cdot \nabla u, v) + \frac{1}{Re}(\nabla u, \nabla v) - (p, \nabla\cdot v) &amp; = 0\\(\nabla \cdot u, w) &amp; = 0\end{aligned}\end{align} \]</div>
+<p>As usual, we need to import firedrake:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+</pre></div>
+</div>
+<p>We will also need to import certain items from irksome:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">irksome</span><span class="w"> </span><span class="kn">import</span> <span class="n">RadauIIA</span><span class="p">,</span> <span class="n">Dt</span><span class="p">,</span> <span class="n">MeshConstant</span><span class="p">,</span> <span class="n">TimeStepper</span>
+</pre></div>
+</div>
+<p>We will create the Butcher tableau for the two-stage RadauIIA
+Runge-Kutta method:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">butcher_tableau</span> <span class="o">=</span> <span class="n">RadauIIA</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">ns</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">num_stages</span>
+</pre></div>
+</div>
+<p>Now we define the mesh and Taylor-Hood approximating space in
+standard Firedrake fashion:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">N</span> <span class="o">=</span> <span class="mi">32</span>
+<span class="n">msh</span> <span class="o">=</span> <span class="n">UnitSquareMesh</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">)</span>
+<span class="n">V</span> <span class="o">=</span> <span class="n">VectorFunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">W</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">Z</span> <span class="o">=</span> <span class="n">V</span><span class="o">*</span><span class="n">W</span>
+</pre></div>
+</div>
+<p>We define variables to store the time step and current time value, as
+well as the Reynolds number:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">MC</span> <span class="o">=</span> <span class="n">MeshConstant</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+<span class="n">dt</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">N</span><span class="p">)</span>
+<span class="n">t</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">Re</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">10.0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We define the solution over the product space, which will get
+overwritten at each time step:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">up</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+<span class="n">u</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">up</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now, we will define the semidiscrete variational problem using
+standard UFL notation, augmented by the <code class="docutils literal notranslate"><span class="pre">Dt</span></code> operator from Irksome:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">v</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">TestFunctions</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+<span class="n">F</span> <span class="o">=</span> <span class="p">(</span><span class="n">inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">dot</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">u</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span>
+     <span class="o">+</span> <span class="mi">1</span><span class="o">/</span><span class="n">Re</span> <span class="o">*</span> <span class="n">inner</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">grad</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="o">*</span> <span class="n">dx</span> <span class="o">-</span> <span class="n">inner</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">div</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="o">*</span> <span class="n">dx</span>
+     <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">div</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">w</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span><span class="p">)</span>
+
+<span class="n">bcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">DirichletBC</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">as_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+       <span class="n">DirichletBC</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">as_vector</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]),</span> <span class="p">(</span><span class="mi">4</span><span class="p">,))]</span>
+</pre></div>
+</div>
+<p>Later demos will show how to use Firedrake’s sophisticated interface
+to PETSc for efficient solvers, but for now, we will solve the
+system with a direct method (Note: the matrix type needs to be
+explicitly set to aij if sparse direct factorization were used with a
+multi-stage method, as we wind up with a mixed problem that Firedrake
+will assemble into a PETSc MatNest otherwise):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">luparams</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;mat_type&quot;</span><span class="p">:</span> <span class="s2">&quot;aij&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;snes_type&quot;</span><span class="p">:</span> <span class="s2">&quot;newtonls&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;snes_monitor&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;preonly&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;lu&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;pc_factor_mat_solver_type&quot;</span><span class="p">:</span> <span class="s2">&quot;mumps&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;snes_linesearch_type&quot;</span><span class="p">:</span> <span class="s2">&quot;l2&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;snes_force_iteration&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s2">&quot;snes_rtol&quot;</span><span class="p">:</span> <span class="mf">1e-8</span><span class="p">,</span>
+            <span class="s2">&quot;snes_atol&quot;</span><span class="p">:</span> <span class="mf">1e-8</span><span class="p">,</span>
+            <span class="p">}</span>
+</pre></div>
+</div>
+<p>Since this problem is ill-posed, we specify a nullspace vector to
+remove the possible constant “shift” in the pressure:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nsp</span> <span class="o">=</span> <span class="n">MixedVectorSpaceBasis</span><span class="p">(</span><span class="n">Z</span><span class="p">,</span> <span class="p">[</span><span class="n">Z</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">VectorSpaceBasis</span><span class="p">(</span><span class="n">constant</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">comm</span><span class="o">=</span><span class="n">msh</span><span class="o">.</span><span class="n">comm</span><span class="p">)])</span>
+</pre></div>
+</div>
+<p>Most of Irksome’s magic happens in the <code class="xref py py-class docutils literal notranslate"><span class="pre">TimeStepper</span></code>.  It
+transforms our semidiscrete form <cite>F</cite> into a fully discrete form for
+the stage unknowns and sets up a variational problem to solve for the
+stages at each time step.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">stepper</span> <span class="o">=</span> <span class="n">TimeStepper</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">up</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span>
+                      <span class="n">solver_parameters</span><span class="o">=</span><span class="n">luparams</span><span class="p">,</span> <span class="n">nullspace</span><span class="o">=</span><span class="n">nsp</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This logic is pretty self-explanatory.  We use the
+<code class="xref py py-class docutils literal notranslate"><span class="pre">TimeStepper</span></code>’s <code class="xref py py-meth docutils literal notranslate"><span class="pre">advance</span></code> method, which
+solves the variational problem to compute the Runge-Kutta stage values
+and then updates the solution.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Stepping from time </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">stepper</span><span class="o">.</span><span class="n">advance</span><span class="p">()</span>
+    <span class="n">t</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Finally, we can visualize results of the simulation using Firedrake’s
+plotting capabilities:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">firedrake.pyplot</span><span class="w"> </span><span class="kn">import</span> <span class="n">streamplot</span>
+<span class="n">u_</span><span class="p">,</span> <span class="n">p_</span> <span class="o">=</span> <span class="n">up</span><span class="o">.</span><span class="n">subfunctions</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+<span class="n">streamplot</span><span class="p">(</span><span class="n">u_</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span>
+<span class="n">axes</span><span class="o">.</span><span class="n">set_aspect</span><span class="p">(</span><span class="s2">&quot;equal&quot;</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;demo_nse_streamlines.png&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
