@@ -5,7 +5,11 @@ from firedrake import NonlinearVariationalSolver as NLVS
 from firedrake import assemble, dx, inner, norm, as_tensor
 from firedrake.bcs import EquationBC, EquationBCSplit
 
+from FIAT import ufc_simplex
+from FIAT.barycentric_interpolation import LagrangePolynomialSet
+
 from ufl.constantvalue import as_ufl
+from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .constant import vecconst
 from .tools import AI, dot, replace, reshape, fields_to_components
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
@@ -190,10 +194,12 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             instance to be passed to a
             `firedrake.MixedVectorSpaceBasis` over the larger space
             associated with the Runge-Kutta method
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
+            at additional points in time.
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
-                 appctx=None, bc_type="DAE", aux_indices=None, **kwargs):
+                 appctx=None, bc_type="DAE", aux_indices=None, sample_points=None, **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
@@ -209,7 +215,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
-                         butcher_tableau=butcher_tableau, **kwargs)
+                         butcher_tableau=butcher_tableau,
+                         sample_points=sample_points, **kwargs)
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -234,6 +241,25 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                        self.u0, stages, bcs, self.bc_type,
                        splitting=self.splitting,
                        aux_indices=self.aux_indices)
+
+    def tabulate_poly(self, sample_points):
+        if not isinstance(self.butcher_tableau, CollocationButcherTableau):
+            raise ValueError("Need a collocation method to evaluate the collocation polynomial")
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        if len(set(nodes)) != len(nodes):
+            raise ValueError("Need non-confluent collocation method for polynomial evaluation")
+
+        ref_el = ufc_simplex(1)
+        lag_basis = LagrangePolynomialSet(ref_el, nodes)
+        evaluation_vander = vecconst(lag_basis.tabulate(sample_points, 0)[(0,)])
+
+        butcher_A = vecconst(self.butcher_tableau.A)
+        num_terms = self.num_stages + 1
+        coeffs = vecconst(numpy.zeros((num_terms, num_terms)))
+        coeffs[0, :] = 1
+        coeffs[1:, 1:] = self.dt * butcher_A.T
+        vander = coeffs @ evaluation_vander
+        return vander
 
 
 class AdaptiveTimeStepper(StageDerivativeTimeStepper):
