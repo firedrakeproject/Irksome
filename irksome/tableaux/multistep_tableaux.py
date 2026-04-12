@@ -1,6 +1,6 @@
 import FIAT
 import numpy as np
-from .tools import get_lagrange_permutation
+from ..tools import get_lagrange_permutation
 
 
 class MultistepTableau(object):

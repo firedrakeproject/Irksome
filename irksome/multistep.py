@@ -2,7 +2,7 @@ from .tools import replace, vecconst
 from .manipulation import extract_terms
 from .deriv import expand_time_derivatives, TimeDerivative
 from .base_time_stepper import BaseTimeStepper
-from .multistep_tableaux import MultistepTableau
+from .tableaux.multistep_tableaux import MultistepTableau
 from ufl.constantvalue import as_ufl
 from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative
 

@@ -13,6 +13,7 @@ from .ufl.deriv import Dt, expand_time_derivatives
 from .tableaux.dirk_imex_tableaux import DIRK_IMEX
 from .tableaux.ars_dirk_imex_tableaux import ARS_DIRK_IMEX
 from .tableaux.sspk_tableau import SSPK_DIRK_IMEX, SSPButcherTableau
+from .tableaux.multistep_tableaux import MultistepMethod, MultistepTableau
 
 from .constant import MeshConstant
 from .tableaux.wso_dirk_tableaux import WSODIRK
@@ -72,6 +73,7 @@ try:
     )
     from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
     from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
+    from .multistep import MultistepTimeStepper
     from .labeling import TimeQuadratureLabel
     from .stepper import TimeStepper
 

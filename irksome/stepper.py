@@ -9,7 +9,7 @@ from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
 from .stage_value import StageValueTimeStepper
 from .tools import AI
 from .multistep import MultistepTimeStepper
-from .multistep_tableaux import MultistepTableau
+from .tableaux.multistep_tableaux import MultistepTableau
 
 valid_base_kwargs = ("bcs", "form_compiler_parameters", "is_linear", "restrict", "solver_parameters",
                      "nullspace", "transpose_nullspace", "near_nullspace",
