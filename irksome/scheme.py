@@ -33,7 +33,24 @@ class GalerkinScheme:
 
 
 class DiscontinuousGalerkinScheme(GalerkinScheme):
-    """Class for describing DG-in-time methods"""
+    """Class for describing DG-in-time methods
+
+    :arg order: An integer indicating the order of the method
+    :kwarg basis_type: A string (or tuple of strings) indicating the finite
+        element family (either `'Lagrange'` or `'Bernstein'`) or the
+        Lagrange variant (either `'equispaced'`, `'spectral'`, `'chebyshev'`,
+        or `'integral'`) for the test/trial spaces.
+        Defaults to equispaced Lagrange elements.
+    :kwarg quadrature_degree: An integer indicating the degree of the
+        quadrature to be use in time. Defaults to the sum
+        of the degrees of the trial and test spaces.
+    :kwarg quadrature_scheme: A string indicating the quadrature scheme
+        to be used in time. Defaults to Gauss-Legendre.
+    :kwarg deriv_type: A string indicating how to integrate terms with time derivatives.
+        Valid values are:
+        - `"weak"`: Time derivatives act on the test function (integrating by parts once).
+        - `"strong"`: Time derivatives act on the unknown (integrating by parts twice).
+    """
     def __init__(self, order,
                  basis_type=None,
                  quadrature_degree=None,

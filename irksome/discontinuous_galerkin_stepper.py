@@ -136,7 +136,10 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
-    :arg deriv_type: either `"weak"` or `"strong"`.
+    :arg deriv_type: A string indicating how to integrate terms with time derivatives.
+        Valid values are:
+        - `"weak"`: Time derivatives act on the test function (integrating by parts once).
+        - `"strong"`: Time derivatives act on the unknown (integrating by parts twice).
 
     On output, we return a tuple consisting of two parts:
 
@@ -193,7 +196,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             :class:`firedrake.Function and `v` is the
             :class:firedrake.TestFunction`.
     :arg scheme: a :class:`DiscontinuousGalerkinScheme` instance describing the order,
-         basis type, and default quadrature scheme.
+         basis type, default quadrature scheme, and time derivative integration type.
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
