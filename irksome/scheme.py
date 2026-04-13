@@ -17,7 +17,7 @@ class GalerkinScheme:
         or `'integral'`) for the test/trial spaces.
         Defaults to equispaced Lagrange elements.
     :kwarg quadrature_degree: An integer indicating the degree of the
-        quadrature to be use in time. Defaults to the sum
+        quadrature to be used in time. Defaults to the sum
         of the degrees of the trial and test spaces.
     :kwarg quadrature_scheme: A string indicating the quadrature scheme
         to be used in time. Defaults to Gauss-Legendre.
@@ -42,7 +42,7 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
         or `'integral'`) for the test/trial spaces.
         Defaults to equispaced Lagrange elements.
     :kwarg quadrature_degree: An integer indicating the degree of the
-        quadrature to be use in time. Defaults to the sum
+        quadrature to be used in time. Defaults to the sum
         of the degrees of the trial and test spaces.
     :kwarg quadrature_scheme: A string indicating the quadrature scheme
         to be used in time. Defaults to Gauss-Legendre.
@@ -111,6 +111,12 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
 
 
 def create_time_quadrature(degree, scheme=None):
+    """Return a :class:`FIAT.QuadratureRule` on the unit interval.
+
+    :arg degree: The degree of polynomial that the rule should integrate exactly.
+    :scheme: The quadrature scheme. Can be either `"default"` for Gauss-Legendre,
+        `"lobatto"` for Gauss-Lobatto-Legendre, or `"radau"` for Radau.
+    """
     if scheme == "radau":
         num_points = (degree + 1) // 2 + 1
         return RadauQuadratureLineRule(ufc_line, num_points)
