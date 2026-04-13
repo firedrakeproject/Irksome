@@ -3,7 +3,7 @@ import numpy
 from numpy import vander, zeros
 from numpy.linalg import solve
 from FIAT.quadrature_schemes import create_quadrature
-from .tools import get_lagrange_permutation
+from ..tools import get_lagrange_permutation
 
 
 class ButcherTableau(object):

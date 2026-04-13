@@ -1,4 +1,5 @@
-from .tools import replace, vecconst
+from .tools import replace
+from .constant import vecconst
 from .manipulation import extract_terms
 from .deriv import expand_time_derivatives, TimeDerivative
 from .base_time_stepper import BaseTimeStepper
