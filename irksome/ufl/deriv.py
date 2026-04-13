@@ -46,6 +46,9 @@ def check_irksome_import_order():
             """
         )
     if expected_cache_size:
+        # In the cases where Firedrake/UFL has already instantiated
+        # multifunctions, clear the cache and reinstantiate them now that
+        # TimeDerivative has been added to the UFL typecode list.
         MultiFunction._handlers_cache = {}
     if "ufl.formatting.ufl2unicode" in sys.modules:
         from ufl.formatting import ufl2unicode
