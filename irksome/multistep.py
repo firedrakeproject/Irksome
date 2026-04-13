@@ -1,7 +1,7 @@
 from .tools import replace
 from .constant import vecconst
-from .manipulation import extract_terms
-from .deriv import expand_time_derivatives, TimeDerivative
+from .ufl.manipulation import split_time_derivative_terms
+from .ufl.deriv import expand_time_derivatives, TimeDerivative
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
 from ufl.constantvalue import as_ufl
@@ -124,7 +124,7 @@ class MultistepTimeStepper(BaseTimeStepper):
 
         assert V == u0.function_space()
 
-        split_form = extract_terms(F)
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0, ))
         F_dt = split_form.time
         F_remainder = split_form.remainder
 
