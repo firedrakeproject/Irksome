@@ -1,5 +1,7 @@
 from functools import singledispatchmethod
+from importlib import metadata
 
+import ufl
 from ufl.constantvalue import as_ufl
 from ufl.core.ufl_type import ufl_type
 from ufl.corealg.dag_traverser import DAGTraverser
@@ -26,12 +28,30 @@ def check_irksome_import_order():
     This restriction can be removed once all MultiFunctions have been
     transitioned to ufl.corealg.dag_traverser.DAGTraverser."""
 
-    if MultiFunction._handlers_cache:
+    try:
+        firedrake_version = metadata.version("firedrake")
+    except metadata.PackageNotFoundError:
+        # Firedrake not yet imported, the handler cache should be clean.
+        expected_cache_size = 0
+    else:
+        if firedrake_version < "2026.04":
+            expected_cache_size = 2
+        else:
+            expected_cache_size = 1
+
+    if len(MultiFunction._handlers_cache) > expected_cache_size:
         raise IrksomeImportOrderException(
             """A UFL multifunction has already run.
             Irksome needs to be imported earlier.
             """
         )
+    if expected_cache_size:
+        MultiFunction._handlers_cache = {}
+        ufl.formatting.ufl2unicode._precrules \
+            = ufl.formatting.ufl2unicode.PrecedenceRules()
+    if expected_cache_size > 1:
+        from firedrake.formmanipulation import ExtractSubBlock
+        ExtractSubBlock.index_inliner = ExtractSubBlock.IndexInliner()
 
 
 @ufl_type(num_ops=1,
