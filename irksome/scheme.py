@@ -114,7 +114,7 @@ def create_time_quadrature(degree, scheme=None):
     """Return a :class:`FIAT.QuadratureRule` on the unit interval.
 
     :arg degree: The degree of polynomial that the rule should integrate exactly.
-    :scheme: The quadrature scheme. Can be either `'default'` for Gauss-Legendre,
+    :kwarg scheme: The quadrature scheme. Can be either `'default'` for Gauss-Legendre,
         `'Lobatto'` for Gauss-Lobatto-Legendre, or `'Radau'` for Gauss-Radau.
     """
     if scheme is not None and scheme.lower() == "radau":
