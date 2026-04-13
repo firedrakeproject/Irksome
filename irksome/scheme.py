@@ -117,10 +117,10 @@ def create_time_quadrature(degree, scheme=None):
     :scheme: The quadrature scheme. Can be either `'default'` for Gauss-Legendre,
         `'Lobatto'` for Gauss-Lobatto-Legendre, or `'Radau'` for Gauss-Radau.
     """
-    if scheme.lower() == "radau":
+    if scheme is not None and scheme.lower() == "radau":
         num_points = (degree + 1) // 2 + 1
         return RadauQuadratureLineRule(ufc_line, num_points)
-    elif scheme.lower() == "lobatto":
+    elif scheme is not None and scheme.lower() == "lobatto":
         num_points = degree // 2 + 2
         return GaussLobattoLegendreQuadratureLineRule(ufc_line, num_points)
     else:
