@@ -1,7 +1,7 @@
 from functools import singledispatchmethod
 from importlib import metadata
+import sys
 
-import ufl
 from ufl.constantvalue import as_ufl
 from ufl.core.ufl_type import ufl_type
 from ufl.corealg.dag_traverser import DAGTraverser
@@ -47,8 +47,9 @@ def check_irksome_import_order():
         )
     if expected_cache_size:
         MultiFunction._handlers_cache = {}
-        ufl.formatting.ufl2unicode._precrules \
-            = ufl.formatting.ufl2unicode.PrecedenceRules()
+    if "ufl.formatting.ufl2unicode" in sys.modules:
+        from ufl.formatting import ufl2unicode
+        ufl2unicode._precrules = ufl2unicode.PrecedenceRules()
     if expected_cache_size > 1:
         from firedrake.formmanipulation import ExtractSubBlock
         ExtractSubBlock.index_inliner = ExtractSubBlock.IndexInliner()
