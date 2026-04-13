@@ -157,7 +157,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
 
     splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault)
-    Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test)
+    Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type)
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
