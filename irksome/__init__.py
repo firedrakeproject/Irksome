@@ -43,6 +43,8 @@ __all__ = [
     "RadauIIA",
     "SSPButcherTableau",
     "SSPK_DIRK_IMEX",
+    "MultistepMethod",
+    "MultistepTableau",
     "WSODIRK",
 ]
 
@@ -97,6 +99,7 @@ try:
         "StageValueTimeStepper",
         "ContinuousPetrovGalerkinTimeStepper",
         "DiscontinuousGalerkinTimeStepper",
+        "MultistepTimeStepper",
         "TimeQuadratureLabel",
         "TimeStepper",
     ]
