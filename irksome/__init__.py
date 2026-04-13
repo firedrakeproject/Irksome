@@ -30,7 +30,6 @@ __all__ = [
     "ContinuousPetrovGalerkinScheme",
     "create_time_quadrature",
     "DIRK_IMEX",
-    "DIRKTimeStepper",
     "DiscontinuousGalerkinScheme",
     "Dt",
     "expand_time_derivatives",
