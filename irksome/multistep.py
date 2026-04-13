@@ -5,7 +5,7 @@ from .ufl.deriv import expand_time_derivatives, TimeDerivative
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
 from ufl.constantvalue import as_ufl
-from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative
+from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative, DirichletBC
 
 
 class MultistepTimeStepper(BaseTimeStepper):
@@ -22,7 +22,7 @@ class MultistepTimeStepper(BaseTimeStepper):
     :arg dt: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time step.
          The user may adjust this value between time steps.
-    :arg u: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`firedrake.Function` containing the current
             state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
             the strongly-enforced boundary conditions.
@@ -102,19 +102,31 @@ class MultistepTimeStepper(BaseTimeStepper):
             # delayed import to avoid a circular import
             from .stepper import TimeStepper
 
-            self.us[0].assign(self.u0)
-            self.TS = TimeStepper(self.F, butcher_tableau, self.t, self.dt, self.u0, bcs=self.bcs, **stepper_kwargs)
+            startup_dt = self.dt.copy(deepcopy=True)
+            startup_dt.assign(self.dt / startup_dt_div)
+            self.startup_t = self.t.copy(deepcopy=True)
 
-            # modify the timestep
-            self.dt.assign(self.dt / startup_dt_div)
+            self.us[0].assign(self.u0)
+
+            F_startup = replace(self.F, {self.t: self.startup_t})
+
+            startup_bcs = []
+            if self.bcs is not None:
+                for bc in self.bcs:
+                    assert isinstance(bc, DirichletBC), "startup procedure only supports Dirichlet boundary conditions"
+                    startup_bc_expression = replace(bc._original_arg, {self.t: self.startup_t})
+                    startup_bcs.append(DirichletBC(bc.function_space(), startup_bc_expression, bc.sub_domain))
+            else:
+                startup_bcs = None
+
+            self.startup_TS = TimeStepper(F_startup, butcher_tableau, self.startup_t, startup_dt, self.u0, bcs=startup_bcs, **stepper_kwargs)
 
             # advance the system and assign values to previous steps
             for i in range(self.num_prev_steps - 1):
                 for substep in range(startup_dt_div):
-                    self.TS.advance()
-                    self.t.assign(self.t + self.dt)
+                    self.startup_TS.advance()
+                    self.startup_t.assign(self.startup_t + startup_dt)
                 self.us[i + 1].assign(self.u0)
-            self.dt.assign(self.dt * startup_dt_div)
 
     def get_form_and_bcs(self, F, t, dt, u0, a, b, bcs=None):
 
