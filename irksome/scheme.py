@@ -48,8 +48,8 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
         to be used in time. Defaults to Gauss-Legendre.
     :kwarg deriv_type: A string indicating how to integrate terms with time derivatives.
         Valid values are:
-        - `"weak"`: Time derivatives act on the test function (integrating by parts once).
-        - `"strong"`: Time derivatives act on the unknown (integrating by parts twice).
+        - `'weak'`: Time derivatives act on the test function (integrating by parts once).
+        - `'strong'`: Time derivatives act on the unknown (integrating by parts twice).
     """
     def __init__(self, order,
                  basis_type=None,
@@ -58,8 +58,8 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
                  deriv_type="strong"):
         if order < 0:
             raise ValueError(f"{type(self).__name__} must have order >= 0")
-        if deriv_type not in {"weak", "strong"}:
-            raise ValueError("deriv_type must be either weak or strong.")
+        if deriv_type not in {'weak', 'strong'}:
+            raise ValueError("deriv_type must be either 'weak' or 'strong'.")
         self.deriv_type = deriv_type
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
@@ -114,13 +114,13 @@ def create_time_quadrature(degree, scheme=None):
     """Return a :class:`FIAT.QuadratureRule` on the unit interval.
 
     :arg degree: The degree of polynomial that the rule should integrate exactly.
-    :scheme: The quadrature scheme. Can be either `"default"` for Gauss-Legendre,
-        `"lobatto"` for Gauss-Lobatto-Legendre, or `"radau"` for Radau.
+    :scheme: The quadrature scheme. Can be either `'default'` for Gauss-Legendre,
+        `'Lobatto'` for Gauss-Lobatto-Legendre, or `'Radau'` for Gauss-Radau.
     """
-    if scheme == "radau":
+    if scheme.lower() == "radau":
         num_points = (degree + 1) // 2 + 1
         return RadauQuadratureLineRule(ufc_line, num_points)
-    elif scheme == "lobatto":
+    elif scheme.lower() == "lobatto":
         num_points = degree // 2 + 2
         return GaussLobattoLegendreQuadratureLineRule(ufc_line, num_points)
     else:
