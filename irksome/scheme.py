@@ -17,7 +17,7 @@ class GalerkinScheme:
         or `'integral'`) for the test/trial spaces.
         Defaults to equispaced Lagrange elements.
     :kwarg quadrature_degree: An integer indicating the degree of the
-        quadrature to be use in time. Defaults to the sum
+        quadrature to be used in time. Defaults to the sum
         of the degrees of the trial and test spaces.
     :kwarg quadrature_scheme: A string indicating the quadrature scheme
         to be used in time. Defaults to Gauss-Legendre.
@@ -33,7 +33,24 @@ class GalerkinScheme:
 
 
 class DiscontinuousGalerkinScheme(GalerkinScheme):
-    """Class for describing DG-in-time methods"""
+    """Class for describing DG-in-time methods
+
+    :arg order: An integer indicating the order of the method
+    :kwarg basis_type: A string (or tuple of strings) indicating the finite
+        element family (either `'Lagrange'` or `'Bernstein'`) or the
+        Lagrange variant (either `'equispaced'`, `'spectral'`, `'chebyshev'`,
+        or `'integral'`) for the test/trial spaces.
+        Defaults to equispaced Lagrange elements.
+    :kwarg quadrature_degree: An integer indicating the degree of the
+        quadrature to be used in time. Defaults to the sum
+        of the degrees of the trial and test spaces.
+    :kwarg quadrature_scheme: A string indicating the quadrature scheme
+        to be used in time. Defaults to Gauss-Legendre.
+    :kwarg deriv_type: A string indicating how to integrate terms with time derivatives.
+        Valid values are:
+        - `'weak'`: Time derivatives act on the test function (integrating by parts once).
+        - `'strong'`: Time derivatives act on the unknown (integrating by parts twice).
+    """
     def __init__(self, order,
                  basis_type=None,
                  quadrature_degree=None,
@@ -41,8 +58,8 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
                  deriv_type="strong"):
         if order < 0:
             raise ValueError(f"{type(self).__name__} must have order >= 0")
-        if deriv_type not in {"weak", "strong"}:
-            raise ValueError("deriv_type must be either weak or strong.")
+        if deriv_type not in {'weak', 'strong'}:
+            raise ValueError("deriv_type must be either 'weak' or 'strong'.")
         self.deriv_type = deriv_type
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
@@ -94,10 +111,16 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
 
 
 def create_time_quadrature(degree, scheme=None):
-    if scheme == "radau":
+    """Return a :class:`FIAT.QuadratureRule` on the unit interval.
+
+    :arg degree: The degree of polynomial that the rule should integrate exactly.
+    :kwarg scheme: The quadrature scheme. Can be either `'default'` for Gauss-Legendre,
+        `'Lobatto'` for Gauss-Lobatto-Legendre, or `'Radau'` for Gauss-Radau.
+    """
+    if scheme is not None and scheme.lower() == "radau":
         num_points = (degree + 1) // 2 + 1
         return RadauQuadratureLineRule(ufc_line, num_points)
-    elif scheme == "lobatto":
+    elif scheme is not None and scheme.lower() == "lobatto":
         num_points = degree // 2 + 2
         return GaussLobattoLegendreQuadratureLineRule(ufc_line, num_points)
     else:
