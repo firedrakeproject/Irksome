@@ -39,7 +39,7 @@ def split_stages(V, stages):
         return stages.subfunctions
 
     stages_np = reshape(stages, (-1, *V.value_shape))
-    ks = [stages_np[i] for i in range(stages_np.shape[0])]
+    ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
     return ks
 
 

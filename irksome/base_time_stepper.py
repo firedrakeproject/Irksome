@@ -211,8 +211,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         return (slb, sub)
 
+    @abstractmethod
     def tabulate_poly(self, sample_points):
-        raise NotImplementedError("tabulate_poly not implemented")
+        pass
 
     def build_poly(self):
         '''
