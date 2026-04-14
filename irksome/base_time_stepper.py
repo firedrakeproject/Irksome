@@ -1,6 +1,11 @@
 from abc import abstractmethod
-from firedrake import derivative, Function, NonlinearVariationalProblem, NonlinearVariationalSolver
+from firedrake import (
+    derivative, replace, lhs, rhs, Function, TrialFunction,
+    LinearVariationalProblem, LinearVariationalSolver,
+    NonlinearVariationalProblem, NonlinearVariationalSolver,
+)
 from firedrake.petsc import PETSc
+from .labeling import as_form, as_linear_form
 from .tools import AI, getNullspace, flatten_dats
 from .backend import get_backend
 import ufl
@@ -47,7 +52,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
             F(t, u; v) == 0, where `u` is the unknown
             :class:`firedrake.Function and `v` is the
-            :class:firedrake.TestFunction`.
+            :class:firedrake.TestFunction`. To specify a linear problem,
+            `F` must be of the form a(t; w, v) - L(t; v) where
+            `w` is a :class:firedrake.TrialFunction`.
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
@@ -90,6 +97,11 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                  butcher_tableau=None, bounds=None,
                  **kwargs):
 
+        use_linear_variational_solver = False
+        if len(as_form(F).arguments()) == 2:
+            F = as_linear_form(F, u0)
+            use_linear_variational_solver = True
+
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
 
@@ -111,6 +123,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         Fbig, bigBCs = self.get_form_and_bcs(stages)
         Jpbig = None
         if Fp is not None:
+            Fp = as_linear_form(Fp, u0)
             Fpbig, _ = self.get_form_and_bcs(stages, F=Fp, bcs=())
             Jpbig = derivative(Fpbig, stages)
 
@@ -122,13 +135,29 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         self.bigBCs = bigBCs
 
-        self.problem = NonlinearVariationalProblem(
-            Fbig, stages, bcs=bigBCs, Jp=Jpbig,
-            form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
-            is_linear=kwargs.pop("is_linear", False),
-            restrict=kwargs.pop("restrict", False),
-        )
-        self.solver = NonlinearVariationalSolver(
+        if use_linear_variational_solver:
+            Fbig = replace(Fbig, {stages: TrialFunction(stages.function_space())})
+            abig = lhs(Fbig)
+            Lbig = rhs(Fbig)
+            problem = LinearVariationalProblem(
+                abig, Lbig, stages, bcs=bigBCs, aP=Jpbig,
+                form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+                constant_jacobian=kwargs.pop("constant_jacobian", False),
+                restrict=kwargs.pop("restrict", False),
+            )
+            solver_constructor = LinearVariationalSolver
+            # FIXME
+            solver_constructor = NonlinearVariationalSolver
+        else:
+            problem = NonlinearVariationalProblem(
+                Fbig, stages, bcs=bigBCs, Jp=Jpbig,
+                form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+                is_linear=kwargs.pop("is_linear", False),
+                restrict=kwargs.pop("restrict", False),
+            )
+            solver_constructor = NonlinearVariationalSolver
+        self.problem = problem
+        self.solver = solver_constructor(
             self.problem, appctx=self.appctx,
             nullspace=nullspace,
             transpose_nullspace=transpose_nullspace,

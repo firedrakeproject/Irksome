@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, cos, diff, div, dx,
+                       TestFunction, TrialFunction, UnitIntervalMesh, cos, diff, div, dx,
                        errornorm, exp, grad, inner, norm, pi, solve)
 from irksome import Dt, GalerkinCollocationScheme, MeshConstant, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
 
@@ -28,23 +28,27 @@ def heat(n, deg, scheme, **kwargs):
     bcs = DirichletBC(V, uexact, "on_boundary")
     rhs = Dt(uexact) - div(grad(uexact))
 
+    # Use a TrialFunction to test the LinearVariationalSolver interface
     v = TestFunction(V)
+    w = TrialFunction(V)
     u = Function(V)
 
-    F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    F = (inner(Dt(w), v) * dx + inner(grad(w), grad(v)) * dx
          - inner(rhs, v) * dx)
 
     # Ritz projection is crucial to observe the right order of convergence
     solve(inner(grad(u - uexact), grad(v)) * dx == 0, u, bcs=bcs,
           solver_parameters=params)
 
+    # set constant_jacobian=True to optimize for the linear case
+    # NOTE dt must be constant
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs,
                           solver_parameters=params,
+                          constant_jacobian=True,
                           **kwargs)
 
-    while float(t) < 1.0:
-        if float(t + dt) > 1.0:
-            dt.assign(1.0 - float(t))
+    nsteps = int(np.ceil(1.0/float(dt)))
+    for step in range(nsteps):
         stepper.advance()
         t.assign(t + dt)
 

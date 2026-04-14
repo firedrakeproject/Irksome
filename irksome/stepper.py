@@ -9,7 +9,9 @@ from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
 from .stage_value import StageValueTimeStepper
 from .tools import AI
 
-valid_base_kwargs = ("bcs", "form_compiler_parameters", "is_linear", "restrict", "solver_parameters",
+valid_base_kwargs = ("bcs", "form_compiler_parameters",
+                     "is_linear", "constant_jacobian",
+                     "restrict", "solver_parameters",
                      "nullspace", "transpose_nullspace", "near_nullspace",
                      "appctx", "options_prefix", "pre_apply_bcs")
 
