@@ -216,7 +216,7 @@ def test_mixed_heat(scheme, temporal_degree, stage_type):
 
         for (i, val) in enumerate(stepper.sample_values):
             my_t.assign(float(t) + sample_points[i] * float(dt))
-            check.assign(val)
+            check.interpolate(val)
             e_vals.append(errornorm(my_qu, check))
 
         t.assign(float(t)+float(dt))

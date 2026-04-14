@@ -1,7 +1,7 @@
 from operator import mul
 from functools import reduce
 import numpy
-from firedrake import Function, VectorSpaceBasis, MixedVectorSpaceBasis
+from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
 from ufl import replace as ufl_replace
@@ -38,9 +38,8 @@ def split_stages(V, stages):
     if num_fields == 1:
         return stages.subfunctions
 
-    dats = stages.dat
-    ks = [Function(V, val=MixedDat(dats[offset:offset+num_fields]))
-          for offset in range(0, len(dats), num_fields)]
+    stages_np = reshape(stages, (-1, *V.value_shape))
+    ks = [stages_np[i] for i in range(stages_np.shape[0])]
     return ks
 
 
