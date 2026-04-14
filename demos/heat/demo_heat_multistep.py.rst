@@ -14,7 +14,7 @@ to this equation will be some function :math:`u\in V`, for a suitable function
 space :math:`V`.
 
 We transform this into weak form by multiplying by an arbitrary test function
-:math:`v\in V` and integrating over :math:`\Omega`.  We know have the
+:math:`v\in V` and integrating over :math:`\Omega`.  We now have the
 variational problem of finding :math:`u:[0,T]\rightarrow V` such
 that
 
@@ -115,28 +115,20 @@ We can then set up the :class:`.TimeStepper` as follows::
                                  startup_parameters=startup_parameters)
 
 Note that the creation of a :class:`.TimeStepper` configured for a multistep method with parameters for the startup procedure will not automatically solve for the required starting values. 
-One must call the :class:`.TimeSteppers`'s :meth:`~.TimeStepper.startup` method, which will internally construct the single-step :class:`.TimeStepper`, solve the the required starting 
-values, and advance `t` to `t + (s-1)*dt`:::
+One must call the :class:`.TimeSteppers`'s :meth:`~.TimeStepper.startup` method, which will internally construct the single-step :class:`.TimeStepper` and solve for the required starting 
+values. It is the users responsibility to advance `t` to `t + (s-1)*dt`. Unless more refined control is needed, this value is available as :meth:`.TimeStepper.startup_t`:::
 
   stepper.startup()
-  print(f'The starting values have been computed. The current time is {float(t)}')
+  t.assign(stepper.startup_t)
 
-If you would rather set the starting values by hand (for instance, in this case the exact solution is available) the process is straightforward. We'll first reset `t` so that everything is consistent, and then begin projecting the exact solution 
-into our space and assigning the required starting values.::
+If you would rather set the starting values by hand (for instance, in this case the exact solution is available) the process is straightforward. We'll first reset `t` so that everything is consistent, and then set the starting values by interpolating the exact solution.::
 
-  print()
-  print('Resetting dt and assigning starting values by hand.')
   t.assign(0.0)
-  u0 = project(uexact, V, bcs=bc)
-  stepper.us[0].assign(u0)
-
+  stepper.us[0].interpolate(uexact)
   t.assign(t + dt)
-  u1 = project(uexact, V, bcs=bc)
-  stepper.us[1].assign(u1)
-
+  stepper.us[1].interpolate(uexact)
   t.assign(t + dt)
-  u2 = project(uexact, V, bcs=bc)
-  stepper.us[2].assign(u2)
+  stepper.us[2].interpolate(uexact)
 
 This remaining logic is pretty self-explanatory.  We use the
 :class:`.TimeStepper`'s :meth:`~.TimeStepper.advance` method, which solves the variational

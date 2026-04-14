@@ -114,8 +114,11 @@ class MultistepTimeStepper(BaseTimeStepper):
             if self.bcs is not None:
                 for bc in self.bcs:
                     assert isinstance(bc, DirichletBC), "startup procedure only supports Dirichlet boundary conditions"
-                    startup_bc_expression = replace(bc._original_arg, {self.t: self.startup_t})
-                    startup_bcs.append(DirichletBC(bc.function_space(), startup_bc_expression, bc.sub_domain))
+                    if type(bc._original_arg) in (int, float):
+                        startup_bcs.append(bc)
+                    else:
+                        startup_bc_expression = replace(bc._original_arg, {self.t: self.startup_t})
+                        startup_bcs.append(DirichletBC(bc.function_space(), startup_bc_expression, bc.sub_domain))
             else:
                 startup_bcs = None
 
