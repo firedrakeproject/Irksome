@@ -5,7 +5,7 @@ from .ufl.deriv import expand_time_derivatives, TimeDerivative
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
 from ufl.constantvalue import as_ufl
-from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative, DirichletBC
+from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative, DirichletBC, Constant
 
 
 class MultistepTimeStepper(BaseTimeStepper):
@@ -83,7 +83,6 @@ class MultistepTimeStepper(BaseTimeStepper):
         self.bounds = bounds
 
     # optional method to mechanically find the required starting values via a single step method
-    # WARNING: This overwrites the value of t.
     def startup(self):
 
         if self.startup_parameters is None:
@@ -102,9 +101,13 @@ class MultistepTimeStepper(BaseTimeStepper):
             # delayed import to avoid a circular import
             from .stepper import TimeStepper
 
-            startup_dt = self.dt.copy(deepcopy=True)
-            startup_dt.assign(self.dt / num_startup_steps)
-            self.startup_t = self.t.copy(deepcopy=True)
+            if isinstance(self.dt, Constant):
+                startup_dt = Constant(self.dt / num_startup_steps)
+            else:
+                startup_dt = self.dt.copy(deepcopy=True)
+                startup_dt.assign(startup_dt / num_startup_steps)
+
+            self.startup_t = Constant(self.t) if isinstance(self.t, Constant) else self.t.copy(deepcopy=True)
 
             self.us[0].assign(self.u0)
 

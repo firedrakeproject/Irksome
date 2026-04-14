@@ -8,7 +8,7 @@ from .tableaux.ButcherTableaux import (
     QinZhang,
     RadauIIA,
 )
-from .tableaux.multistep_tableaux import(
+from .tableaux.multistep_tableaux import (
     BDF,
     AdamsBashforth,
     AdamsMoulton,
@@ -28,7 +28,7 @@ from .scheme import GalerkinCollocationScheme
 
 __all__ = [
     "AdamsBashforth",
-    "AdamsMoulton"
+    "AdamsMoulton",
     "Alexander",
     "ARS_DIRK_IMEX",
     "BackwardEuler",
