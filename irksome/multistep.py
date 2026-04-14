@@ -4,6 +4,7 @@ from .ufl.manipulation import split_time_derivative_terms
 from .ufl.deriv import expand_time_derivatives, TimeDerivative
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
+from .bcs import stage2spaces4bc
 from ufl.constantvalue import as_ufl
 from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative, Constant
 
@@ -107,7 +108,6 @@ class MultistepTimeStepper(BaseTimeStepper):
             self.us[0].assign(self.u0)
 
             F_startup = replace(self.F, {self.t: self.startup_t})
-            
             v, = F_startup.arguments()
             V = v.function_space()
 
@@ -117,9 +117,10 @@ class MultistepTimeStepper(BaseTimeStepper):
                 pass
             else:
                 for bc in self.orig_bcs:
-                    g0 = as_ufl(bc._original_arg)
-                    g0new = replace(g0, {self.t: self.startup_t})
-                    startup_bcs.append(bc.reconstruct(V=V, g=g0new))
+                    bcarg = as_ufl(bc._original_arg)
+                    bcarg_startup = replace(bcarg, {self.t: self.startup_t})
+                    bc_space = stage2spaces4bc(bc, V, V, 0)
+                    startup_bcs.extend(bc.reconstruct(V=bc_space, g=bcarg_startup))
 
             self.startup_TS = TimeStepper(F_startup, butcher_tableau, self.startup_t, startup_dt, self.u0, bcs=startup_bcs, **stepper_kwargs)
 
@@ -160,9 +161,10 @@ class MultistepTimeStepper(BaseTimeStepper):
 
         # grab boundary conditions at t + dt
         for bc in bcs:
-            g0 = as_ufl(bc._original_arg)
-            g0new = replace(g0, {t: t + dt})
-            bcsnew.append(bc.reconstruct(V=V, g=g0new))
+            bcarg = as_ufl(bc._original_arg)
+            new_bcarg = replace(bcarg, {t: t + dt})
+            bc_space = stage2spaces4bc(bc, V, V, 0)
+            bcsnew.extend(bc.reconstruct(V=bc_space, g=new_bcarg))
 
         return Fnew, bcsnew
 

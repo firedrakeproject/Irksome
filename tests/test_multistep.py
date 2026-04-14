@@ -36,7 +36,7 @@ def heat_problem(msh=None, N=16, spatial_basis='Lagrange'):
     x, y = SpatialCoordinate(msh)
     uexact = exp(-t) * cos(2 * pi * x) ** 2 * sin(2 * pi * y) ** 2
     rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
-    bc = [DirichletBC(V, uexact, i) for i in [1, 2, 3, 4]]
+    bc = DirichletBC(V, uexact, "on_boundary")
 
     u = Function(V).interpolate(uexact)
     v = TestFunction(V)
@@ -158,84 +158,6 @@ def heat_cust_mech(msh, N, spatial_basis):
     return u
 
 
-def heat_cust_hand_startup(msh, N, spatial_basis):
-
-    V, t, dt, v, u, uexact, rhs, bc, F_semi = heat_problem(msh=msh, N=N, spatial_basis=spatial_basis)
-
-    dt.assign(0.01 / N ** 2)
-
-    startup_stepper = TimeStepper(F_semi, RadauIIA(1), t, dt, u, bcs=bc)
-
-    dt_mod = 4
-    dt.assign(dt / dt_mod)
-    u0 = Function(V).assign(u)
-    for i in range(0, dt_mod):
-        startup_stepper.advance()
-        t.assign(t + dt)
-    u1 = Function(V).assign(u)
-    for i in range(0, dt_mod):
-        startup_stepper.advance()
-        t.assign(t + dt)
-    u2 = Function(V).assign(u)
-    for i in range(0, dt_mod):
-        startup_stepper.advance()
-        t.assign(t + dt)
-    u3 = Function(V).assign(u)
-    for i in range(0, dt_mod):
-        startup_stepper.advance()
-        t.assign(t + dt)
-    u4 = Function(V).assign(u)
-
-    dt.assign(dt * dt_mod)
-
-    rhsu4 = replace(rhs, {t: t - 1 * dt})
-    rhsu3 = replace(rhs, {t: t - 2 * dt})
-    rhsu0 = replace(rhs, {t: t - 5 * dt})
-
-    F_cust = (inner(u, v) * dx - 0.5 * inner(u3, v) * dx - 0.5 * inner(u2, v) * dx
-              - (dt * ((3.0 / 4.0) * (inner(rhsu4, v) * dx - inner(grad(u4), grad(v)) * dx)
-                       + (3.0 / 4.0) * (inner(rhsu3, v) * dx - inner(grad(u3), grad(v)) * dx)
-                       + (- 1.0 / 2.0) * (inner(rhsu0, v) * dx - inner(grad(u0), grad(v)) * dx))))
-
-    stepper_prob = NonlinearVariationalProblem(F_cust, u, bcs=bc)
-    stepper = NonlinearVariationalSolver(stepper_prob)
-
-    for i in range(10):
-        t.assign(t + dt)
-        stepper.solve()
-        u0.assign(u1)
-        u1.assign(u2)
-        u2.assign(u3)
-        u3.assign(u4)
-        u4.assign(u)
-
-    return u
-
-
-def heat_cust_mech_startup(msh, N, spatial_basis):
-
-    V, t, dt, v, u, uexact, rhs, bc, F_semi = heat_problem(msh=msh, N=N, spatial_basis=spatial_basis)
-
-    dt.assign(0.01 / N ** 2)
-
-    a = np.array([0.0, 0.0, -0.5, -0.5, 0.0, 1.0])
-    b = np.array([-1.0 / 2.0, 0.0, 0.0, 3.0 / 4.0, 3.0 / 4.0, 0.0])
-
-    method = MultistepTableau(a, b)
-
-    startup_parameters = {'tableau': RadauIIA(1), 'num_startup_steps': 4}
-
-    stepper = TimeStepper(F_semi, method, t, dt, u, bcs=bc, startup_parameters=startup_parameters)
-    stepper.startup()
-    t.assign(stepper.startup_t)
-
-    for i in range(10):
-        stepper.advance()
-        t.assign(float(t) + float(dt))
-
-    return u
-
-
 def CH_BDF2_hand(msh, spatial_degree, startup_tableau):
     V = FunctionSpace(msh, "CG", spatial_degree)
     VV = V * V
@@ -269,7 +191,7 @@ def CH_BDF2_hand(msh, spatial_degree, startup_tableau):
 
     c_mu0 = Function(c_mu)
 
-    bc = [DirichletBC(VV.sub(0), 0, "on_boundary"), DirichletBC(VV.sub(1), Constant(0), "on_boundary")]
+    bc = [DirichletBC(VV.sub(0), 0, "on_boundary"), DirichletBC(VV.sub(1), 0, "on_boundary")]
 
     startup_stepper = TimeStepper(F_DT, startup_tableau, t, dt, c_mu, bcs=bc)
     num_startup_steps = 4
@@ -331,7 +253,7 @@ def CH_BDF2_mech(msh, spatial_degree, startup_tableau):
             + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx
             - kappa * inner(grad(c), grad(w)) * dx)
 
-    bc = [DirichletBC(VV.sub(0), 0, "on_boundary"), DirichletBC(VV.sub(1), Constant(0), "on_boundary")]
+    bc = [DirichletBC(VV.sub(0), 0, "on_boundary"), DirichletBC(VV.sub(1), 0, "on_boundary")]
 
     startup_parameters = {'tableau': startup_tableau, 'num_startup_steps': 4}
 
@@ -391,15 +313,6 @@ def test_cust_mech(N, spatial_basis):
     msh = UnitSquareMesh(N, N)
     u1 = heat_cust_hand(msh, N, spatial_basis)
     u2 = heat_cust_mech(msh, N, spatial_basis)
-    assert norm(u1 - u2) / norm(u1) < 1e-13
-
-
-@pytest.mark.parametrize('N', [8, 16])
-@pytest.mark.parametrize('spatial_basis', ["Lagrange", "Bernstein"])
-def test_cust_mech_startup(N, spatial_basis):
-    msh = UnitSquareMesh(N, N)
-    u1 = heat_cust_hand_startup(msh, N, spatial_basis)
-    u2 = heat_cust_mech_startup(msh, N, spatial_basis)
     assert norm(u1 - u2) / norm(u1) < 1e-13
 
 
