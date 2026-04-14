@@ -34,15 +34,21 @@ class MultistepTableau(object):
         return not self.is_explicit
 
 
-class MultistepMethod(MultistepTableau):
-    def __init__(self, method, order):
-        if method == 'AB':
-            a, b = get_weights_AB(order)
-        elif method == 'AM':
-            a, b = get_weights_AM(order)
-        else:
-            a, b = get_weights_BDF(order)
+class BDF(MultistepTableau):
+    def __init__(self, order):
+        a, b = get_weights_BDF(order)
+        super().__init__(a, b)
 
+
+class AdamsMoulton(MultistepTableau):
+    def __init__(self, order):
+        a, b = get_weights_AM(order)
+        super().__init__(a, b)
+
+
+class AdamsBashforth(MultistepTableau):
+    def __init__(self, order):
+        a, b = get_weights_AB(order)
         super().__init__(a, b)
 
 

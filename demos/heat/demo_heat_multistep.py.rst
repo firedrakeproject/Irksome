@@ -31,11 +31,11 @@ As usual, we need to import firedrake::
 
 We will also need to import certain items from irksome::
 
-  from irksome import Dt, MeshConstant, TimeStepper, MultistepMethod
+  from irksome import Dt, MeshConstant, TimeStepper, BDF
 
 We will use the 3-step Backward Difference Formula::
 
-  method = MultistepMethod('BDF', 3)
+  method = BDF(3)
 
 Now we define the mesh and piecewise linear approximating space in
 standard Firedrake fashion::
