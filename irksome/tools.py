@@ -1,7 +1,7 @@
 from operator import mul
 from functools import reduce
 import numpy
-from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
+from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis, DirichletBC
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
 from ufl import replace as ufl_replace

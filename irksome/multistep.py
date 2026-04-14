@@ -5,7 +5,7 @@ from .ufl.deriv import expand_time_derivatives, TimeDerivative
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
 from ufl.constantvalue import as_ufl
-from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative, DirichletBC, Constant
+from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative, Constant
 
 
 class MultistepTimeStepper(BaseTimeStepper):
@@ -74,12 +74,7 @@ class MultistepTimeStepper(BaseTimeStepper):
         self.num_nonlinear_iterations = 0
         self.num_linear_iterations = 0
 
-        self.F = F
-        self.t = t
-        self.dt = dt
-        self.u0 = u0
         self.startup_parameters = startup_parameters
-        self.bcs = bcs
         self.bounds = bounds
 
     # optional method to mechanically find the required starting values via a single step method
@@ -112,18 +107,19 @@ class MultistepTimeStepper(BaseTimeStepper):
             self.us[0].assign(self.u0)
 
             F_startup = replace(self.F, {self.t: self.startup_t})
+            
+            v, = F_startup.arguments()
+            V = v.function_space()
 
+            # grab a copy of the boundary conditions w.r.t. startup_t
             startup_bcs = []
-            if self.bcs is not None:
-                for bc in self.bcs:
-                    assert isinstance(bc, DirichletBC), "startup procedure only supports Dirichlet boundary conditions"
-                    if type(bc._original_arg) in (int, float):
-                        startup_bcs.append(bc)
-                    else:
-                        startup_bc_expression = replace(bc._original_arg, {self.t: self.startup_t})
-                        startup_bcs.append(DirichletBC(bc.function_space(), startup_bc_expression, bc.sub_domain))
+            if self.orig_bcs is None:
+                pass
             else:
-                startup_bcs = None
+                for bc in self.orig_bcs:
+                    g0 = as_ufl(bc._original_arg)
+                    g0new = replace(g0, {self.t: self.startup_t})
+                    startup_bcs.append(bc.reconstruct(V=V, g=g0new))
 
             self.startup_TS = TimeStepper(F_startup, butcher_tableau, self.startup_t, startup_dt, self.u0, bcs=startup_bcs, **stepper_kwargs)
 
