@@ -97,7 +97,8 @@ On the other hand, if you wish to use a method which Irksome supports to obtain 
 We'll showcase both methods. The automatic process requires defining a :class:`dict` of keyword arguments used to setup a :class:`.TimeStepper` representing a single-step method. This :class:`.TimeStepper` is then used to compute the 
 initial approximations needed to start the method. We'll import RadauIIA and use the backward Euler method to obtain our starting values. Formally, the backward Euler method is only first order accurate, 
 and we wish to use it obtain the starting values for the third-order accurate BDF(3) method. A crude way to increase the accuracy of the starting values is to use a smaller timestep for the startup procedure. 
-Here, we use timesteps of size :math:`\Delta t / 8` for the backward Euler method which is accessible through the keyword `dt_div`. The keyword `stepper_kwargs` allows for easy customization of the startup :class:`.TimeStepper`.::
+Here, we use timesteps of size :math:`\Delta t / 8` for the backward Euler method which is accessible through the keyword `num_startup_steps`. Setting `num_startup_steps = 8` will instruct the startup :class:`.TimeStepper` to use 8 substeps 
+to compute each starting value. The keyword `stepper_kwargs` allows for easy customization of the startup :class:`.TimeStepper`.::
 
   from irksome import RadauIIA
 
@@ -105,7 +106,7 @@ Here, we use timesteps of size :math:`\Delta t / 8` for the backward Euler metho
                             'solver_parameters': luparams}
 
   startup_parameters = {'tableau': RadauIIA(1),
-                        'dt_div': 8,
+                        'num_startup_steps': 8,
                         'stepper_kwargs': startup_stepper_kwargs}
 
 We can then set up the :class:`.TimeStepper` as follows::

@@ -197,7 +197,7 @@ def heat_bounds(bounds_flag, startup_bounds_flag, startup_tableau):
                       }
 
     startup_parameters = {'tableau': startup_tableau,
-                          'dt_div': 2,
+                          'num_startup_steps': 2,
                           'stepper_kwargs': stepper_kwargs
                           }
 
@@ -253,13 +253,13 @@ def CH_hand(msh, spatial_degree, startup_tableau):
     c_mu0 = Function(c_mu)
 
     startup_stepper = TimeStepper(F_DT, startup_tableau, t, dt, c_mu)
-    dt_div = 4
-    dt.assign(dt / dt_div)
-    for i in range(dt_div):
+    num_startup_steps = 4
+    dt.assign(dt / num_startup_steps)
+    for i in range(num_startup_steps):
         startup_stepper.advance()
         t.assign(t + dt)
 
-    dt.assign(dt * dt_div)
+    dt.assign(dt * num_startup_steps)
     c_mu1 = Function(VV).assign(c_mu)
 
     F_BDF_RHS = - (M * inner(grad(mu), grad(v)) * dx + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx - kappa * inner(grad(c), grad(w)) * dx)
@@ -312,7 +312,7 @@ def CH_mech(msh, spatial_degree, startup_tableau):
             + inner(mu, w) * dx - inner(c * (c**2 - 1), w) * dx
             - kappa * inner(grad(c), grad(w)) * dx)
 
-    startup_parameters = {'tableau': startup_tableau, 'dt_div': 4}
+    startup_parameters = {'tableau': startup_tableau, 'num_startup_steps': 4}
 
     BDF2 = BDF(2)
     stepper = TimeStepper(F_DT, BDF2, t, dt, c_mu, startup_parameters=startup_parameters)
@@ -402,7 +402,7 @@ def heat_AB2_mech(msh, N, spatial_basis):
     u2 = project(uexact, V, bcs=bc)
     F = inner(Dt(u2), v) * dx - (inner(rhs, v) * dx - inner(grad(u2), grad(v)) * dx)
 
-    startup_parameters = {'tableau': RadauIIA(1), 'dt_div': 4}
+    startup_parameters = {'tableau': RadauIIA(1), 'num_startup_steps': 4}
 
     AB2 = AdamsBashforth(2)
     stepper = TimeStepper(F, AB2, t, dt, u2, bcs=bc, startup_parameters=startup_parameters)
@@ -512,7 +512,7 @@ def heat_cust_mech(msh, N, spatial_basis):
 
     method = MultistepTableau(a, b)
 
-    startup_parameters = {'tableau': RadauIIA(1), 'dt_div': 4}
+    startup_parameters = {'tableau': RadauIIA(1), 'num_startup_steps': 4}
 
     stepper = TimeStepper(F, method, t, dt, u, bcs=(bc1, bc2, bc3, bc4), startup_parameters=startup_parameters)
     stepper.startup()
@@ -555,7 +555,7 @@ def heat_startup_tableau(startup_tableau):
     stepper_kwargs = {'solver_parameters': vi_params}
 
     startup_parameters = {'tableau': startup_tableau,
-                          'dt_div': 2,
+                          'num_startup_steps': 2,
                           'stepper_kwargs': stepper_kwargs
                           }
 

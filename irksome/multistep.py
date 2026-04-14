@@ -96,14 +96,14 @@ class MultistepTimeStepper(BaseTimeStepper):
             if isinstance(butcher_tableau, MultistepTableau):
                 assert butcher_tableau.num_total_steps == 2, "Cannot use a multistep method to start a multistep method"
             stepper_kwargs = self.startup_parameters.get('stepper_kwargs', {})
-            startup_dt_div = self.startup_parameters.get('dt_div', 1)
-            assert isinstance(startup_dt_div, int) and startup_dt_div > 0
+            num_startup_steps = self.startup_parameters.get('num_startup_steps', 1)
+            assert isinstance(num_startup_steps, int) and num_startup_steps > 0
 
             # delayed import to avoid a circular import
             from .stepper import TimeStepper
 
             startup_dt = self.dt.copy(deepcopy=True)
-            startup_dt.assign(self.dt / startup_dt_div)
+            startup_dt.assign(self.dt / num_startup_steps)
             self.startup_t = self.t.copy(deepcopy=True)
 
             self.us[0].assign(self.u0)
@@ -126,7 +126,7 @@ class MultistepTimeStepper(BaseTimeStepper):
 
             # advance the system and assign values to previous steps
             for i in range(self.num_prev_steps - 1):
-                for substep in range(startup_dt_div):
+                for substep in range(num_startup_steps):
                     self.startup_TS.advance()
                     self.startup_t.assign(self.startup_t + startup_dt)
                 self.us[i + 1].assign(self.u0)
