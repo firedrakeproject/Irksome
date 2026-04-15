@@ -105,18 +105,19 @@ def telegraph(n, deg, scheme, **kwargs):
     rhs = Dt(uexact, 2) + Dt(uexact) - div(grad(uexact))
 
     v = TestFunction(V)
+    w = TrialFunction(V)
     u = Function(V).interpolate(uexact)
     ut = Function(V).interpolate(diff(uexact, t))
 
-    F = (inner(Dt(Dt(u) + u), v) * dx + inner(grad(u), grad(v)) * dx
+    F = (inner(Dt(Dt(w) + w), v) * dx + inner(grad(w), grad(v)) * dx
          - inner(rhs, v) * dx)
 
     stepper = StageDerivativeNystromTimeStepper(F, scheme, t, dt, u, ut,
                                                 bcs=bcs, solver_parameters=params,
+                                                constant_jacobian=True,
                                                 **kwargs)
-    while float(t) < 1.0:
-        if float(t + dt) > 1.0:
-            dt.assign(1.0 - float(t))
+    nsteps = int(np.ceil(1.0/float(dt)))
+    for step in range(nsteps):
         stepper.advance()
         t.assign(t + dt)
 

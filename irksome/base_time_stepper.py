@@ -228,3 +228,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             raise ValueError("Unknown bounds type")
 
         return (slb, sub)
+
+    def invalidate_jacobian(self):
+        """
+        Forces the matrix to be reassembled next time it is required.
+        """
+        LinearVariationalSolver.invalidate_jacobian(self.solver)
