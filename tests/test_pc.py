@@ -261,8 +261,8 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
     sparams = {
         "mat_type": "matfree",
         "pmat_type": "aij",
-        "snes_type": "ksponly",
         "ksp_max_it": 15,
+        "ksp_rtol": 1E-5,
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
         "pc_factor_mat_solver_type": "mumps",

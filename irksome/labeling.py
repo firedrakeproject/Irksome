@@ -166,6 +166,10 @@ def as_form(form):
 
 
 def as_linear_form(F, u0):
+    """
+    If `F` is a bilinear :class:`Form` compute a linear
+    :class:`Form` by replacing the trial function with `u0`.
+    """
     form = as_form(F)
     nargs = len(form.arguments())
     if nargs == 2:
@@ -174,5 +178,5 @@ def as_linear_form(F, u0):
         test, trial = form.arguments()
         F = replace(F, {trial: u0})
     elif nargs != 1:
-        raise ValueError("Expecting a linear Form with 1 or 2 arguments.")
+        raise ValueError("Expecting a Form with 1 or 2 arguments.")
     return F

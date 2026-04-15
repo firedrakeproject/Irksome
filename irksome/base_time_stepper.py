@@ -97,10 +97,10 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                  butcher_tableau=None, bounds=None,
                  **kwargs):
 
-        use_linear_variational_solver = False
+        is_linear = False
         if len(as_form(F).arguments()) == 2:
             F = as_linear_form(F, u0)
-            use_linear_variational_solver = True
+            is_linear = True
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
@@ -135,7 +135,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         self.bigBCs = bigBCs
 
-        if use_linear_variational_solver:
+        if is_linear:
             Fbig = replace(Fbig, {stages: TrialFunction(stages.function_space())})
             abig = lhs(Fbig)
             Lbig = rhs(Fbig)
@@ -146,8 +146,6 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                 restrict=kwargs.pop("restrict", False),
             )
             solver_constructor = LinearVariationalSolver
-            # FIXME
-            solver_constructor = NonlinearVariationalSolver
         else:
             problem = NonlinearVariationalProblem(
                 Fbig, stages, bcs=bigBCs, Jp=Jpbig,
@@ -155,7 +153,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                 is_linear=kwargs.pop("is_linear", False),
                 restrict=kwargs.pop("restrict", False),
             )
+            problem._constant_jacobian = kwargs.pop("constant_jacobian", False)
             solver_constructor = NonlinearVariationalSolver
+
         self.problem = problem
         self.solver = solver_constructor(
             self.problem, appctx=self.appctx,
