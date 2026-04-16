@@ -1,10 +1,11 @@
 from .tools import replace
 from .constant import vecconst
-from .ufl.manipulation import split_time_derivative_terms
+from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .ufl.deriv import expand_time_derivatives, TimeDerivative
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
 from .bcs import stage2spaces4bc
+from ufl import Form
 from ufl.constantvalue import as_ufl
 from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative, Constant
 
@@ -85,6 +86,7 @@ class MultistepTimeStepper(BaseTimeStepper):
             return ValueError('No startup parameters provided')
         else:
             if self.num_prev_steps == 1:  # No startup required
+                self.startup_t = Constant(self.t) if isinstance(self.t, Constant) else self.t.copy(deepcopy=True)
                 return
 
             butcher_tableau = self.startup_parameters.get('tableau', None)
@@ -133,23 +135,20 @@ class MultistepTimeStepper(BaseTimeStepper):
 
     def get_form_and_bcs(self, F, t, dt, u0, a, b, bcs=None):
 
-        F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0, ))
         v, = F.arguments()
         V = v.function_space()
 
         assert V == u0.function_space()
 
-        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0, ))
-        F_dt = split_form.time
-        F_remainder = split_form.remainder
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+        F_dtless = remove_time_derivatives(split_form.time)
+        F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
         # replace the time derivative with a linear combination of the previous steps
-        temp_form = 0.0
+        Fnew = Form([])
         for (i, coeff) in enumerate(a):
-            temp_form += coeff * self.us[i]
-
-        dtu = TimeDerivative(u0)
-        Fnew = replace(F_dt, {dtu: temp_form})
+            Fnew += coeff * replace(F_dtless, {u0: self.us[i], 
+                                               t: t + (i - self.num_prev_steps + 1) * dt})
 
         # form the right hand side
         for (i, coeff) in enumerate(b):
