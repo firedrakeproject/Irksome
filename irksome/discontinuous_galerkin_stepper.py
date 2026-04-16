@@ -122,7 +122,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
-    :arg F: UFL form for the semidiscrete ODE/DAE
+    :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg L: A :class:`FIAT.FiniteElement` for the test and trial functions in time
     :arg Qdefault: A :class:`FIAT.QuadratureRule` for the time integration
     :arg t: a :class:`Function` on the Real space over the same mesh as
@@ -191,36 +191,29 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
     """Front-end class for advancing a time-dependent PDE via a Discontinuous Galerkin
     in time method
 
-    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
-            F(t, u; v) == 0, where `u` is the unknown
-            :class:`firedrake.Function and `v` is the
-            :class:firedrake.TestFunction`.
+    :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg scheme: a :class:`DiscontinuousGalerkinScheme` instance describing the order,
-         basis type, default quadrature scheme, and time derivative integration type.
-    :arg t: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time.
-    :arg dt: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time step.
-         The user may adjust this value between time steps.
+        basis type, default quadrature scheme, and time derivative integration type.
+    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time.
+    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time step size.
     :arg u0: A :class:`firedrake.Function` containing the current
-            state of the problem to be solved.
+        state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
-            the strongly-enforced boundary conditions.  Irksome will
-            manipulate these to obtain boundary conditions for each
-            stage of the method.
+        the strongly-enforced boundary conditions.  Irksome will
+        manipulate these to obtain boundary conditions for each
+        stage of the method.
     :arg solver_parameters: A :class:`dict` of solver parameters that
-            will be used in solving the algebraic problem associated
-            with each time step.
+        will be used in solving the algebraic problem associated
+        with each time step.
     :arg appctx: An optional :class:`dict` containing application context.
-            This gets included with particular things that Irksome will
-            pass into the nonlinear solver so that, say, user-defined preconditioners
-            have access to it.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-            index is an index into the function space associated with
-            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
-            instance to be passed to a
-            `firedrake.MixedVectorSpaceBasis` over the larger space
-            associated with the Runge-Kutta method
+        This gets included with particular things that Irksome will
+        pass into the nonlinear solver so that, say, user-defined preconditioners
+        have access to it.
+    :arg nullspace: An optional nullspace object.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None, basis_type=None,
                  quadrature=None, **kwargs):
