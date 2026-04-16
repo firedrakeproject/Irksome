@@ -1,7 +1,7 @@
 from .tools import replace
 from .constant import vecconst
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
-from .ufl.deriv import expand_time_derivatives, TimeDerivative
+from .ufl.deriv import expand_time_derivatives
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
 from .bcs import stage2spaces4bc
@@ -147,7 +147,7 @@ class MultistepTimeStepper(BaseTimeStepper):
         # replace the time derivative with a linear combination of the previous steps
         Fnew = Form([])
         for (i, coeff) in enumerate(a):
-            Fnew += coeff * replace(F_dtless, {u0: self.us[i], 
+            Fnew += coeff * replace(F_dtless, {u0: self.us[i],
                                                t: t + (i - self.num_prev_steps + 1) * dt})
 
         # form the right hand side
