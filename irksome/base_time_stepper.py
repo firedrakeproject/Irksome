@@ -50,43 +50,43 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     compute the stages (e.g. fully implicit RK, Galerkin-in-time)
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
-            F(t, u; v) == 0, where `u` is the unknown
-            :class:`firedrake.Function and `v` is the
-            :class:firedrake.TestFunction`. To specify a linear problem,
-            `F` must be of the form a(t; w, v) - L(t; v) where
-            `w` is a :class:firedrake.TrialFunction`.
-    :arg t: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time.
-    :arg dt: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time step.
-         The user may adjust this value between time steps.
+        ``F(t, u; v) == 0``, where ``u`` is the unknown
+        :class:`firedrake.Function` and ``v`` is the
+        :class:`firedrake.TestFunction`. To specify a linear problem,
+        ``F`` must be of the form ``a(t; w, v) - L(t; v)``, where
+        ``w`` is a :class:`firedrake.TrialFunction`.
+    :arg Fexp: A :class:`ufl.Form` instance describing the part of the
+    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as ``u0``.  This serves as
+        a variable referring to the current time.
+    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as ``u0``.  This serves as
+        a variable referring to the current time step size.
+        The user may adjust this value between time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
-            state of the problem to be solved.
+        state of the problem to be solved.
     :arg num_stages: The number of stages to solve for.  It could be the number of
-            RK stages or relate to the polynomial degree (Galerkin)
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or `firedrake.EquationBC`
-            containing the strongly-enforced boundary conditions.  Irksome will
-            manipulate these to obtain boundary conditions for each
-            stage of the RK method.  Support for `firedrake.EquationBC` is limited
-            to the stage derivative formulation with DAE style BCs.
+        RK stages or relate to the polynomial degree (Galerkin)
+    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`firedrake.EquationBC`
+        containing the strongly-enforced boundary conditions.  Irksome will
+        manipulate these to obtain boundary conditions for each
+        stage of the RK method.  Support for `firedrake.EquationBC` is limited
+        to the stage derivative formulation with DAE style BCs.
     :arg Fp: A :class:`ufl.Form` instance to precondition the semi-discrete linearization.
     :arg solver_parameters: An optional :class:`dict` of solver parameters that
-            will be used in solving the algebraic problem associated
-            with each time step.
+        will be used in solving the algebraic problem associated
+        with each time step.
     :arg appctx: An optional :class:`dict` containing application context.
-            This gets included with particular things that Irksome will
-            pass into the nonlinear solver so that, say, user-defined preconditioners
-            have access to it.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-            index is an index into the function space associated with
-            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
-            instance to be passed to a
-            `firedrake.MixedVectorSpaceBasis` over the larger space
-            associated with the Runge-Kutta method
+        This gets included with particular things that Irksome will
+        pass into the nonlinear solver so that, say, user-defined preconditioners
+        have access to it.
+    :arg nullspace: A :class:`firedrake.VectorSpaceBasis`
+        or :class:`firedrake.MixedVectorSpaceBasis` specifying a nullspace
+        over the space of ``u0``.
     :arg splitting: An optional kwarg (not used by all superclasses)
     :arg bc_type: An optional kwarg (not used by all superclasses)
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
-            the Runge-Kutta method to be used for time marching.
+        the Runge-Kutta method to be used for time marching.
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     """
     def __init__(self, F, t, dt, u0, num_stages,
