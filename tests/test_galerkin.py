@@ -1,5 +1,4 @@
-from math import isclose
-
+import numpy as np
 import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme, TimeStepper, GaussLegendre
@@ -58,8 +57,8 @@ def run_1d_heat_dirichletbc(scheme, **kwargs):
         t += dt
         # Check solution and boundary values
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert np.isclose(u.at(x0), u_0)
+        assert np.isclose(u.at(x1), u_1)
 
 
 @pytest.mark.parametrize("quad_degree", [None, "auto"])

@@ -1,4 +1,4 @@
-from math import isclose
+import numpy as np
 
 import pytest
 from firedrake import *
@@ -129,8 +129,8 @@ def heat_dirichletbc(butcher_tableau):
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert np.isclose(u.at(x0), u_0)
+        assert np.isclose(u.at(x1), u_1)
 
 
 # Note that ARS_DIRK_IMEX(1,1,1), ARS_DIRK_IMEX(2, 2, 2), and ARS_DIRK_IMEX(4,4,3)
