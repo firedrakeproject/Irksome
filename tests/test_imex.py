@@ -1,6 +1,4 @@
 import numpy as np
-
-import numpy as np
 import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, TimeStepper, ARS_DIRK_IMEX, SSPK_DIRK_IMEX
