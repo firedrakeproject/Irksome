@@ -168,7 +168,8 @@ def as_form(form):
 def as_linear_form(F, u0):
     """
     If `F` is a bilinear :class:`Form` compute a linear
-    :class:`Form` by replacing the trial function with `u0`.
+    :class:`Form` by replacing the trial function with `u0`,
+    otherwise return `F`.
     """
     form = as_form(F)
     nargs = len(form.arguments())
