@@ -1,6 +1,5 @@
-from math import isclose
-
 import pytest
+import numpy as np
 from firedrake import *
 from irksome import PEPRK, Dt, MeshConstant, TimeStepper, SSPButcherTableau
 
@@ -65,6 +64,8 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         stage_type="explicit"
     )
 
+    eval_at_pts = PointEvaluator(msh, [x0, x1]).evaluate
+    expected = [float(u_0), float(u_1)]
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -73,5 +74,4 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert np.allclose(eval_at_pts(u), expected)

@@ -1,5 +1,4 @@
-from math import isclose
-
+import numpy as np
 import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme, TimeStepper, GaussLegendre
@@ -50,6 +49,8 @@ def run_1d_heat_dirichletbc(scheme, **kwargs):
 
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams, **kwargs)
 
+    eval_at_pts = PointEvaluator(msh, [x0, x1]).evaluate
+    expected = [float(u_0), float(u_1)]
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -58,8 +59,7 @@ def run_1d_heat_dirichletbc(scheme, **kwargs):
         t += dt
         # Check solution and boundary values
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert np.allclose(eval_at_pts(u), expected)
 
 
 @pytest.mark.parametrize("quad_degree", [None, "auto"])

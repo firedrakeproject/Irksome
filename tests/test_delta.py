@@ -1,5 +1,6 @@
 from firedrake import *
 from irksome import Alexander, Dt, RadauIIA, TimeStepper, GaussLegendre, StageDerivativeNystromTimeStepper, ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
+import numpy as np
 import pytest
 import ufl
 

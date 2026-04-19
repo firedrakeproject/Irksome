@@ -1,4 +1,4 @@
-from math import isclose
+import numpy as np
 
 import numpy as np
 import pytest
@@ -123,6 +123,8 @@ def heat_dirichletbc(butcher_tableau):
         constant_jacobian=True,
     )
 
+    eval_at_pts = PointEvaluator(msh, [x0, x1]).evaluate
+    expected = [float(u_0), float(u_1)]
     t_end = 2.0
     while float(t) < t_end:
         print("Current time: ", float(t))
@@ -133,8 +135,7 @@ def heat_dirichletbc(butcher_tableau):
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert np.allclose(eval_at_pts(u), expected)
 
 
 # Note that ARS_DIRK_IMEX(1,1,1), ARS_DIRK_IMEX(2, 2, 2), and ARS_DIRK_IMEX(4,4,3)
