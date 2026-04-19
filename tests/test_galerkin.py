@@ -49,8 +49,7 @@ def run_1d_heat_dirichletbc(scheme, **kwargs):
 
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams, **kwargs)
 
-    eval_at_pts = PointEvaluator(msh, [x0, x1]).evaluate
-    expected = [float(u_0), float(u_1)]
+    bnd_error = inner(u-uexact, u-uexact) * ds
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -58,8 +57,8 @@ def run_1d_heat_dirichletbc(scheme, **kwargs):
         stepper.advance()
         t += dt
         # Check solution and boundary values
-        assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert np.allclose(eval_at_pts(u), expected)
+        assert errornorm(uexact, u) / norm(uexact) < 1e-3
+        assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
 
 
 @pytest.mark.parametrize("quad_degree", [None, "auto"])

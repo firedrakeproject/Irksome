@@ -1,5 +1,4 @@
 import pytest
-import numpy as np
 from firedrake import *
 from irksome import LobattoIIIA, GaussLegendre, Dt, MeshConstant, TimeStepper
 
@@ -54,8 +53,7 @@ def test_1d_heat_dirichletbc(butcher_tableau, stage_type):
         F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams, bc_type="ODE"
     )
 
-    eval_at_pts = PointEvaluator(msh, [x0, x1]).evaluate
-    expected = [float(u_0), float(u_1)]
+    bnd_error = inner(u-uexact, u-uexact) * ds
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -63,5 +61,5 @@ def test_1d_heat_dirichletbc(butcher_tableau, stage_type):
         stepper.advance()
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
-        assert norm(u - uexact) / norm(uexact) < 10.0 ** -5
-        assert np.allclose(eval_at_pts(u), expected)
+        assert errornorm(uexact, u) / norm(uexact) < 1e-5
+        assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
