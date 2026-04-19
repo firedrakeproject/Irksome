@@ -116,7 +116,7 @@ Finally, we print out the relative :math:`L^2` error::
 So far we have neglected the fact that the problem is linear, and that the
 Jacobian is time-independent. We can instead formulate the semidiscrete form
 `F` in terms of a :class:`TrialFunction`, and specify the option
-``constant_jacobian``. So that the factorization is not redone at each time
+``constant_jacobian``, so that the factorization is not redone at each time
 step. ::
 
   dt.assign(10.0 / N)

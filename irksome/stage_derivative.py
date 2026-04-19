@@ -42,12 +42,12 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
         Support for `firedrake.EquationBC` in `bcs` is limited
         to DAE style BCs.
     :kwarg splitting: a callable that maps the (floating point) Butcher matrix
-        a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
+        to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
         to vary between the classical RK formulation and Butcher's reformulation
         that leads to a denser mass matrix with block-diagonal stiffness.
         Some choices of function will assume that `butch.A` is invertible.
     :kwarg aux_indices: a list of field indices to be discretized as :class:`TimeDerivative`,
-        analogouos to :class:`ContinouosPetrovGalerkinTimeStepper`.
+        analogous to :class:`ContinouosPetrovGalerkinTimeStepper`.
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
