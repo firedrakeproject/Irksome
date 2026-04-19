@@ -55,7 +55,6 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         :class:`firedrake.TestFunction`. To specify a linear problem,
         ``F`` must be of the form ``a(t; w, v) - L(t; v)``, where
         ``w`` is a :class:`firedrake.TrialFunction`.
-    :arg Fexp: A :class:`ufl.Form` instance describing the part of the
     :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time.
