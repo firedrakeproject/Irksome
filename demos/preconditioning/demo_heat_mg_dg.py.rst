@@ -94,7 +94,7 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
   
 These solver parameters work just fine using a :class:`~irksome.DiscontinuousGalerkinScheme`::
 
-  scheme = DiscontinuousGalerkinScheme(2)
+  scheme = DiscontinuousGalerkinScheme(2, quadrature_degree="auto")
   stepper = TimeStepper(F, scheme, t, dt, u, bcs=bc, solver_parameters=mgparams)
 
 And we can advance the solution in time in typical fashion::
