@@ -118,7 +118,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
     return Fnew
 
 
-def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong"):
+def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong", max_quadrature_degree=None):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
@@ -133,13 +133,16 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
+    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
-    :arg deriv_type: A string indicating how to integrate terms with time derivatives.
+    :kwarg deriv_type: A string indicating how to integrate terms with time derivatives.
         Valid values are:
         - `"weak"`: Time derivatives act on the test function (integrating by parts once).
         - `"strong"`: Time derivatives act on the unknown (integrating by parts twice).
+    :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
+        degree allowed in the automatic degree estimation.
+        If ``None``, then the estimated quadrature degree will always be used.
 
     On output, we return a tuple consisting of two parts:
 
@@ -156,7 +159,8 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     degree_mapping = get_degree_mapping(as_form(F), L.degree(), L.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
 
-    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault)
+    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
+                                 max_quadrature_degree=max_quadrature_degree)
     Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type)
                for Q, Fcur in splitting.items())
 
@@ -248,6 +252,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
 
         self.quadrature = quadrature
+        self.max_quadrature_degree = scheme.max_quadrature_degree
 
         num_stages = order+1
 
@@ -268,11 +273,13 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         else:
             el = getElement(basis_type, order)
         deriv_type = deriv_type or self.deriv_type
+        max_quadrature_degree = self.max_quadrature_degree
         return getFormDiscGalerkin(F or self.F,
                                    el,
                                    quadrature or self.quadrature,
                                    self.t, self.dt, self.u0, stages,
-                                   bcs=bcs, deriv_type=deriv_type)
+                                   bcs=bcs, deriv_type=deriv_type,
+                                   max_quadrature_degre=max_quadrature_degree)
 
     def _update(self):
         stages_np = np.array(self.stages.subfunctions, dtype=object)

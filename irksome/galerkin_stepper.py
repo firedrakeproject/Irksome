@@ -114,7 +114,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     return Fnew
 
 
-def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None):
+def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
 
@@ -145,6 +145,9 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
          Currently there is no support for `firedrake.EquationBC`.
     :kwarg aux_indices: a list of field indices to be discretized in the test space
          rather than trial space.
+    :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
+        degree allowed in the automatic degree estimation.
+        If ``None``, then the estimated quadrature degree will always be used.
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form` corresponding to the Galerkin-in-Time discretized problem
@@ -162,7 +165,8 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     degree_mapping = get_degree_mapping(as_form(F), L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
 
-    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault)
+    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
+                                 max_quadrature_degree=max_quadrature_degree)
     Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
                for Q, Fcur in splitting.items())
 
@@ -315,6 +319,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         else:
             quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
         self.quadrature = quadrature
+        self.max_quadrature_degree = scheme.max_quadrature_degree
         self.aux_indices = aux_indices
         if isinstance(scheme, GalerkinCollocationScheme):
             self.butcher_tableau = CollocationButcherTableau(self.test_el, None)
@@ -378,10 +383,12 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         else:
             trial_el, test_el = getElements(basis_type, order)
         quadrature = quadrature or self.quadrature
+        max_quadrature_degree = self.max_quadrature_degree
         return getFormGalerkin(F, trial_el, test_el, quadrature,
                                self.t, self.dt, self.u0, stages,
                                bcs=bcs, bc_type=self.bc_type,
-                               aux_indices=aux_indices)
+                               aux_indices=aux_indices,
+                               max_quadrature_degree=max_quadrature_degree)
 
     def _update(self):
         for u0bit, expr in zip(self.u0.subfunctions, self.u_update):

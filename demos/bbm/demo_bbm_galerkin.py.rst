@@ -88,11 +88,8 @@ UFL for the mathematical invariants and containers to track them over time::
   I1 = u * dx
   I2 = (u**2 + (u.dx(0))**2) * dx
   I3 = ((u.dx(0))**2 - u**3 / 3) * dx
-
-  I1s = []
-  I2s = []
-  I3s = []
-
+  functionals = (I1, I2, I3)
+  invariants = [tuple(map(assemble, functionals))]
 
 Time-stepping loop, keeping track of :math:`I` values::
 
@@ -102,11 +99,9 @@ Time-stepping loop, keeping track of :math:`I` values::
           dt.assign(tfinal - float(t))
       stepper.advance()
 
-      I1s.append(assemble(I1))
-      I2s.append(assemble(I2))
-      I3s.append(assemble(I3))
+      invariants.append(tuple(map(assemble, functionals)))
 
-      print('%.15f %.15f %.15f %.15f' % (float(t), I1s[-1], I2s[-1], I3s[-1]))
+      print('%.15f %.15f %.15f %.15f' % (float(t), *invariants[-1]))
       t.assign(float(t) + float(dt))
 
   print(errornorm(uexact, u) / norm(uexact))

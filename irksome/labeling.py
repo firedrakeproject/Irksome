@@ -39,7 +39,7 @@ def has_quad_labels(term):
     return any(isinstance(label, TimeQuadratureRule) for label in term.labels)
 
 
-def apply_time_quadrature_labels(form, degree_estimator, scheme=None):
+def apply_time_quadrature_labels(form, degree_estimator, scheme=None, max_quadrature_degree=None):
     """
     Estimates the polynomial degree in time for each integral in the given form and labels
     each term with a quadrature rule to be used for time integration.
@@ -47,6 +47,9 @@ def apply_time_quadrature_labels(form, degree_estimator, scheme=None):
     :arg form: a :class:`BaseForm` or a partially labelled :class:`LabelledForm`.
     :arg degree_estimator: a :class:`TimeDegreeEstimator` instance.
     :kwarg scheme: a string with the quadrature scheme.
+    :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
+        degree allowed in the automatic degree estimation.
+        If ``None``, then the estimated quadrature degree will always be used.
 
     :returns: a :class:`LabelledForm` labelled by :class:`TimeQuaradratureRule` instances.
     """
@@ -72,6 +75,9 @@ def apply_time_quadrature_labels(form, degree_estimator, scheme=None):
             form = Form([])
 
         degree = degree_estimator(apply_algebra_lowering(base_form))
+        if max_quadrature_degree is not None and degree > max_quadrature_degree:
+            degree = max_quadrature_degree
+
         label = TimeQuadratureLabel(degree, scheme=scheme)
         F += label(base_form)
 
@@ -92,7 +98,7 @@ def apply_time_quadrature_labels(form, degree_estimator, scheme=None):
     return F
 
 
-def split_quadrature(F, degree_estimator=None, Qdefault=None):
+def split_quadrature(F, degree_estimator=None, Qdefault=None, max_quadrature_degree=None):
     """Splits a :class:`LabelledForm` into the terms to be integrated in time by the
     different :class:`TimeQuadratureRule` objects used as labels.
 
@@ -101,13 +107,17 @@ def split_quadrature(F, degree_estimator=None, Qdefault=None):
     :kwarg Qdefault: the :class:`TimeQuadratureRule` to be applied on unlabelled terms.
         Alternatively, a string indicating the quadrature scheme,
         in which case the degree is automatically estimated for each unlabelled term.
+    :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
+        degree allowed in the automatic degree estimation.
+        If ``None``, then the estimated quadrature degree will always be used.
 
     :returns: a `dict` mapping unique :class:`TimeQuadratureRule` objects to the :class:`Form` to be integrated in time.
     """
     do_estimate_degrees = Qdefault is None or isinstance(Qdefault, str)
     if do_estimate_degrees:
         scheme = Qdefault
-        F = apply_time_quadrature_labels(F, degree_estimator, scheme=scheme)
+        F = apply_time_quadrature_labels(F, degree_estimator, scheme=scheme,
+                                         max_quadrature_degree=max_quadrature_degree)
 
     if not isinstance(F, LabelledForm):
         return {Qdefault: F}

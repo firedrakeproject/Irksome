@@ -12,24 +12,30 @@ class GalerkinScheme:
 
     :arg order: An integer indicating the order of the method
     :kwarg basis_type: A string (or tuple of strings) indicating the finite
-        element family (either `'Lagrange'` or `'Bernstein'`) or the
-        Lagrange variant (either `'equispaced'`, `'spectral'`, `'chebyshev'`,
-        or `'integral'`) for the test/trial spaces.
+        element family (either ``'Lagrange'`` or ``'Bernstein'``) or the
+        Lagrange variant (either ``'equispaced'``, ``'spectral'``, ``'chebyshev'``,
+        or ``'integral'``) for the test/trial spaces.
         Defaults to equispaced Lagrange elements.
-    :kwarg quadrature_degree: An integer indicating the degree of the
+    :kwarg quadrature_degree: An integer or string indicating the degree of the
         quadrature to be used in time. Defaults to the sum
-        of the degrees of the trial and test spaces.
+        of the degrees of the trial and test spaces. The string value ``'auto'``
+        enables automatic degree estimation for each term in the form.
     :kwarg quadrature_scheme: A string indicating the quadrature scheme
         to be used in time. Defaults to Gauss-Legendre.
+    :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
+        degree allowed in the automatic degree estimation.
+        If ``None``, then the estimated quadrature degree will always be used.
     """
     def __init__(self, order,
                  basis_type=None,
                  quadrature_degree=None,
-                 quadrature_scheme=None):
+                 quadrature_scheme=None,
+                 max_quadrature_degree=None):
         self.order = order
         self.basis_type = basis_type
         self.quadrature_degree = quadrature_degree
         self.quadrature_scheme = quadrature_scheme
+        self.max_quadrature_degree = max_quadrature_degree
 
 
 class DiscontinuousGalerkinScheme(GalerkinScheme):
@@ -37,15 +43,19 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
 
     :arg order: An integer indicating the order of the method
     :kwarg basis_type: A string (or tuple of strings) indicating the finite
-        element family (either `'Lagrange'` or `'Bernstein'`) or the
-        Lagrange variant (either `'equispaced'`, `'spectral'`, `'chebyshev'`,
-        or `'integral'`) for the test/trial spaces.
+        element family (either ``'Lagrange'`` or ``'Bernstein'``) or the
+        Lagrange variant (either ``'equispaced'``, ``'spectral'``, ``'chebyshev'``,
+        or ``'integral'``) for the test/trial spaces.
         Defaults to equispaced Lagrange elements.
-    :kwarg quadrature_degree: An integer indicating the degree of the
+    :kwarg quadrature_degree: An integer or string indicating the degree of the
         quadrature to be used in time. Defaults to the sum
-        of the degrees of the trial and test spaces.
+        of the degrees of the trial and test spaces. The string value ``'auto'``
+        enables automatic degree estimation for each term in the form.
     :kwarg quadrature_scheme: A string indicating the quadrature scheme
         to be used in time. Defaults to Gauss-Legendre.
+    :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
+        degree allowed in the automatic degree estimation.
+        If ``None``, then the estimated quadrature degree will always be used.
     :kwarg deriv_type: A string indicating how to integrate terms with time derivatives.
         Valid values are:
         - `'weak'`: Time derivatives act on the test function (integrating by parts once).
@@ -55,6 +65,7 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
                  basis_type=None,
                  quadrature_degree=None,
                  quadrature_scheme=None,
+                 max_quadrature_degree=None,
                  deriv_type="strong"):
         if order < 0:
             raise ValueError(f"{type(self).__name__} must have order >= 0")
@@ -63,7 +74,8 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
         self.deriv_type = deriv_type
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
-                         quadrature_scheme=quadrature_scheme)
+                         quadrature_scheme=quadrature_scheme,
+                         max_quadrature_degree=max_quadrature_degree)
 
 
 class ContinuousPetrovGalerkinScheme(GalerkinScheme):
@@ -71,12 +83,14 @@ class ContinuousPetrovGalerkinScheme(GalerkinScheme):
     def __init__(self, order,
                  basis_type=None,
                  quadrature_degree=None,
-                 quadrature_scheme=None):
+                 quadrature_scheme=None,
+                 max_quadrature_degree=None):
         if order < 1:
             raise ValueError(f"{type(self).__name__} must have order >= 1")
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
-                         quadrature_scheme=quadrature_scheme)
+                         quadrature_scheme=quadrature_scheme,
+                         max_quadrature_degree=max_quadrature_degree)
 
 
 class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
@@ -84,7 +98,8 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
     def __init__(self, order,
                  stage_type="deriv",
                  quadrature_degree=None,
-                 quadrature_scheme=None):
+                 quadrature_scheme=None,
+                 max_quadrature_degree=None):
         if order < 1:
             raise ValueError(f"{type(self).__name__} must have order >= 1")
         if quadrature_scheme is None:
@@ -107,7 +122,8 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
         basis_type = (trial_type, test_type)
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
-                         quadrature_scheme=quadrature_scheme)
+                         quadrature_scheme=quadrature_scheme,
+                         max_quadrature_degree=max_quadrature_degree)
 
 
 def create_time_quadrature(degree, scheme=None):
