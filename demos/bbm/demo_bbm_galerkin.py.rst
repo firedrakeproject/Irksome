@@ -5,7 +5,7 @@ This demo solves the Benjamin-Bona-Mahony equation:
 
 .. math::
 
-   u_t + u_x + u u_x - u_{txx} = 0
+   u_t - u_{txx} + u_x + u u_x = 0
 
 typically posed on :math:`\mathbb{R}` or a bounded interval with periodic
 boundaries.
@@ -14,17 +14,17 @@ It is interesting because it is nonlinear (:math:`u u_x`) and also a Sobolev-typ
 
 .. math::
 
-   (u_t, v) + (u_x, v) + (u u_x, v) + (u_{tx}, v_x) = 0
+   (u_t, v) + (u_{tx}, v_x) + (u_x, v) + (u u_x, v) = 0
 
 BBM is known to have a Hamiltonian structure, and there are three canonical polynomial invariants:
 
 .. math::
 
-   I_1 & = \int u \, dx
+   I_1 & = \int u \, \mathrm{d}x
 
-   I_2 & = \int u^2 + (u_x)^2 \, dx
+   I_2 & = \int u^2 + (u_x)^2 \, \mathrm{d}x
 
-   I_3 & = \int \tfrac{1}{2} u^2 + \tfrac{1}{6} u^3 \, dx
+   I_3 & = \int \frac{u^2}{2} + \frac{u^3}{6} \, \mathrm{d}x
 
 We are mainly interested in accuracy and in conserving these quantities reasonably well.
 
@@ -68,9 +68,9 @@ Create the approximating space and project true solution::
   v = TestFunction(V)
 
   F = (inner(Dt(u), v) * dx
+       + inner((Dt(u)).dx(0), v.dx(0)) * dx
        + inner(u.dx(0), v) * dx
-       + inner(u * u.dx(0), v) * dx
-       + inner((Dt(u)).dx(0), v.dx(0)) * dx)
+       + inner(u * u.dx(0), v) * dx)
 
 For a 1d problem, we don't worry much about efficient solvers.::
 
