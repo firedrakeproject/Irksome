@@ -157,13 +157,13 @@ estimation algorithm will only be exact for polynomial nonlinearities, such as
 the cubic term in `I3`. For complicated nonlinearities, the estimated degree
 might be too large and result in very slow compilation and runtime.
 The quadrature degree might be optionally capped via `max_quadrature_degree`
-keyword arumgent. ::
+keyword argument. ::
 
   scheme = ContinuousPetrovGalerkinScheme(time_deg, quadrature_degree="auto",
                                           max_quadrature_degree=3*time_deg-1)
 
 This sets up the cPG time stepper.  There are two fields in the unknown, we
-indicate the second one is an auxiliary and hence to be discretized in the DG
+indicate that the second one is an auxiliary and hence to be discretized in the DG
 test space instead by passing the `aux_indices` keyword::
  
   stepper = TimeStepper(F, scheme, t, dt, uwH, aux_indices=[1])

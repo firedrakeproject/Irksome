@@ -279,7 +279,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
                                    quadrature or self.quadrature,
                                    self.t, self.dt, self.u0, stages,
                                    bcs=bcs, deriv_type=deriv_type,
-                                   max_quadrature_degre=max_quadrature_degree)
+                                   max_quadrature_degree=max_quadrature_degree)
 
     def _update(self):
         stages_np = np.array(self.stages.subfunctions, dtype=object)
