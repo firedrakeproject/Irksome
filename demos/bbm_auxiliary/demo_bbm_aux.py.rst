@@ -155,7 +155,7 @@ override the default quadrature of degree `2*time_deg-1`. This automatically
 estimates the quadrature degree for each individual term in `F`. The degree
 estimation algorithm will only be exact for polynomial nonlinearities, such as
 the cubic term in `I3`. For complicated nonlinearities, the estimated degree
-might be too large and result in very long compilation and runtimes.
+might be too large and result in very slow compilation and runtime.
 The quadrature degree might be optionally capped via `max_quadrature_degree`
 keyword arumgent. ::
 
