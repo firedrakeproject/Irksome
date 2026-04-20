@@ -24,7 +24,7 @@ BBM is known to have a Hamiltonian structure, and there are three canonical poly
 
    I_2 & = \int u^2 + (u_x)^2 \, dx
 
-   I_3 & = \int (u_x)^2 + \tfrac{1}{3} u^3 \, dx
+   I_3 & = \int \tfrac{1}{2} u^2 + \tfrac{1}{6} u^3 \, dx
 
 We are mainly interested in accuracy and in conserving these quantities reasonably well.
 
@@ -87,7 +87,7 @@ UFL for the mathematical invariants and containers to track them over time::
 
   I1 = u * dx
   I2 = (u**2 + (u.dx(0))**2) * dx
-  I3 = ((u.dx(0))**2 - u**3 / 3) * dx
+  I3 = (u**2 / 2 + u**3 / 6) * dx
   functionals = (I1, I2, I3)
   invariants = [tuple(map(assemble, functionals))]
 

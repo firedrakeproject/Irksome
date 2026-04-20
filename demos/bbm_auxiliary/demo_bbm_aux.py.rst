@@ -147,8 +147,8 @@ Set up the semidiscrete form as usual::
   u, wH = split(uwH)
   v, vH = split(TestFunction(Z))
 
-  F = h1inner(Dt(u) + wH.dx(0), v) * dx + h1inner(wH, vH) * dx
-  F -= replace(dHdu, {u0: u})
+  F = h1inner(Dt(u) + wH.dx(0), v) * dx 
+  F += h1inner(wH, vH) * dx - derivative(I3(u), u, vH)
 
 Next, we set up the cPG scheme. We specify `quadrature_degree="auto"` to
 override the default quadrature of degree `2*time_deg-1`. This automatically
