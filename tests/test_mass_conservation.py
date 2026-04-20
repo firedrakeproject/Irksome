@@ -88,6 +88,7 @@ def test_mass_conservation_dg(order, deriv_type):
     """Test mass conservation with Dt(theta(h))"""
     scheme = DiscontinuousGalerkinScheme(order, deriv_type=deriv_type)
     err = run_richards(scheme)
-    assert err < 200*np.finfo(np.dtype(err)).eps, (
+    scale = 200 if deriv_type == "strong" and order > 0 else 10
+    assert err < scale*np.finfo(np.dtype(err)).eps, (
         f"mass error should be near machine precision, got {err:.2e}"
     )

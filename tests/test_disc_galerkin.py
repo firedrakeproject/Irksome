@@ -1,6 +1,5 @@
-from math import isclose
-
 import pytest
+import numpy as np
 from firedrake import *
 from irksome import Dt, MeshConstant, TimeStepper, DiscontinuousGalerkinScheme, RadauIIA
 
@@ -52,6 +51,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
     scheme = DiscontinuousGalerkinScheme(order, basis_type)
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
+    eval_at_pts = PointEvaluator(msh, [x0, x1]).evaluate
+    expected = [float(u_0), float(u_1)]
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -60,8 +61,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
         assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert np.allclose(eval_at_pts(u), expected)
 
 
 @pytest.mark.parametrize("order", [0, 1, 2])
