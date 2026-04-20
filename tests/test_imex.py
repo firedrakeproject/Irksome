@@ -120,8 +120,7 @@ def heat_dirichletbc(butcher_tableau):
         stage_type="dirkimex"
     )
 
-    eval_at_pts = PointEvaluator(msh, [x0, x1]).evaluate
-    expected = [float(u_0), float(u_1)]
+    bnd_error = inner(u-uexact, u-uexact) * ds
     t_end = 2.0
     while float(t) < t_end:
         print("Current time: ", float(t))
@@ -130,8 +129,8 @@ def heat_dirichletbc(butcher_tableau):
         stepper.advance()
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
-        assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert np.allclose(eval_at_pts(u), expected)
+        assert errornorm(uexact, u) / norm(uexact) < 1e-3
+        assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
 
 
 # Note that ARS_DIRK_IMEX(1,1,1), ARS_DIRK_IMEX(2, 2, 2), and ARS_DIRK_IMEX(4,4,3)
