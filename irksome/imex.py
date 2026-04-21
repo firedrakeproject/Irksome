@@ -635,3 +635,4 @@ class DIRKIMEXMethod:
         Forces the matrix to be reassembled next time it is required.
         """
         LinearVariationalSolver.invalidate_jacobian(self.solver)
+        LinearVariationalSolver.invalidate_jacobian(self.mass_solver)
