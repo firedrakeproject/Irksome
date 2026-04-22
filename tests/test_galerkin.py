@@ -142,25 +142,30 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     u.interpolate(uexact)
 
     v = TestFunction(V)
+    w = TrialFunction(V)
     F = (
-        inner(Dt(u), v) * dx
-        + inner(grad(u), grad(v)) * dx
+        inner(Dt(w), v) * dx
+        + inner(grad(w), grad(v)) * dx
         - inner(rhs, v) * dx
     )
-    F_GL = replace(F, {u: u_GL})
 
     sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
 
     scheme = ContinuousPetrovGalerkinScheme(order)
-    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
+    stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs,
+                          solver_parameters=sparams,
+                          constant_jacobian=True)
 
     butcher_tableau = GaussLegendre(order)
-    stepper_GL = TimeStepper(F_GL, butcher_tableau, t, dt, u_GL, bcs=bcs,
-                             solver_parameters=sparams)
+    stepper_GL = TimeStepper(F, butcher_tableau, t, dt, u_GL, bcs=bcs,
+                             solver_parameters=sparams,
+                             constant_jacobian=True)
 
     t_end = 1.0
     while float(t) < t_end:
         if float(t + dt) > t_end:
+            stepper.invalidate_jacobian()
+            stepper_GL.invalidate_jacobian()
             dt.assign(t_end - t)
         stepper.advance()
         stepper_GL.advance()

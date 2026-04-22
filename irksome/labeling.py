@@ -3,6 +3,7 @@ from ufl import BaseForm, Form, FormSum
 from firedrake.fml import Label, keep, drop, LabelledForm
 from collections import defaultdict
 from .scheme import create_time_quadrature
+from .tools import replace
 import numpy as np
 
 explicit = Label("explicit")
@@ -172,3 +173,21 @@ def as_form(form):
     if isinstance(form, LabelledForm):
         form = Form([]) if len(form) == 0 else form.form
     return form
+
+
+def as_linear_form(F, u0):
+    """
+    If `F` is a bilinear :class:`Form` compute a linear
+    :class:`Form` by replacing the trial function with `u0`,
+    otherwise return `F`.
+    """
+    form = as_form(F)
+    nargs = len(form.arguments())
+    if nargs == 2:
+        if u0 in form.coefficients():
+            raise ValueError("The provided bilinear form must not depend on the solution")
+        test, trial = form.arguments()
+        F = replace(F, {trial: u0})
+    elif nargs != 1:
+        raise ValueError("Expecting a Form with 1 or 2 arguments.")
+    return F
