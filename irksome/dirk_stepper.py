@@ -1,5 +1,6 @@
 import numpy
 from firedrake import (derivative, Function,
+                       LinearVariationalSolver,
                        NonlinearVariationalProblem,
                        NonlinearVariationalSolver)
 from ufl.constantvalue import as_ufl
@@ -9,6 +10,7 @@ from .constant import vecconst
 from .tools import replace
 from .constant import MeshConstant
 from .bcs import bc2space
+from .labeling import as_linear_form
 
 
 def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None):
@@ -119,6 +121,7 @@ class DIRKTimeStepper:
         # "ks" is a list of functions for the stage values
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
+        F = as_linear_form(F, u0)
 
         stage_F, kgac, bcnew, (a_vals, d_val) = getFormDIRK(
             F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
@@ -129,6 +132,7 @@ class DIRKTimeStepper:
 
         stage_Jp = None
         if Fp is not None:
+            Fp = as_linear_form(Fp, u0)
             stage_Fp, *_ = self.get_form_and_bcs(self.ks, F=Fp, bcs=())
             stage_Jp = derivative(stage_Fp, k)
 
@@ -145,6 +149,7 @@ class DIRKTimeStepper:
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
         )
+        self.problem._constant_jacobian = kwargs.pop("constant_jacobian", False)
         self.solver = NonlinearVariationalSolver(
             self.problem, appctx=appctx,
             nullspace=nullspace,
@@ -210,3 +215,9 @@ class DIRKTimeStepper:
                            self.t, self.dt,
                            self.u0,
                            bcs=bcs, kgac=self.kgac)
+
+    def invalidate_jacobian(self):
+        """
+        Forces the matrix to be reassembled next time it is required.
+        """
+        LinearVariationalSolver.invalidate_jacobian(self.solver)

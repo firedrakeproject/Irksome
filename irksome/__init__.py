@@ -9,7 +9,10 @@ from .tableaux.ButcherTableaux import (
     RadauIIA,
 )
 from .tableaux.pep_explicit_rk import PEPRK
-from .ufl.deriv import Dt, expand_time_derivatives
+from .ufl.deriv import Dt, expand_time_derivatives, check_irksome_import_order
+
+check_irksome_import_order()
+
 from .tableaux.dirk_imex_tableaux import DIRK_IMEX
 from .tableaux.ars_dirk_imex_tableaux import ARS_DIRK_IMEX
 from .tableaux.sspk_tableau import SSPK_DIRK_IMEX, SSPButcherTableau
@@ -27,7 +30,6 @@ __all__ = [
     "ContinuousPetrovGalerkinScheme",
     "create_time_quadrature",
     "DIRK_IMEX",
-    "DIRKTimeStepper",
     "DiscontinuousGalerkinScheme",
     "Dt",
     "expand_time_derivatives",

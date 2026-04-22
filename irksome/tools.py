@@ -1,6 +1,8 @@
 from operator import mul
 from functools import reduce
 import numpy
+
+from firedrake.fml import LabelledForm, Term
 from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
@@ -107,7 +109,12 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
-    return ufl_replace(e, cmapping)
+    if isinstance(e, LabelledForm):
+        enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
+                              for term in e.terms))
+        return enew
+    else:
+        return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor
@@ -128,4 +135,4 @@ def is_ode(f, u):
         op, = k.ufl_operands
         Dtbits.extend(op[i] for i in numpy.ndindex(op.ufl_shape))
     ubits = [u[i] for i in numpy.ndindex(u.ufl_shape)]
-    return set(Dtbits) == set(ubits)
+    return set(ubits) <= set(Dtbits)

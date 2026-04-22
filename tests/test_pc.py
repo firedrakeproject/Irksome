@@ -229,8 +229,11 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
     p_rhs = -div(uexact)
 
     z = Function(Z)
+
+    # Use a TrialFunction to test the LinearVariationalSolver interface
+    ztrial = TrialFunction(Z)
     ztest = TestFunction(Z)
-    u, p = split(z)
+    u, p = split(ztrial)
     v, q = split(ztest)
 
     scheme = family(order)
@@ -258,9 +261,8 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
     sparams = {
         "mat_type": "matfree",
         "pmat_type": "aij",
-        "snes_type": "ksponly",
-        "snes_lag_jacobian": -2,
         "ksp_max_it": 15,
+        "ksp_rtol": 1E-5,
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
         "pc_factor_mat_solver_type": "mumps",
@@ -275,7 +277,9 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
         sparams["pc_type"] = "lu"
 
     stepper = TimeStepper(F, scheme, t, dt, z,
-                          bcs=bcs, Fp=Fp, solver_parameters=sparams)
+                          bcs=bcs, Fp=Fp,
+                          solver_parameters=sparams,
+                          constant_jacobian=True)
 
     ksp = stepper.solver.snes.ksp
     u, p = z.subfunctions
