@@ -260,6 +260,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         num_samples = vander.shape[1]
         self.sample_values = [sum(ks[j] * vander[j, i] for j in range(len(ks)))
                               for i in range(num_samples)]
+
     def invalidate_jacobian(self):
         """
         Forces the matrix to be reassembled next time it is required.
