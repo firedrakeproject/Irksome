@@ -12,12 +12,11 @@ We're solving the same problem that is done in the heat equation demos.
 Imports::
 
   from firedrake import *
-  from ufl.algorithms.ad import expand_derivatives
 
   from irksome import GaussLegendre, getForm, Dt, MeshConstant
   from irksome.tools import get_stage_space
 
-Note that we imported :func:`.getForm` rather than :class:`.TimeStepper`.  That's the
+Note that we imported :func:`~irksome.getForm` rather than :class:`~irksome.TimeStepper`.  That's the
 lower-level function inside Irksome that manipulates UFL and boundary conditions.
 
 Continuing::
@@ -45,7 +44,7 @@ Continuing::
   R = (x * x + y * y) ** 0.5
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
 
-  rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+  rhs = Dt(uexact) - div(grad(uexact))
 
   u = Function(V)
   u.interpolate(uexact)

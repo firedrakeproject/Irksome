@@ -1,8 +1,8 @@
 import pytest
 from firedrake import *
-from irksome import Dt, LobattoIIIC, MeshConstant, RadauIIA, TimeStepper
+from irksome import Dt, LobattoIIIC, RadauIIA, TimeStepper
+from irksome import DiscontinuousGalerkinScheme
 from irksome.tools import AI, IA
-from ufl.algorithms import expand_derivatives
 
 # test the accuracy of the 2d Stokes heat equation using CG elements
 # and LobattoIIIC time integration.  Particular issue being tested is
@@ -10,52 +10,46 @@ from ufl.algorithms import expand_derivatives
 # a time derivative on it.
 
 
-def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
+def StokesTest(N, scheme, **kwargs):
     mesh0 = UnitSquareMesh(N//4, N//4)
     mh = MeshHierarchy(mesh0, 2)
     mesh = mh[-1]
 
-    ns = butcher_tableau.num_stages
+    V = VectorFunctionSpace(mesh, "CG", 2)
+    Q = FunctionSpace(mesh, "CG", 1)
+    Z = V * Q
 
-    Ve = VectorElement("CG", mesh.ufl_cell(), 2)
-    Pe = FiniteElement("CG", mesh.ufl_cell(), 1)
-    Ze = MixedElement([Ve, Pe])
-    Z = FunctionSpace(mesh, Ze)
-
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
     (x, y) = SpatialCoordinate(mesh)
 
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
     pexact = x + y * t
 
-    u_rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact)) + grad(pexact)
+    u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
     p_rhs = -div(uexact)
 
     z = Function(Z)
-    test_z = TestFunction(Z)
-    (u, p) = split(z)
-    (v, q) = split(test_z)
+    (u, p) = TrialFunctions(Z)
+    (v, q) = TestFunctions(Z)
     F = (inner(Dt(u), v)*dx
          + inner(grad(u), grad(v))*dx
          - inner(p, div(v))*dx
-         - inner(q, div(u))*dx
+         - inner(div(u), q)*dx
          - inner(u_rhs, v)*dx
          - inner(p_rhs, q)*dx)
 
-    bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
-    nsp = [(1, VectorSpaceBasis(constant=True))]
+    bcs = DirichletBC(Z.sub(0), uexact, "on_boundary")
+    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=mesh.comm)])
 
     u, p = z.subfunctions
     u.interpolate(uexact)
     p.interpolate(pexact-assemble(pexact*dx))
 
-    ns = butcher_tableau.num_stages
+    ns = scheme.order+1 if isinstance(scheme, DiscontinuousGalerkinScheme) else scheme.num_stages
     ind_pressure = ",".join([str(2*i+1) for i in range(ns)])
     solver_params = {
         "mat_type": "aij",
-        "snes_type": "ksponly",
         "ksp_type": "fgmres",
         "ksp_max_it": 200,
         "ksp_gmres_restart": 30,
@@ -81,13 +75,15 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
             "mat_mumps_icntl_14": 200}
     }
 
-    stepper = TimeStepper(F, butcher_tableau, t, dt, z,
-                          stage_type=stage_type,
+    stepper = TimeStepper(F, scheme, t, dt, z,
                           bcs=bcs, solver_parameters=solver_params,
-                          nullspace=nsp)
+                          nullspace=nsp,
+                          constant_jacobian=True,
+                          **kwargs)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
+            stepper.invalidate_jacobian()
             dt.assign(1.0 - float(t))
         stepper.advance()
         t.assign(float(t) + float(dt))
@@ -104,7 +100,7 @@ def StokesTest(N, butcher_tableau, stage_type="deriv", splitting=AI):
 # make sure things run on a driven cavity.  We time step a while
 # and check that the velocity is the right size (as observed from
 # a "by-hand" backward Euler code in Firedrake
-def NSETest(butch, stage_type, splitting):
+def NSETest(scheme, **kwargs):
     N = 4
     M = UnitSquareMesh(N, N)
     mh = MeshHierarchy(M, 2)
@@ -123,16 +119,16 @@ def NSETest(butch, stage_type, splitting):
     F = (inner(Dt(u), v) * dx
          + 1.0 / Re * inner(grad(u), grad(v)) * dx
          + inner(dot(grad(u), u), v) * dx
-         - p * div(v) * dx
-         + div(u) * q * dx
+         - inner(p, div(v)) * dx
+         + inner(div(u), q) * dx
          )
 
     bcs = [DirichletBC(Z.sub(0), Constant((1, 0)), (4,)),
            DirichletBC(Z.sub(0), 0, (1, 2, 3))]
 
-    nullspace = [(1, VectorSpaceBasis(constant=True))]
+    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=M.comm)])
 
-    ns = butch.num_stages
+    ns = scheme.order+1 if isinstance(scheme, DiscontinuousGalerkinScheme) else scheme.num_stages
     ind_pressure = ",".join([str(2*i+1) for i in range(ns)])
     solver_params = {
         "mat_type": "aij",
@@ -163,18 +159,17 @@ def NSETest(butch, stage_type, splitting):
             "ksp_type": "preonly",
             "pc_type": "lu",
             "pc_factor_mat_solver_type": "mumps",
-            "mat_mumps_icntl_14": 200}
+            "pc_factor_mat_mumps_icntl_14": 200,
+        },
     }
 
-    MC = MeshConstant(M)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
-    stepper = TimeStepper(F, butch,
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
+    stepper = TimeStepper(F, scheme,
                           t, dt, up,
                           bcs=bcs,
-                          stage_type="value",
                           solver_parameters=solver_params,
-                          nullspace=nullspace)
+                          nullspace=nsp, **kwargs)
 
     tfinal = 1.0
     u, p = up.subfunctions
@@ -193,20 +188,25 @@ def NSETest(butch, stage_type, splitting):
 @pytest.mark.parametrize('splitting', (AI, IA))
 @pytest.mark.parametrize('N', [2**j for j in range(3, 4)])
 @pytest.mark.parametrize('time_stages', (2, 3))
-@pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
-def test_Stokes(N, butch, time_stages, stage_type, splitting):
-    error = StokesTest(N, butch(time_stages), stage_type, splitting)
+@pytest.mark.parametrize('scheme', (LobattoIIIC, RadauIIA))
+def test_stokes(N, scheme, time_stages, stage_type, splitting):
+    error = StokesTest(N, scheme(time_stages), stage_type=stage_type, splitting=splitting)
     assert abs(error) < 3e-8
 
 
 @pytest.mark.parametrize('stage_type', ("deriv", "value"))
 @pytest.mark.parametrize('time_stages', (2,))
-@pytest.mark.parametrize('butch', (LobattoIIIC, RadauIIA))
-def test_NSE(butch, time_stages, stage_type):
-    unrm = NSETest(butch(time_stages), stage_type, IA)
+@pytest.mark.parametrize('scheme', (LobattoIIIC, RadauIIA))
+def test_navier_stokes(scheme, time_stages, stage_type):
+    unrm = NSETest(scheme(time_stages), stage_type=stage_type, splitting=IA)
     assert abs(unrm - 0.216) < 5e-3
 
 
-if __name__ == "__main__":
-    # test_Stokes(4, RadauIIA, 2, "deriv", IA)
-    test_NSE(RadauIIA, 2, "deriv")
+@pytest.mark.parametrize('quad_degree', (None, "auto"))
+@pytest.mark.parametrize('degree', (0, 1))
+def test_stokes_dg(degree, quad_degree):
+    N = 8
+    scheme = DiscontinuousGalerkinScheme(degree, quadrature_degree=quad_degree)
+    error = StokesTest(N, scheme)
+    tol = 0.07 if degree == 0 else 3e-08
+    assert abs(error) < tol

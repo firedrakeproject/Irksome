@@ -1,13 +1,23 @@
 from operator import mul
 from functools import reduce
 import numpy
-from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
+
+from firedrake.fml import LabelledForm, Term
+from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
-from ufl import as_tensor, zero
+from ufl import as_tensor
 from ufl import replace as ufl_replace
 from pyop2.types import MixedDat
 
-from irksome.deriv import TimeDerivative
+from .ufl.deriv import TimeDerivative
+
+
+def dot(A, B):
+    return numpy.tensordot(A, B, (-1, 0))
+
+
+def reshape(expr, shape):
+    return numpy.reshape([expr[i] for i in numpy.ndindex(expr.ufl_shape)], shape)
 
 
 def flatten_dats(dats):
@@ -22,6 +32,26 @@ def flatten_dats(dats):
 
 def get_stage_space(V, num_stages):
     return reduce(mul, (V for _ in range(num_stages)))
+
+
+def fields_to_components(V, fields):
+    """
+    Returns the scalar component indices corresponding to the possibly
+    tensor-valued subspaces of a mixed function space.
+
+    :arg V: a :class:`FunctionSpace`.
+    :arg fields: a list of integers defining subspaces of V.
+
+    :returns: a list of integers with the scalar components corresponding to
+    the subfields.
+    """
+    cur = 0
+    components = []
+    for i, Vi in enumerate(V):
+        if i in fields:
+            components.extend(range(cur, cur+Vi.value_size))
+        cur += Vi.value_size
+    return components
 
 
 def getNullspace(V, Vbig, num_stages, nullspace):
@@ -41,6 +71,9 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     if nullspace is None:
         nspnew = None
     else:
+        if isinstance(nullspace, (MixedVectorSpaceBasis, VectorSpaceBasis)):
+            nullspace = [(field, basis) for field, basis in enumerate(nullspace)
+                         if isinstance(basis, VectorSpaceBasis)]
         try:
             nullspace.sort()
         except AttributeError:
@@ -65,7 +98,12 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
-    return ufl_replace(e, cmapping)
+    if isinstance(e, LabelledForm):
+        enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
+                              for term in e.terms))
+        return enew
+    else:
+        return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor
@@ -86,22 +124,4 @@ def is_ode(f, u):
         op, = k.ufl_operands
         Dtbits.extend(op[i] for i in numpy.ndindex(op.ufl_shape))
     ubits = [u[i] for i in numpy.ndindex(u.ufl_shape)]
-    return set(Dtbits) == set(ubits)
-
-
-# Utility class for constants on a mesh
-class MeshConstant(object):
-    def __init__(self, msh):
-        self.msh = msh
-        self.V = FunctionSpace(msh, 'R', 0)
-
-    def Constant(self, val=0.0):
-        return Function(self.V).assign(val)
-
-
-def ConstantOrZero(x, MC=None):
-    const = MC.Constant if MC else Constant
-    return zero() if abs(complex(x)) < 1.e-10 else const(x)
-
-
-vecconst = numpy.vectorize(ConstantOrZero)
+    return set(ubits) <= set(Dtbits)
