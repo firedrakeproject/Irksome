@@ -144,8 +144,8 @@ class MultistepTimeStepper(BaseTimeStepper):
         F_dtless = remove_time_derivatives(split_form.time)
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
-        # Terms with time derivatives: 
-        # I'm assuming we have something of the form inner(Dt(g(u0)), v)*dx. 
+        # Terms with time derivatives:
+        # I'm assuming we have something of the form inner(Dt(g(u0)), v)*dx.
         # Dt(g(u)) is discretised as a_s * g(u_{n+s}) + ... + a_0 * g(u_0), rather than
         # g(a_s * u_{n+s} + ... + a_0 * g(u_0)).
         Fnew = Form([])
