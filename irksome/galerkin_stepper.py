@@ -114,11 +114,11 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     return Fnew
 
 
-def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None):
+def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
 
-    :arg F: UFL form for the semidiscrete ODE/DAE
+    :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg L_trial: A :class:`FIAT.FiniteElement` for the trial functions in time
     :arg L_test: A :class:`FIAT.FinteElement` for the test functions in time
     :arg Qdefault: A :class:`FIAT.QuadratureRule` for the time integration.
@@ -133,7 +133,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
+    :kwarg bcs: optionally, a :class:`firedrake.DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
     :kwarg bc_type: How to manipulate the strongly-enforced boundary
@@ -142,9 +142,12 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
          constraints in the style of a differential-algebraic
          equation, or "ODE", which evaluates the temporal degrees of
          freedom of the boundary data.
-         Currently there is no support for `firedrake.EquationBC`.
+         Currently there is no support for :class:`firedrake.EquationBC`.
     :kwarg aux_indices: a list of field indices to be discretized in the test space
          rather than trial space.
+    :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
+        degree allowed in the automatic degree estimation.
+        If ``None``, then the estimated quadrature degree will always be used.
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form` corresponding to the Galerkin-in-Time discretized problem
@@ -162,7 +165,8 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     degree_mapping = get_degree_mapping(as_form(F), L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
 
-    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault)
+    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
+                                 max_quadrature_degree=max_quadrature_degree)
     Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
                for Q, Fcur in splitting.items())
 
@@ -252,45 +256,39 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
     """Front-end class for advancing a time-dependent PDE via a Galerkin
     in time method
 
-    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
-            F(t, u; v) == 0, where `u` is the unknown
-            :class:`firedrake.Function and `v` is the
-            :class:firedrake.TestFunction`.
+    :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg scheme: :class:`ContinuousPetrovGalerkinScheme` encoding the order,
-         basis type, and default quadrature rule of the method.
-    :arg t: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time.
-    :arg dt: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time step.
-         The user may adjust this value between time steps.
+        basis type, and default quadrature rule of the method.
+    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time.
+    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time step size.
+        The user may adjust this value between time steps.
     :arg u0: A :class:`firedrake.Function` containing the current
-            state of the problem to be solved.
+        state of the problem to be solved.
     :kwarg bcs: An iterable of :class:`firedrake.DirichletBC` containing
-            the strongly-enforced boundary conditions.  Irksome will
-            manipulate these to obtain boundary conditions for each
-            stage of the method.
+        the strongly-enforced boundary conditions.  Irksome will
+        manipulate these to obtain boundary conditions for each
+        stage of the method.
     :kwarg bc_type: How to manipulate the strongly-enforced boundary
-         conditions to derive the stage boundary conditions.  Should
-         be a string, either "DAE", which implements BCs as
-         constraints in the style of a differential-algebraic
-         equation, or "ODE", which evaluates the temporal degrees of
-         freedom of the boundary data.
-         Currently there is no support for `firedrake.EquationBC`.
+        conditions to derive the stage boundary conditions.  Should
+        be a string, either "DAE", which implements BCs as
+        constraints in the style of a differential-algebraic
+        equation, or "ODE", which evaluates the temporal degrees of
+        freedom of the boundary data.
+        Currently there is no support for `firedrake.EquationBC`.
     :kwarg solver_parameters: A :class:`dict` of solver parameters that
-            will be used in solving the algebraic problem associated
-            with each time step.
+        will be used in solving the algebraic problem associated
+        with each time step.
     :kwarg appctx: An optional :class:`dict` containing application context.
-            This gets included with particular things that Irksome will
-            pass into the nonlinear solver so that, say, user-defined preconditioners
-            have access to it.
-    :kwarg nullspace: A list of tuples of the form (index, VSB) where
-            index is an index into the function space associated with
-            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
-            instance to be passed to a
-            `firedrake.MixedVectorSpaceBasis` over the larger space
-            associated with the Runge-Kutta method
+        This gets included with particular things that Irksome will
+        pass into the nonlinear solver so that, say, user-defined preconditioners
+        have access to it.
+    :kwarg nullspace: An optional nullspace object.
     :kwarg aux_indices: a list of field indices to be discretized in the test space
-            rather than trial space.
+        rather than trial space.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None,
                  bc_type=None, aux_indices=None, **kwargs):
@@ -315,6 +313,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         else:
             quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
         self.quadrature = quadrature
+        self.max_quadrature_degree = scheme.max_quadrature_degree
         self.aux_indices = aux_indices
         if isinstance(scheme, GalerkinCollocationScheme):
             self.butcher_tableau = CollocationButcherTableau(self.test_el, None)
@@ -378,10 +377,12 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         else:
             trial_el, test_el = getElements(basis_type, order)
         quadrature = quadrature or self.quadrature
+        max_quadrature_degree = self.max_quadrature_degree
         return getFormGalerkin(F, trial_el, test_el, quadrature,
                                self.t, self.dt, self.u0, stages,
                                bcs=bcs, bc_type=self.bc_type,
-                               aux_indices=aux_indices)
+                               aux_indices=aux_indices,
+                               max_quadrature_degree=max_quadrature_degree)
 
     def _update(self):
         for u0bit, expr in zip(self.u0.subfunctions, self.u_update):

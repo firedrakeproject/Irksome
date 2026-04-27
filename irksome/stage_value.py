@@ -37,35 +37,37 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
-    :arg F: UFL form for the semidiscrete ODE/DAE
+    :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
-         advance in time.
-    :arg t: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time.
-    :arg dt: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time step.
-         The user may adjust this value between time steps.
+        advance in time.
+    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time.
+    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time step size.
+        The user may adjust this value between time steps.
     :arg u0: a :class:`Function` referring to the state of
-         the PDE system at time `t`
+        the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-         It lives in a :class:`firedrake.FunctionSpace` corresponding to the
-         s-way tensor product of the space on which the semidiscrete
-         form lives.
+        It lives in a :class:`firedrake.FunctionSpace` corresponding to the
+        s-way tensor product of the space on which the semidiscrete
+        form lives.
     :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possibly time-dependent) boundary conditions imposed
-         on the system.
+        containing (possibly time-dependent) boundary conditions imposed
+        on the system.
     :kwarg splitting: a callable that maps the (floating point) Butcher matrix
-         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
-         to vary between the classical RK formulation and Butcher's reformulation
-         that leads to a denser mass matrix with block-diagonal stiffness.
-         Only `AI` and `IA` are currently supported.
+        a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
+        to vary between the classical RK formulation and Butcher's reformulation
+        that leads to a denser mass matrix with block-diagonal stiffness.
+        Only `AI` and `IA` are currently supported.
     :kwarg vandermonde: a numpy array encoding a change of basis to the Lagrange
-         polynomials associated with the collocation nodes from some other
-         (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
-         coefficients in some basis rather than the values at particular stages,
-         which can be useful for satisfying bounds constraints.
-         If none is provided, we assume it is the identity, working in the
-         Lagrange basis.
+        polynomials associated with the collocation nodes from some other
+        (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
+        coefficients in some basis rather than the values at particular stages,
+        which can be useful for satisfying bounds constraints.
+        If none is provided, we assume it is the identity, working in the
+        Lagrange basis.
     :kwarg aux_indices: a list of field indices, currently ignored.
 
     :returns: a 2-tuple of

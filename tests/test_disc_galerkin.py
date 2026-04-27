@@ -1,5 +1,3 @@
-from math import isclose
-
 import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, TimeStepper, DiscontinuousGalerkinScheme, RadauIIA
@@ -8,6 +6,7 @@ from irksome import Dt, MeshConstant, TimeStepper, DiscontinuousGalerkinScheme, 
 @pytest.mark.parametrize("order", [0, 1, 2])
 @pytest.mark.parametrize("basis_type", ["Lagrange", "Bernstein", "spectral", "integral"])
 def test_1d_heat_dirichletbc(order, basis_type):
+
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -52,6 +51,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
     scheme = DiscontinuousGalerkinScheme(order, basis_type)
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
+    bnd_error = inner(u-uexact, u-uexact) * ds
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -59,9 +59,8 @@ def test_1d_heat_dirichletbc(order, basis_type):
         stepper.advance()
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
-        assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert errornorm(uexact, u) / norm(uexact) < 1e-3
+        assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
 
 
 @pytest.mark.parametrize("order", [0, 1, 2])

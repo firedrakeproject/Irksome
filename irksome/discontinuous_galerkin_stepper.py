@@ -118,11 +118,11 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
     return Fnew
 
 
-def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong"):
+def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong", max_quadrature_degree=None):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
-    :arg F: UFL form for the semidiscrete ODE/DAE
+    :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg L: A :class:`FIAT.FiniteElement` for the test and trial functions in time
     :arg Qdefault: A :class:`FIAT.QuadratureRule` for the time integration
     :arg t: a :class:`Function` on the Real space over the same mesh as
@@ -133,13 +133,16 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :arg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
+    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
-    :arg deriv_type: A string indicating how to integrate terms with time derivatives.
+    :kwarg deriv_type: A string indicating how to integrate terms with time derivatives.
         Valid values are:
         - `"weak"`: Time derivatives act on the test function (integrating by parts once).
         - `"strong"`: Time derivatives act on the unknown (integrating by parts twice).
+    :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
+        degree allowed in the automatic degree estimation.
+        If ``None``, then the estimated quadrature degree will always be used.
 
     On output, we return a tuple consisting of two parts:
 
@@ -156,7 +159,8 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     degree_mapping = get_degree_mapping(as_form(F), L.degree(), L.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
 
-    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault)
+    splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
+                                 max_quadrature_degree=max_quadrature_degree)
     Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type)
                for Q, Fcur in splitting.items())
 
@@ -191,36 +195,29 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
     """Front-end class for advancing a time-dependent PDE via a Discontinuous Galerkin
     in time method
 
-    :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
-            F(t, u; v) == 0, where `u` is the unknown
-            :class:`firedrake.Function and `v` is the
-            :class:firedrake.TestFunction`.
+    :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg scheme: a :class:`DiscontinuousGalerkinScheme` instance describing the order,
-         basis type, default quadrature scheme, and time derivative integration type.
-    :arg t: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time.
-    :arg dt: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time step.
-         The user may adjust this value between time steps.
+        basis type, default quadrature scheme, and time derivative integration type.
+    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time.
+    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time step size.
     :arg u0: A :class:`firedrake.Function` containing the current
-            state of the problem to be solved.
+        state of the problem to be solved.
     :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
-            the strongly-enforced boundary conditions.  Irksome will
-            manipulate these to obtain boundary conditions for each
-            stage of the method.
+        the strongly-enforced boundary conditions.  Irksome will
+        manipulate these to obtain boundary conditions for each
+        stage of the method.
     :arg solver_parameters: A :class:`dict` of solver parameters that
-            will be used in solving the algebraic problem associated
-            with each time step.
+        will be used in solving the algebraic problem associated
+        with each time step.
     :arg appctx: An optional :class:`dict` containing application context.
-            This gets included with particular things that Irksome will
-            pass into the nonlinear solver so that, say, user-defined preconditioners
-            have access to it.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-            index is an index into the function space associated with
-            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
-            instance to be passed to a
-            `firedrake.MixedVectorSpaceBasis` over the larger space
-            associated with the Runge-Kutta method
+        This gets included with particular things that Irksome will
+        pass into the nonlinear solver so that, say, user-defined preconditioners
+        have access to it.
+    :arg nullspace: An optional nullspace object.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None, basis_type=None,
                  quadrature=None, **kwargs):
@@ -248,6 +245,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
 
         self.quadrature = quadrature
+        self.max_quadrature_degree = scheme.max_quadrature_degree
 
         num_stages = order+1
 
@@ -268,11 +266,13 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         else:
             el = getElement(basis_type, order)
         deriv_type = deriv_type or self.deriv_type
+        max_quadrature_degree = self.max_quadrature_degree
         return getFormDiscGalerkin(F or self.F,
                                    el,
                                    quadrature or self.quadrature,
                                    self.t, self.dt, self.u0, stages,
-                                   bcs=bcs, deriv_type=deriv_type)
+                                   bcs=bcs, deriv_type=deriv_type,
+                                   max_quadrature_degree=max_quadrature_degree)
 
     def _update(self):
         stages_np = np.array(self.stages.subfunctions, dtype=object)
