@@ -76,6 +76,7 @@ try:
     from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
     from .labeling import TimeQuadratureLabel
     from .stepper import TimeStepper
+    from .KronPC import KronPC, MassKronPC, StiffnessKronPC, SIPGStiffnessKronPC
 
     __all__ += [
         "DIRKTimeStepper",
