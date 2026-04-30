@@ -215,3 +215,6 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                               self.t, self.dt, self.u0, self.ut0,
                               stages,
                               bcs=bcs, bc_type=self.bc_type)
+
+    def tabulate_poly(self, sample_points):
+        raise NotImplementedError("tabulate_poly not implemented")

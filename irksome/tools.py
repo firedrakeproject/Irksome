@@ -34,6 +34,17 @@ def get_stage_space(V, num_stages):
     return reduce(mul, (V for _ in range(num_stages)))
 
 
+def split_stages(V, stages):
+    """Reconstruct the stages as a list of Function(V)"""
+    num_fields = len(V)
+    if num_fields == 1:
+        return stages.subfunctions
+
+    stages_np = reshape(stages, (-1, *V.value_shape))
+    ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
+    return ks
+
+
 def fields_to_components(V, fields):
     """
     Returns the scalar component indices corresponding to the possibly
