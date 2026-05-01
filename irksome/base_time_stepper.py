@@ -5,10 +5,11 @@ from firedrake import (
     NonlinearVariationalProblem, NonlinearVariationalSolver,
 )
 from firedrake.petsc import PETSc
+from .tools import AI, getNullspace, flatten_dats, split_stages
 from .labeling import as_form, as_linear_form
-from .tools import AI, getNullspace, flatten_dats
 from .backend import get_backend
 import ufl
+import numpy
 
 
 class BaseTimeStepper:
@@ -87,13 +88,15 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
         the Runge-Kutta method to be used for time marching.
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
+            at additional points in time.
     """
     def __init__(self, F, t, dt, u0, num_stages,
                  bcs=None, Fp=None, solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
                  splitting=None, bc_type=None,
-                 butcher_tableau=None, bounds=None,
+                 butcher_tableau=None, bounds=None, sample_points=None,
                  **kwargs):
 
         is_linear = False
@@ -111,6 +114,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             splitting = AI
         self.splitting = splitting
         self.bc_type = bc_type
+        self.sample_points = sample_points
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
@@ -168,6 +172,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         # stash these for later in case we do bounds constraints
         self.stage_bounds = self.get_stage_bounds(bounds)
 
+        if sample_points is not None:
+            self.build_poly()
+
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
@@ -177,6 +184,10 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
+
+        if self.sample_points is not None:
+            self.u_old.assign(self.u0)
+
         self._update()
 
     # allow butcher tableau as input for preconditioners to create
@@ -227,6 +238,28 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             raise ValueError("Unknown bounds type")
 
         return (slb, sub)
+
+    @abstractmethod
+    def tabulate_poly(self, sample_points):
+        pass
+
+    def build_poly(self):
+        '''
+        When provided with a list of `sample_points` (intended to be in the interval [0,1]), this
+        builds a symbolic expression for the values of the RK collocation polynomial at the
+        corresponding points on the interval [t_n, t_{n+1}].  These are stored in the list
+        `self.sample_values` as functions in the same FunctionSpace as `self.u0`.  The resulting
+        expressions can then be assigned to a Function on that same FunctionSpace.
+        '''
+        pts = numpy.reshape(self.sample_points, (-1, 1))
+        vander = self.tabulate_poly(pts)
+
+        self.u_old = Function(self.u0)
+        ks = [self.u_old]
+        ks.extend(split_stages(self.u0.function_space(), self.stages))
+        num_samples = vander.shape[1]
+        self.sample_values = [sum(ks[j] * vander[j, i] for j in range(len(ks)))
+                              for i in range(num_samples)]
 
     def invalidate_jacobian(self):
         """
