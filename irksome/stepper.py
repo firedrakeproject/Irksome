@@ -8,6 +8,8 @@ from .labeling import split_explicit
 from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
 from .stage_value import StageValueTimeStepper
 from .tools import AI
+from .multistep import MultistepTimeStepper
+from .tableaux.multistep_tableaux import MultistepTableau
 
 valid_base_kwargs = ("bcs", "form_compiler_parameters",
                      "is_linear", "constant_jacobian",
@@ -30,6 +32,8 @@ valid_kwargs_per_stage_type = {
 valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "max_reject", "onscale_factor",
                           "safety_factor", "gamma0_params"]
+
+valid_multistep_kwargs = ("Fp", "bounds", "startup_parameters")
 
 
 def imex_separation(F, Fexp_kwarg, label):
@@ -104,8 +108,10 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         accurate. Currently, only constant-in-time boundary conditions are
         supported.
     :kwarg aux_indices: Only valid for continuous Petrov Galerkin time scheme.  It
-        specifies that some of the variables in ``u0`` are to be treated as
+        specifies that some of the variables in `u0` are to be treated as
         auxiliary, that is, discretized in the lower-order DG test space.
+    :startup_parameters: An optional :class:`dict` containing parameters used to automatically
+        find starting values for multistep methods.
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
         at additional points in time.
     """
@@ -117,6 +123,24 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
     elif isinstance(method, ContinuousPetrovGalerkinScheme):
         assert set(kwargs.keys()).issubset(list(valid_base_kwargs) + valid_kwargs_per_stage_type["cpg"])
         return ContinuousPetrovGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
+
+    # then, pluck out the case for multistep methods...
+
+    if isinstance(method, MultistepTableau):
+        base_kwargs = {}
+        for k in valid_base_kwargs:
+            if k in kwargs:
+                base_kwargs[k] = kwargs.pop(k)
+
+        bcs = base_kwargs.pop("bcs", None)
+        for cur_kwarg in kwargs.keys():
+            if cur_kwarg not in valid_multistep_kwargs:
+                raise ValueError(f"kwarg {cur_kwarg} is not allowable for MultistepTimeStepper")
+
+        bounds = kwargs.pop('bounds', None)
+        Fp = kwargs.pop('Fp', None)
+        startup_parameters = kwargs.pop('startup_parameters', None)
+        return MultistepTimeStepper(F, method, t, dt, u0, bcs=bcs, Fp=Fp, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
 
     stage_type = kwargs.pop("stage_type", "deriv")
     adapt_params = kwargs.pop("adaptive_parameters", None)
