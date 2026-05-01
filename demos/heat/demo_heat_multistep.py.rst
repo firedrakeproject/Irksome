@@ -116,7 +116,7 @@ We can then set up the :class:`.TimeStepper` as follows::
 
 Note that the creation of a :class:`.TimeStepper` configured for a multistep method with parameters for the startup procedure will not automatically solve for the required starting values. 
 One must call the :class:`.TimeSteppers`'s :meth:`~.TimeStepper.startup` method, which will internally construct the single-step :class:`.TimeStepper` and solve for the required starting 
-values. It is the users responsibility to advance `t` to `t + (s-1)*dt`. Unless more refined control is needed, this value is available as :meth:`.TimeStepper.startup_t`::
+values. It is the user's responsibility to advance `t` to `t + (s-1)*dt`. Unless more refined control is needed, this value is available as :meth:`.TimeStepper.startup_t`::
 
   stepper.startup()
   t.assign(stepper.startup_t)
