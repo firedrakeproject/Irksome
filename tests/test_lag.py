@@ -1,4 +1,3 @@
-import pytest
 import firedrake
 from firedrake import Constant, inner, grad, dx, conditional
 import irksome
@@ -6,7 +5,6 @@ from irksome import Dt
 from irksome.ufl.deriv import lag
 
 
-@pytest.mark.xfail(strict=True, reason="lag not yet honored by replace")
 def test_stefan_implicit():
     """Test lagging the conductivity on the Stefan problem"""
     nx = 32

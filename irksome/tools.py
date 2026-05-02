@@ -7,10 +7,11 @@ from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
 from ufl import replace as ufl_replace
+from ufl.classes import Variable
 from pyop2.types import MixedDat
 import FIAT
 
-from .ufl.deriv import TimeDerivative
+from .ufl.deriv import TimeDerivative, lag_label
 
 
 def dot(A, B):
@@ -108,14 +109,23 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 
 
 def replace(e, mapping):
-    """A wrapper for ufl.replace that allows numpy arrays."""
+    """A wrapper for ufl.replace that allows numpy arrays and skips
+    substitution into sub-expressions wrapped by :func:`lag`."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
     if isinstance(e, LabelledForm):
-        enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
-                              for term in e.terms))
-        return enew
-    else:
-        return ufl_replace(e, cmapping)
+        new_terms = []
+        for term in e.terms:
+            tmap = dict(cmapping)
+            for var in extract_type(term.form, Variable):
+                if var.ufl_operands[1] is lag_label:
+                    tmap.setdefault(var, var)
+            new_terms.append(Term(ufl_replace(term.form, tmap), term.labels))
+        return LabelledForm(*new_terms)
+
+    for var in extract_type(e, Variable):
+        if var.ufl_operands[1] is lag_label:
+            cmapping.setdefault(var, var)
+    return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor
