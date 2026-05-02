@@ -3,8 +3,10 @@ import firedrake
 from firedrake import Constant, inner, grad, dx, conditional
 import irksome
 from irksome import Dt
+from irksome.ufl.deriv import lag
 
 
+@pytest.mark.xfail(strict=True, reason="lag not yet honored by replace")
 def test_stefan_implicit():
     """Test lagging the conductivity on the Stefan problem"""
     nx = 32
@@ -17,7 +19,7 @@ def test_stefan_implicit():
 
     k_solid = Constant(2.0)
     k_liquid = Constant(1.0)
-    k = conditional(u < 0, k_solid, k_liquid)
+    k = lag(conditional(u < 0, k_solid, k_liquid))
 
     v = firedrake.TestFunction(V)
     F = (Dt(u) * v + k * inner(grad(u), grad(v))) * dx
@@ -33,8 +35,7 @@ def test_stefan_implicit():
     method = irksome.BackwardEuler()
     stepper = irksome.TimeStepper(F, method, t, dt, u, **params)
 
-    with pytest.raises(firedrake.ConvergenceError):
-        final_time = 10.0
-        num_steps = int(final_time / float(dt))
-        for step in range(num_steps):
-            stepper.advance()
+    final_time = 10.0
+    num_steps = int(final_time / float(dt))
+    for step in range(num_steps):
+        stepper.advance()
