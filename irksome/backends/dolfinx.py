@@ -2,8 +2,32 @@
 
 try:
     import basix.ufl
-    import dolfinx
+    import dolfinx.fem.petsc
     import ufl
+    import typing
+    import numpy as np
+
+    TestFunction = ufl.TestFunction
+
+    def get_stage_space(V: ufl.FunctionSpace, num_stages:int)->ufl.FunctionSpace:
+        if num_stages == 1:
+            me = V.ufl_elemet()
+        else:
+            el = V.ufl_element()
+            if el.num_sub_elements > 0:
+                me = basix.ufl.mixed_element(np.tile(el.sub_elements, num_stages).tolist())
+            else:
+                me = basix.ufl.blocked_element(el, shape=(num_stages, ))
+        return dolfinx.fem.functionspace(V.mesh, me)
+
+    def extract_bcs(bcs: typing.Any)->tuple[typing.Any]:
+        """Extract boundary conditions"""
+        return bcs
+
+    def create_nonlinearvariational_solver(F: ufl.Form, g: ufl.Coefficient, bcs: typing.Sequence | None, solver_parameters: dict):
+        """Create a non-linear variational solver that uses PETSc SNES."""
+        return dolfinx.fem.petsc.NonlinearProblem(F, g, petsc_options_prefix="IrkSomeSolver", bcs=bcs,
+                                                     petsc_options=solver_parameters)
 
     def get_function_space(u: ufl.Coefficient) -> ufl.FunctionSpace:
         return u.ufl_function_space()
@@ -31,11 +55,15 @@ try:
         def __init__(self, msh):
             self.msh = msh
             try:
-                import scifem
-            except ModuleNotFoundError:
-                raise RuntimeError("Scifem is required to make mesh-constants")
-
-            self.V = scifem.create_real_functionspace(msh, ())
+                import basix.ufl
+                r_el = basix.ufl.real_element(msh.basix_cell(), value_shape=(), dtype=dolfinx.default_scalar_type)
+                self.V = dolfinx.fem.functionspace(msh, r_el)
+            except TypeError:
+                try:
+                    import scifem
+                except ModuleNotFoundError:
+                    raise RuntimeError("DOLFINx with real element support or Scifem is required to make mesh-constants")
+                self.V = scifem.create_real_functionspace(msh, ())
 
         def Constant(self, val=0.0) -> ufl.Coefficient:
             v = dolfinx.fem.Function(self.V)
@@ -44,6 +72,13 @@ try:
 
     def get_mesh_constant(MC: MeshConstant | None) -> ufl.core.expr.Expr:
         return MC.Constant if MC is not None else ufl.constantvalue.ComplexValue
+
+    class Function(dolfinx.fem.Function):
+        pass
+
+    class DirichletBC(dolfinx.fem.DirichletBC):
+        pass
+
 
 except ModuleNotFoundError:
     pass
