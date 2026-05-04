@@ -24,9 +24,9 @@ try:
         """Extract boundary conditions"""
         return bcs
 
-    def create_nonlinearvariational_problem(F: ufl.Form, g: ufl.Coefficient, solver_parameters: dict):
+    def create_nonlinearvariational_solver(F: ufl.Form, g: ufl.Coefficient, bcs: typing.Sequence | None, solver_parameters: dict):
         """Create a non-linear variational solver that uses PETSc SNES."""
-        return dolfinx.fem.petsc.NonlinearProblem(F, g, petsc_options_prefix="IrkSomeSolver",
+        return dolfinx.fem.petsc.NonlinearProblem(F, g, petsc_options_prefix="IrkSomeSolver", bcs=bcs,
                                                      petsc_options=solver_parameters)
 
     def get_function_space(u: ufl.Coefficient) -> ufl.FunctionSpace:
@@ -72,6 +72,13 @@ try:
 
     def get_mesh_constant(MC: MeshConstant | None) -> ufl.core.expr.Expr:
         return MC.Constant if MC is not None else ufl.constantvalue.ComplexValue
+
+    class Function(dolfinx.fem.Function):
+        pass
+
+    class DirichletBC(dolfinx.fem.DirichletBC):
+        pass
+
 
 except ModuleNotFoundError:
     pass

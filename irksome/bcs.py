@@ -74,7 +74,7 @@ class BoundsConstrainedDirichletBC(DirichletBC):
                 "ksp_type": "preonly",
                 "mat_type": "aij",
             }       
-        self.solver = backend_cls.create_nonlinearvariational_problem(F, self.gnew, solver_parameters)
+        self.solver = backend_cls.create_nonlinearvariational_solver(F, self.gnew, solver_parameters=solver_parameters)
         super().__init__(V, g, sub_domain)
 
     @property
