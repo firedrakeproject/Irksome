@@ -111,12 +111,16 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
-    from firedrake.fml import LabelledForm, Term
-    if isinstance(e, LabelledForm):
-        enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
-                              for term in e.terms))
-        return enew
-    else:
+    try:
+        from firedrake.fml import LabelledForm, Term
+        if isinstance(e, LabelledForm):
+            enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
+                                for term in e.terms))
+            return enew
+        else:
+            return ufl_replace(e, cmapping)
+
+    except ImportError:
         return ufl_replace(e, cmapping)
 
 
