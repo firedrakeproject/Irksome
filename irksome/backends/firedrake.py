@@ -21,11 +21,11 @@ def extract_bcs(bcs: typing.Any)->tuple[typing.Any]:
     return tuple(bc.extract_form("F") for bc in firedrake.solving._extract_bcs(bcs))
 
 
-def create_nonlinearvariational_problem(F: ufl.Form, u: ufl.Coefficient, solver_parameters: dict):
+def create_nonlinearvariational_solver(F: ufl.Form, u: ufl.Coefficient, bcs: typing.Sequence | None = None, solver_parameters: dict | None = None, **kwargs):
     """Create a non-linear variational solver that uses PETSc SNES."""
-    problem = firedrake.NonlinearVariationalProblem(F, u)
+    problem = firedrake.NonlinearVariationalProblem(F, u, bcs=bcs)
     return firedrake.NonlinearVariationalSolver(
-            problem, solver_parameters=solver_parameters
+            problem, solver_parameters=solver_parameters, **kwargs
         )
 
 def get_function_space(u: ufl.Coefficient) -> firedrake.FunctionSpace:
@@ -59,3 +59,10 @@ class MeshConstant(object):
 
 def get_mesh_constant(MC: MeshConstant | None):
     return MC.Constant if MC else firedrake.Constant
+
+class Function(firedrake.Function):
+    pass
+
+
+class DirichletBC(firedrake.DirichletBC):
+    pass

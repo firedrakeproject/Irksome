@@ -16,7 +16,7 @@ from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
 from .backends.firedrake import extract_bcs
 from .tableaux.ButcherTableaux import CollocationButcherTableau
-from .form_manipulation import getForm
+from .stage_derivative import getForm
 from .stage_value import getFormStage
 
 import numpy as np

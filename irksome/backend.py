@@ -1,4 +1,4 @@
-from typing import Protocol, Any
+from typing import Protocol, Any, Sequence
 import ufl
 from importlib import import_module
 
@@ -9,8 +9,12 @@ class Backend(Protocol):
 
     def extract_bcs(bcs: Any)->tuple[Any]:
         """Extract boundary conditions"""
+ 
+    class Function:
+        ...
 
-
+    class DirichletBC:
+        ...
     def get_stages(self, V: ufl.FunctionSpace, num_stages: int) -> ufl.Coefficient:
         """
         Given a function space for a single time-step, get a duplicate of this space,
@@ -45,7 +49,7 @@ class Backend(Protocol):
     def TestFunction(space: ufl.FunctionSpace, part: int|None=None)-> ufl.Argument:
         """Return a test-function that can be used by forms in the backend."""
 
-    def create_nonlinearvariational_problem(F: ufl.Form, g: ufl.Coefficient, solver_parameters: dict):
+    def create_nonlinearvariational_solver(F: ufl.Form, u: ufl.Coefficient, bcs: DirichletBC | Sequence | None = None, solver_parameters: dict | None = None, **kwargs):
         """Create a non-linear variational solver that uses PETSc SNES."""
 
     def get_stage_spaces(V: ufl.FunctionSpace, num_stages: int) -> ufl.FunctionSpace:

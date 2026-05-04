@@ -29,7 +29,7 @@ from .scheme import create_time_quadrature
 from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 from .scheme import GalerkinCollocationScheme
 
-from .form_manipulation import getForm
+from .stage_derivative import getForm
 
 __all__ = [
     "AdamsBashforth",
