@@ -5,14 +5,14 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
                        NonlinearVariationalSolver, TestFunction, dx,
                        inner)
-from ufl import as_tensor, zero
+from ufl import as_tensor, Form
 from ufl.constantvalue import as_ufl
 
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
-from .ufl.manipulation import extract_terms, strip_dt_form
-from .tools import AI, is_ode, dot, reshape, replace
+from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
+from .tools import AI, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -37,47 +37,46 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
-    :arg F: UFL form for the semidiscrete ODE/DAE
+    :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
-         advance in time.
-    :arg t: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time.
-    :arg dt: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time step.
-         The user may adjust this value between time steps.
+        advance in time.
+    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time.
+    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        on the Real space over the same mesh as `u0`.  This serves as
+        a variable referring to the current time step size.
+        The user may adjust this value between time steps.
     :arg u0: a :class:`Function` referring to the state of
-         the PDE system at time `t`
+        the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-         It lives in a :class:`firedrake.FunctionSpace` corresponding to the
-         s-way tensor product of the space on which the semidiscrete
-         form lives.
+        It lives in a :class:`firedrake.FunctionSpace` corresponding to the
+        s-way tensor product of the space on which the semidiscrete
+        form lives.
     :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possibly time-dependent) boundary conditions imposed
-         on the system.
+        containing (possibly time-dependent) boundary conditions imposed
+        on the system.
     :kwarg splitting: a callable that maps the (floating point) Butcher matrix
-         a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
-         to vary between the classical RK formulation and Butcher's reformulation
-         that leads to a denser mass matrix with block-diagonal stiffness.
-         Only `AI` and `IA` are currently supported.
+        a to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
+        to vary between the classical RK formulation and Butcher's reformulation
+        that leads to a denser mass matrix with block-diagonal stiffness.
+        Only `AI` and `IA` are currently supported.
     :kwarg vandermonde: a numpy array encoding a change of basis to the Lagrange
-         polynomials associated with the collocation nodes from some other
-         (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
-         coefficients in some basis rather than the values at particular stages,
-         which can be useful for satisfying bounds constraints.
-         If none is provided, we assume it is the identity, working in the
-         Lagrange basis.
+        polynomials associated with the collocation nodes from some other
+        (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
+        coefficients in some basis rather than the values at particular stages,
+        which can be useful for satisfying bounds constraints.
+        If none is provided, we assume it is the identity, working in the
+        Lagrange basis.
     :kwarg aux_indices: a list of field indices, currently ignored.
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
+        at additional points in time.
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages
     """
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    # we can only do DAE-type problems correctly if one assumes a stiffly-accurate method.
-    assert is_ode(F, u0) or butch.is_stiffly_accurate
-
     v, = F.arguments()
     V = v.function_space()
     assert V == u0.function_space()
@@ -106,17 +105,23 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    split_form = extract_terms(F)
-    F_dtless = strip_dt_form(split_form.time)
-    F_remainder = split_form.remainder
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+    F_dtless = remove_time_derivatives(split_form.time)
+    F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
-    Fnew = zero()
-    # Terms with time derivatives
+    Fnew = Form([])
+    # Terms with time derivatives: use two evaluations so that
+    # Dt(g(u)) is discretised as g(U_i) - g(u0), not g(U_i - u0).
+    # These are identical for linear g but differ for nonlinear g,
+    # and the two-evaluation form is what gives mass conservation.
     for i in range(num_stages):
-        repl = {t: t + c[i] * dt,
-                v: A2invTv[i],
-                u0: as_tensor(w_np[i]) - u0}
-        Fnew += replace(F_dtless, repl)
+        repl_new = {t: t + c[i] * dt,
+                    v: A2invTv[i],
+                    u0: w_np[i]}
+        # Evaluate g at the old solution u0 (not substituted) and
+        # old time t (not substituted).
+        repl_old = {v: A2invTv[i]}
+        Fnew += replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
 
     # Handle the rest of the terms
     for i in range(num_stages):
@@ -157,32 +162,26 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                  splitting=AI, basis_type=None,
                  appctx=None, bounds=None,
                  use_collocation_update=False,
+                 sample_points=None,
                  **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
         self.basis_type = basis_type
 
-        degree = butcher_tableau.num_stages
-
         if basis_type is None or basis_type == 'Lagrange':
             vandermonde = None
-        elif basis_type == "Bernstein":
-            assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
-            bern = Bernstein(ufc_simplex(1), degree)
-            pts = numpy.reshape(numpy.append(0, butcher_tableau.c), (-1, 1))
-            vandermonde = bern.tabulate(0, pts)[(0, )].T
         else:
-            raise ValueError("Unknown or unimplemented basis transformation type")
-
-        if vandermonde is not None:
-            vandermonde = vecconst(vandermonde)
+            nodes = numpy.insert(butcher_tableau.c, 0, 0.0)
+            pts = numpy.reshape(nodes, (-1, 1))
+            vandermonde = self.tabulate_poly(pts).T
         self.vandermonde = vandermonde
 
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
+                         sample_points=sample_points,
                          **kwargs)
 
         self.set_initial_guess()
@@ -190,23 +189,31 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         if use_collocation_update:
             # Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.
             # TODO: create an assertion to check for constant-in-time boundary conditions.
-            nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
 
-            assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method for collocation update"
-            assert (self.basis_type is None or self.basis_type == "Lagrange"), "Collocation update requires the Lagrange form of the collocation polynomial"
-            assert (len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need a non-confluent collocation method to use collocation update"
-
-            lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
-            collocation_vander = vecconst(lag_basis.tabulate((1.0,))[(0,)])
-
-            self.collocation_vander = collocation_vander
+            self.collocation_vander = self.tabulate_poly((1.0,))
             self._update = self._update_collocation
 
-        elif (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
-            self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
-            self._update = self._update_general
+        elif (not butcher_tableau.is_stiffly_accurate) and (vandermonde is None):
+            try:
+                A = butcher_tableau.A
+                b = butcher_tableau.b
+                self.bAinv = vecconst(numpy.linalg.solve(A.T, b))
+                self.update_scale = 1-numpy.sum(self.bAinv)
+                self._update = self._update_Ainv
+            except numpy.linalg.LinAlgError:
+                self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
+                self._update = self._update_general
         else:
             self._update = self._update_stiff_acc
+
+    def _update_Ainv(self):
+        nf = self.num_fields
+        ns = self.num_stages
+        scale = self.update_scale
+        bAinv = self.bAinv
+        for i, u0bit in enumerate(self.u0.subfunctions):
+            u0bit *= scale
+            u0bit += sum(self.stages.subfunctions[nf * s + i] * bAinv[s] for s in range(ns))
 
     def _update_stiff_acc(self):
         for i, u0bit in enumerate(self.u0.subfunctions):
@@ -215,23 +222,24 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def get_update_solver(self, update_solver_parameters):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
-        F = expand_time_derivatives(self.F, t=self.t, timedep_coeffs=(self.u0,))
-        v, = F.arguments()
+        v, = self.F.arguments()
         unew = Function(self.u0.function_space())
         Fupdate = inner(unew - self.u0, v) * dx
 
         C = vecconst(self.butcher_tableau.c)
         B = vecconst(self.butcher_tableau.b)
+        F = self.F
         t = self.t
         dt = self.dt
         u0 = self.u0
-        split_form = extract_terms(F)
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+        F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
         u_np = to_value(self.u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
                     u0: u_np[i]}
-            Fupdate += dt * B[i] * replace(split_form.remainder, repl)
+            Fupdate += dt * B[i] * replace(F_remainder, repl)
 
         # And the BC's for the update -- just the original BC at t+dt
         update_bcs = []
@@ -274,3 +282,21 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             for i, u0bit in enumerate(self.u0.subfunctions):
                 sbit = self.stages.subfunctions[self.num_fields * k + i]
                 sbit.assign(u0bit)
+
+    def tabulate_poly(self, sample_points):
+        if not isinstance(self.butcher_tableau, CollocationButcherTableau):
+            raise ValueError("Need a collocation method to evaluate the collocation polynomial")
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        if len(set(nodes)) != len(nodes):
+            raise ValueError("Need non-confluent collocation method for polynomial evaluation")
+
+        ref_el = ufc_simplex(1)
+        if self.basis_type is None or self.basis_type == "Lagrange":
+            lag_basis = LagrangePolynomialSet(ref_el, nodes)
+            vander = vecconst(lag_basis.tabulate(sample_points, 0)[(0,)])
+        elif self.basis_type == "Bernstein":
+            bern_element = Bernstein(ref_el, self.butcher_tableau.num_stages)
+            vander = vecconst(bern_element.tabulate(0, sample_points)[(0,)])
+        else:
+            raise ValueError(f"Unknown or unimplemented basis transformation type {self.basis_type}")
+        return vander

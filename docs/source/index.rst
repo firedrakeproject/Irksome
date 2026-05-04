@@ -136,6 +136,12 @@ and for adaptive IRK methods:
 
    demos/demo_heat_adapt.py
 
+and for general multistep methods:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_heat_multistep.py
 
 Or check out two IMEX-type methods for the monodomain equations:
 
@@ -162,6 +168,13 @@ and with a Galerkin-in-Time approach, in standard form or with auxiliary variabl
 
    demos/demo_bbm_galerkin.py
    demos/demo_bbm_aux.py
+
+Other structure-preserving methods have similar demos, such as for the dissipation law for the heat equation:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_heat_structure.py
 
 Finally, if you feel you must bypass the :py:class:`.TimeStepper`
 abstraction, we have some examples how to interact with Irksome at a

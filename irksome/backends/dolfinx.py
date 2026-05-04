@@ -55,11 +55,15 @@ try:
         def __init__(self, msh):
             self.msh = msh
             try:
-                import scifem
-            except ModuleNotFoundError:
-                raise RuntimeError("Scifem is required to make mesh-constants")
-
-            self.V = scifem.create_real_functionspace(msh, ())
+                import basix.ufl
+                r_el = basix.ufl.real_element(msh.basix_cell(), value_shape=(), dtype=dolfinx.default_scalar_type)
+                self.V = dolfinx.fem.functionspace(msh, r_el)
+            except TypeError:
+                try:
+                    import scifem
+                except ModuleNotFoundError:
+                    raise RuntimeError("DOLFINx with real element support or Scifem is required to make mesh-constants")
+                self.V = scifem.create_real_functionspace(msh, ())
 
         def Constant(self, val=0.0) -> ufl.Coefficient:
             v = dolfinx.fem.Function(self.V)

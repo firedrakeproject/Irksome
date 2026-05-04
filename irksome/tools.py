@@ -4,6 +4,8 @@ from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
 from ufl import replace as ufl_replace
 
+import FIAT
+
 from .ufl.deriv import TimeDerivative
 
 
@@ -29,6 +31,17 @@ def flatten_dats(dats):
 def get_stage_space(V, num_stages, backend:str="firedrake"):
     backend_cls = get_backend(backend)
     return backend_cls.get_stage_space(V, num_stages)
+
+
+def split_stages(V, stages):
+    """Reconstruct the stages as a list of Function(V)"""
+    num_fields = len(V)
+    if num_fields == 1:
+        return stages.subfunctions
+
+    stages_np = reshape(stages, (-1, *V.value_shape))
+    ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
+    return ks
 
 
 def fields_to_components(V, fields):
@@ -98,7 +111,13 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
-    return ufl_replace(e, cmapping)
+    from firedrake.fml import LabelledForm, Term
+    if isinstance(e, LabelledForm):
+        enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
+                              for term in e.terms))
+        return enew
+    else:
+        return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor
@@ -119,4 +138,22 @@ def is_ode(f, u):
         op, = k.ufl_operands
         Dtbits.extend(op[i] for i in numpy.ndindex(op.ufl_shape))
     ubits = [u[i] for i in numpy.ndindex(u.ufl_shape)]
-    return set(Dtbits) == set(ubits)
+    return set(ubits) <= set(Dtbits)
+
+
+def get_lagrange_permutation(L):
+    """Given a univariate Lagrange element, return the
+    points ordered from left to right and the permutation of the
+    dofs required to obtain this re-ordering."""
+    assert L.ref_el.get_spatial_dimension() == 1
+
+    points = []
+    for ell in L.dual.nodes:
+        assert isinstance(ell, FIAT.functional.PointEvaluation)
+        pt, = ell.get_point_dict().keys()
+        points.append(pt[0])
+
+    c = numpy.asarray(points)
+    perm = numpy.argsort(c)
+
+    return c[perm], perm
