@@ -108,14 +108,12 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
             test_type = "spectral"
         elif quadrature_scheme in {"radau", "lobatto"}:
             test_type = quadrature_scheme
-            if quadrature_degree is None:
-                # Default to under-integration!
-                if quadrature_scheme == "radau":
-                    quadrature_degree = 2*order-2
-                elif quadrature_scheme == "lobatto":
-                    quadrature_degree = 2*order-3
         else:
             raise ValueError(f"Unsupported quadrature scheme {quadrature_scheme}.")
+
+        if quadrature_degree is None:
+            # Default to under-integration
+            quadrature_degree = collocation_quadrature_degree(order, quadrature_scheme)
 
         if stage_type not in {"deriv", "value"}:
             raise ValueError(f"Unsupported stage type {stage_type}.")
@@ -131,7 +129,7 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
 class DiscontinuousGalerkinCollocationScheme(DiscontinuousGalerkinScheme):
     """Class for describing collocation DG-in-time methods"""
     def __init__(self, order,
-                 deriv_type="weak",
+                 deriv_type="strong",
                  quadrature_degree=None,
                  quadrature_scheme="radau",
                  max_quadrature_degree=None):
@@ -141,14 +139,12 @@ class DiscontinuousGalerkinCollocationScheme(DiscontinuousGalerkinScheme):
             basis_type = "spectral"
         elif quadrature_scheme in {"radau", "lobatto"}:
             basis_type = quadrature_scheme
-            if quadrature_degree is None:
-                # Default to under-integration!
-                if quadrature_scheme == "radau":
-                    quadrature_degree = 2*(order+1)-2
-                elif quadrature_scheme == "lobatto":
-                    quadrature_degree = 2*(order+1)-3
         else:
             raise ValueError(f"Unsupported quadrature scheme {quadrature_scheme}.")
+
+        if quadrature_degree is None:
+            # Default to under-integration
+            quadrature_degree = collocation_quadrature_degree(order+1, quadrature_scheme)
 
         super().__init__(order, basis_type=basis_type,
                          deriv_type=deriv_type,
@@ -172,3 +168,19 @@ def create_time_quadrature(degree, scheme=None):
         return GaussLobattoLegendreQuadratureLineRule(ufc_line, num_points)
     else:
         return create_quadrature(ufc_line, degree, scheme=scheme or "default")
+
+
+def collocation_quadrature_degree(num_points, scheme):
+    """Return the quadrature degree for a n-point collocation scheme."""
+    if scheme is None:
+        scheme = "default"
+    scheme = scheme.lower()
+    if scheme == "default":
+        degree = 2*num_points-1
+    elif scheme == "radau":
+        degree = 2*num_points-2
+    elif scheme == "lobatto":
+        degree = 2*num_points-3
+    else:
+        raise ValueError(f"Unrecognized quadrature scheme {scheme}")
+    return degree
