@@ -8,9 +8,12 @@ from .labeling import split_quadrature, as_form
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
-from .scheme import create_time_quadrature, ufc_line
-from .tools import dot, reshape, replace
+from .scheme import DiscontinuousGalerkinCollocationScheme, create_time_quadrature, ufc_line
+from .tools import IA, dot, reshape, replace
 from .constant import vecconst
+from .tableaux.ButcherTableaux import CollocationButcherTableau
+from .stage_value import getFormStage
+
 import numpy as np
 from firedrake import TestFunction
 
@@ -247,18 +250,37 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         self.quadrature = quadrature
         self.max_quadrature_degree = scheme.max_quadrature_degree
 
-        num_stages = order+1
-
         self.update_b = vecconst(self.el.tabulate(0, (1.0,))[(0,)])
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
+        if isinstance(scheme, DiscontinuousGalerkinCollocationScheme):
+            self.butcher_tableau = CollocationButcherTableau(self.el, None)
+        else:
+            self.butcher_tableau = None
 
-    def get_form_and_bcs(self, stages, F=None, bcs=None, basis_type=None, order=None,
+        super().__init__(F, t, dt, u0, scheme.num_stages, bcs=bcs, **kwargs)
+
+    def get_form_and_bcs(self, stages, F=None, bcs=None,
+                         tableau=None, basis_type=None, order=None,
                          quadrature=None, deriv_type=None):
         if bcs is None:
             bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
+
+        if tableau is not None:
+            # Galerkin collocation is equivalent to an IRK up to row scaling
+            row_scale = tableau.b
+
+            def scaledIA(A):
+                # For stage-value the splitting exposes row scaling
+                A1, A2 = IA(A)
+                np.multiply(A1, row_scale, out=A1)
+                np.multiply(1/row_scale, A2, out=A2)
+                return A1, A2
+
+            return getFormStage(F, tableau, self.t, self.dt, self.u0, stages,
+                                bcs=bcs, splitting=scaledIA)
+
         if order is None:
             order = self.order
         if basis_type == self.basis_type and order == self.order:

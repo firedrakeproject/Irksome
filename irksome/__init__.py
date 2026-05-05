@@ -27,7 +27,7 @@ from .constant import MeshConstant
 from .tableaux.wso_dirk_tableaux import WSODIRK
 from .scheme import create_time_quadrature
 from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
-from .scheme import GalerkinCollocationScheme
+from .scheme import GalerkinCollocationScheme, DiscontinuousGalerkinCollocationScheme
 
 __all__ = [
     "AdamsBashforth",
@@ -39,6 +39,7 @@ __all__ = [
     "ContinuousPetrovGalerkinScheme",
     "create_time_quadrature",
     "DIRK_IMEX",
+    "DiscontinuousGalerkinCollocationScheme",
     "DiscontinuousGalerkinScheme",
     "Dt",
     "expand_time_derivatives",
