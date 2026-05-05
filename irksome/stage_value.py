@@ -69,6 +69,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
         If none is provided, we assume it is the identity, working in the
         Lagrange basis.
     :kwarg aux_indices: a list of field indices, currently ignored.
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
+        at additional points in time.
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
@@ -160,32 +162,26 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                  splitting=AI, basis_type=None,
                  appctx=None, bounds=None,
                  use_collocation_update=False,
+                 sample_points=None,
                  **kwargs):
 
         self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
         self.basis_type = basis_type
 
-        degree = butcher_tableau.num_stages
-
         if basis_type is None or basis_type == 'Lagrange':
             vandermonde = None
-        elif basis_type == "Bernstein":
-            assert isinstance(butcher_tableau, CollocationButcherTableau), "Need collocation for Bernstein conversion"
-            bern = Bernstein(ufc_simplex(1), degree)
-            pts = numpy.reshape(numpy.append(0, butcher_tableau.c), (-1, 1))
-            vandermonde = bern.tabulate(0, pts)[(0, )].T
         else:
-            raise ValueError("Unknown or unimplemented basis transformation type")
-
-        if vandermonde is not None:
-            vandermonde = vecconst(vandermonde)
+            nodes = numpy.insert(butcher_tableau.c, 0, 0.0)
+            pts = numpy.reshape(nodes, (-1, 1))
+            vandermonde = self.tabulate_poly(pts).T
         self.vandermonde = vandermonde
 
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
+                         sample_points=sample_points,
                          **kwargs)
 
         self.set_initial_guess()
@@ -193,19 +189,11 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         if use_collocation_update:
             # Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.
             # TODO: create an assertion to check for constant-in-time boundary conditions.
-            nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
 
-            assert isinstance(self.butcher_tableau, CollocationButcherTableau), "Need a collocation method for collocation update"
-            assert (self.basis_type is None or self.basis_type == "Lagrange"), "Collocation update requires the Lagrange form of the collocation polynomial"
-            assert (len(set(nodes)) == self.butcher_tableau.num_stages + 1), "Need a non-confluent collocation method to use collocation update"
-
-            lag_basis = LagrangePolynomialSet(ufc_simplex(1), nodes)
-            collocation_vander = vecconst(lag_basis.tabulate((1.0,))[(0,)])
-
-            self.collocation_vander = collocation_vander
+            self.collocation_vander = self.tabulate_poly((1.0,))
             self._update = self._update_collocation
 
-        elif (not butcher_tableau.is_stiffly_accurate) and (basis_type != "Bernstein"):
+        elif (not butcher_tableau.is_stiffly_accurate) and (vandermonde is None):
             try:
                 A = butcher_tableau.A
                 b = butcher_tableau.b
@@ -294,3 +282,21 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             for i, u0bit in enumerate(self.u0.subfunctions):
                 sbit = self.stages.subfunctions[self.num_fields * k + i]
                 sbit.assign(u0bit)
+
+    def tabulate_poly(self, sample_points):
+        if not isinstance(self.butcher_tableau, CollocationButcherTableau):
+            raise ValueError("Need a collocation method to evaluate the collocation polynomial")
+        nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
+        if len(set(nodes)) != len(nodes):
+            raise ValueError("Need non-confluent collocation method for polynomial evaluation")
+
+        ref_el = ufc_simplex(1)
+        if self.basis_type is None or self.basis_type == "Lagrange":
+            lag_basis = LagrangePolynomialSet(ref_el, nodes)
+            vander = vecconst(lag_basis.tabulate(sample_points, 0)[(0,)])
+        elif self.basis_type == "Bernstein":
+            bern_element = Bernstein(ref_el, self.butcher_tableau.num_stages)
+            vander = vecconst(bern_element.tabulate(0, sample_points)[(0,)])
+        else:
+            raise ValueError(f"Unknown or unimplemented basis transformation type {self.basis_type}")
+        return vander
