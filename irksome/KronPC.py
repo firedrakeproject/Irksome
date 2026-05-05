@@ -60,12 +60,17 @@ class KronPC(PCBase):
         sub_ksp.setOptionsPrefix(self._prefix + "sub_")
         sub_ksp.incrementTabLevel(1, parent=pc)
 
-        # Propagate DM (and its python context) to the sub-KSP
+        # Propagate DM and its python context to the sub-KSP
         dmK = K.M.handle.getDM() or pc.getDM()
         if dmK is not None:
             sub_ksp.setDM(dmK)
-            # Let the sub-KSP use the DM for matrix-free PCs if needed
-            sub_ksp.setDMActive(False)
+
+            # Do not let the DM generate operators/RHS/initial guess,
+            # because we already set the assembled operator below.
+            try:
+                sub_ksp.setDMActive(PETSc.KSP.DMActive.ALL, False)
+            except TypeError:
+                sub_ksp.setDMActive(False)
 
         # Operators and options
         sub_ksp.setOperators(K.M.handle)
