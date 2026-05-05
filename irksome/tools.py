@@ -147,7 +147,8 @@ def get_lagrange_permutation(L):
 
     points = []
     for ell in L.dual.nodes:
-        assert isinstance(ell, FIAT.functional.PointEvaluation)
+        if not isinstance(ell, FIAT.functional.PointEvaluation):
+            raise TypeError("Expecting a Lagrange element")
         pt, = ell.get_point_dict().keys()
         points.append(pt[0])
 
