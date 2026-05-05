@@ -1,12 +1,17 @@
 import numpy as np
 import pytest
+import ufl
+
 from functools import reduce
 from operator import mul
 
+# Important: import irksome before any Firedrake/UFL forms are built/processed.
+# This lets Irksome register its UFL extensions before UFL MultiFunctions run.
+import irksome
 
 from firedrake import (
     UnitSquareMesh, FunctionSpace, TrialFunction, TestFunction, Cofunction,
-    Function, as_tensor, inner, dx, solve, errornorm, ufl
+    Function, as_tensor, inner, dx, solve, errornorm
 )
 
 def getA(ns: int):
