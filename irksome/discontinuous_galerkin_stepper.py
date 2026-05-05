@@ -234,6 +234,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         self.num_fields = len(V)
 
         self.el = getElement(basis_type, order)
+        num_stages = self.el.space_dimension()
 
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:
@@ -257,7 +258,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         except TypeError:
             self.butcher_tableau = None
 
-        super().__init__(F, t, dt, u0, scheme.num_stages, bcs=bcs, **kwargs)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
 
     def get_form_and_bcs(self, stages, F=None, bcs=None,
                          tableau=None, basis_type=None, order=None,
