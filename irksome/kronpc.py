@@ -148,8 +148,7 @@ class KronPC(PCBase):
                 self.sub_ksp.solve(rhs_i, mid_i)
 
         # Zero outputs
-        for j in range(s):
-            self.work_out.subfunctions[j].assign(0.0)
+        self.work_out.zero()
 
         # y_stage[j] += sum_i L[j,i] * mid[i]
         for j in range(s):
