@@ -212,7 +212,7 @@ def test_git_irk_equivalence(scheme):
     }
 
     kwargs = {}
-    if isinstance(scheme, GalerkinCollocationScheme):
+    if isinstance(scheme, ContinuousPetrovGalerkinScheme):
         kwargs["aux_indices"] = [1]
     stepper = TimeStepper(F, scheme, t, dt, z,
                           bcs=bcs, solver_parameters=sparams,
