@@ -8,17 +8,19 @@ import numpy as np
 from firedrake.dmhooks import get_appctx, get_function_space
 
 
-__all__ = ("KronPC","MassKronPC", "StiffnessKronPC", "SIPGStiffnessKronPC")
+__all__ = ("KronPC", "MassKronPC", "StiffnessKronPC", "SIPGStiffnessKronPC")
 
 # -----------------------------
 # KronPC definition
 # -----------------------------
+
+
 class KronPC(PCBase):
     r"""
     Preconditioner applying: y =  (L \otimes K^{-1}) x
       - L is the stage matrix, provided by the user. If A is provided, we set L = A^{-1}. If neither provided, L = I_s.
       - K is assembled on the single-stage space by subclasses via "form(trial, test)"
-      - K^{-1} is approximated by a PETSc PC with prefix 
+      - K^{-1} is approximated by a PETSc PC with prefix
     """
     needs_python_pmat = False
 
@@ -41,19 +43,18 @@ class KronPC(PCBase):
 
         Vbig = get_function_space(dm)
 
-        self.work_in  = Cofunction(Vbig.dual(), name="kron_work_in")
-        self.work_mid = Function(Vbig,          name="kron_work_mid")
-        self.work_out = Function(Vbig,          name="kron_work_out")
+        self.work_in = Cofunction(Vbig.dual(), name="kron_work_in")
+        self.work_mid = Function(Vbig, name="kron_work_mid")
+        self.work_out = Function(Vbig, name="kron_work_out")
 
         Vstage = Vbig.sub(0)
         trial = TrialFunction(Vstage)
-        test  = TestFunction(Vstage)
+        test = TestFunction(Vstage)
         a, bcs = self.form(trial, test)
 
         fc_params = getattr(context, "fc_params", None)
         K = assemble(a, bcs=bcs, mat_type=mat_type, form_compiler_parameters=fc_params)
         self.K = K
-
 
         # NEW: create a sub-KSP (instead of a raw PC) so we can use python PCs with DM/appctx
         sub_ksp = PETSc.KSP().create(comm=pc.comm)
@@ -85,9 +86,9 @@ class KronPC(PCBase):
         sub_ksp.setUp()
 
         self.sub_ksp = sub_ksp
-        self.sub_pc  = sub_ksp.getPC()
+        self.sub_pc = sub_ksp.getPC()
         A, _ = self.sub_ksp.getOperators()
-        self._tmp_stage = A.createVecRight()   
+        self._tmp_stage = A.createVecRight()
         try:
             s = len(self.work_in.subfunctions)
         except Exception:
@@ -95,7 +96,6 @@ class KronPC(PCBase):
         self._s = s
         self.L = self._build_stage_L(self._s, context, pc)
 
-        
 # --- discover A from user-provided context (prefer appctx) ---
     def _build_stage_L(self, s, context, pc):
         """
@@ -143,7 +143,7 @@ class KronPC(PCBase):
         # Stagewise K^{-1}
         for i in range(s):
             with self.work_in.subfunctions[i].dat.vec_ro as rhs_i, \
-                 self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
+                    self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
                 mid_i.set(0.0)
                 self.sub_ksp.solve(rhs_i, mid_i)
 
@@ -151,7 +151,7 @@ class KronPC(PCBase):
         for j in range(s):
             self.work_out.subfunctions[j].assign(0.0)
 
-         # y_stage[j] += sum_i L[j,i] * mid[i]
+        # y_stage[j] += sum_i L[j,i] * mid[i]
         for j in range(s):
             row = self.L[j, :]
             with self.work_out.subfunctions[j].dat.vec_wo as yj:
@@ -175,7 +175,7 @@ class KronPC(PCBase):
         # Stagewise K^{-T}
         for i in range(s):
             with self.work_in.subfunctions[i].dat.vec_ro as rhs_i, \
-                self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
+                    self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
                 mid_i.set(0.0)
                 # requires the sub-KSP (PC) to support transpose solves
                 self.sub_ksp.solveTranspose(rhs_i, mid_i)
@@ -198,7 +198,6 @@ class KronPC(PCBase):
         with self.work_out.dat.vec_ro as vout:
             vout.copy(y)
 
-
     def view(self, pc, viewer=None):
         if viewer is None:
             viewer = PETSc.Viewer.STDOUT(pc.comm)
@@ -212,10 +211,12 @@ class KronPC(PCBase):
         if hasattr(self, "sub_ksp") and self.sub_ksp is not None:
             self.sub_ksp.destroy()
             self.sub_ksp = None
-        self.sub_pc = None    
+        self.sub_pc = None
+
 
 class MassKronPC(KronPC):
     """K built from the mass form."""
+
     def form(self, trial, test):
         a = inner(trial, test) * dx
         bcs = None
@@ -224,11 +225,13 @@ class MassKronPC(KronPC):
 
 class StiffnessKronPC(KronPC):
     """K built from the (regularized) stiffness form."""
+
     def form(self, trial, test):
         a = inner(grad(trial), grad(test)) * dx + 1e-12 * inner(trial, test) * dx
         bcs = None
         return a, bcs
-    
+
+
 class SIPGStiffnessKronPC(KronPC):
     r"""
     Discontinuous Galerkin (SIPG) pressure "stiffness" for DG spaces (e.g., P_{k}^{\mathrm{disc}}).
@@ -239,8 +242,8 @@ class SIPGStiffnessKronPC(KronPC):
 
     def form(self, trial, test):
         mesh = trial.ufl_domain()
-        n    = FacetNormal(mesh)
-        h    = CellVolume(mesh)
+        n = FacetNormal(mesh)
+        h = CellVolume(mesh)
 
         # Polynomial degree k of the DG space
         k = trial.ufl_function_space().ufl_element().degree()
@@ -257,13 +260,10 @@ class SIPGStiffnessKronPC(KronPC):
              - inner(grad(test), trial * n) * ds
              - inner(grad(trial), test * n) * ds
              + (penal / h) * inner(trial, test) * ds)
-        
 
         bcs = None
         return a, bcs
-    
-    
-    
+
     def initialize(self, pc):
         # Assemble K and build the sub-KSP using the base class logic
         super().initialize(pc)
@@ -281,8 +281,6 @@ class SIPGStiffnessKronPC(KronPC):
         A.setNullSpace(self._ns)
         P.setNullSpace(self._ns)
 
-   
-
     def apply(self, pc, x, y):
         s = self._s
         y.set(0.0)
@@ -294,7 +292,7 @@ class SIPGStiffnessKronPC(KronPC):
         # stagewise K^{-1} with per-stage projections
         for i in range(s):
             with self.work_in.subfunctions[i].dat.vec_ro as rhs_i_ro, \
-                 self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
+                    self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
 
                 # tmp = self._tmp_stage
                 # tmp.copy(rhs_i_ro)
@@ -319,8 +317,5 @@ class SIPGStiffnessKronPC(KronPC):
                         with self.work_mid.subfunctions[i].dat.vec_ro as ui:
                             yj.axpy(lij, ui)
 
-
         with self.work_out.dat.vec_ro as vout:
             vout.copy(y)
-
-
