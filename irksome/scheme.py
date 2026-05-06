@@ -170,17 +170,17 @@ def create_time_quadrature(degree, scheme=None):
         return create_quadrature(ufc_line, degree, scheme=scheme or "default")
 
 
-def collocation_quadrature_degree(num_points, scheme):
-    """Return the quadrature degree for a n-point collocation scheme."""
+def collocation_quadrature_degree(trial_degree, scheme):
+    """Return the quadrature degree for a collocation scheme."""
     if scheme is None:
         scheme = "default"
     scheme = scheme.lower()
     if scheme == "default":
-        degree = 2*num_points-1
+        degree = 2*trial_degree-1
     elif scheme == "radau":
-        degree = 2*num_points-2
+        degree = 2*trial_degree-2
     elif scheme == "lobatto":
-        degree = 2*num_points-3
+        degree = 2*trial_degree-3
     else:
         raise ValueError(f"Unrecognized quadrature scheme {scheme}")
     return degree
