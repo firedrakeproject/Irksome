@@ -262,32 +262,11 @@ class SIPGStiffnessKronPC(KronPC):
         bcs = None
         return a, bcs
     
-    # def initialize(self, pc):
-    #     # Assemble K and build the sub-KSP using the base class logic
-    #     super().initialize(pc)
-
-    #     # If your form is *truly* pure Neumann (constant kernel), attach a constant nullspace:
-    #     # Find the stage scalar space
-    #     Vbig   = get_function_space(pc.getDM())
-    #     Vstage = Vbig.sub(0)
-
-    #     # Build a constant Function on DG space
-    #     self._ns_vector = Function(Vstage, name="kron_sipg_const")  # keep a ref!
-    #     self._ns_vector.assign(1.0)
-
-    #     with self._ns_vector.dat.vec_ro as v:
-    #         # constant=True lets PETSc treat it as a constant field; we also provide the vector
-    #         self._ns = PETSc.NullSpace().create(constant=True, vectors=[v])
-
-    #     # Attach to the assembled operator(s) used by the sub-KSP (A and P)
-    #     A, P = self.sub_ksp.getOperators()
-    #     A.setNullSpace(self._ns)
-    #     P.setNullSpace(self._ns)
+    
     
     def initialize(self, pc):
         # Assemble K and build the sub-KSP using the base class logic
         super().initialize(pc)
-
 
         S = get_function_space(pc.getDM())   # what the sub-KSP actually solves on
         Q = S.sub(1)
