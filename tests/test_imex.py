@@ -1,5 +1,4 @@
-from math import isclose
-
+import numpy as np
 import pytest
 from firedrake import *
 from irksome import Dt, MeshConstant, TimeStepper, ARS_DIRK_IMEX, SSPK_DIRK_IMEX
@@ -101,9 +100,10 @@ def heat_dirichletbc(butcher_tableau):
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)
+    w = TrialFunction(V)
     F = (
-        inner(Dt(u), v) * dx
-        + inner(grad(u), grad(v)) * dx
+        inner(Dt(w), v) * dx
+        + inner(grad(w), grad(v)) * dx
     )
     Fexp = -inner(rhs, v) * dx
 
@@ -117,20 +117,22 @@ def heat_dirichletbc(butcher_tableau):
     stepper = TimeStepper(
         F, butcher_tableau, t, dt, u, Fexp=Fexp, bcs=bc,
         solver_parameters=luparams, mass_parameters=luparams,
-        stage_type="dirkimex"
+        stage_type="dirkimex",
+        constant_jacobian=True,
     )
 
+    bnd_error = inner(u-uexact, u-uexact) * ds
     t_end = 2.0
     while float(t) < t_end:
         print("Current time: ", float(t))
         if float(t) + float(dt) > t_end:
+            stepper.invalidate_jacobian()
             dt.assign(t_end - float(t))
         stepper.advance()
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
-        assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert errornorm(uexact, u) / norm(uexact) < 1e-3
+        assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
 
 
 # Note that ARS_DIRK_IMEX(1,1,1), ARS_DIRK_IMEX(2, 2, 2), and ARS_DIRK_IMEX(4,4,3)

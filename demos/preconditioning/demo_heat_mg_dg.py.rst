@@ -18,7 +18,7 @@ of :math:`f` given below
 We perform similar imports and setup as before::
 
   from firedrake import *
-  from irksome import TimeStepper, Dt, MeshConstant, DiscontinuousGalerkinScheme
+  from irksome import TimeStepper, Dt, DiscontinuousGalerkinScheme
 
 However, we need to set up a mesh hierarchy to enable geometric multigrid
 within Firedrake::
@@ -43,9 +43,8 @@ are just as for the regular heat equation demo::
 
   V = FunctionSpace(msh, "CG", 1)
 
-  MC = MeshConstant(msh)
-  dt = MC.Constant(10.0 / N)
-  t = MC.Constant(0.0)
+  dt = Constant(10.0 / N)
+  t = Constant(0.0)
 
   x, y = SpatialCoordinate(msh)
   S = Constant(2.0)
@@ -95,7 +94,7 @@ monolithic multigrid with pointwise block Jacobi preconditioning::
   
 These solver parameters work just fine using a :class:`~irksome.DiscontinuousGalerkinScheme`::
 
-  scheme = DiscontinuousGalerkinScheme(2)
+  scheme = DiscontinuousGalerkinScheme(2, quadrature_degree="auto")
   stepper = TimeStepper(F, scheme, t, dt, u, bcs=bc, solver_parameters=mgparams)
 
 And we can advance the solution in time in typical fashion::

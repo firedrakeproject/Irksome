@@ -1,6 +1,6 @@
 import pytest
 from firedrake import *
-from irksome import Dt, LobattoIIIC, MeshConstant, RadauIIA, TimeStepper
+from irksome import Dt, LobattoIIIC, RadauIIA, TimeStepper
 from irksome import DiscontinuousGalerkinScheme
 from irksome.tools import AI, IA
 
@@ -15,14 +15,12 @@ def StokesTest(N, scheme, **kwargs):
     mh = MeshHierarchy(mesh0, 2)
     mesh = mh[-1]
 
-    Ve = VectorElement("CG", mesh.ufl_cell(), 2)
-    Pe = FiniteElement("CG", mesh.ufl_cell(), 1)
-    Ze = MixedElement([Ve, Pe])
-    Z = FunctionSpace(mesh, Ze)
+    V = VectorFunctionSpace(mesh, "CG", 2)
+    Q = FunctionSpace(mesh, "CG", 1)
+    Z = V * Q
 
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
     (x, y) = SpatialCoordinate(mesh)
 
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
@@ -32,13 +30,12 @@ def StokesTest(N, scheme, **kwargs):
     p_rhs = -div(uexact)
 
     z = Function(Z)
-    test_z = TestFunction(Z)
-    (u, p) = split(z)
-    (v, q) = split(test_z)
+    (u, p) = TrialFunctions(Z)
+    (v, q) = TestFunctions(Z)
     F = (inner(Dt(u), v)*dx
          + inner(grad(u), grad(v))*dx
          - inner(p, div(v))*dx
-         - inner(q, div(u))*dx
+         - inner(div(u), q)*dx
          - inner(u_rhs, v)*dx
          - inner(p_rhs, q)*dx)
 
@@ -53,7 +50,6 @@ def StokesTest(N, scheme, **kwargs):
     ind_pressure = ",".join([str(2*i+1) for i in range(ns)])
     solver_params = {
         "mat_type": "aij",
-        "snes_type": "ksponly",
         "ksp_type": "fgmres",
         "ksp_max_it": 200,
         "ksp_gmres_restart": 30,
@@ -81,10 +77,13 @@ def StokesTest(N, scheme, **kwargs):
 
     stepper = TimeStepper(F, scheme, t, dt, z,
                           bcs=bcs, solver_parameters=solver_params,
-                          nullspace=nsp, **kwargs)
+                          nullspace=nsp,
+                          constant_jacobian=True,
+                          **kwargs)
 
     while (float(t) < 1.0):
         if (float(t) + float(dt) > 1.0):
+            stepper.invalidate_jacobian()
             dt.assign(1.0 - float(t))
         stepper.advance()
         t.assign(float(t) + float(dt))
@@ -120,8 +119,8 @@ def NSETest(scheme, **kwargs):
     F = (inner(Dt(u), v) * dx
          + 1.0 / Re * inner(grad(u), grad(v)) * dx
          + inner(dot(grad(u), u), v) * dx
-         - p * div(v) * dx
-         + div(u) * q * dx
+         - inner(p, div(v)) * dx
+         + inner(div(u), q) * dx
          )
 
     bcs = [DirichletBC(Z.sub(0), Constant((1, 0)), (4,)),
@@ -164,9 +163,8 @@ def NSETest(scheme, **kwargs):
         },
     }
 
-    MC = MeshConstant(M)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
     stepper = TimeStepper(F, scheme,
                           t, dt, up,
                           bcs=bcs,

@@ -56,7 +56,7 @@ Firedrake, Irksome, and other imports::
       interpolate, norm, plot, project, replace, solve, split
   )
 
-  from irksome import Dt, TimeStepper, TimeQuadratureLabel, ContinuousPetrovGalerkinScheme
+  from irksome import Dt, TimeStepper, ContinuousPetrovGalerkinScheme
 
   import matplotlib.pyplot as plt
   import numpy
@@ -142,31 +142,30 @@ Visualize the initial condition::
 .. figure:: bbm_init.png
    :align: center  
 
-Create time quadrature labels::
-  
-  time_order_low = 2 * (time_deg - 1)
-  time_order_high = 3 * time_deg - 1
-
-  Llow = TimeQuadratureLabel(time_order_low)
-  Lhigh = TimeQuadratureLabel(time_order_high)
-
-This tags several of the terms with a low-order time integration scheme,
-but forces a higher-order method on the nonlinear term::
+Set up the semidiscrete form as usual::
 
   u, wH = split(uwH)
   v, vH = split(TestFunction(Z))
 
-  Flow = h1inner(Dt(u) + wH.dx(0), v) * dx + h1inner(wH, vH) * dx
-  Fhigh = replace(dHdu, {u0: u})
+  F = h1inner(Dt(u) + wH.dx(0), v) * dx 
+  F += h1inner(wH, vH) * dx - derivative(I3(u), u, vH)
 
-  F = Llow(Flow) - Lhigh(Fhigh(vH))
+Next, we set up the cPG scheme. We specify `quadrature_degree="auto"` to
+override the default quadrature of degree `2*time_deg-1`. This automatically
+estimates the quadrature degree for each individual term in `F`. The degree
+estimation algorithm will only be exact for polynomial nonlinearities, such as
+the cubic term in `I3`. For complicated nonlinearities, the estimated degree
+might be too large and result in very slow compilation and runtime.
+The quadrature degree might be optionally capped via `max_quadrature_degree`
+keyword argument. ::
+
+  scheme = ContinuousPetrovGalerkinScheme(time_deg, quadrature_degree="auto",
+                                          max_quadrature_degree=3*time_deg-1)
 
 This sets up the cPG time stepper.  There are two fields in the unknown, we
-indicate the second one is an auxiliary and hence to be discretized in the DG
+indicate that the second one is an auxiliary and hence to be discretized in the DG
 test space instead by passing the `aux_indices` keyword::
-
-  scheme = ContinuousPetrovGalerkinScheme(time_deg)
-  
+ 
   stepper = TimeStepper(F, scheme, t, dt, uwH, aux_indices=[1])
 
 UFL expressions for the invariants, which we are going to track as we go
