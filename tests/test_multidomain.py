@@ -25,8 +25,8 @@ def test_multidomain_getForm(num_stages):
 
     F = (inner(Dt(u1), v1) * dx1
          + inner(Dt(u2), v2) * dx2
-         - inner(u1, v1) * dx1
-         - inner(u2, v2) * dx2
+         + inner(u1, v1) * dx1
+         + inner(u2, v2) * dx2
          + inner(u1-u2, v1-v2) * dx12)
 
     butch = GaussLegendre(num_stages)
