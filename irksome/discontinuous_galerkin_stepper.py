@@ -9,7 +9,7 @@ from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .scheme import create_time_quadrature, ufc_line
-from .tools import IA, dot, reshape, replace
+from .tools import IA, dot, reshape, replace, sanitize_form
 from .constant import vecconst
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .stage_value import getFormStage
@@ -166,6 +166,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
                                  max_quadrature_degree=max_quadrature_degree)
     Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type)
                for Q, Fcur in splitting.items())
+    Fnew = sanitize_form(Fnew)
 
     # Oh, honey, is it the boundary conditions?
     bcsnew = []

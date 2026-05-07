@@ -10,7 +10,7 @@ from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import create_time_quadrature, ufc_line
-from .tools import AI, IA, dot, fields_to_components, reshape, replace
+from .tools import AI, IA, dot, fields_to_components, reshape, replace, sanitize_form
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
@@ -169,6 +169,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
                                  max_quadrature_degree=max_quadrature_degree)
     Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
                for Q, Fcur in splitting.items())
+    Fnew = sanitize_form(Fnew)
 
     # Oh, honey, is it the boundary conditions?
     V = u0.function_space()

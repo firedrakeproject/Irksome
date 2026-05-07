@@ -12,7 +12,7 @@ from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
-from .tools import AI, dot, reshape, replace
+from .tools import AI, dot, reshape, replace, sanitize_form
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -130,6 +130,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
                 v: A1Tv[i] * dt,
                 u0: w_np[i]}
         Fnew += replace(F_remainder, repl)
+    Fnew = sanitize_form(Fnew)
 
     if bcs is None:
         bcs = []

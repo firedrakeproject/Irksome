@@ -5,6 +5,7 @@ import numpy
 from firedrake.fml import LabelledForm, Term
 from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
+from ufl.algorithms import expand_indices
 from ufl import as_tensor
 from ufl import replace as ufl_replace
 from pyop2.types import MixedDat
@@ -105,6 +106,14 @@ def getNullspace(V, Vbig, num_stages, nullspace):
         nspnew = MixedVectorSpaceBasis(Vbig, nspnew)
 
     return nspnew
+
+
+def sanitize_form(form):
+    """Simplify indexed expressions to eliminate unwanted
+       quantities on mismatching domains."""
+    if len(form.ufl_domains()) > 1:
+        form = expand_indices(form)
+    return form
 
 
 def replace(e, mapping):

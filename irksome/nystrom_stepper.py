@@ -1,11 +1,11 @@
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
-from .tools import dot, reshape, replace
+from .tools import dot, reshape, replace, sanitize_form
 from .constant import vecconst
 from firedrake import TestFunction, as_ufl
 import numpy
-from ufl import zero
+from ufl import Form
 
 
 class NystromTableau:
@@ -99,7 +99,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     dtu = TimeDerivative(u0)
     dt2u = TimeDerivative(dtu)
 
-    Fnew = zero()
+    Fnew = Form([])
 
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
@@ -108,6 +108,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
                 dtu: ut0 + Ak[i] * dt,
                 dt2u: k_np[i]}
         Fnew += replace(F, repl)
+    Fnew = sanitize_form(Fnew)
 
     if bcs is None:
         bcs = []

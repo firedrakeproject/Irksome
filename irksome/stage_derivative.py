@@ -11,7 +11,7 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from ufl.constantvalue import as_ufl
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .constant import vecconst
-from .tools import AI, dot, replace, reshape, fields_to_components
+from .tools import AI, dot, replace, reshape, fields_to_components, sanitize_form
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
 from .ufl.manipulation import split_time_derivative_terms
@@ -105,6 +105,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
                    dtu: dtusub}
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
+    Fnew = sanitize_form(Fnew)
 
     if bcs is None:
         bcs = []
