@@ -223,10 +223,14 @@ class MassKronPC(KronPC):
 
 
 class StiffnessKronPC(KronPC):
-    """K built from the (regularized) stiffness form."""
+    """K built from the regularized stiffness form."""
 
     def form(self, trial, test):
-        a = inner(grad(trial), grad(test)) * dx + 1e-12 * inner(trial, test) * dx
+        shift = PETSc.Options().getReal(self._prefix + "stiffness_shift", 1.0e-12)
+        a = (
+            inner(grad(trial), grad(test)) * dx
+            + shift * inner(trial, test) * dx
+        )
         bcs = None
         return a, bcs
 
