@@ -15,6 +15,7 @@ from ufl.classes import (
 )
 
 from .deriv import TimeDerivative
+from .time_projector import TimeProjector
 
 
 class TimeDegreeEstimator(DAGTraverser):
@@ -63,6 +64,10 @@ class TimeDegreeEstimator(DAGTraverser):
     @DAGTraverser.postorder
     def time_derivative(self, o, degree):
         return max(degree - 1, 0)
+
+    @process.register(TimeProjector)
+    def time_projector(self, o):
+        return o.order
 
     @process.register(Abs)
     @process.register(Conj)

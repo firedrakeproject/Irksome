@@ -14,6 +14,7 @@ from .tableaux.multistep_tableaux import (
     AdamsMoulton,
 )
 from .tableaux.pep_explicit_rk import PEPRK
+from .ufl.time_projector import TimeProjector
 from .ufl.deriv import Dt, expand_time_derivatives, check_irksome_import_order
 
 check_irksome_import_order()
@@ -55,6 +56,7 @@ __all__ = [
     "RadauIIA",
     "SSPButcherTableau",
     "SSPK_DIRK_IMEX",
+    "TimeProjector",
     "WSODIRK",
 ]
 
