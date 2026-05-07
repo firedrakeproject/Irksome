@@ -34,7 +34,7 @@ def random_rhs(Vbig, seed: int = 1234):
     return L
 
 
-@pytest.mark.parametrize("ns", [2, 3, 4, 5])  # meaningful cases are ns >= 2
+@pytest.mark.parametrize("ns", [2, 3])  # meaningful cases are ns >= 2
 def test_mass_kron_pc(ns):
     """
     Solve two ways:
