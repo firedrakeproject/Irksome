@@ -7,14 +7,13 @@ class Backend(Protocol):
     def get_function_space(self, V: ufl.Coefficient) -> ufl.FunctionSpace:
         """Get a function space from the backend"""
 
-    def extract_bcs(bcs: Any)->tuple[Any]:
+    def extract_bcs(bcs: Any) -> tuple[Any]:
         """Extract boundary conditions"""
- 
-    class Function:
-        ...
 
-    class DirichletBC:
-        ...
+    class Function: ...
+
+    class DirichletBC: ...
+
     def get_stages(self, V: ufl.FunctionSpace, num_stages: int) -> ufl.Coefficient:
         """
         Given a function space for a single time-step, get a duplicate of this space,
@@ -46,14 +45,71 @@ class Backend(Protocol):
     def get_mesh_constant(MC: MeshConstant | None) -> ufl.core.expr.Expr:
         """Get a backend class to construct a mesh constant from"""
 
-    def TestFunction(space: ufl.FunctionSpace, part: int|None=None)-> ufl.Argument:
+    def TestFunction(space: ufl.FunctionSpace, part: int | None = None) -> ufl.Argument:
         """Return a test-function that can be used by forms in the backend."""
 
-    def create_nonlinearvariational_solver(F: ufl.Form, u: ufl.Coefficient, bcs: DirichletBC | Sequence | None = None, solver_parameters: dict | None = None, **kwargs):
-        """Create a non-linear variational solver that uses PETSc SNES."""
+    def TrialFunction(
+        space: ufl.FunctionSpace, part: int | None = None
+    ) -> ufl.Argument:
+        """Return a trial-function that can be used by forms in the backend."""
+
+    def create_nonlinearvariational_problem(
+        F: ufl.Form,
+        u: ufl.Coefficient,
+        bcs: DirichletBC | Sequence | None = None,
+        **kwargs,
+    ) -> Any:
+        """Create a non-linear variational problem in the backend language."""
+
+    def create_nonlinearvariational_solver(
+        problem: Any,
+        solver_parameters: dict | None = None,
+        **kwargs,
+    ):
+        """Create a non-linear variational solver in the backend language."""
+
+    def create_linearvariational_problem(
+        a: ufl.Form,
+        L: ufl.Form,
+        u: ufl.Coefficient | Sequence[ufl.Coefficient],
+        bcs: DirichletBC | Sequence | None = None,
+        aP: ufl.Form | None = None,
+        **kwargs,
+    ) -> Any:
+        """Create a linear variational problem in the backend language."""
+
+    def create_linearvariational_solver(
+        problem: Any,
+        solver_parameters: dict | None = None,
+        **kwargs,
+    ):
+        """Create a linear variational solver in the backend language."""
 
     def get_stage_spaces(V: ufl.FunctionSpace, num_stages: int) -> ufl.FunctionSpace:
         """Create a stage space with M number of components."""
+
+    def norm(
+        v: ufl.core.expr.Expr, norm_type: str = "L2", mesh: ufl.Mesh | None = None
+    ) -> float:
+        """Compute the norm of a function in the backend language."""
+
+    def assemble(expr: ufl.core.expr.Expr) -> Any:
+        """Assemble a UFL expression in the backend language."""
+
+    def replace(expr: ufl.core.expr.Expr, mapping: dict) -> ufl.core.expr.Expr:
+        """Replace sub-expressions in a UFL expression with other expressions."""
+
+    def derivative(
+        form: ufl.Form,
+        u: ufl.Coefficient,
+        du: ufl.Argument | None = None,
+        coefficient_derivatives: dict | None = None,
+    ) -> ufl.Form:
+        """Compute the derivative of a form with respect to a coefficient in the backend language."""
+
+    def invalidate_jacobian(solver: Any):
+        """Invalidate the Jacobian matrix in the backend language."""
+
 
 def get_backend(backend: str) -> Backend:
     """Get backend class from backend name.

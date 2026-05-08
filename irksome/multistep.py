@@ -171,7 +171,6 @@ class MultistepTimeStepper(BaseTimeStepper):
         return Fnew, bcsnew
 
     def advance(self):
-
         self.solver.solve(bounds=self.bounds)
 
         # update previous steps

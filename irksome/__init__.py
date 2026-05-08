@@ -29,7 +29,6 @@ from .scheme import create_time_quadrature
 from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 from .scheme import GalerkinCollocationScheme
 
-from .stage_derivative import getForm
 
 __all__ = [
     "AdamsBashforth",
@@ -44,7 +43,6 @@ __all__ = [
     "DiscontinuousGalerkinScheme",
     "Dt",
     "expand_time_derivatives",
-    "getForm",
     "GalerkinCollocationScheme",
     "GaussLegendre",
     "LobattoIIIA",

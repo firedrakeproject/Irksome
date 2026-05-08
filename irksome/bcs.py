@@ -1,12 +1,8 @@
-from firedrake import (
-    DirichletBC,
-    Function,
-    replace,
-    inner,
-    dx,
-)
+from functools import lru_cache
+
+
 from .backend import get_backend
-from ufl import as_ufl
+from ufl import as_ufl, inner, dx
 
 
 def get_sub(u, indices):
@@ -45,25 +41,54 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
         V = u0.function_space()
         field = 0 if len(V) == 1 else bc.function_space_index()
         comp = (bc.function_space().component,)
-        ws = stages.subfunctions[field::len(V)]
+        ws = stages.subfunctions[field :: len(V)]
         btilde = butcher_tableau.btilde
         num_stages = butcher_tableau.num_stages
-
-        g = replace(as_ufl(gorig), {t: t + dt}) - gorig
+        g = get_backend(bc._backend).replace(as_ufl(gorig), {t: t + dt}) - gorig
         g -= sum(get_sub(ws[j], comp) * (btilde[j] * dt) for j in range(num_stages))
     return bc.reconstruct(V=Vbc, g=g)
 
 
-class BoundsConstrainedDirichletBC(DirichletBC):
+class _BoundsConstrainedDirichletBCMeta(type):
+    def __call__(cls, *args, backend: str = "firedrake", **kwargs):
+        if getattr(cls, "_backend_impl", False):
+            return super().__call__(*args, backend=backend, **kwargs)
+        impl_cls = _get_bounds_constrained_dirichlet_bc_class(backend)
+        return impl_cls(*args, backend=backend, **kwargs)
+
+
+@lru_cache(maxsize=None)
+def _get_bounds_constrained_dirichlet_bc_class(backend: str):
+    backend_cls = get_backend(backend)
+    return type(
+        "BoundsConstrainedDirichletBC",
+        (BoundsConstrainedDirichletBC, backend_cls.DirichletBC),
+        {"_backend_impl": True, "__module__": __name__},
+    )
+
+
+class BoundsConstrainedDirichletBC(metaclass=_BoundsConstrainedDirichletBCMeta):
     """A DirichletBC with bounds-constrained data."""
 
-    def __init__(self, V, g, sub_domain, bounds, solver_parameters=None, backend:str="firedrake"):
+    _backend_impl = False
+
+    def __init__(
+        self,
+        V,
+        g,
+        sub_domain,
+        bounds,
+        solver_parameters=None,
+        backend: str = "firedrake",
+    ):
 
         self.g = g
         self.solver_parameters = solver_parameters
         self.bounds = bounds
-        self.gnew = Function(V)
+        self._backend_name = backend
         backend_cls = get_backend(backend)
+        self.gnew = backend_cls.Function(V)
+
         F = inner(self.gnew - g, backend_cls.TestFunction(V)) * dx
 
         if solver_parameters is None:
@@ -73,8 +98,11 @@ class BoundsConstrainedDirichletBC(DirichletBC):
                 "snes_atol": 1.0e-8,
                 "ksp_type": "preonly",
                 "mat_type": "aij",
-            }       
-        self.solver = backend_cls.create_nonlinearvariational_solver(F, self.gnew, solver_parameters=solver_parameters)
+            }
+        problem = backend_cls.create_linearvariational_problem(F, self.gnew)
+        self.solver = backend_cls.create_nonlinearvariational_solver(
+            problem, solver_parameters=solver_parameters
+        )
         super().__init__(V, g, sub_domain)
 
     @property
@@ -93,4 +121,11 @@ class BoundsConstrainedDirichletBC(DirichletBC):
         V = V or self.function_space()
         g = g or self.g
         sub_domain = sub_domain or self.sub_domain
-        return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters)
+        return type(self)(
+            V,
+            g,
+            sub_domain,
+            self.bounds,
+            self.solver_parameters,
+            backend=self._backend_name,
+        )

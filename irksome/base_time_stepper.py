@@ -1,10 +1,6 @@
 from abc import abstractmethod
-from firedrake import (
-    derivative, replace, lhs, rhs, Function, TrialFunction,
-    LinearVariationalProblem, LinearVariationalSolver,
-    NonlinearVariationalProblem, NonlinearVariationalSolver,
-)
-from firedrake.petsc import PETSc
+
+from petsc4py import PETSc
 from .tools import AI, getNullspace, flatten_dats, split_stages
 from .labeling import as_form, as_linear_form
 from .backend import get_backend
@@ -16,9 +12,18 @@ class BaseTimeStepper:
     """Base class for various time steppers.  This is mainly to give code reuse stashing
     objects that are common to all the time steppers.  It's a developer-level class.
     """
-    def __init__(self, F, t, dt, u0,
-                 bcs=None, appctx=None, nullspace=None, backend: str = "firedrake"):
-        self._backend = get_backend(backend)
+
+    def __init__(
+        self,
+        F,
+        t,
+        dt,
+        u0,
+        bcs=None,
+        appctx=None,
+        nullspace=None,
+        backend: str = "firedrake",
+    ):
         self.F = F
         self.t = t
         self.dt = dt
@@ -27,6 +32,7 @@ class BaseTimeStepper:
             bcs = ()
         self.orig_bcs = bcs
         self.nullspace = nullspace
+        self._backend = get_backend(backend)
         self.V = self._backend.get_function_space(u0)
 
         appctx_base = {"stepper": self}
@@ -91,21 +97,38 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
             at additional points in time.
     """
-    def __init__(self, F, t, dt, u0, num_stages,
-                 bcs=None, Fp=None, solver_parameters=None,
-                 appctx=None, nullspace=None,
-                 transpose_nullspace=None, near_nullspace=None,
-                 splitting=None, bc_type=None,
-                 butcher_tableau=None, bounds=None, sample_points=None,
-                 **kwargs):
+
+    def __init__(
+        self,
+        F,
+        t,
+        dt,
+        u0,
+        num_stages,
+        bcs=None,
+        Fp=None,
+        solver_parameters=None,
+        appctx=None,
+        nullspace=None,
+        transpose_nullspace=None,
+        near_nullspace=None,
+        splitting=None,
+        bc_type=None,
+        butcher_tableau=None,
+        bounds=None,
+        sample_points=None,
+        backend="firedrake",
+        **kwargs,
+    ):
 
         is_linear = False
         if len(as_form(F).arguments()) == 2:
             F = as_linear_form(F, u0)
             is_linear = True
 
-        super().__init__(F, t, dt, u0,
-                         bcs=bcs, appctx=appctx, nullspace=nullspace)
+        super().__init__(
+            F, t, dt, u0, bcs=bcs, appctx=appctx, nullspace=nullspace, backend=backend
+        )
 
         self.num_stages = num_stages
         if butcher_tableau:
@@ -128,7 +151,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         if Fp is not None:
             Fp = as_linear_form(Fp, u0)
             Fpbig, _ = self.get_form_and_bcs(stages, F=Fp, bcs=())
-            Jpbig = derivative(Fpbig, stages)
+            Jpbig = self._backend.derivative(Fpbig, stages)
 
         V = u0.function_space()
         Vbig = stages.function_space()
@@ -139,35 +162,49 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.bigBCs = bigBCs
 
         if is_linear:
-            Fbig = replace(Fbig, {stages: TrialFunction(stages.function_space())})
-            abig = lhs(Fbig)
-            Lbig = rhs(Fbig)
-            problem = LinearVariationalProblem(
-                abig, Lbig, stages, bcs=bigBCs, aP=Jpbig,
+            Fbig = self._backend.replace(
+                Fbig, {stages: self._backend.TrialFunction(stages.function_space())}
+            )
+            abig = ufl.lhs(Fbig)
+            Lbig = ufl.rhs(Fbig)
+            problem = self._backend.create_linearvariational_problem(
+                abig,
+                Lbig,
+                stages,
+                bcs=bigBCs,
+                aP=Jpbig,
                 form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
                 constant_jacobian=kwargs.pop("constant_jacobian", False),
                 restrict=kwargs.pop("restrict", False),
             )
-            solver_constructor = LinearVariationalSolver
+            self.solver = self._backend.create_linearvariational_solver(
+                problem,
+                appctx=self.appctx,
+                nullspace=nullspace,
+                transpose_nullspace=transpose_nullspace,
+                near_nullspace=near_nullspace,
+                solver_parameters=solver_parameters,
+            )
         else:
-            problem = NonlinearVariationalProblem(
-                Fbig, stages, bcs=bigBCs, Jp=Jpbig,
+            problem = self._backend.create_nonlinearvariational_problem(
+                Fbig,
+                stages,
+                bcs=bigBCs,
+                Jp=Jpbig,
                 form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
                 is_linear=kwargs.pop("is_linear", False),
                 restrict=kwargs.pop("restrict", False),
             )
             problem._constant_jacobian = kwargs.pop("constant_jacobian", False)
-            solver_constructor = NonlinearVariationalSolver
-
-        self.problem = problem
-        self.solver = solver_constructor(
-            self.problem, appctx=self.appctx,
-            nullspace=nullspace,
-            transpose_nullspace=transpose_nullspace,
-            near_nullspace=near_nullspace,
-            solver_parameters=solver_parameters,
-            **kwargs,
-        )
+            self.solver = self._backend.create_nonlinearvariational_solver(
+                problem,
+                appctx=self.appctx,
+                nullspace=nullspace,
+                transpose_nullspace=transpose_nullspace,
+                near_nullspace=near_nullspace,
+                solver_parameters=solver_parameters,
+                **kwargs,
+            )
 
         # stash these for later in case we do bounds constraints
         self.stage_bounds = self.get_stage_bounds(bounds)
@@ -178,7 +215,6 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
-
         self.solver.solve(bounds=self.stage_bounds)
 
         self.num_steps += 1
@@ -197,7 +233,11 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         pass
 
     def solver_stats(self):
-        return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
+        return (
+            self.num_steps,
+            self.num_nonlinear_iterations,
+            self.num_linear_iterations,
+        )
 
     def get_stages(self) -> ufl.Coefficient:
         return self._backend.get_stages(self.V, self.num_stages)
@@ -209,30 +249,30 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         Vbig = self.stages.function_space()
         bounds_type, lower, upper = bounds
         if lower is None:
-            slb = Function(Vbig).assign(PETSc.NINFINITY)
+            slb = self._backend.Function(Vbig).assign(PETSc.NINFINITY)
         if upper is None:
-            sub = Function(Vbig).assign(PETSc.INFINITY)
+            sub = self._backend.Function(Vbig).assign(PETSc.INFINITY)
 
         if bounds_type == "stage":
             if lower is not None:
                 dats = [lower.dat] * (self.num_stages)
-                slb = Function(Vbig, val=flatten_dats(dats))
+                slb = self._backend.Function(Vbig, val=flatten_dats(dats))
             if upper is not None:
                 dats = [upper.dat] * (self.num_stages)
-                sub = Function(Vbig, val=flatten_dats(dats))
+                sub = self._backend.Function(Vbig, val=flatten_dats(dats))
 
         elif bounds_type == "last_stage":
             V = self.u0.function_space()
             if lower is not None:
-                ninfty = Function(V).assign(PETSc.NINFINITY)
-                dats = [ninfty.dat] * (self.num_stages-1)
+                ninfty = self._backend.Function(V).assign(PETSc.NINFINITY)
+                dats = [ninfty.dat] * (self.num_stages - 1)
                 dats.append(lower.dat)
-                slb = Function(Vbig, val=flatten_dats(dats))
+                slb = self._backend.Function(Vbig, val=flatten_dats(dats))
             if upper is not None:
-                infty = Function(V).assign(PETSc.INFINITY)
-                dats = [infty.dat] * (self.num_stages-1)
+                infty = self._backend.Function(V).assign(PETSc.INFINITY)
+                dats = [infty.dat] * (self.num_stages - 1)
                 dats.append(upper.dat)
-                sub = Function(Vbig, val=flatten_dats(dats))
+                sub = self._backend.Function(Vbig, val=flatten_dats(dats))
 
         else:
             raise ValueError("Unknown bounds type")
@@ -244,25 +284,27 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         pass
 
     def build_poly(self):
-        '''
+        """
         When provided with a list of `sample_points` (intended to be in the interval [0,1]), this
         builds a symbolic expression for the values of the RK collocation polynomial at the
         corresponding points on the interval [t_n, t_{n+1}].  These are stored in the list
         `self.sample_values` as functions in the same FunctionSpace as `self.u0`.  The resulting
         expressions can then be assigned to a Function on that same FunctionSpace.
-        '''
+        """
         pts = numpy.reshape(self.sample_points, (-1, 1))
         vander = self.tabulate_poly(pts)
 
-        self.u_old = Function(self.u0)
+        self.u_old = self._backend.Function(self.u0)
         ks = [self.u_old]
         ks.extend(split_stages(self.u0.function_space(), self.stages))
         num_samples = vander.shape[1]
-        self.sample_values = [sum(ks[j] * vander[j, i] for j in range(len(ks)))
-                              for i in range(num_samples)]
+        self.sample_values = [
+            sum(ks[j] * vander[j, i] for j in range(len(ks)))
+            for i in range(num_samples)
+        ]
 
     def invalidate_jacobian(self):
         """
         Forces the matrix to be reassembled next time it is required.
         """
-        LinearVariationalSolver.invalidate_jacobian(self.solver)
+        self._backend.invalidate_jacobian(self.solver)

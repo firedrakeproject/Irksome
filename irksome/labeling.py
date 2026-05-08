@@ -13,6 +13,7 @@ class TimeQuadratureLabel(Label):
     """If the constructor gets one argument, it's an integer for the
     order of the quadrature rule.
     If there are two arguments, assume they are the points and weights."""
+
     def __init__(self, *args, scheme="default"):
         if len(args) == 1:
             Q = create_time_quadrature(args[0], scheme=scheme)
@@ -40,7 +41,9 @@ def has_quad_labels(term):
     return any(isinstance(label, TimeQuadratureRule) for label in term.labels)
 
 
-def apply_time_quadrature_labels(form, degree_estimator, scheme=None, max_quadrature_degree=None):
+def apply_time_quadrature_labels(
+    form, degree_estimator, scheme=None, max_quadrature_degree=None
+):
     """
     Estimates the polynomial degree in time for each integral in the given form and labels
     each term with a quadrature rule to be used for time integration.
@@ -58,19 +61,25 @@ def apply_time_quadrature_labels(form, degree_estimator, scheme=None, max_quadra
     # Split labelled and unlabelled parts
     if isinstance(form, LabelledForm):
         F = form.label_map(has_quad_labels, map_if_true=keep, map_if_false=drop)
-        form = as_form(form.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep))
+        form = as_form(
+            form.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep)
+        )
     elif isinstance(form, BaseForm):
         F = LabelledForm()
     else:
-        raise ValueError(f"Expecting a BaseForm or a LabelledForm, not {type(form).__name__}")
+        raise ValueError(
+            f"Expecting a BaseForm or a LabelledForm, not {type(form).__name__}"
+        )
 
     if not isinstance(form, Form) and isinstance(form, BaseForm):
         # Label the non-integral components
         if isinstance(form, FormSum):
             ws = form.weights()
             fs = form.components()
-            form = sum((w*f for f, w in zip(fs, ws) if isinstance(f, Form)), Form([]))
-            base_form = FormSum(*((f, w) for f, w in zip(fs, ws) if not isinstance(f, Form)))
+            form = sum((w * f for f, w in zip(fs, ws) if isinstance(f, Form)), Form([]))
+            base_form = FormSum(
+                *((f, w) for f, w in zip(fs, ws) if not isinstance(f, Form))
+            )
         else:
             base_form = form
             form = Form([])
@@ -99,7 +108,9 @@ def apply_time_quadrature_labels(form, degree_estimator, scheme=None, max_quadra
     return F
 
 
-def split_quadrature(F, degree_estimator=None, Qdefault=None, max_quadrature_degree=None):
+def split_quadrature(
+    F, degree_estimator=None, Qdefault=None, max_quadrature_degree=None
+):
     """Splits a :class:`LabelledForm` into the terms to be integrated in time by the
     different :class:`TimeQuadratureRule` objects used as labels.
 
@@ -117,34 +128,46 @@ def split_quadrature(F, degree_estimator=None, Qdefault=None, max_quadrature_deg
     do_estimate_degrees = Qdefault is None or isinstance(Qdefault, str)
     if do_estimate_degrees:
         scheme = Qdefault
-        F = apply_time_quadrature_labels(F, degree_estimator, scheme=scheme,
-                                         max_quadrature_degree=max_quadrature_degree)
+        F = apply_time_quadrature_labels(
+            F,
+            degree_estimator,
+            scheme=scheme,
+            max_quadrature_degree=max_quadrature_degree,
+        )
 
     if not isinstance(F, LabelledForm):
         return {Qdefault: F}
 
     quad_labels = set()
     for term in F.terms:
-        cur_labels = [label for label in term.labels if isinstance(label, TimeQuadratureRule)]
+        cur_labels = [
+            label for label in term.labels if isinstance(label, TimeQuadratureRule)
+        ]
         if len(cur_labels) == 1:
             quad_labels.update(cur_labels)
         elif len(cur_labels) > 1:
             raise ValueError("Multiple quadrature labels on one term.")
 
     splitting = {}
-    Fdefault = as_form(F.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep))
+    Fdefault = as_form(
+        F.label_map(has_quad_labels, map_if_true=drop, map_if_false=keep)
+    )
     if do_estimate_degrees:
         # every term must have been labelled at this point
         assert Fdefault.empty()
     else:
         splitting[Qdefault] = Fdefault
     for Q in quad_labels:
-        splitting[Q] = F.label_map(lambda t: Q in t.labels, map_if_true=keep, map_if_false=drop)
+        splitting[Q] = F.label_map(
+            lambda t: Q in t.labels, map_if_true=keep, map_if_false=drop
+        )
 
     # collapse TimeQuadratureRules based on numerical equality
-    rule_equals = lambda Q1, Q2: (type(Q1) == type(Q2)
-                                  and np.array_equal(Q1.get_points(), Q2.get_points())
-                                  and np.array_equal(Q1.get_weights(), Q2.get_weights()))
+    rule_equals = lambda Q1, Q2: (
+        type(Q1) == type(Q2)
+        and np.array_equal(Q1.get_points(), Q2.get_points())
+        and np.array_equal(Q1.get_weights(), Q2.get_weights())
+    )
 
     forms = defaultdict(lambda: Form([]))
     for Q in sorted(splitting, key=lambda Q: tuple(Q.get_points()), reverse=True):
@@ -158,12 +181,13 @@ def split_quadrature(F, degree_estimator=None, Qdefault=None, max_quadrature_deg
 def split_explicit(F):
     if not isinstance(F, LabelledForm):
         return (F, None)
-    exp_part = F.label_map(lambda t: t.has_label(explicit),
-                           map_if_true=keep,
-                           map_if_false=drop)
+    exp_part = F.label_map(
+        lambda t: t.has_label(explicit), map_if_true=keep, map_if_false=drop
+    )
 
-    imp_part = F.label_map(lambda t: t.labels == {},
-                           map_if_true=keep, map_if_false=drop)
+    imp_part = F.label_map(
+        lambda t: t.labels == {}, map_if_true=keep, map_if_false=drop
+    )
 
     return as_form(imp_part), as_form(exp_part)
 
@@ -185,7 +209,9 @@ def as_linear_form(F, u0):
     nargs = len(form.arguments())
     if nargs == 2:
         if u0 in form.coefficients():
-            raise ValueError("The provided bilinear form must not depend on the solution")
+            raise ValueError(
+                "The provided bilinear form must not depend on the solution"
+            )
         test, trial = form.arguments()
         F = replace(F, {trial: u0})
     elif nargs != 1:
