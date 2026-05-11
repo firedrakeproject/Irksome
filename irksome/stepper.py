@@ -8,6 +8,8 @@ from .labeling import split_explicit
 from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
 from .stage_value import StageValueTimeStepper
 from .tools import AI
+from .multistep import MultistepTimeStepper
+from .tableaux.multistep_tableaux import MultistepTableau
 
 valid_base_kwargs = ("bcs", "form_compiler_parameters",
                      "is_linear", "constant_jacobian",
@@ -16,20 +18,22 @@ valid_base_kwargs = ("bcs", "form_compiler_parameters",
                      "appctx", "options_prefix", "pre_apply_bcs")
 
 valid_kwargs_per_stage_type = {
-    "deriv": ["Fp", "stage_type", "bc_type", "splitting", "adaptive_parameters", "aux_indices"],
+    "deriv": ["Fp", "stage_type", "bc_type", "splitting", "adaptive_parameters", "aux_indices", "sample_points"],
     "value": ["Fp", "stage_type", "basis_type",
-              "update_solver_parameters", "splitting", "bounds", "use_collocation_update"],
+              "update_solver_parameters", "splitting", "bounds", "use_collocation_update", "sample_points"],
     "dirk": ["Fp", "stage_type"],
     "explicit": ["Fp", "stage_type"],
     "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
              "splitting", "num_its_initial", "num_its_per_step"],
     "dirkimex": ["Fexp", "stage_type", "mass_parameters"],
-    "dg": ["Fp"],
-    "cpg": ["Fp", "bc_type", "aux_indices"]}
+    "dg": ["Fp", "sample_points"],
+    "cpg": ["Fp", "bc_type", "aux_indices", "sample_points"]}
 
 valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "max_reject", "onscale_factor",
                           "safety_factor", "gamma0_params"]
+
+valid_multistep_kwargs = ("Fp", "bounds", "startup_parameters")
 
 
 def imex_separation(F, Fexp_kwarg, label):
@@ -104,8 +108,12 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         accurate. Currently, only constant-in-time boundary conditions are
         supported.
     :kwarg aux_indices: Only valid for continuous Petrov Galerkin time scheme.  It
-        specifies that some of the variables in ``u0`` are to be treated as
+        specifies that some of the variables in `u0` are to be treated as
         auxiliary, that is, discretized in the lower-order DG test space.
+    :startup_parameters: An optional :class:`dict` containing parameters used to automatically
+        find starting values for multistep methods.
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
+        at additional points in time.
     """
     # first pluck out the cases for Galerkin in time...
 
@@ -115,6 +123,24 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
     elif isinstance(method, ContinuousPetrovGalerkinScheme):
         assert set(kwargs.keys()).issubset(list(valid_base_kwargs) + valid_kwargs_per_stage_type["cpg"])
         return ContinuousPetrovGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
+
+    # then, pluck out the case for multistep methods...
+
+    if isinstance(method, MultistepTableau):
+        base_kwargs = {}
+        for k in valid_base_kwargs:
+            if k in kwargs:
+                base_kwargs[k] = kwargs.pop(k)
+
+        bcs = base_kwargs.pop("bcs", None)
+        for cur_kwarg in kwargs.keys():
+            if cur_kwarg not in valid_multistep_kwargs:
+                raise ValueError(f"kwarg {cur_kwarg} is not allowable for MultistepTimeStepper")
+
+        bounds = kwargs.pop('bounds', None)
+        Fp = kwargs.pop('Fp', None)
+        startup_parameters = kwargs.pop('startup_parameters', None)
+        return MultistepTimeStepper(F, method, t, dt, u0, bcs=bcs, Fp=Fp, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
 
     stage_type = kwargs.pop("stage_type", "deriv")
     adapt_params = kwargs.pop("adaptive_parameters", None)
@@ -136,10 +162,12 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         bc_type = kwargs.get("bc_type", "DAE")
         splitting = kwargs.get("splitting", AI)
         aux_indices = kwargs.get("aux_indices", None)
+        sample_points = kwargs.get("sample_points", None)
+
         if adapt_params is None:
             return StageDerivativeTimeStepper(
                 F, method, t, dt, u0, bcs, Fp=Fp,
-                bc_type=bc_type, splitting=splitting, aux_indices=aux_indices, **base_kwargs)
+                bc_type=bc_type, splitting=splitting, aux_indices=aux_indices, sample_points=sample_points, **base_kwargs)
         else:
             for param in adapt_params:
                 assert param in valid_adapt_parameters
@@ -166,11 +194,13 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         update_solver_parameters = kwargs.get("update_solver_parameters")
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
+        sample_points = kwargs.get("sample_points", None)
         return StageValueTimeStepper(
             F, method, t, dt, u0, bcs=bcs, Fp=Fp,
             splitting=splitting, basis_type=basis_type,
             update_solver_parameters=update_solver_parameters,
             bounds=bounds, use_collocation_update=use_collocation_update,
+            sample_points=sample_points,
             **base_kwargs)
     elif stage_type == "dirk":
         Fp = kwargs.get("Fp", None)

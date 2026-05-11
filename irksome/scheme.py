@@ -72,6 +72,7 @@ class DiscontinuousGalerkinScheme(GalerkinScheme):
         if deriv_type not in {'weak', 'strong'}:
             raise ValueError("deriv_type must be either 'weak' or 'strong'.")
         self.deriv_type = deriv_type
+        self.num_stages = order + 1
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
                          quadrature_scheme=quadrature_scheme,
@@ -87,6 +88,7 @@ class ContinuousPetrovGalerkinScheme(GalerkinScheme):
                  max_quadrature_degree=None):
         if order < 1:
             raise ValueError(f"{type(self).__name__} must have order >= 1")
+        self.num_stages = order
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
                          quadrature_scheme=quadrature_scheme,
@@ -106,14 +108,12 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
             test_type = "spectral"
         elif quadrature_scheme in {"radau", "lobatto"}:
             test_type = quadrature_scheme
-            if quadrature_degree is None:
-                # Default to under-integration!
-                if quadrature_scheme == "radau":
-                    quadrature_degree = 2*order-2
-                elif quadrature_scheme == "lobatto":
-                    quadrature_degree = 2*order-3
         else:
             raise ValueError(f"Unsupported quadrature scheme {quadrature_scheme}.")
+
+        if quadrature_degree is None:
+            # Default to under-integration
+            quadrature_degree = collocation_quadrature_degree(order, quadrature_scheme)
 
         if stage_type not in {"deriv", "value"}:
             raise ValueError(f"Unsupported stage type {stage_type}.")
@@ -121,6 +121,33 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
         trial_type = stage_type
         basis_type = (trial_type, test_type)
         super().__init__(order, basis_type=basis_type,
+                         quadrature_degree=quadrature_degree,
+                         quadrature_scheme=quadrature_scheme,
+                         max_quadrature_degree=max_quadrature_degree)
+
+
+class DiscontinuousGalerkinCollocationScheme(DiscontinuousGalerkinScheme):
+    """Class for describing collocation DG-in-time methods"""
+    def __init__(self, order,
+                 deriv_type="strong",
+                 quadrature_degree=None,
+                 quadrature_scheme="radau",
+                 max_quadrature_degree=None):
+        if order < 0:
+            raise ValueError(f"{type(self).__name__} must have order >= 0")
+        if quadrature_scheme is None:
+            basis_type = "spectral"
+        elif quadrature_scheme in {"radau", "lobatto"}:
+            basis_type = quadrature_scheme
+        else:
+            raise ValueError(f"Unsupported quadrature scheme {quadrature_scheme}.")
+
+        if quadrature_degree is None:
+            # Default to under-integration
+            quadrature_degree = collocation_quadrature_degree(order+1, quadrature_scheme)
+
+        super().__init__(order, basis_type=basis_type,
+                         deriv_type=deriv_type,
                          quadrature_degree=quadrature_degree,
                          quadrature_scheme=quadrature_scheme,
                          max_quadrature_degree=max_quadrature_degree)
@@ -141,3 +168,19 @@ def create_time_quadrature(degree, scheme=None):
         return GaussLobattoLegendreQuadratureLineRule(ufc_line, num_points)
     else:
         return create_quadrature(ufc_line, degree, scheme=scheme or "default")
+
+
+def collocation_quadrature_degree(trial_degree, scheme):
+    """Return the quadrature degree for a collocation scheme."""
+    if scheme is None:
+        scheme = "default"
+    scheme = scheme.lower()
+    if scheme == "default":
+        degree = 2*trial_degree-1
+    elif scheme == "radau":
+        degree = 2*trial_degree-2
+    elif scheme == "lobatto":
+        degree = 2*trial_degree-3
+    else:
+        raise ValueError(f"Unrecognized quadrature scheme {scheme}")
+    return degree

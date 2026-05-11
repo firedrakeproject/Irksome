@@ -9,7 +9,7 @@ from .bcs import bc2space, extract_bcs, stage2spaces4bc
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
-from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
+from .scheme import create_time_quadrature, ufc_line
 from .tools import AI, IA, dot, fields_to_components, reshape, replace
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
@@ -315,9 +315,9 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         self.quadrature = quadrature
         self.max_quadrature_degree = scheme.max_quadrature_degree
         self.aux_indices = aux_indices
-        if isinstance(scheme, GalerkinCollocationScheme):
+        try:
             self.butcher_tableau = CollocationButcherTableau(self.test_el, None)
-        else:
+        except TypeError:
             self.butcher_tableau = None
 
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, **kwargs)
@@ -432,3 +432,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                     sbit.zero()
                 else:
                     sbit.assign(u0bit * dof)
+
+    def tabulate_poly(self, sample_points):
+        vander = vecconst(self.trial_el.tabulate(0, sample_points)[(0,)])
+        return vander

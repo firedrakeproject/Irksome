@@ -3,6 +3,7 @@ import numpy
 from numpy import vander, zeros
 from numpy.linalg import solve
 from FIAT.quadrature_schemes import create_quadrature
+from ..tools import get_lagrange_permutation
 
 
 class ButcherTableau(object):
@@ -78,19 +79,7 @@ class CollocationButcherTableau(ButcherTableau):
     :arg order: the order of the resulting RK method.
     """
     def __init__(self, L, order):
-        assert L.ref_el.get_spatial_dimension() == 1
-
-        points = []
-        for ell in L.dual.nodes:
-            assert isinstance(ell, FIAT.functional.PointEvaluation)
-            # Assert singleton point for each node.
-            pt, = ell.get_point_dict().keys()
-            points.append(pt[0])
-
-        c = numpy.asarray(points)
-        # GLL DOFs are ordered by increasing entity dimension!
-        perm = numpy.argsort(c)
-        c = c[perm]
+        c, perm = get_lagrange_permutation(L)
 
         num_stages = len(c)
 

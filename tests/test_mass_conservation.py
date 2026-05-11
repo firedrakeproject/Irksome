@@ -11,7 +11,7 @@ from firedrake import (
     Constant, Function, FunctionSpace, TestFunction,
     UnitSquareMesh, assemble, ds, dx, exp, grad, inner,
 )
-from irksome import BackwardEuler, DiscontinuousGalerkinScheme, Dt, RadauIIA, TimeStepper
+from irksome import BackwardEuler, DiscontinuousGalerkinScheme, Dt, RadauIIA, TimeStepper, BDF, AdamsMoulton, MultistepTableau
 import numpy as np
 
 
@@ -42,6 +42,10 @@ def run_richards(scheme, **kwargs):
     F = inner(Dt(theta(h)), v) * dx
     F += inner(conductivity(h) * grad(h), grad(v)) * dx
     F -= inner(flux, v) * ds(4)
+    if isinstance(scheme, MultistepTableau):
+        kwargs.pop('stage_type')
+        kwargs['startup_parameters'] = {'tableau': RadauIIA(2),
+                                        'stepper_kwargs': {'stage_type': 'value'}}
 
     stepper = TimeStepper(F, scheme, t, dt, h,
                           solver_parameters={
@@ -49,6 +53,10 @@ def run_richards(scheme, **kwargs):
                               "snes_atol": 1e-14,
                           },
                           **kwargs)
+
+    if isinstance(scheme, MultistepTableau):
+        stepper.startup()
+        t.assign(stepper.startup_t)
 
     area = assemble(1*ds(4, domain=mesh))
     # Interpolate a Constant into V to compute mass with the same quadrature rule
@@ -72,8 +80,8 @@ def run_richards(scheme, **kwargs):
     return mean_error
 
 
-@pytest.mark.parametrize("scheme", [BackwardEuler(), RadauIIA(2)],
-                         ids=["BackwardEuler", "RadauIIA2"])
+@pytest.mark.parametrize("scheme", [BackwardEuler(), RadauIIA(2), BDF(1), AdamsMoulton(0), AdamsMoulton(1), AdamsMoulton(2)],
+                         ids=["BackwardEuler", "RadauIIA2", "BDF1", "AM0", "AM1", "AM2"])
 def test_mass_conservation_stage_value(scheme):
     """Test mass conservation with Dt(theta(h))"""
     err = run_richards(scheme, stage_type="value")
