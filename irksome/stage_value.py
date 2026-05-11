@@ -190,6 +190,14 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
                          **kwargs)
 
+        # Conservative variational update inherits the stage solve's
+        # parameters by default: same form structure, same Jacobian
+        # sparsity, so the same preconditioner is the right starting
+        # point.  Callers who want a different setup can pass
+        # update_solver_parameters explicitly.
+        if update_solver_parameters is None:
+            update_solver_parameters = solver_parameters
+
         self.set_initial_guess()
 
         if use_collocation_update:
@@ -325,6 +333,13 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         return unew, update_solver
 
     def _update_general(self):
+        # Seed unew with u0 before solving.  The conservative head's
+        # Jacobian is the moisture-capacity-weighted mass matrix
+        # C(unew)*v*phi*dx, and for soils like Haverkamp the capacity
+        # vanishes at h = 0 -- so a fresh Function (zero-initialised)
+        # gives a singular initial Jacobian and SNES fails before
+        # taking any Newton step.  u0 is the natural warm start anyway.
+        self.unew.assign(self.u0)
         self.update_solver.solve()
         self.u0.assign(self.unew)
 
