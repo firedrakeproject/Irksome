@@ -1,4 +1,4 @@
-"""Classification contract for ``has_composite_time_derivative``.
+"""Classification contract for ``has_nonlinear_time_derivative``.
 
 The helper is what routes stage_value between the existing
 linear-combination update (``_update_Ainv``) and the new conservative
@@ -23,7 +23,7 @@ from firedrake import (
 from ufl import sin
 
 from irksome import Dt
-from irksome.ufl.manipulation import has_composite_time_derivative
+from irksome.ufl.manipulation import has_nonlinear_time_derivative
 
 
 def _theta(h, theta_r=Constant(0.15), theta_s=Constant(0.45),
@@ -39,7 +39,7 @@ def setup():
     return V, Function(V), TestFunction(V), Constant(0.0)
 
 
-def test_linear_arithmetic_is_not_composite(setup):
+def test_linear_arithmetic_is_not_flagged(setup):
     """Constant-coefficient scalings of u and additive time forcings must
     not be flagged.  These are linear in u; ``_update_Ainv`` is correct
     for them and is also the path that handles DAE structure."""
@@ -52,13 +52,13 @@ def test_linear_arithmetic_is_not_composite(setup):
     }
     for name, expr in forms.items():
         F = inner(expr, v) * dx
-        assert not has_composite_time_derivative(F, u), (
-            f"{name} was incorrectly flagged as composite -- the linear "
+        assert not has_nonlinear_time_derivative(F, u), (
+            f"{name} was incorrectly flagged as nonlinear -- the linear "
             "stage_value path would be skipped, breaking DAEs."
         )
 
 
-def test_nonlinear_is_composite(setup):
+def test_nonlinear_is_flagged(setup):
     """Genuinely nonlinear g(u) inside Dt must be flagged so that
     stage_value routes through the conservative variational update."""
     V, u, v, t = setup
@@ -69,7 +69,7 @@ def test_nonlinear_is_composite(setup):
     }
     for name, expr in nonlinear.items():
         F = inner(expr, v) * dx
-        assert has_composite_time_derivative(F, u), (
+        assert has_nonlinear_time_derivative(F, u), (
             f"{name} was missed -- this would silently produce a "
             "non-conservative discretisation for non-SA stage_value."
         )

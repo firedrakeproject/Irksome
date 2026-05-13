@@ -11,7 +11,7 @@ from ufl.constantvalue import as_ufl
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
-from .ufl.manipulation import (has_composite_time_derivative,
+from .ufl.manipulation import (has_nonlinear_time_derivative,
                                split_time_derivative_terms,
                                remove_time_derivatives)
 from .tools import AI, dot, reshape, replace
@@ -186,14 +186,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          sample_points=sample_points,
                          **kwargs)
 
-        # Conservative variational update inherits the stage solve's
-        # parameters by default: same form structure, same Jacobian
-        # sparsity, so the same preconditioner is the right starting
-        # point.  Callers who want a different setup can pass
-        # update_solver_parameters explicitly.
-        if update_solver_parameters is None:
-            update_solver_parameters = solver_parameters
-
         self.set_initial_guess()
 
         if use_collocation_update:
@@ -203,26 +195,19 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             self._update = self._update_collocation
 
         elif (not butcher_tableau.is_stiffly_accurate) and (vandermonde is None):
-            # For composite Dt(g(u)) we need the conservative variational
+            # For nonlinear Dt(g(u)) we need the conservative variational
             # update; the bAinv linear combination of stages is correct
             # for g = identity but breaks for nonlinear g.  For the
             # linear case we keep the bAinv shortcut: it is conservative
             # by construction (g = id makes both formulations agree)
             # AND it handles DAEs correctly, which the conservative
-            # variational update does not (it leaves the algebraic
-            # components of u_new unconstrained, producing a singular
-            # update Jacobian).
-            if has_composite_time_derivative(F, u0):
-                # Note: composite Dt(g(u)) on a DAE form (where some
-                # component of u0 has no time evolution) is not
-                # supported by this path -- the conservative variational
-                # update leaves the algebraic block unconstrained, and
-                # SNES will fail with a singular linear solve.  We do
-                # not detect this up-front because the available
-                # syntactic checks (is_ode etc.) are confused by the
-                # chain-rule promotion of Dt(u[i]) -> Dt(u)[i].  Stiffly
-                # accurate methods (RadauIIA, BackwardEuler) avoid this
-                # since u_new = U_s and no update solve is needed.
+            # variational update does not.
+            if has_nonlinear_time_derivative(F, u0):
+                # The update solve uses the same form residual as the
+                # stage solve, posed on V rather than V^s.  Inherit
+                # solver parameters; callers can override.
+                if update_solver_parameters is None:
+                    update_solver_parameters = solver_parameters
                 self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
                 self._update = self._update_general
             else:
@@ -233,6 +218,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                     self.update_scale = 1-numpy.sum(self.bAinv)
                     self._update = self._update_Ainv
                 except numpy.linalg.LinAlgError:
+                    if update_solver_parameters is None:
+                        update_solver_parameters = solver_parameters
                     self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
                     self._update = self._update_general
         else:
@@ -252,16 +239,19 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             u0bit.assign(self.stages.subfunctions[self.num_fields*(self.num_stages-1)+i])
 
     def get_update_solver(self, update_solver_parameters):
-        # Build a conservative variational update for u_new from the
-        # stage values.  The head is the same two-evaluation form used
-        # in the stage equations, evaluated at unew and u0:
-        #
-        #     replace(F_dtless, {u0: unew}) - replace(F_dtless, {u0: u0})
-        #
-        # which expands to inner(g(unew) - g(u0), v)*dx for the typical
-        # mass term inner(Dt(g(u)), v)*dx.  For g = identity this is
-        # exactly inner(unew - u0, v)*dx -- the previous head -- so the
-        # discrete update equation is unchanged in the linear case.
+        """Build a conservative variational update solve for u_new.
+
+        For a mass term ``inner(Dt(g(u)), v) * dx`` the update head is
+
+            inner(g(u_new) - g(u_0), v) * dx
+
+        evaluated at the stage-solve test function ``v``.  For
+        ``g = identity`` it reduces to ``inner(u_new - u_0, v) * dx``,
+        so the discrete update equation is unchanged in the linear
+        case.  The remaining (non-time-derivative) part of the form is
+        contributed by the standard RK quadrature
+        ``sum_i b_i * F_remainder(stage_i)``.
+        """
         F = self.F
         t = self.t
         dt = self.dt
@@ -272,10 +262,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         F_dtless = remove_time_derivatives(split_form.time)
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
-        # Two-evaluation conservative head.  Subtracting the two
-        # replaced forms keeps the test function v unchanged in both,
-        # so the result is a single Form valid for assembly.
-        Fupdate = replace(F_dtless, {u0: unew}) - replace(F_dtless, {u0: u0})
+        Fupdate = replace(F_dtless, {u0: unew}) - F_dtless
 
         C = vecconst(self.butcher_tableau.c)
         B = vecconst(self.butcher_tableau.b)
@@ -303,12 +290,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         return unew, update_solver
 
     def _update_general(self):
-        # Seed unew with u0 before solving.  The conservative head's
-        # Jacobian is the moisture-capacity-weighted mass matrix
-        # C(unew)*v*phi*dx, and for soils like Haverkamp the capacity
-        # vanishes at h = 0 -- so a fresh Function (zero-initialised)
-        # gives a singular initial Jacobian and SNES fails before
-        # taking any Newton step.  u0 is the natural warm start anyway.
+        # Constant-in-time initial guess to prevent singular Jacobian
         self.unew.assign(self.u0)
         self.update_solver.solve()
         self.u0.assign(self.unew)

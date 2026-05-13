@@ -25,7 +25,7 @@ from ufl.classes import (
 from .deriv import TimeDerivative
 
 __all__ = ("SplitTimeForm", "check_integrals", "split_time_derivative_terms",
-           "remove_time_derivatives", "has_composite_time_derivative")
+           "remove_time_derivatives", "has_nonlinear_time_derivative")
 
 
 # UFL classes that propagate the chain rule linearly through their
@@ -51,7 +51,7 @@ def _depends_on(expr, u0):
 
 def _is_pass_through(f, u0):
     """True iff ``f`` is u0 wrapped in a tree of UFL operations that are
-    linear in u0.  Used by :func:`has_composite_time_derivative` to
+    linear in u0.  Used by :func:`has_nonlinear_time_derivative` to
     decide whether ``Dt(f)`` is safe to chain-rule (``True``) or
     represents ``Dt(g(u0))`` for some nonlinear g (``False``).
 
@@ -87,11 +87,12 @@ def _is_pass_through(f, u0):
     return False
 
 
-def has_composite_time_derivative(F, u0):
-    """True iff ``F`` contains a TimeDerivative of a non-trivial expression
-    in u0 -- i.e. ``Dt(g(u0))`` for some nonlinear g.  These cases lose
-    mass conservation when chain-ruled through the stage-derivative form,
-    and require the conservative two-evaluation discretisation.
+def has_nonlinear_time_derivative(F, u0):
+    """True iff ``F`` contains a TimeDerivative of an expression that is
+    nonlinear in u0 -- i.e. ``Dt(g(u0))`` for some nonlinear g.  These
+    cases lose mass conservation when chain-ruled through the
+    stage-derivative form, and require the conservative two-evaluation
+    discretisation.
 
     Cases that are NOT flagged:
 
