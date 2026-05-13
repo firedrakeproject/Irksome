@@ -3,8 +3,7 @@ import numpy
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
-                       NonlinearVariationalSolver, TestFunction, dx,
-                       inner)
+                       NonlinearVariationalSolver, TestFunction)
 from ufl import as_tensor, Form
 from ufl.constantvalue import as_ufl
 

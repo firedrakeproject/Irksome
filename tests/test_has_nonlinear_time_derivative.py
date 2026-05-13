@@ -45,10 +45,10 @@ def test_linear_arithmetic_is_not_flagged(setup):
     for them and is also the path that handles DAE structure."""
     V, u, v, t = setup
     forms = {
-        "Dt(2*u)":         Dt(Constant(2.0) * u),
-        "Dt(u/2)":         Dt(u / Constant(2.0)),
-        "Dt(u + sin(t))":  Dt(u + sin(t)),
-        "Dt(2*u + 3)":     Dt(Constant(2.0) * u + Constant(3.0)),
+        "Dt(2*u)": Dt(Constant(2.0) * u),
+        "Dt(u/2)": Dt(u / Constant(2.0)),
+        "Dt(u + sin(t))": Dt(u + sin(t)),
+        "Dt(2*u + 3)": Dt(Constant(2.0) * u + Constant(3.0)),
     }
     for name, expr in forms.items():
         F = inner(expr, v) * dx
@@ -63,9 +63,9 @@ def test_nonlinear_is_flagged(setup):
     stage_value routes through the conservative variational update."""
     V, u, v, t = setup
     nonlinear = {
-        "Dt(u*u)":      Dt(u * u),
+        "Dt(u*u)": Dt(u * u),
         "Dt(theta(u))": Dt(_theta(u)),
-        "Dt(1/u)":      Dt(Constant(1.0) / u),
+        "Dt(1/u)": Dt(Constant(1.0) / u),
     }
     for name, expr in nonlinear.items():
         F = inner(expr, v) * dx
