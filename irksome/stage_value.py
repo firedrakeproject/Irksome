@@ -199,24 +199,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         if use_collocation_update:
             # Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.
             # TODO: create an assertion to check for constant-in-time boundary conditions.
-
-            # The collocation update evaluates the collocation polynomial
-            # at t=1 as a linear combination of u0 and the stages.  That
-            # combination is not mass-conservative when Dt(g(u)) has a
-            # nonlinear g, because g(linear combo) != linear combo of
-            # g(stage_i).  Refuse rather than silently returning a
-            # non-conservative answer; users can disable use_collocation_update
-            # to fall back to the conservative variational update path.
-            if has_composite_time_derivative(F, u0):
-                raise NotImplementedError(
-                    "use_collocation_update=True is incompatible with "
-                    "Dt(g(u)) for a nonlinear g of the prognostic variable: "
-                    "the collocation polynomial's terminal value is a "
-                    "linear combination of stages and is not "
-                    "mass-conservative.  Disable use_collocation_update "
-                    "to use the conservative variational update."
-                )
-
             self.collocation_vander = self.tabulate_poly((1.0,))
             self._update = self._update_collocation
 

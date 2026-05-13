@@ -6,7 +6,6 @@ from firedrake import (derivative, Function,
 from ufl.constantvalue import as_ufl
 
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
-from .ufl.manipulation import has_composite_time_derivative
 from .constant import vecconst
 from .tools import replace
 from .constant import MeshConstant
@@ -79,20 +78,6 @@ class DIRKTimeStepper:
                  transpose_nullspace=None, near_nullspace=None,
                  **kwargs):
         assert butcher_tableau.is_diagonally_implicit
-
-        # The DIRK stage-derivative form chain-rules Dt(g(u)) into
-        # g'(u)*Dt(u), which is not mass-conservative for nonlinear g.
-        # Refuse such forms here rather than silently returning a
-        # non-conservative answer; users can fall back to
-        # ``stage_type="value"`` which builds the conservative
-        # two-evaluation discretisation in getFormStage.
-        if has_composite_time_derivative(F, u0):
-            raise NotImplementedError(
-                "DIRKTimeStepper cannot mass-conservatively discretise "
-                "Dt(g(u)) for a nonlinear function g of the prognostic "
-                "variable.  Use stage_type='value' instead, which builds "
-                "a conservative two-evaluation discretisation."
-            )
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0

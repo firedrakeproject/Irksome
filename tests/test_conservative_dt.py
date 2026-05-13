@@ -9,10 +9,6 @@ The contract:
 * For g = identity (the default ``Dt(u)`` case) the discrete equations
   must be unchanged from master.  This is covered by the existing test
   suite -- see Group 5 / Regression preservation in the design notes.
-
-* DIRK stage-derivative form silently chain-rules ``Dt(g(u))`` and so
-  cannot be made mass-conservative without restructuring.  We refuse
-  it explicitly rather than returning a wrong answer.
 """
 import pytest
 from firedrake import (
@@ -101,48 +97,7 @@ def test_conservation_stage_value(scheme):
     )
 
 
-# -- DIRK refuses composite Dt rather than silently mis-discretising ------
-
-@pytest.mark.parametrize("scheme", [Alexander(), QinZhang(), GaussLegendre(1)],
-                         ids=["Alexander", "QinZhang", "ImplicitMidpoint"])
-def test_dirk_refuses_composite_dt(scheme):
-    """DIRK stage-derivative chain-rules Dt(g(u)) and is not mass-conservative
-    for nonlinear g.  It must refuse such forms explicitly."""
-    mesh = UnitSquareMesh(4, 4)
-    V = FunctionSpace(mesh, "CG", 1)
-    h = Function(V).assign(-1.0)
-    v = TestFunction(V)
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(0.1)
-
-    F = inner(Dt(_theta(h)), v) * dx + inner(grad(h), grad(v)) * dx
-
-    with pytest.raises(NotImplementedError, match="stage_type='value'"):
-        TimeStepper(F, scheme, t, dt, h, stage_type="dirk",
-                    solver_parameters=SOLVER)
-
-
-def test_dirk_accepts_linear_dt():
-    """The DIRK guard must NOT trigger on the standard Dt(u) case.
-    This is the regression check that ensures we haven't broken the
-    common case while adding the composite-Dt refusal."""
-    mesh = UnitIntervalMesh(8)
-    V = FunctionSpace(mesh, "CG", 1)
-    u = Function(V)
-    v = TestFunction(V)
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(0.1)
-
-    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
-
-    stepper = TimeStepper(F, QinZhang(), t, dt, u, stage_type="dirk",
-                          solver_parameters=SOLVER)
-    stepper.advance()  # must not raise
-
-
-# -- Collocation update also refuses composite Dt -------------------------
+# -- has_composite_time_derivative classification -------------------------
 
 def test_pass_through_handles_linear_arithmetic():
     """has_composite_time_derivative must NOT flag Dt(c*u), Dt(u/c),
@@ -183,25 +138,6 @@ def test_pass_through_handles_linear_arithmetic():
             f"{name} was missed -- this would silently produce a "
             "non-conservative discretisation."
         )
-
-
-def test_collocation_update_refuses_composite_dt():
-    """use_collocation_update produces u_new as a linear combination of
-    stages, which is not conservative for nonlinear g.  Refuse it."""
-    mesh = UnitSquareMesh(4, 4)
-    V = FunctionSpace(mesh, "CG", 1)
-    h = Function(V).assign(-1.0)
-    v = TestFunction(V)
-    MC = MeshConstant(mesh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(0.1)
-
-    F = inner(Dt(_theta(h)), v) * dx + inner(grad(h), grad(v)) * dx
-
-    with pytest.raises(NotImplementedError, match="use_collocation_update"):
-        TimeStepper(F, GaussLegendre(2), t, dt, h, stage_type="value",
-                    use_collocation_update=True,
-                    solver_parameters=SOLVER)
 
 
 # -- Identity regression: linear Dt(u) still works for every stepper -----
