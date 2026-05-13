@@ -11,7 +11,10 @@ from firedrake import (
     Constant, Function, FunctionSpace, TestFunction,
     UnitSquareMesh, assemble, ds, dx, exp, grad, inner,
 )
-from irksome import BackwardEuler, DiscontinuousGalerkinScheme, Dt, RadauIIA, TimeStepper, BDF, AdamsMoulton, MultistepTableau
+from irksome import (
+    AdamsMoulton, BackwardEuler, BDF, DiscontinuousGalerkinScheme, Dt,
+    GaussLegendre, MultistepTableau, QinZhang, RadauIIA, TimeStepper,
+)
 import numpy as np
 
 
@@ -80,8 +83,19 @@ def run_richards(scheme, **kwargs):
     return mean_error
 
 
-@pytest.mark.parametrize("scheme", [BackwardEuler(), RadauIIA(2), BDF(1), AdamsMoulton(0), AdamsMoulton(1), AdamsMoulton(2)],
-                         ids=["BackwardEuler", "RadauIIA2", "BDF1", "AM0", "AM1", "AM2"])
+# The three non-SA tableaux at the end (GaussLegendre(1) = ImplicitMidpoint,
+# GaussLegendre(2), QinZhang) exercise the conservative variational update
+# path introduced for non-stiffly-accurate stage_value.  On master they fail
+# this test with mass errors of order 1e-6 to 1e-7 because the linear-
+# combination update destroys the conservation property the stage equations
+# build for nonlinear theta(h).
+@pytest.mark.parametrize("scheme",
+                         [BackwardEuler(), RadauIIA(2), BDF(1),
+                          AdamsMoulton(0), AdamsMoulton(1), AdamsMoulton(2),
+                          GaussLegendre(1), GaussLegendre(2), QinZhang()],
+                         ids=["BackwardEuler", "RadauIIA2", "BDF1",
+                              "AM0", "AM1", "AM2",
+                              "ImplicitMidpoint", "GaussLegendre2", "QinZhang"])
 def test_mass_conservation_stage_value(scheme):
     """Test mass conservation with Dt(theta(h))"""
     err = run_richards(scheme, stage_type="value")
