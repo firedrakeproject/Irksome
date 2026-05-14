@@ -11,7 +11,7 @@ from itertools import chain
 from operator import or_
 from typing import NamedTuple, Sequence, FrozenSet
 
-from ufl import TrialFunction, derivative
+from ufl import derivative
 from ufl.algorithms import expand_derivatives
 from ufl.algorithms.analysis import extract_coefficients, extract_type
 from ufl.corealg.traversal import traverse_unique_terminals
@@ -57,13 +57,12 @@ def has_nonlinear_time_derivative(F, u0):
        wrap the symbolic expression directly in ``Dt`` (as
        ``Dt(theta(u))``, not ``Dt(theta_function)``).
     """
-    Trial = TrialFunction(u0.function_space())
     for td in extract_type(F, TimeDerivative):
         f, = td.ufl_operands
         if u0 not in extract_coefficients(f):
             # Dt(f(t,x)) -- no u0 dependence, chain-ruled analytically
             continue
-        D = expand_derivatives(derivative(f, u0, Trial))
+        D = expand_derivatives(derivative(f, u0))
         if u0 in extract_coefficients(D):
             return True
     return False
