@@ -60,12 +60,15 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     """
     if bc_type is None:
         bc_type = "DAE"
-
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v, = F.arguments()
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
     V = v.function_space()
     assert V == u0.function_space()
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     c = vecconst(butch.c)
     bA1, bA2 = splitting(butch.A)
@@ -83,10 +86,10 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))
-    w_np = reshape(stages, (num_stages, *u0.ufl_shape))
+    w_np = reshape(stages, (num_stages, *u.ufl_shape))
     A1w = dot(A1, w_np)
     A2invw = dot(A2inv, w_np)
-    dtu = TimeDerivative(u0)
+    dtu = TimeDerivative(u)
 
     aux_components = fields_to_components(V, aux_indices or [])
 
@@ -101,7 +104,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
         repl[i] = {t: t + c[i] * dt,
                    v: v_np[i],
-                   u0: usub,
+                   u: usub,
                    dtu: dtusub}
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
@@ -115,7 +118,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
             if isinstance(bc, EquationBCSplit):
                 raise NotImplementedError("EquationBC not implemented for ODE formulation")
             gorig = as_ufl(bc._original_arg)
-            gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u0,))
+            gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u,))
             gcur = replace(gfoo, {t: t + c[i] * dt})
             return BCStageData(bc, gcur, u0, stages, i)
 
@@ -128,7 +131,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
         def bc2stagebc(bc, i):
             if isinstance(bc, EquationBCSplit):
-                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u0,))
+                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u,))
                 F_bc_new = replace(F_bc_orig, repl[i])
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
                 return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
@@ -231,8 +234,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             bcs = self.orig_bcs
         return getForm(F or self.F,
                        tableau or self.butcher_tableau,
-                       self.t, self.dt,
-                       self.u0, stages, bcs, self.bc_type,
+                       self.t, self.dt, self.u0,
+                       stages, bcs, self.bc_type,
                        splitting=self.splitting,
                        aux_indices=self.aux_indices)
 

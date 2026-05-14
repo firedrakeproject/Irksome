@@ -41,7 +41,11 @@ def getElement(basis_type, order):
 
 
 def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
-    v, = F.arguments()
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
     V = v.function_space()
     assert V == u0.function_space()
 
@@ -68,7 +72,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
     dtusub = dot(trial_dvals.T, u_np)
 
     # preprocess time derivatives
-    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
     F_dtless = remove_time_derivatives(split_form.time)
     if F_dtless.empty():
         Fnew = F_dtless
@@ -81,8 +85,8 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
         u_at_0 = dot(L_at_0.T, u_np)
         v_at_0 = dot(L_at_0.T, v_np)
 
-        repl_tminus = {v: v_at_0}
-        repl_tplus = {v: v_at_0, u0: u_at_0}
+        repl_tminus = {v: v_at_0, u: u0}
+        repl_tplus = {v: v_at_0, u: u_at_0}
         Fnew = replace(F_dtless, repl_tplus) - replace(F_dtless, repl_tminus)
         F_remainder = F
     elif deriv_type == "weak":
@@ -93,8 +97,8 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
         u_at_01 = dot(L_at_01.T, u_np)
         v_at_01 = dot(L_at_01.T, v_np)
 
-        repl_tminus = {v: v_at_01[0]}
-        repl_tnew = {v: v_at_01[1], u0: u_at_01[1], t: t + dt}
+        repl_tminus = {v: v_at_01[0], u: u0}
+        repl_tnew = {v: v_at_01[1], u: u_at_01[1], t: t + dt}
         Fnew = replace(F_dtless, repl_tnew) - replace(F_dtless, repl_tminus)
 
         # Terms with time derivatives: -(g(u), Dt(v))
@@ -103,20 +107,20 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
         for q in range(len(qpts)):
             repl = {t: t + qpts[q] * dt,
                     v: dtvsub[q],
-                    u0: usub[q]}
+                    u: usub[q]}
             Fnew -= replace(F_dtless, repl)
         F_remainder = split_form.remainder
     else:
         raise ValueError(f"Unrecongnized deriv_type {deriv_type}")
 
     # Handle the rest of the terms
-    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
-    dtu0 = TimeDerivative(u0)
+    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u,))
+    dtu = TimeDerivative(u)
     for q in range(len(qpts)):
         repl = {t: t + qpts[q] * dt,
                 v: vsub[q] * dt,
-                u0: usub[q],
-                dtu0: dtusub[q] / dt}
+                u: usub[q],
+                dtu: dtusub[q] / dt}
         Fnew += replace(F_remainder, repl)
     return Fnew
 

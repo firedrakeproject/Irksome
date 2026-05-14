@@ -1,18 +1,18 @@
 import FIAT
 import numpy as np
-from firedrake import (Function, LinearVariationalSolver,
-                       NonlinearVariationalProblem,
-                       NonlinearVariationalSolver, TestFunction,
-                       as_ufl, dx, inner)
-from ufl import zero
+from firedrake import Function, TestFunction
+from firedrake import LinearVariationalSolver as LVS
+from firedrake import LinearVariationalProblem as LVP
+from firedrake import NonlinearVariationalProblem as NLVP
+from firedrake import NonlinearVariationalSolver as NLVS
+from ufl import Form, as_ufl, dx, inner, lhs, rhs
 
 from .tableaux.ButcherTableaux import RadauIIA
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .stage_value import getFormStage
 from .tools import AI, IA, reshape, replace, getNullspace, get_stage_space
 from .bcs import bc2space
-from .constant import MeshConstant, ConstantOrZero
-from .labeling import as_linear_form
+from .constant import MeshConstant, vecconst
 
 
 def riia_explicit_coeffs(k):
@@ -41,15 +41,19 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     """Processes the explicitly split-off part for a RadauIIA-IMEX
     method.  Returns the forms for both the iterator and propagator,
     which really just differ by which constants are in them."""
-    v = Fexp.arguments()[0]
+    try:
+        v, u = Fexp.arguments()
+    except ValueError:
+        v, = Fexp.arguments()
+        u = u0
+    V = v.function_space()
+    assert V == u0.function_space()
     Vbig = UU.function_space()
     VV = TestFunction(Vbig)
 
     num_stages = butch.num_stages
 
     Aexp = riia_explicit_coeffs(num_stages)
-
-    vecconst = np.vectorize(ConstantOrZero)
 
     Aprop = vecconst(Aexp)
     Ait = vecconst(butch.A)
@@ -58,22 +62,22 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     v_np = reshape(VV, (num_stages, *u0.ufl_shape))
     u_np = reshape(UU, (num_stages, *u0.ufl_shape))
 
-    Fit = zero()
-    Fprop = zero()
+    Fit = Form([])
+    Fprop = Form([])
 
     # preprocess time derivatives
-    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u0,))
+    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u,))
 
     if splitting == AI:
         for i in range(num_stages):
             # replace test function
-            repl = {v: v_np[i]}
+            repl = {v: v_np[i], u: u0}
             Ftmp = replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt,
-                        u0: u_np[j]}
+                        u: u_np[j]}
 
                 # and sum the contribution
                 replF = replace(Ftmp, repl)
@@ -83,7 +87,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
         # diagonal contribution to iterator
         for i in range(num_stages):
             repl = {t: t+C[i]*dt,
-                    u0: u_np[i],
+                    u: u_np[i],
                     v: v_np[i]}
 
             Fit += dt * replace(Fexp, repl)
@@ -93,13 +97,13 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
 
         for i in range(num_stages):
             # replace test function
-            repl = {v: v_np[i]}
+            repl = {v: v_np[i], u: u0}
             Ftmp = replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt,
-                        u0: u_np[j]}
+                        u: u_np[j]}
 
                 # and sum the contribution
                 Fprop += AinvAexp[i, j] * dt * replace(Ftmp, repl)
@@ -195,8 +199,6 @@ class RadauIIAIMEXMethod:
         Vbig = get_stage_space(V, self.num_stages)
         UU = Function(Vbig)
 
-        F = as_linear_form(F, u0)
-        Fexp = as_linear_form(Fexp, u0)
         restrict = kwargs.pop("restrict", False)
         is_linear = kwargs.pop("is_linear", False)
         constant_jacobian = kwargs.pop("constant_jacobian", False)
@@ -217,15 +219,28 @@ class RadauIIAIMEXMethod:
         Fit, Fprop = getFormExplicit(
             Fexp, butcher_tableau, u0, UU_old, t, dt, splitting)
 
-        self.itprob = NonlinearVariationalProblem(
-            Fbig + Fit, UU, bcs=bigBCs,
-            is_linear=is_linear, restrict=restrict)
-        self.propprob = NonlinearVariationalProblem(
-            Fbig + Fprop, UU, bcs=bigBCs,
-            is_linear=is_linear, restrict=restrict)
+        F_linear = len(Fbig.arguments()) == 2
+        if F_linear:
+            F1 = Fbig + Fit
+            F2 = Fbig + Fprop
+            itprob = LVP(lhs(F1), rhs(F1), UU, bcs=bigBCs,
+                         constant_jacobian=constant_jacobian,
+                         restrict=restrict)
+            propprob = LVP(lhs(F2), rhs(F2), UU, bcs=bigBCs,
+                           constant_jacobian=constant_jacobian,
+                           restrict=restrict)
+            create_solver = LVS
+        else:
+            itprob = NLVP(Fbig + Fit, UU, bcs=bigBCs,
+                          is_linear=is_linear, restrict=restrict)
+            propprob = NLVP(Fbig + Fprop, UU, bcs=bigBCs,
+                            is_linear=is_linear, restrict=restrict)
+            itprob._constant_jacobian = constant_jacobian
+            propprob._constant_jacobian = constant_jacobian
+            create_solver = NLVS
 
-        self.itprob._constant_jacobian = constant_jacobian
-        self.propprob._constant_jacobian = constant_jacobian
+        self.itprob = itprob
+        self.propprob = propprob
 
         self.F = F
         self.orig_bcs = bcs
@@ -238,11 +253,11 @@ class RadauIIAIMEXMethod:
         else:
             appctx = {**appctx, **appctx_irksome}
 
-        self.it_solver = NonlinearVariationalSolver(
+        self.it_solver = create_solver(
             self.itprob, appctx=appctx,
             solver_parameters=it_solver_parameters,
             nullspace=nsp, **kwargs)
-        self.prop_solver = NonlinearVariationalSolver(
+        self.prop_solver = create_solver(
             self.propprob, appctx=appctx,
             solver_parameters=prop_solver_parameters,
             nullspace=nsp, **kwargs)
@@ -308,29 +323,39 @@ class RadauIIAIMEXMethod:
         """
         Forces the matrix to be reassembled next time it is required.
         """
-        LinearVariationalSolver.invalidate_jacobian(self.prop_solver)
-        LinearVariationalSolver.invalidate_jacobian(self.it_solver)
+        LVS.invalidate_jacobian(self.prop_solver)
+        LVS.invalidate_jacobian(self.it_solver)
 
 
 def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
 
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u0,))
-
-    v = F.arguments()[0]
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
     V = v.function_space()
     assert V == u0.function_space()
 
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
+    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u,))
+
     num_stages = butch.num_stages
-    k = Function(V)
+    k0 = Function(V)
     g = Function(V)
 
-    khat = Function(V)
+    khat0 = Function(V)
     ghat = Function(V)
     vhat = TestFunction(V)
+    if u == u0:
+        k = k0
+        khat = khat0
+    else:
+        k = u
+        khat = u
 
     # Note: the Constant c is used for substitution in both the
     # implicit variational form and BC's, and we update it for each stage in
@@ -342,19 +367,15 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     chat = MC.Constant(1.0)
     a = MC.Constant(1.0)
 
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u0,))
-
     # Implicit replacement, solve at time t + c * dt, for k
     repl = {t: t + c * dt,
-            u0: g + dt * a * k,
-            TimeDerivative(u0): k}
+            u: g + dt * a * k,
+            TimeDerivative(u): k}
     stage_F = replace(F, repl)
 
     # Explicit replacement, solve at time t + chat * dt, for khat
     replhat = {t: t + chat * dt,
-               u0: ghat}
+               u: ghat}
 
     Fhat = inner(khat, vhat)*dx + replace(Fexp, replhat)
 
@@ -386,7 +407,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
         gdat /= dt*d_val
         bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k, g, a, c), bcnew, Fhat, (khat, ghat, chat), (a_vals, ahat_vals, d_val)
+    return stage_F, (k0, g, a, c), bcnew, Fhat, (khat0, ghat, chat), (a_vals, ahat_vals, d_val)
 
 
 class DIRKIMEXMethod:
@@ -419,7 +440,6 @@ class DIRKIMEXMethod:
         self.ks = [Function(V) for _ in range(self.num_stages)]
         self.k_hat_s = [Function(V) for _ in range(self.num_stages)]
 
-        F = as_linear_form(F, u0)
         restrict = kwargs.pop("restrict", False)
         is_linear = kwargs.pop("is_linear", False)
         constant_jacobian = kwargs.pop("constant_jacobian", False)
@@ -444,17 +464,31 @@ class DIRKIMEXMethod:
         else:
             appctx = {**appctx, **appctx_irksome}
 
-        self.problem = NonlinearVariationalProblem(stage_F, k, bcnew,
-                                                   is_linear=is_linear, restrict=restrict)
-        self.problem._constant_jacobian = constant_jacobian
-        self.solver = NonlinearVariationalSolver(self.problem, appctx=appctx,
-                                                 solver_parameters=solver_parameters,
-                                                 nullspace=nullspace, **kwargs)
+        F_linear = len(stage_F.arguments()) == 2
+        if F_linear:
+            problem = LVP(lhs(stage_F), rhs(stage_F), k, bcnew,
+                          constant_jacobian=constant_jacobian,
+                          restrict=restrict)
+            mass_problem = LVP(lhs(Fhat), rhs(Fhat), khat,
+                               constant_jacobian=constant_jacobian)
+            create_solver = LVS
+        else:
+            problem = NLVP(stage_F, k, bcnew,
+                           is_linear=is_linear,
+                           restrict=restrict)
+            problem._constant_jacobian = constant_jacobian
+            mass_problem = NLVP(Fhat, khat, is_linear=True)
+            mass_problem._constant_jacobian = True
+            create_solver = NLVS
 
-        self.mass_problem = NonlinearVariationalProblem(Fhat, khat, is_linear=True)
-        self.problem._constant_jacobian = True
-        self.mass_solver = NonlinearVariationalSolver(self.mass_problem,
-                                                      solver_parameters=mass_parameters)
+        self.problem = problem
+        self.solver = create_solver(problem, appctx=appctx,
+                                    solver_parameters=solver_parameters,
+                                    nullspace=nullspace, **kwargs)
+
+        self.mass_problem = mass_problem
+        self.mass_solver = create_solver(mass_problem,
+                                         solver_parameters=mass_parameters)
 
         self.kgac = k, g, a, c
         self.kgchat = khat, ghat, chat
@@ -634,4 +668,4 @@ class DIRKIMEXMethod:
         """
         Forces the matrix to be reassembled next time it is required.
         """
-        LinearVariationalSolver.invalidate_jacobian(self.solver)
+        LVS.invalidate_jacobian(self.solver)

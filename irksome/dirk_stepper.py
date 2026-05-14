@@ -10,16 +10,22 @@ from .constant import vecconst
 from .tools import replace
 from .constant import MeshConstant
 from .bcs import bc2space
-from .labeling import as_linear_form
 
 
 def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None):
     if bcs is None:
         bcs = []
 
-    v, = F.arguments()
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
     V = v.function_space()
     assert V == u0.function_space()
+
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     num_stages = butch.num_stages
 
@@ -36,12 +42,9 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None):
     else:
         k, g, a, c = kgac
 
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-
     repl = {t: t + c * dt,
-            u0: g + k * (a * dt),
-            TimeDerivative(u0): k}
+            u: g + k * (a * dt),
+            TimeDerivative(u): k}
     stage_F = replace(F, repl)
 
     bcnew = []
@@ -121,8 +124,6 @@ class DIRKTimeStepper:
         # "ks" is a list of functions for the stage values
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
-        F = as_linear_form(F, u0)
-
         stage_F, kgac, bcnew, (a_vals, d_val) = getFormDIRK(
             F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
         k, g, a, c = kgac
@@ -132,9 +133,10 @@ class DIRKTimeStepper:
 
         stage_Jp = None
         if Fp is not None:
-            Fp = as_linear_form(Fp, u0)
-            stage_Fp, *_ = self.get_form_and_bcs(self.ks, F=Fp, bcs=())
-            stage_Jp = derivative(stage_Fp, k)
+            Fp_linear = len(Fp.arguments()) == 2
+            ks_Fp = Fp.arguments()[1] if Fp_linear else self.ks
+            stage_Fp, *_ = self.get_form_and_bcs(ks_Fp, F=Fp, bcs=())
+            stage_Jp = stage_Fp if Fp_linear else derivative(stage_Fp, k)
 
         appctx_irksome = {"stepper": self}
         if appctx is None:

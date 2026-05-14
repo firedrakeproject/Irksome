@@ -1,12 +1,12 @@
 from abc import abstractmethod
 from firedrake import (
-    derivative, replace, lhs, rhs, Function, TrialFunction,
+    derivative, lhs, rhs, Function, TrialFunction,
     LinearVariationalProblem, LinearVariationalSolver,
     NonlinearVariationalProblem, NonlinearVariationalSolver,
 )
 from firedrake.petsc import PETSc
 from .tools import AI, getNullspace, flatten_dats, split_stages
-from .labeling import as_form, as_linear_form
+from .labeling import as_form
 from .backend import get_backend
 import ufl
 import numpy
@@ -99,11 +99,6 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                  butcher_tableau=None, bounds=None, sample_points=None,
                  **kwargs):
 
-        is_linear = False
-        if len(as_form(F).arguments()) == 2:
-            F = as_linear_form(F, u0)
-            is_linear = True
-
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace)
 
@@ -123,23 +118,27 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         stages = self.get_stages()
         self.stages = stages
 
-        Fbig, bigBCs = self.get_form_and_bcs(stages)
-        Jpbig = None
-        if Fp is not None:
-            Fp = as_linear_form(Fp, u0)
-            Fpbig, _ = self.get_form_and_bcs(stages, F=Fp, bcs=())
-            Jpbig = derivative(Fpbig, stages)
-
         V = u0.function_space()
         Vbig = stages.function_space()
+
+        F_linear = len(as_form(F).arguments()) == 2
+        stages_F = TrialFunction(Vbig) if F_linear else stages
+        Fbig, bigBCs = self.get_form_and_bcs(stages_F)
+
+        Jpbig = None
+        if Fp is not None:
+            Fp_linear = len(as_form(Fp).arguments()) == 2
+            stages_Fp = TrialFunction(Vbig) if Fp_linear else stages
+            Fpbig, _ = self.get_form_and_bcs(stages_Fp, F=Fp, bcs=())
+            Jpbig = lhs(Fpbig) if Fp_linear else derivative(Fpbig, stages_Fp)
+
         nullspace = getNullspace(V, Vbig, num_stages, nullspace)
         transpose_nullspace = getNullspace(V, Vbig, num_stages, transpose_nullspace)
         near_nullspace = getNullspace(V, Vbig, num_stages, near_nullspace)
 
         self.bigBCs = bigBCs
 
-        if is_linear:
-            Fbig = replace(Fbig, {stages: TrialFunction(stages.function_space())})
+        if F_linear:
             abig = lhs(Fbig)
             Lbig = rhs(Fbig)
             problem = LinearVariationalProblem(
@@ -193,7 +192,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     # allow butcher tableau as input for preconditioners to create
     # an alternate operator
     @abstractmethod
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         pass
 
     def solver_stats(self):
