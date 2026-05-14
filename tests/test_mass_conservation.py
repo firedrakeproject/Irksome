@@ -50,11 +50,15 @@ def run_richards(scheme, **kwargs):
         kwargs['startup_parameters'] = {'tableau': RadauIIA(2),
                                         'stepper_kwargs': {'stage_type': 'value'}}
 
+    snes_params = {"snes_rtol": 1e-10, "snes_atol": 1e-14}
+    if kwargs.get("stage_type") == "value":
+        # The update solve does not inherit solver options from the stage
+        # solve; pass tight SNES tolerances explicitly so the conservation
+        # assertion below sits at machine precision rather than at the
+        # default SNES rtol.
+        kwargs["update_solver_parameters"] = snes_params
     stepper = TimeStepper(F, scheme, t, dt, h,
-                          solver_parameters={
-                              "snes_rtol": 1e-10,
-                              "snes_atol": 1e-14,
-                          },
+                          solver_parameters=snes_params,
                           **kwargs)
 
     if isinstance(scheme, MultistepTableau):
