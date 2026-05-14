@@ -18,6 +18,33 @@ from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
 
+# Default solver for the conservative update.  The update problem is a
+# nonlinear mass-matrix-like solve on V: the Jacobian is
+# g'(u_new) * v * phi * dx (the spatial terms in the RK quadrature are
+# evaluated at known stage values and are constant in u_new).  That
+# operator is SPD when g'(u) > 0 -- the well-posed case for Dt(g(u))
+# with g monotone -- and its condition number is bounded independent
+# of mesh size, so CG converges in O(1) iterations with a cheap
+# preconditioner.  bjacobi + icc respects the block structure of
+# vector / mixed V and degenerates gracefully on scalar V.
+#
+# Assumptions: g is monotone in u (g'(u) > 0 a.e.).  Points where g'
+# vanishes trip a zero pivot regardless of preconditioner choice.
+# Non-monotone g breaks SPD and needs an explicit override
+# (e.g. GMRES + a more general preconditioner).
+#
+# Does not inherit from solver_parameters: the stage problem lives on
+# V^s = V x ... x V and stage-tuned options -- fieldsplit indices,
+# snes_type='ksponly', lagged Jacobians, custom MG transfers -- do not
+# generally apply to the update solve on V.
+_DEFAULT_UPDATE_SOLVER_PARAMETERS = {
+    'snes_type': 'newtonls',
+    'ksp_type': 'cg',
+    'pc_type': 'bjacobi',
+    'sub_pc_type': 'icc',
+}
+
+
 def to_value(u0, stages, vandermonde):
     """convert from Bernstein to Lagrange representation
 
@@ -202,11 +229,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             # AND it handles DAEs correctly, which the conservative
             # variational update does not.
             if has_nonlinear_time_derivative(F, u0):
-                # The update solve uses the same form residual as the
-                # stage solve, posed on V rather than V^s.  Inherit
-                # solver parameters; callers can override.
                 if update_solver_parameters is None:
-                    update_solver_parameters = solver_parameters
+                    update_solver_parameters = _DEFAULT_UPDATE_SOLVER_PARAMETERS
                 self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
                 self._update = self._update_general
             else:
@@ -218,7 +242,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                     self._update = self._update_Ainv
                 except numpy.linalg.LinAlgError:
                     if update_solver_parameters is None:
-                        update_solver_parameters = solver_parameters
+                        update_solver_parameters = _DEFAULT_UPDATE_SOLVER_PARAMETERS
                     self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
                     self._update = self._update_general
         else:
@@ -250,6 +274,16 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         case.  The remaining (non-time-derivative) part of the form is
         contributed by the standard RK quadrature
         ``sum_i b_i * F_remainder(stage_i)``.
+
+        ``update_solver_parameters`` does not inherit from
+        ``solver_parameters``.  The update solve is a different
+        problem from the stage solve -- it is posed on ``V`` rather
+        than ``V^s = V x ... x V``, and its Jacobian is a (nonlinear)
+        weighted mass matrix rather than the stage operator.  Stage-
+        tuned options such as fieldsplit indices, ``snes_type='ksponly'``,
+        lagged Jacobians, or custom multigrid transfers generally do
+        not apply.  If ``update_solver_parameters`` is left as None the
+        default ``_DEFAULT_UPDATE_SOLVER_PARAMETERS`` is used.
         """
         F = self.F
         t = self.t
