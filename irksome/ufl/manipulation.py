@@ -18,8 +18,8 @@ from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.corealg.dag_traverser import DAGTraverser
 from ufl.classes import (
     BaseForm, CellAvg, Coefficient, ComponentTensor,
-    Conj, Cross, Derivative, Div, Division, Dot, Expr, FacetAvg,
-    Form, FormSum, Grad, Indexed, IndexSum, Inner, Integral,
+    Conj, Cross, Derivative, Division, Dot, Expr, FacetAvg,
+    Form, FormSum, Indexed, IndexSum, Inner, Integral,
     ListTensor, MultiIndex, NegativeRestricted, Outer, PositiveRestricted,
     Product, Sum, Variable,
 )
