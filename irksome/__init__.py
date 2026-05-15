@@ -14,7 +14,7 @@ from .tableaux.multistep_tableaux import (
     AdamsMoulton,
 )
 from .tableaux.pep_explicit_rk import PEPRK
-from .ufl.deriv import Dt, expand_time_derivatives, check_irksome_import_order
+from .ufl.deriv import Dt, expand_time_derivatives, lag, check_irksome_import_order
 
 check_irksome_import_order()
 
@@ -44,6 +44,7 @@ __all__ = [
     "expand_time_derivatives",
     "GalerkinCollocationScheme",
     "GaussLegendre",
+    "lag",
     "LobattoIIIA",
     "LobattoIIIC",
     "MeshConstant",

@@ -1,8 +1,7 @@
 import firedrake
 from firedrake import Constant, inner, grad, dx, conditional
 import irksome
-from irksome import Dt
-from irksome.ufl.deriv import lag
+from irksome import Dt, lag
 
 
 def test_stefan_implicit():
