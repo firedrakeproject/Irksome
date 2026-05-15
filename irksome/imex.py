@@ -1,18 +1,15 @@
 import FIAT
 import numpy as np
 from firedrake import Function, TestFunction
-from firedrake import LinearVariationalSolver as LVS
-from firedrake import LinearVariationalProblem as LVP
-from firedrake import NonlinearVariationalProblem as NLVP
-from firedrake import NonlinearVariationalSolver as NLVS
-from ufl import Form, as_ufl, dx, inner, lhs, rhs
+from ufl import Form, as_ufl, dx, inner
 
-from .tableaux.ButcherTableaux import RadauIIA
-from .ufl.deriv import TimeDerivative, expand_time_derivatives
-from .stage_value import getFormStage
-from .tools import AI, IA, reshape, replace, getNullspace, get_stage_space
+from .backend import get_backend
 from .bcs import bc2space
 from .constant import MeshConstant, vecconst
+from .stage_value import getFormStage
+from .tools import AI, IA, reshape, replace, getNullspace, get_stage_space
+from .tableaux.ButcherTableaux import RadauIIA
+from .ufl.deriv import TimeDerivative, expand_time_derivatives
 
 
 def riia_explicit_coeffs(k):
@@ -172,8 +169,10 @@ class RadauIIAIMEXMethod:
                  nullspace=None,
                  num_its_initial=0,
                  num_its_per_step=0,
+                 backend="firedrake",
                  **kwargs):
         assert isinstance(butcher_tableau, RadauIIA)
+        self._backend = backend_cls = get_backend(backend)
 
         self.u0 = u0
         self.t = t
@@ -197,7 +196,7 @@ class RadauIIAIMEXMethod:
         # the update information on the floor.
         V = u0.function_space()
         Vbig = get_stage_space(V, self.num_stages)
-        UU = Function(Vbig)
+        UU = backend_cls.Function(Vbig)
 
         restrict = kwargs.pop("restrict", False)
         is_linear = kwargs.pop("is_linear", False)
@@ -219,28 +218,16 @@ class RadauIIAIMEXMethod:
         Fit, Fprop = getFormExplicit(
             Fexp, butcher_tableau, u0, UU_old, t, dt, splitting)
 
-        F_linear = len(Fbig.arguments()) == 2
-        if F_linear:
-            F1 = Fbig + Fit
-            F2 = Fbig + Fprop
-            itprob = LVP(lhs(F1), rhs(F1), UU, bcs=bigBCs,
-                         constant_jacobian=constant_jacobian,
-                         restrict=restrict)
-            propprob = LVP(lhs(F2), rhs(F2), UU, bcs=bigBCs,
-                           constant_jacobian=constant_jacobian,
-                           restrict=restrict)
-            create_solver = LVS
-        else:
-            itprob = NLVP(Fbig + Fit, UU, bcs=bigBCs,
-                          is_linear=is_linear, restrict=restrict)
-            propprob = NLVP(Fbig + Fprop, UU, bcs=bigBCs,
-                            is_linear=is_linear, restrict=restrict)
-            itprob._constant_jacobian = constant_jacobian
-            propprob._constant_jacobian = constant_jacobian
-            create_solver = NLVS
-
-        self.itprob = itprob
-        self.propprob = propprob
+        self.itprob = backend_cls.create_variational_problem(
+            Fbig + Fit, UU, bcs=bigBCs,
+            is_linear=is_linear, restrict=restrict,
+            constant_jacobian=constant_jacobian,
+        )
+        self.propprob = backend_cls.create_variational_problem(
+            Fbig + Fprop, UU, bcs=bigBCs,
+            is_linear=is_linear, restrict=restrict,
+            constant_jacobian=constant_jacobian,
+        )
 
         self.F = F
         self.orig_bcs = bcs
@@ -253,11 +240,11 @@ class RadauIIAIMEXMethod:
         else:
             appctx = {**appctx, **appctx_irksome}
 
-        self.it_solver = create_solver(
+        self.it_solver = backend_cls.create_variational_solver(
             self.itprob, appctx=appctx,
             solver_parameters=it_solver_parameters,
             nullspace=nsp, **kwargs)
-        self.prop_solver = create_solver(
+        self.prop_solver = backend_cls.create_variational_solver(
             self.propprob, appctx=appctx,
             solver_parameters=prop_solver_parameters,
             nullspace=nsp, **kwargs)
@@ -323,8 +310,8 @@ class RadauIIAIMEXMethod:
         """
         Forces the matrix to be reassembled next time it is required.
         """
-        LVS.invalidate_jacobian(self.prop_solver)
-        LVS.invalidate_jacobian(self.it_solver)
+        self._backend.invalidate_jacobian(self.prop_solver)
+        self._backend.invalidate_jacobian(self.it_solver)
 
 
 def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
@@ -420,8 +407,10 @@ class DIRKIMEXMethod:
     """
 
     def __init__(self, F, F_explicit, butcher_tableau, t, dt, u0, bcs=None,
-                 solver_parameters=None, mass_parameters=None, appctx=None, nullspace=None, **kwargs):
+                 solver_parameters=None, mass_parameters=None, appctx=None, nullspace=None,
+                 backend="firedrake", **kwargs):
         assert butcher_tableau.is_dirk_imex
+        self._backend = backend_cls = get_backend(backend)
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
@@ -464,31 +453,25 @@ class DIRKIMEXMethod:
         else:
             appctx = {**appctx, **appctx_irksome}
 
-        F_linear = len(stage_F.arguments()) == 2
-        if F_linear:
-            problem = LVP(lhs(stage_F), rhs(stage_F), k, bcnew,
-                          constant_jacobian=constant_jacobian,
-                          restrict=restrict)
-            mass_problem = LVP(lhs(Fhat), rhs(Fhat), khat,
-                               constant_jacobian=constant_jacobian)
-            create_solver = LVS
-        else:
-            problem = NLVP(stage_F, k, bcnew,
-                           is_linear=is_linear,
-                           restrict=restrict)
-            problem._constant_jacobian = constant_jacobian
-            mass_problem = NLVP(Fhat, khat, is_linear=True)
-            mass_problem._constant_jacobian = True
-            create_solver = NLVS
-
-        self.problem = problem
-        self.solver = create_solver(problem, appctx=appctx,
-                                    solver_parameters=solver_parameters,
-                                    nullspace=nullspace, **kwargs)
-
-        self.mass_problem = mass_problem
-        self.mass_solver = create_solver(mass_problem,
-                                         solver_parameters=mass_parameters)
+        self.problem = backend_cls.create_variational_problem(
+            stage_F, k, bcnew,
+            is_linear=is_linear,
+            restrict=restrict,
+            constant_jacobian=constant_jacobian,
+        )
+        self.solver = backend_cls.create_variational_solver(
+            self.problem, appctx=appctx,
+            solver_parameters=solver_parameters,
+            nullspace=nullspace, **kwargs,
+        )
+        self.mass_problem = backend_cls.create_variational_problem(
+            Fhat, khat, is_linear=True,
+            constant_jacobian=True,
+        )
+        self.mass_solver = backend_cls.create_variational_solver(
+            self.mass_problem,
+            solver_parameters=mass_parameters,
+        )
 
         self.kgac = k, g, a, c
         self.kgchat = khat, ghat, chat
@@ -668,4 +651,4 @@ class DIRKIMEXMethod:
         """
         Forces the matrix to be reassembled next time it is required.
         """
-        LVS.invalidate_jacobian(self.solver)
+        self._backend.invalidate_jacobian(self.solver)

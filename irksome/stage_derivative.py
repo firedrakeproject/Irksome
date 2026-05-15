@@ -1,14 +1,12 @@
 import numpy
-from firedrake import Function, TestFunction
-from firedrake import NonlinearVariationalProblem as NLVP
-from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import assemble, dx, inner, norm, as_tensor
+from firedrake import TestFunction
 from firedrake.bcs import EquationBC, EquationBCSplit
 
 from FIAT import ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
-from ufl.constantvalue import as_ufl
+from ufl import as_tensor, as_ufl, dx, inner
+
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .constant import vecconst
 from .tools import AI, dot, replace, reshape, fields_to_components
@@ -333,7 +331,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.onscale_factor = onscale_factor
         self.safety_factor = safety_factor
 
-        self.error_func = Function(u0.function_space())
+        self.error_func = self._backend.Function(u0.function_space())
         self.tol = tol
         self.err_old = 0.0
         self.contreject = 0
@@ -355,6 +353,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         the temporal truncation error by taking the norm of the
         difference between the new solutions computed by the two
         methods.  Typically will not be called by the end user."""
+        backend_cls = self._backend
         dtc = float(self.dt)
         delb = self.delb
         ws = self.stages.subfunctions
@@ -363,13 +362,13 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         u0 = self.u0
 
         # Initialize e to be gamma*h*f(old value of u)
-        error_func = Function(u0.function_space())
+        error_func = backend_cls.Function(u0.function_space())
         # Only do the hard stuff if gamma0 is not zero
         if self.gamma0 != 0.0:
-            error_test = TestFunction(u0.function_space())
+            error_test = backend_cls.TestFunction(u0.function_space())
             f_form = inner(error_func, error_test)*dx-self.gamma0*dtc*self.dtless_form
-            f_problem = NLVP(f_form, error_func, bcs=self.embbc)
-            f_solver = NLVS(f_problem, solver_parameters=self.gamma0_params)
+            f_problem = backend_cls.create_variational_problem(f_form, error_func, bcs=self.embbc)
+            f_solver = backend_cls.create_variational_solver(f_problem, solver_parameters=self.gamma0_params)
             f_solver.solve()
 
         # Accumulate delta-b terms over stages
@@ -377,7 +376,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         for s in range(ns):
             for i, e in enumerate(error_func_bits):
                 e += dtc*float(delb[s])*ws[nf*s+i]
-        return norm(assemble(error_func))
+        return backend_cls.norm(error_func)
 
     def advance(self):
         """Attempts to advances the system from time `t` to time `t +

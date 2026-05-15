@@ -1,15 +1,11 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
 import numpy
-from firedrake import Function, TestFunction
-from firedrake import NonlinearVariationalProblem as NLVP
-from firedrake import NonlinearVariationalSolver as NLVS
-from firedrake import dx, inner
+from firedrake import TestFunction
 
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
-from ufl import as_tensor, Form
-from ufl.constantvalue import as_ufl
+from ufl import Form, as_tensor, as_ufl, dx, inner
 
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
@@ -229,8 +225,13 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def get_update_solver(self, update_solver_parameters):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
-        v, = self.F.arguments()
-        unew = Function(self.u0.function_space())
+        backend_cls = self._backend
+        try:
+            v, u = self.F.arguments()
+        except ValueError:
+            v, self.F.arguments()
+            u = self.u0
+        unew = backend_cls.Function(self.u0.function_space())
         Fupdate = inner(unew - self.u0, v) * dx
 
         C = vecconst(self.butcher_tableau.c)
@@ -245,7 +246,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
-                    u0: u_np[i]}
+                    u: u_np[i]}
             Fupdate += dt * B[i] * replace(F_remainder, repl)
 
         # And the BC's for the update -- just the original BC at t+dt
@@ -255,8 +256,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             gcur = replace(bcarg, {t: t + dt})
             update_bcs.append(bc.reconstruct(g=gcur))
 
-        update_problem = NLVP(Fupdate, unew, update_bcs)
-        update_solver = NLVS(update_problem, solver_parameters=update_solver_parameters)
+        update_problem = backend_cls.create_variational_probelm(Fupdate, unew, update_bcs)
+        update_solver = backend_cls.create_variational_solver(update_problem, solver_parameters=update_solver_parameters)
 
         return unew, update_solver
 

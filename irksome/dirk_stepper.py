@@ -1,18 +1,15 @@
 import numpy
-from firedrake import (derivative, Function,
-                       LinearVariationalSolver,
-                       NonlinearVariationalProblem,
-                       NonlinearVariationalSolver)
-from ufl.constantvalue import as_ufl
+from ufl import as_ufl, lhs
 
-from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .constant import vecconst
-from .tools import replace
-from .constant import MeshConstant
+from .backend import get_backend
 from .bcs import bc2space
+from .ufl.deriv import TimeDerivative, expand_time_derivatives
+from .tools import replace
 
 
-def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None):
+def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake"):
+    backend_cls = get_backend(backend)
     if bcs is None:
         bcs = []
 
@@ -33,10 +30,10 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None):
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constant a is
     # used similarly in the variational form
-    MC = MeshConstant(V.mesh())
+    MC = backend_cls.MeshConstant(V.mesh())
     if kgac is None:
-        k = Function(V)
-        g = Function(V)
+        k = backend_cls.Function(V)
+        g = backend_cls.Function(V)
         a = MC.Constant(1.0)
         c = MC.Constant(1.0)
     else:
@@ -79,7 +76,9 @@ class DIRKTimeStepper:
                  solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
+                 backend="firedrake",
                  **kwargs):
+        self._backend = backend_cls = get_backend(backend)
         assert butcher_tableau.is_diagonally_implicit
 
         self.num_steps = 0
@@ -117,7 +116,7 @@ class DIRKTimeStepper:
         self.dt = dt
         self.orig_bcs = bcs
         self.num_fields = len(u0.function_space())
-        self.ks = [Function(V) for _ in range(num_stages)]
+        self.ks = [backend_cls.Function(V) for _ in range(num_stages)]
 
         # "k" is a generic function for which we will solve the
         # NVLP for the next stage value
@@ -136,7 +135,7 @@ class DIRKTimeStepper:
             Fp_linear = len(Fp.arguments()) == 2
             ks_Fp = Fp.arguments()[1] if Fp_linear else self.ks
             stage_Fp, *_ = self.get_form_and_bcs(ks_Fp, F=Fp, bcs=())
-            stage_Jp = stage_Fp if Fp_linear else derivative(stage_Fp, k)
+            stage_Jp = lhs(stage_Fp) if Fp_linear else backend_cls.derivative(stage_Fp, k)
 
         appctx_irksome = {"stepper": self}
         if appctx is None:
@@ -145,14 +144,14 @@ class DIRKTimeStepper:
             appctx = {**appctx, **appctx_irksome}
         self.appctx = appctx
 
-        self.problem = NonlinearVariationalProblem(
+        self.problem = backend_cls.create_variational_problem(
             stage_F, k, bcs=bcnew, Jp=stage_Jp,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
+            constant_jacobian=kwargs.pop("constant_jacobian", False),
         )
-        self.problem._constant_jacobian = kwargs.pop("constant_jacobian", False)
-        self.solver = NonlinearVariationalSolver(
+        self.solver = backend_cls.create_variational_solver(
             self.problem, appctx=appctx,
             nullspace=nullspace,
             transpose_nullspace=transpose_nullspace,
@@ -222,4 +221,4 @@ class DIRKTimeStepper:
         """
         Forces the matrix to be reassembled next time it is required.
         """
-        LinearVariationalSolver.invalidate_jacobian(self.solver)
+        self._backend.invalidate_jacobian(self.solver)
