@@ -183,7 +183,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
-                         sample_points=sample_points, backend=backend
+                         sample_points=sample_points, backend=backend,
                          **kwargs)
         self.num_fields = len(self._backend.get_function_space(u0))
 

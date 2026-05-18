@@ -12,7 +12,7 @@ from .backend import get_backend
 
 def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, backend: str = "firedrake"):
     backend_cls = get_backend(backend)
-    replace = backend.replace
+    replace = backend_cls.replace
     
     if bcs is None:
         bcs = []

@@ -1,5 +1,5 @@
 from firedrake import *  # noqa: F403
-from irksome import GaussLegendre, getForm, Dt, MeshConstant, TimeStepper
+from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
 import numpy
 
 

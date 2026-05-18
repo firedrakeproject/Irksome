@@ -249,7 +249,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
             g_np = bc_data(bc)
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(backend_cls.bc_reconstruct(V=Vbigi, g=backend_cls.as_tensor(g_np[i])))
+            bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
 

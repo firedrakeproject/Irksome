@@ -71,6 +71,7 @@ try:
         StageDerivativeNystromTimeStepper,
         ClassicNystrom4Tableau,
     )
+    from .stage_derivative import getForm
     from .stage_value import StageValueTimeStepper
 
     from .pc import (
@@ -110,6 +111,7 @@ try:
         "MultistepTimeStepper",
         "TimeQuadratureLabel",
         "TimeStepper",
+        "getForm",
     ]
 
 except ModuleNotFoundError:

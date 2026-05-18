@@ -206,7 +206,7 @@ def as_linear_form(F, u0, backend: str="firedrake"):
     otherwise return `F`.
     """
     backend_cls = get_backend(backend)
-    replace = backend.replace
+    replace = backend_cls.replace
     
     form = as_form(F)
     nargs = len(form.arguments())
