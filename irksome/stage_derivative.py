@@ -3,7 +3,7 @@ import numpy
 from ufl import as_ufl, as_tensor, Form, Coefficient, dx, inner
 from .tableaux import ButcherTableaux
 from .constant import vecconst
-from .tools import AI, dot,  extract_timedep_arguments, fields_to_components, replace, reshape
+from .tools import AI, dot, extract_timedep_arguments, fields_to_components, replace, reshape
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 
