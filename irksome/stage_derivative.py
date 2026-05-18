@@ -194,6 +194,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                  appctx=None, bc_type="DAE", aux_indices=None, sample_points=None,
                  backend: str = "firedrake", **kwargs):
         self.butcher_tableau = butcher_tableau
+        self.num_fields = len(self._backend.get_function_space(u0))
         A1, A2 = splitting(butcher_tableau.A)
         try:
             self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b))
@@ -209,7 +210,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          butcher_tableau=butcher_tableau,
                          sample_points=sample_points,
                          backend=backend, **kwargs)
-        self.num_fields = len(self._backend.get_function_space(u0))
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
