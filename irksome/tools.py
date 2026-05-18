@@ -2,7 +2,6 @@ from .backend import get_backend
 import numpy
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
-from ufl import replace as ufl_replace
 
 import FIAT
 
@@ -107,19 +106,6 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 
     return nspnew
 
-
-def replace(e, mapping):
-    """A wrapper for ufl.replace that allows numpy arrays."""
-    cmapping = {k: as_tensor(v) for k, v in mapping.items()}
-    try:
-        from firedrake.fml import LabelledForm, Term
-        if isinstance(e, LabelledForm):
-            return LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
-                                  for term in e.terms))
-    except ImportError:
-        pass
-    finally:
-        return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor

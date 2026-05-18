@@ -2,8 +2,8 @@ from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl import BaseForm, Form, FormSum
 from firedrake.fml import Label, keep, drop, LabelledForm
 from collections import defaultdict
+from .backend import get_backend
 from .scheme import create_time_quadrature
-from .tools import replace
 import numpy as np
 
 explicit = Label("explicit")
@@ -199,12 +199,15 @@ def as_form(form):
     return form
 
 
-def as_linear_form(F, u0):
+def as_linear_form(F, u0, backend: str="firedrake"):
     """
     If `F` is a bilinear :class:`Form` compute a linear
     :class:`Form` by replacing the trial function with `u0`,
     otherwise return `F`.
     """
+    backend_cls = get_backend(backend)
+    replace = backend.replace
+    
     form = as_form(F)
     nargs = len(form.arguments())
     if nargs == 2:

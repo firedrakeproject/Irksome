@@ -3,7 +3,7 @@ import numpy
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from firedrake import (Function, NonlinearVariationalProblem,
-                       NonlinearVariationalSolver, TestFunction, dx,
+                       NonlinearVariationalSolver, dx,
                        inner)
 from ufl import as_tensor, Form
 from ufl.constantvalue import as_ufl
@@ -12,10 +12,10 @@ from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
-from .tools import AI, dot, reshape, replace
+from .tools import AI, dot, reshape
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
-
+from .backend import get_backend
 
 def to_value(u0, stages, vandermonde):
     """convert from Bernstein to Lagrange representation
@@ -33,7 +33,7 @@ def to_value(u0, stages, vandermonde):
     return dot(vandermonde[1:], u_np)
 
 
-def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None):
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None, backend: str = "firedrake"):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -77,23 +77,24 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages
     """
+    backend_cls = get_backend(backend)
     v, = F.arguments()
-    V = v.function_space()
+    V = backend_cls.get_function_space(v)
     assert V == u0.function_space()
 
-    c = vecconst(butch.c)
+    c = vecconst(butch.c, backend=backend)
     bA1, bA2 = splitting(butch.A)
     try:
         bA2inv = numpy.linalg.inv(bA2)
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
-    A1 = vecconst(bA1)
-    A2inv = vecconst(bA2inv)
+    A1 = vecconst(bA1, backend=backend)
+    A2inv = vecconst(bA2inv, backend=backend)
 
     # s-way product space for the stage variables
     num_stages = butch.num_stages
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    Vbig = backend_cls.get_function_space(stages)
+    test = backend_cls.TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))
@@ -114,6 +115,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # Dt(g(u)) is discretised as g(U_i) - g(u0), not g(U_i - u0).
     # These are identical for linear g but differ for nonlinear g,
     # and the two-evaluation form is what gives mass conservation.
+    replace = backend_cls.replace
     for i in range(num_stages):
         repl_new = {t: t + c[i] * dt,
                     v: A2invTv[i],
@@ -136,7 +138,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     bcsnew = []
 
     if vandermonde is not None:
-        Vander_inv = vecconst(numpy.linalg.inv(vandermonde.astype(float)))
+        Vander_inv = vecconst(numpy.linalg.inv(vandermonde.astype(float)), backend=backend)
 
     # For each BC, we need a new BC for each stage
     # so we need to figure out how the function is indexed (mixed + vec)
@@ -163,9 +165,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                  appctx=None, bounds=None,
                  use_collocation_update=False,
                  sample_points=None,
+                 backend: str = "firedrake",
                  **kwargs):
 
-        self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
         self.basis_type = basis_type
 
@@ -181,8 +183,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
-                         sample_points=sample_points,
+                         sample_points=sample_points, backend=backend
                          **kwargs)
+        self.num_fields = len(self._backend.get_function_space(u0))
 
         self.set_initial_guess()
 
@@ -197,7 +200,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             try:
                 A = butcher_tableau.A
                 b = butcher_tableau.b
-                self.bAinv = vecconst(numpy.linalg.solve(A.T, b))
+                self.bAinv = vecconst(numpy.linalg.solve(A.T, b), backend=backend)
                 self.update_scale = 1-numpy.sum(self.bAinv)
                 self._update = self._update_Ainv
             except numpy.linalg.LinAlgError:

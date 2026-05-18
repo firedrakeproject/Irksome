@@ -1,4 +1,5 @@
 import numpy
+from .backend import get_backend
 from firedrake import (derivative, Function,
                        LinearVariationalSolver,
                        NonlinearVariationalProblem,
@@ -7,13 +8,15 @@ from ufl.constantvalue import as_ufl
 
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .constant import vecconst
-from .tools import replace
 from .constant import MeshConstant
 from .bcs import bc2space
 from .labeling import as_linear_form
 
 
-def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None):
+def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend: str = "firedrake"):
+    backend_cls = get_backend(backend)
+    replace = backend_cls.replace
+
     if bcs is None:
         bcs = []
 
@@ -42,6 +45,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None):
     repl = {t: t + c * dt,
             u0: g + k * (a * dt),
             TimeDerivative(u0): k}
+
     stage_F = replace(F, repl)
 
     bcnew = []

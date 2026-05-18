@@ -3,7 +3,7 @@ import numpy
 from ufl import as_ufl, as_tensor, Form, Coefficient, dx, inner
 from .tableaux import ButcherTableaux
 from .constant import vecconst
-from .tools import AI, dot, replace, reshape, fields_to_components
+from .tools import AI, dot, reshape, fields_to_components
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 
@@ -67,6 +67,9 @@ def getForm(
          objects to be posed on the stages
     """
     backend_cls = get_backend(backend)
+    replace = backend_cls.replace
+
+
     if bc_type is None:
         bc_type = "DAE"
 
@@ -110,7 +113,7 @@ def getForm(
 
         repl[i] = {t: t + c[i] * dt, v: v_np[i], u0: usub, dtu: dtusub}
 
-    Fnew = sum(backend_cls.replace(F, repl[i]) for i in range(num_stages))
+    Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 
     if bcs is None:
         bcs = []

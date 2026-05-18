@@ -10,7 +10,7 @@ from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
-from .tools import AI, IA, dot, fields_to_components, reshape, replace
+from .tools import AI, IA, dot, fields_to_components, reshape
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
@@ -18,7 +18,7 @@ from .backends.firedrake import extract_bcs
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .stage_derivative import getForm
 from .stage_value import getFormStage
-
+from .backend import get_backend
 import numpy as np
 from firedrake import TestFunction, Constant
 from firedrake.bcs import EquationBCSplit
@@ -65,12 +65,13 @@ def getElements(basis_type, order):
     return L_trial, L_test
 
 
-def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
+def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend:str="firedrake"):
+    backend_cls = get_backend(backend)
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
-    V = v.function_space()
-    assert V == u0.function_space()
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
     i0, = L_trial.entity_dofs()[0][0]
 
     qpts = Q.get_points()
@@ -110,11 +111,11 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
                    v: vsub[q] * dt,
                    u0: usub[q],
                    dtu0: dtu0sub[q] / dt}
-    Fnew = sum(replace(F, repl[q]) for q in repl)
+    Fnew = sum(backend_cls.replace(F, repl[q]) for q in repl)
     return Fnew
 
 
-def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None):
+def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None, backend:str="firedrake"):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
 
@@ -158,16 +159,16 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
         bc_type = "DAE"
     assert L_test.get_reference_element() == L_trial.get_reference_element()
     assert L_trial.space_dimension() == L_test.space_dimension() + 1
-
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    backend_cls = get_backend(backend)
+    Vbig = backend_cls.get_function_space(stages)
+    test = backend_cls.TestFunction(Vbig)
 
     degree_mapping = get_degree_mapping(as_form(F), L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
 
     splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
                                  max_quadrature_degree=max_quadrature_degree)
-    Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
+    Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend=backend)
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
@@ -184,7 +185,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     def evaluate_dof(dof, g):
         if isinstance(g, Zero):
             return g
-        return sum(replace(g, {t: t + c * dt}) * w for c, w in dof.items())
+        return sum(backend_cls.replace(g, {t: t + c * dt}) * w for c, w in dof.items())
 
     aux_bc_data = lambda bc: [evaluate_dof(dof, as_ufl(bc._original_arg)) for dof in test_dicts]
 
@@ -232,7 +233,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
             if isinstance(g, Zero):
                 return [g]*len(test_dicts)
             ucur = bc2space(bc, u0)
-            gq = np.array([replace(g, {t: t + q * dt}) - phi0 * ucur
+            gq = np.array([backend_cls.replace(g, {t: t + q * dt}) - phi0 * ucur
                            for phi0, q in zip(trial_vals0, qpts)])
             return dot(trial_proj, gq)
     else:
@@ -248,7 +249,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
             g_np = bc_data(bc)
         for i in range(num_stages):
             Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
+            bcsnew.append(backend_cls.bc_reconstruct(V=Vbigi, g=backend_cls.as_tensor(g_np[i])))
     return Fnew, bcsnew
 
 
@@ -291,11 +292,13 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         rather than trial space.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None,
-                 bc_type=None, aux_indices=None, **kwargs):
+                 bc_type=None, aux_indices=None, backend:str="firedrake", **kwargs):
         self.order = scheme.order
         self.basis_type = scheme.basis_type
+        self.backend = backend
+        backend_cls = get_backend(backend)
 
-        V = u0.function_space()
+        V = backend_cls.get_function_space(u0)
         self.num_fields = len(V)
 
         self.trial_el, self.test_el = getElements(self.basis_type, self.order)

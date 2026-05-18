@@ -5,13 +5,15 @@ from firedrake import (Function,
 from ufl.constantvalue import as_ufl
 
 from .ufl.deriv import Dt, expand_time_derivatives
-from .tools import replace
 from .bcs import bc2space
 from .constant import MeshConstant, vecconst
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
+from .backend import get_backend
 
-
-def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
+def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, backend: str = "firedrake"):
+    backend_cls = get_backend(backend)
+    replace = backend.replace
+    
     if bcs is None:
         bcs = []
     if bc_type is None:

@@ -9,10 +9,10 @@ from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .scheme import create_time_quadrature, ufc_line
-from .tools import dot, reshape, replace
+from .tools import dot, reshape
 from .constant import vecconst
 import numpy as np
-from firedrake import TestFunction
+from .backend import get_backend
 
 
 def getElement(basis_type, order):
@@ -37,10 +37,11 @@ def getElement(basis_type, order):
         return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
-def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
+def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", backend:str="firedrake"):
+    backend_cls = get_backend(backend)
     v, = F.arguments()
-    V = v.function_space()
-    assert V == u0.function_space()
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -118,7 +119,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
     return Fnew
 
 
-def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong", max_quadrature_degree=None):
+def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong", max_quadrature_degree=None, backend:str="firedrake"):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
@@ -151,17 +152,17 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
          on the Galerkin-in-time solution,
     """
     num_stages = L.space_dimension()
-
-    V = u0.function_space()
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    backend_cls = get_backend(backend)
+    V = backend_cls.get_function_space(u0)
+    Vbig = backend_cls.get_function_space(stages)
+    test = backend_cls.TestFunction(Vbig)
 
     degree_mapping = get_degree_mapping(as_form(F), L.degree(), L.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
 
     splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
                                  max_quadrature_degree=max_quadrature_degree)
-    Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type)
+    Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type, backend=backend)
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?

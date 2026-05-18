@@ -94,6 +94,13 @@ def invalidate_jacobian(solver: firedrake.LinearVariationalSolver):
     """Invalidate the Jacobian matrix in the backend language."""
     firedrake.LinearVariationalSolver.invalidate_jacobian(solver)
 
+def replace(e, mapping):
+    """A wrapper for ufl.replace that allows numpy arrays."""
+    cmapping = {k: ufl.as_tensor(v) for k, v in mapping.items()}
+    if isinstance(e, firedrake.fml.LabelledForm):
+        return firedrake.fml.LabelledForm(*(firedrake.fml.Term(ufl.replace(term.form, cmapping), term.labels)
+                                for term in e.terms))
+    return ufl.replace(e, cmapping)
 
 Function = firedrake.Function
 
@@ -102,8 +109,6 @@ DirichletBC = firedrake.DirichletBC
 norm = firedrake.norm
 
 assemble = firedrake.assemble
-
-replace = firedrake.replace
 
 derivative = firedrake.derivative
 TestFunction = firedrake.TestFunction

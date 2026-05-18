@@ -7,7 +7,7 @@ from firedrake import (Constant, TestFunction, UnitSquareMesh, FunctionSpace, Fu
 from irksome import (GaussLegendre, RadauIIA, Dt, TimeStepper,
                      ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme)
 from irksome.tableaux.ButcherTableaux import ButcherTableau
-from irksome.tools import replace
+from irksome.backends.firedrake import replace
 from FIAT import ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from FIAT.bernstein import Bernstein

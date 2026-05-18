@@ -1,9 +1,9 @@
-from .tools import replace
 from .constant import vecconst
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .ufl.deriv import expand_time_derivatives
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
+from .backend import get_backend
 from .bcs import stage2spaces4bc
 from ufl import Form
 from ufl.constantvalue import as_ufl
@@ -40,7 +40,8 @@ class MultistepTimeStepper(BaseTimeStepper):
     """
 
     def __init__(self, F, method, t, dt, u0, bcs=None, Fp=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
-                 transpose_nullspace=None, near_nullspace=None, startup_parameters=None, **kwargs):
+                 transpose_nullspace=None, near_nullspace=None, startup_parameters=None, backend: str = "firedrake", **kwargs):
+        self._backend_cls = get_backend(backend)
 
         assert isinstance(method, MultistepTableau)
 
@@ -109,7 +110,7 @@ class MultistepTimeStepper(BaseTimeStepper):
 
             self.us[0].assign(self.u0)
 
-            F_startup = replace(self.F, {self.t: self.startup_t})
+            F_startup = self._backend.replace(self.F, {self.t: self.startup_t})
             v, = F_startup.arguments()
             V = v.function_space()
 
@@ -120,7 +121,7 @@ class MultistepTimeStepper(BaseTimeStepper):
             else:
                 for bc in self.orig_bcs:
                     bcarg = as_ufl(bc._original_arg)
-                    bcarg_startup = replace(bcarg, {self.t: self.startup_t})
+                    bcarg_startup = self._backend.replace(bcarg, {self.t: self.startup_t})
                     bc_space = stage2spaces4bc(bc, V, V, 0)
                     startup_bcs.extend(bc.reconstruct(V=bc_space, g=bcarg_startup))
 
@@ -150,12 +151,12 @@ class MultistepTimeStepper(BaseTimeStepper):
         # g(a_s * u_{n+s} + ... + a_0 * g(u_0)).
         Fnew = Form([])
         for (i, coeff) in enumerate(a):
-            Fnew += coeff * replace(F_dtless, {u0: self.us[i],
+            Fnew += coeff * self._backend.replace(F_dtless, {u0: self.us[i],
                                                t: t + (i - self.num_prev_steps + 1) * dt})
 
         # form the right hand side
         for (i, coeff) in enumerate(b):
-            Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i],
+            Fnew += dt * coeff * self._backend.replace(F_remainder, {u0: self.us[i],
                                                        t: t + (i - self.num_prev_steps + 1) * dt})
         if bcs is None:
             bcs = []
@@ -164,7 +165,7 @@ class MultistepTimeStepper(BaseTimeStepper):
         # grab boundary conditions at t + dt
         for bc in bcs:
             bcarg = as_ufl(bc._original_arg)
-            new_bcarg = replace(bcarg, {t: t + dt})
+            new_bcarg = self._backend.replace(bcarg, {t: t + dt})
             bc_space = stage2spaces4bc(bc, V, V, 0)
             bcsnew.extend(bc.reconstruct(V=bc_space, g=new_bcarg))
 

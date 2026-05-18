@@ -1,7 +1,8 @@
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
-from .tools import dot, reshape, replace
+from .tools import dot, reshape
+from .backend import get_backend
 from .constant import vecconst
 from firedrake import TestFunction, as_ufl
 import numpy
@@ -72,23 +73,24 @@ class ClassicNystrom4Tableau(NystromTableau):
 
 
 def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
-                   bcs=None, bc_type=None):
+                   bcs=None, bc_type=None, backend: str = "firedrake"):
+    backend_cls = get_backend(backend)
     if bc_type is None:
         bc_type = "DAE"
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
     v, = F.arguments()
-    V = v.function_space()
-    assert V == u0.function_space()
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     A = vecconst(tableau.A)
     Abar = vecconst(tableau.Abar)
     c = vecconst(tableau.c)
 
     num_stages = tableau.num_stages
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    Vbig = backend_cls.get_function_space(stages)
+    test = backend_cls.TestFunction(Vbig)
 
     v_np = reshape(test, (num_stages, *u0.ufl_shape))
     k_np = reshape(stages, (num_stages, *u0.ufl_shape))
@@ -107,7 +109,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
                 u0: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
                 dtu: ut0 + Ak[i] * dt,
                 dt2u: k_np[i]}
-        Fnew += replace(F, repl)
+        Fnew += backend_cls.replace(F, repl)
 
     if bcs is None:
         bcs = []
@@ -115,7 +117,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig, 2), t=t, timedep_coeffs=(u0,))
-            return replace(gfoo, {t: t + c[i] * dt})
+            return backend_cls.replace(gfoo, {t: t + c[i] * dt})
 
     elif bc_type == "DAE":
         if tableau.is_explicit:
@@ -130,7 +132,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
             gorig = as_ufl(bc._original_arg)
             ucur = bc2space(bc, u0)
             utcur = bc2space(bc, ut0)
-            gcur = (1/dt**2) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur - utcur * (dt * c[j])) * A1inv[i, j]
+            gcur = (1/dt**2) * sum((backend_cls.replace(gorig, {t: t + c[j]*dt}) - ucur - utcur * (dt * c[j])) * A1inv[i, j]
                                    for j in range(num_stages))
             return gcur
 
@@ -157,7 +159,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig, 1), t=t, timedep_coeffs=(u0,))
             utcur = bc2space(bc, ut0)
-            gcur = (1/dt) * sum((replace(gfoo, {t: t + c_ddae[j]*dt}) - utcur) * A1inv[i, j]
+            gcur = (1/dt) * sum((backend_cls.replace(gfoo, {t: t + c_ddae[j]*dt}) - utcur) * A1inv[i, j]
                                 for j in range(num_stages))
             return gcur
 

@@ -6,12 +6,13 @@ from firedrake import (Function, LinearVariationalSolver,
                        as_ufl, dx, inner)
 from ufl import zero
 
+from .backend import get_backend
 from .tableaux.ButcherTableaux import RadauIIA
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .stage_value import getFormStage
-from .tools import AI, IA, reshape, replace, getNullspace, get_stage_space
+from .tools import AI, IA, reshape, getNullspace, get_stage_space
 from .bcs import bc2space
-from .constant import MeshConstant, ConstantOrZero
+from .constant import MeshConstant, vecconst
 from .labeling import as_linear_form
 
 
@@ -37,23 +38,25 @@ def riia_explicit_coeffs(k):
     return A
 
 
-def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
+def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend: str = "firedrake"):
     """Processes the explicitly split-off part for a RadauIIA-IMEX
     method.  Returns the forms for both the iterator and propagator,
     which really just differ by which constants are in them."""
+    backend_cls = get_backend(backend)
+
     v = Fexp.arguments()[0]
-    Vbig = UU.function_space()
-    VV = TestFunction(Vbig)
+    Vbig = backend_cls.get_function_space(UU)
+    VV = backend_cls.TestFunction(Vbig)
 
     num_stages = butch.num_stages
 
     Aexp = riia_explicit_coeffs(num_stages)
 
-    vecconst = np.vectorize(ConstantOrZero)
 
-    Aprop = vecconst(Aexp)
-    Ait = vecconst(butch.A)
-    C = vecconst(butch.c)
+
+    Aprop = vecconst(Aexp, backend=backend)
+    Ait = vecconst(butch.A, backend=backend)
+    C = vecconst(butch.c, backend=backend)
 
     v_np = reshape(VV, (num_stages, *u0.ufl_shape))
     u_np = reshape(UU, (num_stages, *u0.ufl_shape))
@@ -68,7 +71,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
         for i in range(num_stages):
             # replace test function
             repl = {v: v_np[i]}
-            Ftmp = replace(Fexp, repl)
+            Ftmp = backend_cls.replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
@@ -76,7 +79,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
                         u0: u_np[j]}
 
                 # and sum the contribution
-                replF = replace(Ftmp, repl)
+                replF = backend_cls.replace(Ftmp, repl)
                 Fit += Ait[i, j] * dt * replF
                 Fprop += Aprop[i, j] * dt * replF
     elif splitting == IA:
@@ -86,15 +89,15 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
                     u0: u_np[i],
                     v: v_np[i]}
 
-            Fit += dt * replace(Fexp, repl)
+            Fit += dt * backend_cls.replace(Fexp, repl)
 
         # dense contribution to propagator
-        AinvAexp = vecconst(np.linalg.solve(butch.A, Aexp))
+        AinvAexp = vecconst(np.linalg.solve(butch.A, Aexp), backend=backend)
 
         for i in range(num_stages):
             # replace test function
             repl = {v: v_np[i]}
-            Ftmp = replace(Fexp, repl)
+            Ftmp = backend_cls.replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
@@ -102,7 +105,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
                         u0: u_np[j]}
 
                 # and sum the contribution
-                Fprop += AinvAexp[i, j] * dt * replace(Ftmp, repl)
+                Fprop += AinvAexp[i, j] * dt * backend_cls.replace(Ftmp, repl)
     else:
         raise NotImplementedError(
             "Must specify splitting to either IA or AI")
@@ -168,13 +171,15 @@ class RadauIIAIMEXMethod:
                  nullspace=None,
                  num_its_initial=0,
                  num_its_per_step=0,
+                 backend: str = "firedrake",
                  **kwargs):
         assert isinstance(butcher_tableau, RadauIIA)
+        backend_cls = get_backend(backend)
 
         self.u0 = u0
         self.t = t
         self.dt = dt
-        self.num_fields = len(u0.function_space())
+        self.num_fields = len(backend_cls.get_function_space(u0))
         self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
         self.num_its_initial = num_its_initial
@@ -191,9 +196,9 @@ class RadauIIAIMEXMethod:
 
         # Since this assumes stiff accuracy, we drop
         # the update information on the floor.
-        V = u0.function_space()
-        Vbig = get_stage_space(V, self.num_stages)
-        UU = Function(Vbig)
+        V = backend_cls.get_function_space(u0)
+        Vbig = get_stage_space(V, self.num_stages, backend=backend)
+        UU = backend_cls.Function(Vbig)
 
         F = as_linear_form(F, u0)
         Fexp = as_linear_form(Fexp, u0)
@@ -203,14 +208,14 @@ class RadauIIAIMEXMethod:
 
         Fbig, bigBCs = getFormStage(
             F, butcher_tableau, t, dt, u0, UU, bcs,
-            splitting=splitting)
+            splitting=splitting, backend=backend)
 
-        nsp = getNullspace(u0.function_space(),
-                           UU.function_space(),
+        nsp = getNullspace(backend_cls.get_function_space(u0),
+                           backend_cls.get_function_space(UU),
                            self.num_stages, nullspace)
 
         self.UU = UU
-        self.UU_old = UU_old = Function(UU.function_space())
+        self.UU_old = UU_old = backend_cls.Function(backend_cls.get_function_space(UU))
         self.UU_old_split = UU_old.subfunctions
         self.bigBCs = bigBCs
 
