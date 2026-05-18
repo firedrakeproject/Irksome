@@ -176,5 +176,9 @@ try:
     def invalidate_jacobian(solver: dolfinx.fem.petsc.LinearProblem):
         """Invalidate the Jacobian matrix in the backend language."""
         raise RuntimeError("DOLFINx does not support Jacobian invalidation")
+
+    def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None):
+        raise NotImplementedError("Bounds-constrained BCs are not implemented for DOLFINx")
+
 except ModuleNotFoundError:
     pass

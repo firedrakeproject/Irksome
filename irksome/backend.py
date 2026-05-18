@@ -102,6 +102,9 @@ class Backend(Protocol):
     class EquationBC:
         ...
 
+    def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None) -> DirichletBC:
+        ...
+
 
 def get_backend(backend: str | types.ModuleType) -> Backend:
     """Get backend class from backend name.

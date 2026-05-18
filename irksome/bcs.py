@@ -1,8 +1,5 @@
-from functools import lru_cache
-
-
 from .backend import get_backend
-from ufl import as_ufl, inner, dx, replace
+from ufl import as_ufl, replace
 
 
 def get_sub(u, indices):
@@ -49,75 +46,7 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
     return bc.reconstruct(V=Vbc, g=g)
 
 
-class _BoundsConstrainedDirichletBCMeta(type):
-    def __call__(cls, *args, backend: str = "firedrake", **kwargs):
-        if getattr(cls, "_backend_impl", False):
-            return super().__call__(*args, backend=backend, **kwargs)
-        impl_cls = _get_bounds_constrained_dirichlet_bc_class(backend)
-        return impl_cls(*args, backend=backend, **kwargs)
-
-
-@lru_cache(maxsize=None)
-def _get_bounds_constrained_dirichlet_bc_class(backend: str):
-    backend_cls = get_backend(backend)
-    return type(
-        "BoundsConstrainedDirichletBC",
-        (BoundsConstrainedDirichletBC, backend_cls.DirichletBC),
-        {"_backend_impl": True, "__module__": __name__},
-    )
-
-
-class BoundsConstrainedDirichletBC(metaclass=_BoundsConstrainedDirichletBCMeta):
+def BoundsConstrainedDirichletBC(V, g, sub_domain, bounds, solver_parameters=None, backend="firedrake"):
     """A DirichletBC with bounds-constrained data."""
-
-    _backend_impl = False
-
-    def __init__(
-        self,
-        V,
-        g,
-        sub_domain,
-        bounds,
-        solver_parameters=None,
-        backend: str = "firedrake",
-    ):
-
-        self.g = g
-        self.solver_parameters = solver_parameters
-        self.bounds = bounds
-        self._backend = get_backend(backend)
-        self.gnew = self._backend.Function(V)
-
-        F = inner(self.gnew - g, self._backend.TestFunction(V)) * dx
-
-        if solver_parameters is None:
-            solver_parameters = {
-                "snes_type": "vinewtonrsls",
-                "snes_max_it": 300,
-                "snes_atol": 1.0e-8,
-                "ksp_type": "preonly",
-                "mat_type": "aij",
-            }
-        problem = self._backend.create_variational_problem(F, self.gnew)
-        self.solver = self._backend.create_variational_solver(
-            problem, solver_parameters=solver_parameters
-        )
-        super().__init__(V, g, sub_domain)
-
-    @property
-    def function_arg(self):
-        """The value of this boundary condition."""
-        self.solver.solve(bounds=self.bounds)
-        return self.gnew
-
-    @function_arg.setter
-    def function_arg(self, g):
-        """Set the value of this boundary condition."""
-        self.solver.solve(bounds=self.bounds)
-        return self.gnew
-
-    def reconstruct(self, V=None, g=None, sub_domain=None):
-        V = V or self.function_space()
-        g = g or self.g
-        sub_domain = sub_domain or self.sub_domain
-        return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters, backend=self._backend)
+    backend_class = get_backend(backend)
+    return backend_class.create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=solver_parameters)
