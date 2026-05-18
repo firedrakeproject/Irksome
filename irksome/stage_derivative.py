@@ -1,7 +1,7 @@
 import numpy
 
-from ufl import as_ufl, as_tensor, Form, Coefficient, dx, inner
-from .tableaux import ButcherTableaux
+from petsc4py import PETSc
+from ufl import as_ufl, as_tensor, dx, inner
 from .constant import vecconst
 from .tools import AI, dot, extract_timedep_arguments, fields_to_components, replace, reshape
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
@@ -210,24 +210,10 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         at additional points in time.
     """
 
-    def __init__(
-        self,
-        F,
-        butcher_tableau,
-        t,
-        dt,
-        u0,
-        bcs=None,
-        solver_parameters=None,
-        splitting=AI,
-        appctx=None,
-        bc_type="DAE",
-        aux_indices=None,
-        sample_points=None,
-        **kwargs,
-    ):
-
-        self.num_fields = len(u0.function_space())
+    def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
+                 solver_parameters=None, splitting=AI,
+                 appctx=None, bc_type="DAE", aux_indices=None, sample_points=None,
+                 backend: str = "firedrake", **kwargs):
         self.butcher_tableau = butcher_tableau
         A1, A2 = splitting(butcher_tableau.A)
         try:
@@ -249,8 +235,11 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             bc_type=bc_type,
             butcher_tableau=butcher_tableau,
             sample_points=sample_points,
+            backend=backend,
             **kwargs,
         )
+        self.num_fields = len(self._backend_cls.get_function_space(u0))
+
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -372,7 +361,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         onscale_factor=1.2,
         safety_factor=0.9,
         gamma0_params=None,
-        backend_cls: str = "firedrake",
+        backend: str = "firedrake",
         **kwargs,
     ):
         assert butcher_tableau.btilde is not None
@@ -388,11 +377,9 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             bc_type=bc_type,
             splitting=splitting,
             nullspace=nullspace,
+            backend=backend,
             **kwargs,
         )
-
-        self._backend_cls = get_backend(backend_cls)
-        from firedrake.petsc import PETSc
 
         self.print = PETSc.Sys.Print
 
