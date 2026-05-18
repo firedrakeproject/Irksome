@@ -45,6 +45,18 @@ def split_stages(V, stages):
     return ks
 
 
+def extract_timedep_arguments(F, u0):
+    """Return both arguments if ``F`` is a bilinear form, otherwise
+    return the unique argument and ``u0``.
+    """
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
+    return v, u
+
+
 def fields_to_components(V, fields):
     """
     Returns the scalar component indices corresponding to the possibly

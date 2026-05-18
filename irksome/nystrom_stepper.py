@@ -1,7 +1,7 @@
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
-from .tools import dot, reshape, replace
+from .tools import dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
 from firedrake import TestFunction, as_ufl
 import numpy
@@ -76,11 +76,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     if bc_type is None:
         bc_type = "DAE"
 
-    try:
-        v, u = F.arguments()
-    except ValueError:
-        v, = F.arguments()
-        u = u0
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
     assert V == u0.function_space()
 

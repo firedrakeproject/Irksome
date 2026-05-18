@@ -9,7 +9,7 @@ from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .scheme import create_time_quadrature, ufc_line
-from .tools import IA, dot, reshape, replace
+from .tools import IA, dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .stage_value import getFormStage
@@ -41,11 +41,7 @@ def getElement(basis_type, order):
 
 
 def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
-    try:
-        v, u = F.arguments()
-    except ValueError:
-        v, = F.arguments()
-        u = u0
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
     assert V == u0.function_space()
 

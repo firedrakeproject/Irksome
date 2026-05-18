@@ -10,7 +10,7 @@ from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import create_time_quadrature, ufc_line
-from .tools import AI, IA, dot, fields_to_components, reshape, replace
+from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components, reshape, replace
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
@@ -66,11 +66,7 @@ def getElements(basis_type, order):
 
 
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
-    try:
-        v, u = F.arguments()
-    except ValueError:
-        v, = F.arguments()
-        u = u0
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
     assert V == u0.function_space()
 

@@ -9,7 +9,7 @@ from ufl import as_tensor, as_ufl, dx, inner
 
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .constant import vecconst
-from .tools import AI, dot, replace, reshape, fields_to_components
+from .tools import AI, dot, extract_timedep_arguments, fields_to_components, replace, reshape
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
 from .ufl.manipulation import split_time_derivative_terms
@@ -58,11 +58,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     """
     if bc_type is None:
         bc_type = "DAE"
-    try:
-        v, u = F.arguments()
-    except ValueError:
-        v, = F.arguments()
-        u = u0
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
     assert V == u0.function_space()
     # preprocess time derivatives

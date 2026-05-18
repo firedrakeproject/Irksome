@@ -11,7 +11,7 @@ from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
-from .tools import AI, dot, reshape, replace
+from .tools import AI, extract_timedep_arguments, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -76,11 +76,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages
     """
-    try:
-        v, u = F.arguments()
-    except ValueError:
-        v, = F.arguments()
-        u = u0
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
     assert V == u0.function_space()
 
@@ -190,7 +186,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.set_initial_guess()
 
         if use_collocation_update:
-            # Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.
+            # Use the terminal value of the collocation polynomial to update the solution.
+            # Note: collocation update is only implemented for constant-in-time boundary conditions.
             # TODO: create an assertion to check for constant-in-time boundary conditions.
 
             self.collocation_vander = self.tabulate_poly((1.0,))
@@ -226,21 +223,17 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
         backend_cls = self._backend
-        try:
-            v, u = self.F.arguments()
-        except ValueError:
-            v, self.F.arguments()
-            u = self.u0
-        unew = backend_cls.Function(self.u0.function_space())
-        Fupdate = inner(unew - self.u0, v) * dx
-
         C = vecconst(self.butcher_tableau.c)
         B = vecconst(self.butcher_tableau.b)
         F = self.F
         t = self.t
         dt = self.dt
         u0 = self.u0
-        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+        v, u = extract_timedep_arguments(F, u0)
+        unew = backend_cls.Function(u.function_space())
+        Fupdate = inner(unew - self.u0, v) * dx
+
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
         u_np = to_value(self.u0, self.stages, self.vandermonde)
 

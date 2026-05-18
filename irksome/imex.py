@@ -7,7 +7,8 @@ from .backend import get_backend
 from .bcs import bc2space
 from .constant import MeshConstant, vecconst
 from .stage_value import getFormStage
-from .tools import AI, IA, reshape, replace, getNullspace, get_stage_space
+from .tools import (AI, IA, extract_timedep_arguments, reshape, replace,
+                    getNullspace, get_stage_space)
 from .tableaux.ButcherTableaux import RadauIIA
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 
@@ -38,11 +39,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
     """Processes the explicitly split-off part for a RadauIIA-IMEX
     method.  Returns the forms for both the iterator and propagator,
     which really just differ by which constants are in them."""
-    try:
-        v, u = Fexp.arguments()
-    except ValueError:
-        v, = Fexp.arguments()
-        u = u0
+    v, u = extract_timedep_arguments(Fexp, u0)
     V = v.function_space()
     assert V == u0.function_space()
     Vbig = UU.function_space()
@@ -317,12 +314,7 @@ class RadauIIAIMEXMethod:
 def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     if bcs is None:
         bcs = []
-
-    try:
-        v, u = F.arguments()
-    except ValueError:
-        v, = F.arguments()
-        u = u0
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
     assert V == u0.function_space()
 
