@@ -121,11 +121,8 @@ def replace(e, mapping):
         enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
                               for term in e.terms))
         return enew
-
-    for var in extract_type(e, Variable):
-        if var.ufl_operands[1] is lag_label:
-            cmapping.setdefault(var, var)
-    return ufl_replace(e, cmapping)
+    else:
+        return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor
