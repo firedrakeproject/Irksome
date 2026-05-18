@@ -2,7 +2,10 @@ from abc import abstractmethod
 
 from petsc4py import PETSc
 from .tools import AI, getNullspace, flatten_dats, split_stages
-from .labeling import as_form
+try:
+    from .labeling import as_form
+except ImportError:
+    as_form = lambda x: x
 from .backend import get_backend
 import ufl
 import numpy
