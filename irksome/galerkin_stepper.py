@@ -14,7 +14,6 @@ from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components,
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
-from .backends.firedrake import extract_bcs
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .stage_derivative import getForm
 from .stage_value import getFormStage
@@ -175,7 +174,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     V = u0.function_space()
     if bcs is None:
         bcs = []
-    bcs = extract_bcs(bcs)
+    bcs = backend_cls.extract_bcs(bcs)
     bcsnew = []
 
     # list of dictionaries mapping time coordinates to weights to evaluate DOFs
