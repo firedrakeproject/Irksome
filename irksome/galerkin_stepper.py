@@ -158,6 +158,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     assert L_test.get_reference_element() == L_trial.get_reference_element()
     assert L_trial.space_dimension() == L_test.space_dimension() + 1
     backend_cls = get_backend(backend)
+    Constant = backend_cls.Constant
     Vbig = backend_cls.get_function_space(stages)
     test = backend_cls.TestFunction(Vbig)
 
@@ -176,7 +177,6 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     bcs = backend_cls.extract_bcs(bcs)
     bcsnew = []
 
-    Constant = backend_cls.Constant
     # list of dictionaries mapping time coordinates to weights to evaluate DOFs
     test_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
                   for (c,), wts in node.pt_dict.items()} for node in L_test.dual_basis()]
