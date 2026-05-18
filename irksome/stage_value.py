@@ -260,6 +260,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
         backend_cls = self._backend
+        C = vecconst(self.butcher_tableau.c)
+        B = vecconst(self.butcher_tableau.b)
         F = self.F
         t = self.t
         dt = self.dt
@@ -272,9 +274,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
         Fupdate = replace(F_dtless, {u: unew}) - replace(F_dtless, {u: u0})
-
-        C = vecconst(self.butcher_tableau.c)
-        B = vecconst(self.butcher_tableau.b)
         u_np = to_value(u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
@@ -289,7 +288,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             gcur = replace(bcarg, {t: t + dt})
             update_bcs.append(bc.reconstruct(g=gcur))
 
-        update_problem = backend_cls.create_variational_probelm(Fupdate, unew, update_bcs)
+        update_problem = backend_cls.create_variational_problem(Fupdate, unew, update_bcs)
         update_solver = backend_cls.create_variational_solver(update_problem, solver_parameters=update_solver_parameters)
 
         return unew, update_solver
