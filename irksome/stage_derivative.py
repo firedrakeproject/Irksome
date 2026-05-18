@@ -7,7 +7,8 @@ from .tools import AI, dot, extract_timedep_arguments, fields_to_components, rep
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 
-from .bcs import EmbeddedBCData
+from .bcs import EmbeddedBCData, BCStageData, stage2spaces4bc, bc2space
+
 from .base_time_stepper import StageCoupledTimeStepper
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from FIAT import ufc_simplex
@@ -110,7 +111,6 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
         )
 
         def bc2stagebc(bc, i):
-            from irksome.bcs import BCStageData
             from firedrake.bcs import EquationBCSplit
 
             if isinstance(bc, EquationBCSplit):
@@ -132,7 +132,6 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
             )
 
         def bc2stagebc(bc, i):
-            from irksome.bcs import BCStageData, stage2spaces4bc, bc2space
             from firedrake.bcs import EquationBCSplit, EquationBC
 
             if isinstance(bc, EquationBCSplit):

@@ -168,7 +168,7 @@ class DIRKNystromTimeStepper:
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
         )
-        self.solver = backend_cls.create_nonlinear_solver(
+        self.solver = backend_cls.create_variational_solver(
             self.problem, appctx=appctx,
             nullspace=nullspace,
             transpose_nullspace=transpose_nullspace,
