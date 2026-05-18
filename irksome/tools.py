@@ -1,11 +1,13 @@
 from .backend import get_backend
 import numpy
 from ufl.algorithms.analysis import extract_type
+from ufl.classes import Variable
 from ufl import as_tensor, replace as ufl_replace
 
 import FIAT
 
 from .ufl.deriv import TimeDerivative
+from .ufl.lag import lag_label
 
 
 def dot(A, B):
@@ -120,8 +122,12 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 
 
 def replace(e, mapping):
-    """A wrapper for ufl.replace that allows numpy arrays."""
+    """A wrapper for ufl.replace that allows numpy arrays and skips
+    substitution into sub-expressions wrapped by :func:`~irksome.lag`."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
+    for var in extract_type(e, Variable):
+        if var.ufl_operands[1] is lag_label:
+            cmapping.setdefault(var, var)
     return ufl_replace(e, cmapping)
 
 
