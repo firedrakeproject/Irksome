@@ -1,11 +1,11 @@
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
-from .tools import dot, reshape, replace
+from .tools import dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
 from firedrake import TestFunction, as_ufl
 import numpy
-from ufl import zero
+from ufl import Form
 
 
 class NystromTableau:
@@ -76,11 +76,12 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     if bc_type is None:
         bc_type = "DAE"
 
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v, = F.arguments()
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
     assert V == u0.function_space()
+
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     A = vecconst(tableau.A)
     Abar = vecconst(tableau.Abar)
@@ -96,15 +97,15 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     Ak = dot(A, k_np)
     Abark = dot(Abar, k_np)
 
-    dtu = TimeDerivative(u0)
+    dtu = TimeDerivative(u)
     dt2u = TimeDerivative(dtu)
 
-    Fnew = zero()
+    Fnew = Form([])
 
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: v_np[i],
-                u0: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
+                u: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
                 dtu: ut0 + Ak[i] * dt,
                 dt2u: k_np[i]}
         Fnew += replace(F, repl)

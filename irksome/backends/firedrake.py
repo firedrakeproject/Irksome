@@ -36,3 +36,35 @@ class MeshConstant(object):
 
 def get_mesh_constant(MC: MeshConstant | None):
     return MC.Constant if MC else firedrake.Constant
+
+
+def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
+    if len(F.arguments()) == 2:
+        a = ufl.lhs(F)
+        L = ufl.rhs(F)
+        kwargs.pop("is_linear", None)
+        problem = firedrake.LinearVariationalProblem(a, L, u, bcs=bcs, aP=Jp, **kwargs)
+    else:
+        constant_jacobian = kwargs.pop("constant_jacobian", False)
+        problem = firedrake.NonlinearVariationalProblem(F, u, bcs=bcs, J=J, Jp=Jp, **kwargs)
+        if constant_jacobian:
+            problem._constant_jacobian = constant_jacobian
+    return problem
+
+
+def create_variational_solver(problem, **kwargs):
+    if isinstance(problem, firedrake.LinearVariationalProblem):
+        return firedrake.LinearVariationalSolver(problem, **kwargs)
+    else:
+        return firedrake.NonlinearVariationalSolver(problem, **kwargs)
+
+
+def invalidate_jacobian(solver):
+    return firedrake.LinearVariationalSolver.invalidate_jacobian(solver)
+
+
+derivative = firedrake.derivative
+norm = firedrake.norm
+Function = firedrake.Function
+TestFunction = firedrake.TestFunction
+TrialFunction = firedrake.TrialFunction

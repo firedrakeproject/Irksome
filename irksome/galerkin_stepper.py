@@ -10,7 +10,7 @@ from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import create_time_quadrature, ufc_line
-from .tools import AI, IA, dot, fields_to_components, reshape, replace
+from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components, reshape, replace
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
@@ -66,12 +66,12 @@ def getElements(basis_type, order):
 
 
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v, = F.arguments()
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
     assert V == u0.function_space()
-    i0, = L_trial.entity_dofs()[0][0]
+
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -89,14 +89,15 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     qpts = vecconst(np.reshape(qpts, (-1,)))
 
     # set up the pieces we need to work with to do our substitutions
+    i0, = L_trial.entity_dofs()[0][0]
     v_np = reshape(test, (-1, *v.ufl_shape))
-    w_np = reshape(stages, (-1, *u0.ufl_shape))
+    w_np = reshape(stages, (-1, *u.ufl_shape))
     u_np = np.insert(w_np, i0, reshape(u0, (1, *u0.ufl_shape)), axis=0)
 
     vsub = dot(test_vals_w.T, v_np)
     usub = dot(trial_vals.T, u_np)
-    dtu0sub = dot(trial_dvals.T, u_np)
-    dtu0 = TimeDerivative(u0)
+    dtusub = dot(trial_dvals.T, u_np)
+    dtu = TimeDerivative(u)
 
     # discretize the auxiliary fields in the DG test space
     if aux_indices is not None:
@@ -108,8 +109,8 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     for q in range(len(qpts)):
         repl[q] = {t: t + qpts[q] * dt,
                    v: vsub[q] * dt,
-                   u0: usub[q],
-                   dtu0: dtu0sub[q] / dt}
+                   u: usub[q],
+                   dtu: dtusub[q] / dt}
     Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
