@@ -28,7 +28,6 @@ try:
 
     def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
         """Create a variational problem."""
-        breakpoint()
         if len(F.arguments()) == 2:
             a, L = ufl.system(F)
             return dolfinx.fem.petsc.LinearProblem(
