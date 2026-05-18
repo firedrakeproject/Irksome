@@ -99,8 +99,8 @@ class BoundsConstrainedDirichletBC(metaclass=_BoundsConstrainedDirichletBCMeta):
                 "ksp_type": "preonly",
                 "mat_type": "aij",
             }
-        problem = backend_cls.create_nonlinearvariational_problem(F, self.gnew)
-        self.solver = backend_cls.create_nonlinear_solver(
+        problem = backend_cls.create_variational_problem(F, self.gnew)
+        self.solver = backend_cls.create_variational_solver(
             problem, solver_parameters=solver_parameters
         )
         super().__init__(V, g, sub_domain)
