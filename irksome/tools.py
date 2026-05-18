@@ -112,15 +112,16 @@ def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays and skips
     substitution into sub-expressions wrapped by :func:`~.lag`."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
-    for var in extract_type(e, Variable):
-        if var.ufl_operands[1] is lag_label:
-            cmapping.setdefault(var, var)
     if isinstance(e, LabelledForm):
         enew = LabelledForm(*(Term(replace(term.form, cmapping), term.labels)
                               for term in e.terms))
         return enew
     else:
-        return ufl_replace(e, cmapping)
+
+for var in extract_type(e, Variable):
+    if var.ufl_operands[1] is lag_label:
+        cmapping.setdefault(var, var)
+return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor
