@@ -1,6 +1,6 @@
 import pytest
 import firedrake
-from firedrake import Constant, inner, grad, dx, conditional, assemble, replace
+from firedrake import Constant, inner, grad, dx, conditional, assemble
 import irksome
 from irksome import Dt, lag
 
