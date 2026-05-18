@@ -168,7 +168,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
 
     splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
                                  max_quadrature_degree=max_quadrature_degree)
-    Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend=backend)
+    Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?

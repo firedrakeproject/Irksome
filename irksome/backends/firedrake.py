@@ -15,48 +15,6 @@ def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
     return tuple(bc.extract_form("F") for bc in firedrake.solving._extract_bcs(bcs))
 
 
-def create_nonlinearvariational_problem(
-    F: ufl.Form,
-    u: ufl.Coefficient,
-    bcs: typing.Sequence | None = None,
-    **kwargs,
-) -> firedrake.NonlinearVariationalProblem:
-    return firedrake.NonlinearVariationalProblem(F, u, bcs=bcs, **kwargs)
-
-
-def create_nonlinear_solver(
-    problem: firedrake.NonlinearVariationalProblem,
-    solver_parameters: dict | None = None,
-    **kwargs,
-):
-    """Create a non-linear variational solver that uses PETSc SNES."""
-    return firedrake.NonlinearVariationalSolver(
-        problem, solver_parameters=solver_parameters, **kwargs
-    )
-
-
-def create_linearvariational_problem(
-    a: ufl.Form,
-    L: ufl.Form,
-    u: ufl.Coefficient | typing.Sequence[ufl.Coefficient],
-    bcs: typing.Sequence | None = None,
-    aP: ufl.Form | None = None,
-    **kwargs,
-) -> firedrake.LinearVariationalProblem:
-    return firedrake.LinearVariationalProblem(a, L, u, bcs=bcs, aP=aP, **kwargs)
-
-
-def create_linear_solver(
-    problem: firedrake.LinearVariationalProblem,
-    solver_parameters: dict | None = None,
-    **kwargs,
-):
-    """Create a linear variational solver that uses PETSc KSP."""
-    return firedrake.LinearVariationalSolver(
-        problem, solver_parameters=solver_parameters, **kwargs
-    )
-
-
 def get_function_space(u: ufl.Coefficient) -> firedrake.FunctionSpace:
     return u.function_space()
 
