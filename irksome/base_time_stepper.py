@@ -89,28 +89,13 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             at additional points in time.
     """
 
-    def __init__(
-        self,
-        F,
-        t,
-        dt,
-        u0,
-        num_stages,
-        bcs=None,
-        Fp=None,
-        solver_parameters=None,
-        appctx=None,
-        nullspace=None,
-        transpose_nullspace=None,
-        near_nullspace=None,
-        splitting=None,
-        bc_type=None,
-        butcher_tableau=None,
-        bounds=None,
-        sample_points=None,
-        backend="firedrake",
-        **kwargs,
-    ):
+    def __init__(self, F, t, dt, u0, num_stages,
+                 bcs=None, Fp=None, solver_parameters=None,
+                 appctx=None, nullspace=None,
+                 transpose_nullspace=None, near_nullspace=None,
+                 splitting=None, bc_type=None,
+                 butcher_tableau=None, bounds=None, sample_points=None,
+                 backend="firedrake", **kwargs):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace, backend=backend)
