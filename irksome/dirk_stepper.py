@@ -14,8 +14,8 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
         bcs = []
 
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
@@ -26,7 +26,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constant a is
     # used similarly in the variational form
-    MC = backend_cls.MeshConstant(V.mesh())
+    MC = backend_cls.MeshConstant(V.mesh(), backend=backend)
     if kgac is None:
         k = backend_cls.Function(V)
         g = backend_cls.Function(V)
@@ -120,7 +120,7 @@ class DIRKTimeStepper:
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
         stage_F, kgac, bcnew, (a_vals, d_val) = getFormDIRK(
-            F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
+            F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs, backend=backend)
         k, g, a, c = kgac
         self.kgac = kgac
         self.bcnew = bcnew

@@ -3,10 +3,13 @@
 import firedrake
 import ufl
 import typing
+from functools import reduce
+from operator import mul
 
 
 def get_stage_space(V: ufl.FunctionSpace, num_stages: int) -> ufl.FunctionSpace:
-    return firedrake.MixedFunctionSpace(tuple(V) * num_stages)
+    # NOTE: Should use firedrake.MixedFunctionSpace, but there is a bug for vector spaces.
+    return reduce(mul, (V for _ in range(num_stages)))
 
 
 def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:

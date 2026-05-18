@@ -62,10 +62,11 @@ def getElements(basis_type, order):
     return L_trial, L_test
 
 
-def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
+def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend="firedrake"):
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
+    backend_cls = get_backend(backend)
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))

@@ -40,10 +40,11 @@ def getElement(basis_type, order):
         return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
-def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
+def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", backend="firedrake"):
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
+    backend_cls = get_backend(backend)
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -164,7 +165,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
 
     splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
                                  max_quadrature_degree=max_quadrature_degree)
-    Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type)
+    Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type, backend=backend)
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
