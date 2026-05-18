@@ -100,7 +100,7 @@ class BoundsConstrainedDirichletBC(metaclass=_BoundsConstrainedDirichletBCMeta):
                 "mat_type": "aij",
             }
         problem = backend_cls.create_linearvariational_problem(F, self.gnew)
-        self.solver = backend_cls.create_nonlinearvariational_solver(
+        self.solver = backend_cls.create_nonlinear_solver(
             problem, solver_parameters=solver_parameters
         )
         super().__init__(V, g, sub_domain)

@@ -61,7 +61,7 @@ class Backend(Protocol):
     ) -> Any:
         """Create a non-linear variational problem in the backend language."""
 
-    def create_nonlinearvariational_solver(
+    def create_nonlinear_solver(
         problem: Any,
         solver_parameters: dict | None = None,
         **kwargs,
@@ -78,7 +78,7 @@ class Backend(Protocol):
     ) -> Any:
         """Create a linear variational problem in the backend language."""
 
-    def create_linearvariational_solver(
+    def create_linear_solver(
         problem: Any,
         solver_parameters: dict | None = None,
         **kwargs,

@@ -43,7 +43,7 @@ try:
             **kwargs,
         )
 
-    def create_linearvariational_solver(
+    def create_linear_solver(
         problem: dolfinx.fem.petsc.LinearProblem,
         solver_parameters: dict | None = None,
         **kwargs,
@@ -65,7 +65,7 @@ try:
             petsc_options=solver_parameters,
         )
 
-    def create_nonlinearvariational_solver(
+    def create_nonlinear_solver(
         problem: dolfinx.fem.petsc.NonlinearProblem,
         solver_parameters: dict | None = None,
     ):

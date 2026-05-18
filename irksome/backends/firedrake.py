@@ -24,7 +24,7 @@ def create_nonlinearvariational_problem(
     return firedrake.NonlinearVariationalProblem(F, u, bcs=bcs, **kwargs)
 
 
-def create_nonlinearvariational_solver(
+def create_nonlinear_solver(
     problem: firedrake.NonlinearVariationalProblem,
     solver_parameters: dict | None = None,
     **kwargs,
@@ -46,7 +46,7 @@ def create_linearvariational_problem(
     return firedrake.LinearVariationalProblem(a, L, u, bcs=bcs, aP=aP, **kwargs)
 
 
-def create_linearvariational_solver(
+def create_linear_solver(
     problem: firedrake.LinearVariationalProblem,
     solver_parameters: dict | None = None,
     **kwargs,

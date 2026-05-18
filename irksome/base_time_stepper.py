@@ -177,7 +177,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                 constant_jacobian=kwargs.pop("constant_jacobian", False),
                 restrict=kwargs.pop("restrict", False),
             )
-            self.solver = self._backend.create_linearvariational_solver(
+            self.solver = self._backend.create_linear_solver(
                 problem,
                 appctx=self.appctx,
                 nullspace=nullspace,
@@ -196,7 +196,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                 restrict=kwargs.pop("restrict", False),
             )
             problem._constant_jacobian = kwargs.pop("constant_jacobian", False)
-            self.solver = self._backend.create_nonlinearvariational_solver(
+            self.solver = self._backend.create_nonlinear_solver(
                 problem,
                 appctx=self.appctx,
                 nullspace=nullspace,

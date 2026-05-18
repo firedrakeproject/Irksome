@@ -472,7 +472,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             f_problem = self._backend_cls.create_nonlinearvariational_problem(
                 f_form, error_func, bcs=self.embbc
             )
-            f_solver = self._backend_cls.create_nonlinearvariational_solver(
+            f_solver = self._backend_cls.create_nonlinear_solver(
                 f_problem, solver_parameters=self.gamma0_params
             )
             f_solver.solve()
