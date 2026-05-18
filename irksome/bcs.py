@@ -85,6 +85,7 @@ class BoundsConstrainedDirichletBC(metaclass=_BoundsConstrainedDirichletBCMeta):
         self.g = g
         self.solver_parameters = solver_parameters
         self.bounds = bounds
+        # NOTE: We store the name to pass it to the specific backend constructor later on.
         self._backend_name = backend
         backend_cls = get_backend(backend)
         self.gnew = backend_cls.Function(V)
