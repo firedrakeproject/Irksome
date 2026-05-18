@@ -67,9 +67,6 @@ def getForm(
          objects to be posed on the stages
     """
     backend_cls = get_backend(backend)
-    replace = backend_cls.replace
-
-
     if bc_type is None:
         bc_type = "DAE"
     v, u = extract_timedep_arguments(F, u0)
