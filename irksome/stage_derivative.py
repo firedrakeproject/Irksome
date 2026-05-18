@@ -210,6 +210,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          butcher_tableau=butcher_tableau,
                          sample_points=sample_points,
                          backend=backend, **kwargs)
+        self.num_fields = len(self._backend.get_function_space(u0))
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
