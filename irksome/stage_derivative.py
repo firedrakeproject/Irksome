@@ -34,9 +34,9 @@ def getForm(
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
          advance in time.
-    :arg t: a :class:`Function` or :class:`Constant` on the Real space over the same mesh as
+    :arg t: a :class:`Constant` or :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
-    :arg dt: a :class:`Function` or :class:`Constant` on the Real space over the same mesh as
+    :arg dt: a :class:`Constant` or :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time step.
          The user may adjust this value between time steps.
     :arg u0: a :class:`Function` referring to the state of
@@ -110,7 +110,7 @@ def getForm(
 
         repl[i] = {t: t + c[i] * dt, v: v_np[i], u0: usub, dtu: dtusub}
 
-    Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
+    Fnew = sum(backend_cls.replace(F, repl[i]) for i in range(num_stages))
 
     if bcs is None:
         bcs = []
