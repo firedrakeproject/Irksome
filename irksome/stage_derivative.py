@@ -213,7 +213,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
         at additional points in time.
     """
-
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
                  appctx=None, bc_type="DAE", aux_indices=None, sample_points=None,
@@ -332,8 +331,6 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         with each time step.
     :arg nullspace: An optional nullspace object.
     """
-
-
     def __init__(self, F, butcher_tableau, t, dt, u0,
                  bcs=None, appctx=None, solver_parameters=None,
                  bc_type="DAE", splitting=AI, nullspace=None,
