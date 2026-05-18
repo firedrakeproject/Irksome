@@ -120,22 +120,12 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 
 
 def replace(e, mapping):
-<<<<<<< lag-label
     """A wrapper for ufl.replace that allows numpy arrays and skips
     substitution into sub-expressions wrapped by :func:`~.lag`."""
-    if isinstance(e, LabelledForm):
-        enew = LabelledForm(*(Term(replace(term.form, mapping), term.labels)
-                              for term in e.terms))
-        return enew
-
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
     for var in extract_type(e, Variable):
         if var.ufl_operands[1] is lag_label:
             cmapping.setdefault(var, var)
-=======
-    """A wrapper for ufl.replace that allows numpy arrays."""
-    cmapping = {k: as_tensor(v) for k, v in mapping.items()}
->>>>>>> master
     return ufl_replace(e, cmapping)
 
 
