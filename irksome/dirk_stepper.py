@@ -1,7 +1,7 @@
 import numpy
 from ufl import as_ufl, lhs
 
-from .constant import vecconst
+from .constant import vecconst, MeshConstant
 from .bcs import bc2space
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .tools import extract_timedep_arguments, replace
@@ -26,7 +26,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constant a is
     # used similarly in the variational form
-    MC = backend_cls.MeshConstant(V.mesh(), backend=backend)
+    MC = MeshConstant(V.mesh(), backend=backend)
     if kgac is None:
         k = backend_cls.Function(V)
         g = backend_cls.Function(V)
