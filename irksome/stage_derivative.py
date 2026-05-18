@@ -106,17 +106,13 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     if bcs is None:
         bcs = []
     if bc_type == "ODE":
-        assert splitting == AI, (
-            "ODE-type BC aren't implemented for this splitting strategy"
-        )
+        assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
 
         def bc2stagebc(bc, i):
             from firedrake.bcs import EquationBCSplit
 
             if isinstance(bc, EquationBCSplit):
-                raise NotImplementedError(
-                    "EquationBC not implemented for ODE formulation"
-                )
+                raise NotImplementedError("EquationBC not implemented for ODE formulation")
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u,))
             gcur = replace(gfoo, {t: t + c[i] * dt})
@@ -127,9 +123,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
             bA1inv = numpy.linalg.inv(bA1)
             A1inv = vecconst(bA1inv, backend=backend)
         except numpy.linalg.LinAlgError:
-            raise NotImplementedError(
-                "Cannot have DAE BCs for this Butcher Tableau/splitting"
-            )
+            raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
         def bc2stagebc(bc, i):
             from firedrake.bcs import EquationBCSplit, EquationBC
@@ -138,15 +132,6 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
                 F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u,))
                 F_bc_new = replace(F_bc_orig, repl[i])
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                return EquationBC(
-                    F_bc_new == 0,
-                    stages,
-                    bc.sub_domain,
-                    V=Vbigi,
-                    bcs=[
-                        bc2stagebc(innerbc, i)
-                        for innerbc in backend_cls.extract_bcs(bc.bcs)
-                    ],
                 return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
 
                                   bcs=[bc2stagebc(innerbc, i) 
@@ -158,10 +143,8 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
                 if gcur != 0:
                     gorig = as_ufl(gcur)
                     ucur = bc2space(bc, u0)
-                    gcur = (1 / dt) * sum(
-                        (replace(gorig, {t: t + c[j] * dt}) - ucur) * A1inv[i, j]
-                        for j in range(num_stages)
-                    )
+                    gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur) * A1inv[i, j]
+                                        for j in range(num_stages))
                 return BCStageData(bc, gcur, u0, stages, i)
     else:
         raise ValueError(f"Unrecognised bc_type: {bc_type}")
@@ -217,7 +200,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                  solver_parameters=None, splitting=AI,
                  appctx=None, bc_type="DAE", aux_indices=None, sample_points=None,
                  backend: str = "firedrake", **kwargs):
-        self.num_fields = len(self._backend.get_function_space(u0))
         self.butcher_tableau = butcher_tableau
         A1, A2 = splitting(butcher_tableau.A)
         try:
@@ -232,7 +214,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau,
-                         sample_points=sample_points, **kwargs)
+                         sample_points=sample_points,
+                         backend=backend, **kwargs)
+        self.num_fields = len(self._backend.get_function_space(u0))
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -246,9 +230,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         # Note: this now catches the optimized/stiffly accurate case as b[s] == Zero() will get dropped
 
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit += sum(
-                self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns)
-            )
+            u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
@@ -262,14 +244,10 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
 
     def tabulate_poly(self, sample_points):
         if not isinstance(self.butcher_tableau, CollocationButcherTableau):
-            raise ValueError(
-                "Need a collocation method to evaluate the collocation polynomial"
-            )
+            raise ValueError("Need a collocation method to evaluate the collocation polynomial")
         nodes = numpy.insert(self.butcher_tableau.c, 0, 0.0)
         if len(set(nodes)) != len(nodes):
-            raise ValueError(
-                "Need non-confluent collocation method for polynomial evaluation"
-            )
+            raise ValueError("Need non-confluent collocation method for polynomial evaluation")
 
         ref_el = ufc_simplex(1)
         lag_basis = LagrangePolynomialSet(ref_el, nodes)
@@ -364,21 +342,15 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.contreject = 0
 
         split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
-        F_remainder = expand_time_derivatives(
-            split_form.remainder, t=t, timedep_coeffs=()
-        )
+        F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
         self.dtless_form = -F_remainder
 
         # Set up and cache boundary conditions for error estimate
         embbc = []
         if self.gamma0 != 0:
             # Grab spaces for BCs
-            embbc = [
-                EmbeddedBCData(
-                    bc, butcher_tableau, self.t, self.dt, self.u0, self.stages
-                )
-                for bc in bcs
-            ]
+            embbc = [EmbeddedBCData(bc, butcher_tableau, self.t, self.dt, self.u0, self.stages)
+                     for bc in bcs]
         self.embbc = embbc
 
     def _estimate_error(self):
@@ -429,33 +401,22 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             dt_old = float(self.dt_old)
             dt_current = float(self.dt)
             tol = float(self.tol)
-            dt_pred = dt_current * ((dt_current * tol) / err_current) ** (
-                1 / self.butcher_tableau.embedded_order
-            )
+            dt_pred = dt_current*((dt_current*tol)/err_current)**(1/self.butcher_tableau.embedded_order)
             self.print("\tTruncation error is %e" % (err_current))
 
             # Rejected step shrinks the time-step
-            if err_current >= dt_current * tol:
-                dtnew = dt_current * (
-                    self.safety_factor * dt_current * tol / err_current
-                ) ** (1.0 / self.butcher_tableau.embedded_order)
+            if err_current >= dt_current*tol:
+                dtnew = dt_current*(self.safety_factor*dt_current*tol/err_current)**(1./self.butcher_tableau.embedded_order)
                 self.print("\tShrinking time-step to %e" % (dtnew))
                 self.dt.assign(dtnew)
                 self.contreject += 1
                 if dtnew <= self.dt_min or numpy.isfinite(dtnew) is False:
                     raise RuntimeError("The time-step became an invalid number.")
                 if self.contreject >= self.max_reject:
-                    raise RuntimeError(
-                        f"The time-step was rejected {self.max_reject} times in a row. Please increase the tolerance or decrease the starting time-step."
-                    )
+                    raise RuntimeError(f"The time-step was rejected {self.max_reject} times in a row. Please increase the tolerance or decrease the starting time-step.")
 
             # Initial time-step selector
-            elif (
-                self.num_steps == 0
-                and dt_current < self.dt_max
-                and dt_pred > self.onscale_factor * dt_current
-                and self.contreject <= self.max_reject
-            ):
+            elif self.num_steps == 0 and dt_current < self.dt_max and dt_pred > self.onscale_factor*dt_current and self.contreject <= self.max_reject:
                 # Increase the initial time-step
                 dtnew = min(dt_pred, self.dt_max)
                 self.print("\tIncreasing time-step to %e" % (dtnew))
@@ -465,22 +426,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             # Accepted step increases the time-step
             else:
                 if dt_old != 0.0 and err_old != 0.0 and dt_current < self.dt_max:
-                    dtnew = min(
-                        dt_current
-                        * ((dt_current * tol) / err_current) ** self.KI
-                        * (err_old / err_current) ** self.KP
-                        * (dt_current / dt_old) ** self.KP,
-                        self.dt_max,
-                    )
-                    self.print(
-                        "\tThe step was accepted and the new time-step is %e" % (dtnew)
-                    )
+                    dtnew = min(dt_current*((dt_current*tol)/err_current)**self.KI*(err_old/err_current)**self.KP*(dt_current/dt_old)**self.KP, self.dt_max)
+                    self.print("\tThe step was accepted and the new time-step is %e" % (dtnew))
                 else:
                     dtnew = min(dt_current, self.dt_max)
-                    self.print(
-                        "\tThe step was accepted and the time-step remains at %e "
-                        % (dtnew)
-                    )
+                    self.print("\tThe step was accepted and the time-step remains at %e " % (dtnew))
                 self._update()
                 self.contreject = 0
                 self.num_steps += 1

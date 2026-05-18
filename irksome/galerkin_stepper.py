@@ -158,7 +158,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     assert L_test.get_reference_element() == L_trial.get_reference_element()
     assert L_trial.space_dimension() == L_test.space_dimension() + 1
     backend_cls = get_backend(backend)
-    Constant = backend_cls.Constant
+    Constant = backend_cls.MeshConstant((F.ufl_domain())).Constant
     Vbig = backend_cls.get_function_space(stages)
     test = backend_cls.TestFunction(Vbig)
 
@@ -296,8 +296,9 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         self.basis_type = scheme.basis_type
         self.backend = backend
         backend_cls = get_backend(backend)
-
         V = backend_cls.get_function_space(u0)
+        self._ConstantImpl = backend_cls.MeshConstant((F.ufl_domain())) 
+
         self.num_fields = len(V)
 
         self.trial_el, self.test_el = getElements(self.basis_type, self.order)
@@ -422,7 +423,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
         trial_dofs = np.delete(trial_dofs, i0, axis=0)
 
-        dof = Constant(0)
+        dof = self._ConstantImpl.Constant(0)
         for k in range(self.num_stages):
             for i, u0bit in enumerate(self.u0.subfunctions):
                 sbit = self.stages.subfunctions[self.num_fields*k+i]
