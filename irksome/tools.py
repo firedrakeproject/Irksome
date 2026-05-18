@@ -27,7 +27,7 @@ def flatten_dats(dats):
     return MixedDat(flat_dat)
 
 
-def get_stage_space(V, num_stages, backend:str="firedrake"):
+def get_stage_space(V, num_stages, backend="firedrake"):
     backend_cls = get_backend(backend)
     return backend_cls.get_stage_space(V, num_stages)
 
