@@ -13,17 +13,8 @@ class BaseTimeStepper:
     objects that are common to all the time steppers.  It's a developer-level class.
     """
 
-    def __init__(
-        self,
-        F,
-        t,
-        dt,
-        u0,
-        bcs=None,
-        appctx=None,
-        nullspace=None,
-        backend: str = "firedrake",
-    ):
+    def __init__(self, F, t, dt, u0,
+                 bcs=None, appctx=None, nullspace=None, backend: str = "firedrake"):
         self.F = F
         self.t = t
         self.dt = dt
