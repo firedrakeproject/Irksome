@@ -44,7 +44,6 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
     v, u = extract_timedep_arguments(Fexp, u0)
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
-    
     Vbig = backend_cls.get_function_space(UU)
     VV = backend_cls.TestFunction(Vbig)
 
