@@ -2,7 +2,6 @@ from operator import mul
 from functools import reduce
 import numpy
 
-from firedrake.fml import LabelledForm, Term
 from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
@@ -44,6 +43,18 @@ def split_stages(V, stages):
     stages_np = reshape(stages, (-1, *V.value_shape))
     ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
     return ks
+
+
+def extract_timedep_arguments(F, u0):
+    """Return both arguments if ``F`` is a bilinear form, otherwise
+    return the unique argument and ``u0``.
+    """
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
+    return v, u
 
 
 def fields_to_components(V, fields):
@@ -110,12 +121,7 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
-    if isinstance(e, LabelledForm):
-        enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
-                              for term in e.terms))
-        return enew
-    else:
-        return ufl_replace(e, cmapping)
+    return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor

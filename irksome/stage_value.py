@@ -1,18 +1,17 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
 import numpy
+from firedrake import TestFunction
+
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
-from firedrake import (Function, NonlinearVariationalProblem,
-                       NonlinearVariationalSolver, TestFunction, dx,
-                       inner)
-from ufl import as_tensor, Form
-from ufl.constantvalue import as_ufl
+
+from ufl import Form, as_tensor, as_ufl, dx, inner
 
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
-from .tools import AI, dot, reshape, replace
+from .tools import AI, extract_timedep_arguments, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 
@@ -77,7 +76,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
        - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
          on the stages
     """
-    v, = F.arguments()
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
     assert V == u0.function_space()
 
@@ -105,7 +104,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
     F_dtless = remove_time_derivatives(split_form.time)
     F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
@@ -117,10 +116,10 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     for i in range(num_stages):
         repl_new = {t: t + c[i] * dt,
                     v: A2invTv[i],
-                    u0: w_np[i]}
+                    u: w_np[i]}
         # Evaluate g at the old solution u0 (not substituted) and
         # old time t (not substituted).
-        repl_old = {v: A2invTv[i]}
+        repl_old = {v: A2invTv[i], u: u0}
         Fnew += replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
 
     # Handle the rest of the terms
@@ -128,7 +127,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
         # replace the solution with stage values
         repl = {t: t + c[i] * dt,
                 v: A1Tv[i] * dt,
-                u0: w_np[i]}
+                u: w_np[i]}
         Fnew += replace(F_remainder, repl)
 
     if bcs is None:
@@ -187,7 +186,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.set_initial_guess()
 
         if use_collocation_update:
-            # Use the terminal value of the collocation polynomial to update the solution. Note: collocation update is only implemented for constant-in-time boundary conditions.
+            # Use the terminal value of the collocation polynomial to update the solution.
+            # Note: collocation update is only implemented for constant-in-time boundary conditions.
             # TODO: create an assertion to check for constant-in-time boundary conditions.
 
             self.collocation_vander = self.tabulate_poly((1.0,))
@@ -222,23 +222,24 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
     def get_update_solver(self, update_solver_parameters):
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
-        v, = self.F.arguments()
-        unew = Function(self.u0.function_space())
-        Fupdate = inner(unew - self.u0, v) * dx
-
+        backend_cls = self._backend
         C = vecconst(self.butcher_tableau.c)
         B = vecconst(self.butcher_tableau.b)
         F = self.F
         t = self.t
         dt = self.dt
         u0 = self.u0
-        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+        v, u = extract_timedep_arguments(F, u0)
+        unew = backend_cls.Function(u.function_space())
+        Fupdate = inner(unew - self.u0, v) * dx
+
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
         u_np = to_value(self.u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
-                    u0: u_np[i]}
+                    u: u_np[i]}
             Fupdate += dt * B[i] * replace(F_remainder, repl)
 
         # And the BC's for the update -- just the original BC at t+dt
@@ -248,12 +249,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             gcur = replace(bcarg, {t: t + dt})
             update_bcs.append(bc.reconstruct(g=gcur))
 
-        update_problem = NonlinearVariationalProblem(
-            Fupdate, unew, update_bcs)
-
-        update_solver = NonlinearVariationalSolver(
-            update_problem,
-            solver_parameters=update_solver_parameters)
+        update_problem = backend_cls.create_variational_probelm(Fupdate, unew, update_bcs)
+        update_solver = backend_cls.create_variational_solver(update_problem, solver_parameters=update_solver_parameters)
 
         return unew, update_solver
 
