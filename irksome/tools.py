@@ -114,13 +114,11 @@ def replace(e, mapping):
     try:
         from firedrake.fml import LabelledForm, Term
         if isinstance(e, LabelledForm):
-            enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
-                                for term in e.terms))
-            return enew
-        else:
-            return ufl_replace(e, cmapping)
-
+            return LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
+                                  for term in e.terms))
     except ImportError:
+        pass
+    finally:
         return ufl_replace(e, cmapping)
 
 
