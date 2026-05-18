@@ -249,7 +249,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             gcur = replace(bcarg, {t: t + dt})
             update_bcs.append(bc.reconstruct(g=gcur))
 
-        update_problem = backend_cls.create_variational_probelm(Fupdate, unew, update_bcs)
+        update_problem = backend_cls.create_variational_problem(Fupdate, unew, update_bcs)
         update_solver = backend_cls.create_variational_solver(update_problem, solver_parameters=update_solver_parameters)
 
         return unew, update_solver
