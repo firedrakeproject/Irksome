@@ -420,7 +420,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         trial_dual = self.trial_el.get_dual_set()
         trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
         trial_dofs = np.delete(trial_dofs, i0, axis=0)
-    
+
         dof = self._backend.Constant(0)
         for k in range(self.num_stages):
             for i, u0bit in enumerate(self.u0.subfunctions):

@@ -1,4 +1,4 @@
-from .constant import vecconst, MeshConstant
+from .constant import vecconst
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .ufl.deriv import expand_time_derivatives
 from .base_time_stepper import BaseTimeStepper
@@ -58,17 +58,13 @@ class MultistepTimeStepper(BaseTimeStepper):
         else:
             Jp = None
 
-        self.problem = self._backend.create_variational_problem(Fnew, self.us[-1], J=Jp, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
-                                                   is_linear=kwargs.pop("is_linear", False),
-                                                   restrict=kwargs.pop("restrict", False))
+        self.problem = self._backend.create_variational_problem(
+            Fnew, self.us[-1], J=Jp, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+            is_linear=kwargs.pop("is_linear", False), restrict=kwargs.pop("restrict", False))
 
-        self.solver = self._backend.create_variational_solver(self.problem, appctx=self.appctx,
-                                                 nullspace=nullspace,
-                                                 transpose_nullspace=transpose_nullspace,
-                                                 near_nullspace=near_nullspace,
-                                                 solver_parameters=solver_parameters,
-                                                 **kwargs
-                                                 )
+        self.solver = self._backend.create_variational_solver(
+            self.problem, appctx=self.appctx, nullspace=nullspace, transpose_nullspace=transpose_nullspace,
+            near_nullspace=near_nullspace, solver_parameters=solver_parameters, **kwargs)
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0

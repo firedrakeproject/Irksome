@@ -3,6 +3,7 @@ import ufl
 from importlib import import_module
 import types
 
+
 class Backend(Protocol):
     def get_function_space(self, V: ufl.Coefficient) -> ufl.FunctionSpace:
         """Get a function space from the backend"""
@@ -101,7 +102,8 @@ class Backend(Protocol):
     class EquationBC:
         ...
 
-def get_backend(backend: str|types.ModuleType ) -> Backend:
+
+def get_backend(backend: str | types.ModuleType) -> Backend:
     """Get backend class from backend name.
 
     Args:

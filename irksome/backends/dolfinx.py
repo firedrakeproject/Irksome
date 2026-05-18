@@ -165,11 +165,10 @@ try:
         def assign(self, value):
             self._value = value
 
-
     class EquationBCSplit:
         def __init__(self, *args, **kwargs):
             raise NotImplementedError("DOLFINx does not support EquationBCSplit")
-        
+
     class EquationBC:
         def __init__(self, *args, **kwargs):
             raise NotImplementedError("DOLFINx does not support EquationBC")
