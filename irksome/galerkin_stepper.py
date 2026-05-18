@@ -11,7 +11,7 @@ from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import create_time_quadrature, ufc_line
 from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components, reshape, replace
-from .constant import vecconst, MeshConstant
+from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
 from .tableaux.ButcherTableaux import CollocationButcherTableau
