@@ -5,7 +5,7 @@ from firedrake import TestFunction
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
-from ufl import Form, as_tensor, as_ufl, dx, inner
+from ufl import Form, as_tensor, as_ufl
 
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
