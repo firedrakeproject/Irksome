@@ -109,7 +109,6 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
 
         def bc2stagebc(bc, i):
-
             if isinstance(bc, backend_cls.EquationBCSplit):
                 raise NotImplementedError("EquationBC not implemented for ODE formulation")
             gorig = as_ufl(bc._original_arg)
@@ -125,7 +124,6 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
         def bc2stagebc(bc, i):
-
             if isinstance(bc, backend_cls.EquationBCSplit):
                 F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u,))
                 F_bc_new = replace(F_bc_orig, repl[i])
