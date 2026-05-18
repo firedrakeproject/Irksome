@@ -25,9 +25,10 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     num_stages = tableau.num_stages
-    k = Function(V)
+    k0 = Function(V)
     g1 = Function(V)
     g2 = Function(V)
+    k = k0 if u0 == u else u
 
     # Note: the Constant c is used for substitution in both the
     # variational form and BC's, and we update it for each stage in
@@ -40,9 +41,9 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
     abar = MC.Constant(1.0)
 
     repl = {t: t + c * dt,
-            u0: g1 + k * (abar * dt**2),
-            Dt(u0): g2 + k * (a * dt),
-            Dt(u0, 2): k}
+            u: g1 + k * (abar * dt**2),
+            Dt(u): g2 + k * (a * dt),
+            Dt(u, 2): k}
     stage_F = replace(F, repl)
 
     # BC's
@@ -90,7 +91,7 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
                 gdat /= d_val * dt
                 bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k, g1, g2, a, abar, c), bcnew, (abar_vals, d_val)
+    return stage_F, (k0, g1, g2, a, abar, c), bcnew, (abar_vals, d_val)
 
 
 class DIRKNystromTimeStepper:
