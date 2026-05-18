@@ -9,7 +9,7 @@ from ufl.algorithms.map_integrands import map_integrands
 from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
 from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl.form import BaseForm
-from ufl.classes import (Coefficient, Conj, Curl, ConstantValue, Derivative,
+from ufl.classes import (Argument, Coefficient, Conj, Curl, ConstantValue, Derivative,
                          Div, Expr, Grad, Indexed, Label, ReferenceGrad,
                          ReferenceValue, SpatialCoordinate, Variable)
 from ufl.corealg.multifunction import MultiFunction
@@ -117,6 +117,7 @@ class TimeDerivativeRuleset(GenericDerivativeRuleset):
         else:
             return self.independent_terminal(o)
 
+    @process.register(Argument)
     @process.register(Coefficient)
     @process.register(SpatialCoordinate)
     def terminal(self, o):

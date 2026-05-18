@@ -2,7 +2,6 @@ from operator import mul
 from functools import reduce
 import numpy
 
-from firedrake.fml import LabelledForm, Term
 from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 from ufl.algorithms.analysis import extract_type
 from ufl import as_tensor
@@ -45,6 +44,18 @@ def split_stages(V, stages):
     stages_np = reshape(stages, (-1, *V.value_shape))
     ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
     return ks
+
+
+def extract_timedep_arguments(F, u0):
+    """Return both arguments if ``F`` is a bilinear form, otherwise
+    return the unique argument and ``u0``.
+    """
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
+    return v, u
 
 
 def fields_to_components(V, fields):
@@ -109,6 +120,7 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 
 
 def replace(e, mapping):
+<<<<<<< lag-label
     """A wrapper for ufl.replace that allows numpy arrays and skips
     substitution into sub-expressions wrapped by :func:`~.lag`."""
     if isinstance(e, LabelledForm):
@@ -120,6 +132,10 @@ def replace(e, mapping):
     for var in extract_type(e, Variable):
         if var.ufl_operands[1] is lag_label:
             cmapping.setdefault(var, var)
+=======
+    """A wrapper for ufl.replace that allows numpy arrays."""
+    cmapping = {k: as_tensor(v) for k, v in mapping.items()}
+>>>>>>> master
     return ufl_replace(e, cmapping)
 
 
@@ -152,7 +168,8 @@ def get_lagrange_permutation(L):
 
     points = []
     for ell in L.dual.nodes:
-        assert isinstance(ell, FIAT.functional.PointEvaluation)
+        if not isinstance(ell, FIAT.functional.PointEvaluation):
+            raise TypeError("Expecting a Lagrange element")
         pt, = ell.get_point_dict().keys()
         points.append(pt[0])
 

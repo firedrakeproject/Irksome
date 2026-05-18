@@ -1,0 +1,100 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: The branch to release from
+        type: string
+        required: true
+      version:
+        description: The version number to release
+        type: string
+        required: true
+
+jobs:
+  check:
+    name: Pre-release checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Check no 'TODO RELEASE' comments remain
+        run: |
+          if [ -z "$( grep -r --exclude-dir='.*' 'TODO RELEASE' )" ]; then
+            exit 0
+          else
+            exit 1
+          fi
+
+      - name: Check version number matches
+        run: |
+          if [ -z "$( grep 'version = \"${{ inputs.version }}\"' pyproject.toml )" ]; then
+            exit 1
+          else
+            exit 0
+          fi
+
+  build:
+    name: Build dist files
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build petsctools
+        run: |
+          pip install build
+          python -m build .
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    name: Push dist to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  github_release:
+    name: Create GitHub release
+    needs: pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create --title ${{ inputs.version }} --target ${{ inputs.branch }} --generate-notes ${{ inputs.version }} dist/*

@@ -7,24 +7,27 @@ from firedrake import (
     assemble, as_vector, derivative, div, dx, errornorm, exp, grad, inner, split, solve
 )
 from irksome import (
-    Dt, ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme,
+    Dt, DiscontinuousGalerkinCollocationScheme,
+    ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme,
     IRKAuxiliaryOperatorPC, LobattoIIIC,
     MeshConstant, RadauIIA, TimeStepper, TimeQuadratureLabel
 )
 from irksome.tools import AI, IA
-from irksome.labeling import as_form, create_time_quadrature
+from irksome.labeling import as_form
+
+# FIXME should no longer be needed after https://github.com/firedrakeproject/firedrake/pull/5079
+from firedrake import parameters
+parameters["default_sub_matrix_type"] = "aij"
 
 # Tests that various PCs are actually getting the right answer.
 
 
-def Fubc(V, t, uexact, Lhigh=None):
-    if Lhigh is None:
-        Lhigh = lambda x: x
+def Fubc(V, t, uexact):
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)
     rhs = Dt(uexact) - div(grad(uexact)) - uexact * (1-uexact)
-    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx + Lhigh(-inner(u*(1-u), v)*dx - inner(rhs, v)*dx)
+    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(u*(1-u), v)*dx - inner(rhs, v)*dx
     bc = DirichletBC(V, uexact, "on_boundary")
     return (F, u, bc)
 
@@ -37,7 +40,7 @@ class myPC(IRKAuxiliaryOperatorPC):
         return F, bcs
 
 
-def rd(scheme, Lhigh=None, **kwargs):
+def rd(scheme, **kwargs):
     """When a GalerkinCollocationScheme is provided, this preconditions the
     Jacobian by applying the Rana triangular approximation to the corresponding
     collocation IRK.
@@ -105,7 +108,7 @@ def rd(scheme, Lhigh=None, **kwargs):
     params = [luparams, ranaLD, ranaDU, mypc_params]
 
     for solver_parameters in params:
-        F, u, bc = Fubc(V, t, uexact, Lhigh=Lhigh)
+        F, u, bc = Fubc(V, t, uexact)
 
         stepper = TimeStepper(F, scheme, t, dt, u, bcs=bc,
                               solver_parameters=solver_parameters, **kwargs)
@@ -134,18 +137,27 @@ def test_pc_acc(butcher_tableau, order, stage_type):
 @pytest.mark.parametrize('quad_scheme,order', [
     ("radau", 2),
 ])
-def test_pc_galerkin(quad_scheme, order, stage_type):
-    scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, stage_type=stage_type)
-    Lhigh = TimeQuadratureLabel(3*order-1)
-    assert rd(scheme, Lhigh=Lhigh) < 1.e-6
+def test_pc_cpg_collocation(quad_scheme, order, stage_type):
+    scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, quadrature_degree="auto", stage_type=stage_type)
+    assert rd(scheme) < 1.e-6
 
 
-@pytest.mark.parametrize("stage_type", ("deriv", "value"))
-@pytest.mark.parametrize('quad_scheme,order', [
-    ("radau", 1),
-    ("radau", 2),
+@pytest.mark.parametrize("deriv_type", ("strong", "weak"))
+@pytest.mark.parametrize('order', [2])
+def test_pc_dg_collocation(order, deriv_type):
+    scheme = DiscontinuousGalerkinCollocationScheme(order, quadrature_degree="auto", deriv_type=deriv_type)
+    assert rd(scheme) < 1.e-6
+
+
+@pytest.mark.parametrize('scheme', [
+    DiscontinuousGalerkinCollocationScheme(0, quadrature_scheme="radau"),
+    DiscontinuousGalerkinCollocationScheme(1, quadrature_scheme="radau"),
+    GalerkinCollocationScheme(1, quadrature_scheme="radau", stage_type="deriv"),
+    GalerkinCollocationScheme(1, quadrature_scheme="radau", stage_type="value"),
+    GalerkinCollocationScheme(2, quadrature_scheme="radau", stage_type="deriv"),
+    GalerkinCollocationScheme(2, quadrature_scheme="radau", stage_type="value"),
 ])
-def test_git_irk_equivalence(quad_scheme, order, stage_type):
+def test_git_irk_equivalence(scheme):
     N = 5
     msh = UnitSquareMesh(N, N)
     V = VectorFunctionSpace(msh, "CG", 2)
@@ -192,15 +204,20 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
         "pc_type": "python",
         "pc_python_type": "irksome.IRKAuxiliaryOperatorPC",
         "aux": {
-            "pc_type": "cholesky" if order == 1 else "lu",
+            "mat_type": "nest",
+            "sub_mat_type": "aij",
+            "pc_type": "cholesky" if scheme.num_stages == 1 else "lu",
             "pc_factor_mat_solver_type": "mumps",
         }
     }
-    scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, stage_type=stage_type)
+
+    kwargs = {}
+    if isinstance(scheme, ContinuousPetrovGalerkinScheme):
+        kwargs["aux_indices"] = [1]
     stepper = TimeStepper(F, scheme, t, dt, z,
                           bcs=bcs, solver_parameters=sparams,
                           nullspace=nsp,
-                          aux_indices=[1])
+                          **kwargs)
 
     for step in range(N):
         stepper.advance()
@@ -239,8 +256,7 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
     scheme = family(order)
     if isinstance(scheme, ContinuousPetrovGalerkinScheme):
         scheme = family(order, stage_type="value")
-        Qlow = create_time_quadrature(2*order-2, scheme="radau")
-        Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+        Llow = TimeQuadratureLabel(2*order-2, scheme="radau")
     else:
         Llow = lambda x: x
     F = (
