@@ -29,7 +29,6 @@ from .scheme import create_time_quadrature
 from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 from .scheme import GalerkinCollocationScheme, DiscontinuousGalerkinCollocationScheme
 
-
 __all__ = [
     "AdamsBashforth",
     "AdamsMoulton",
@@ -67,12 +66,12 @@ try:
     from .bcs import BoundsConstrainedDirichletBC
     from .dirk_stepper import DIRKTimeStepper
     from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
+    from .stage_derivative import getForm
     from .nystrom_dirk_stepper import DIRKNystromTimeStepper, ExplicitNystromTimeStepper
     from .nystrom_stepper import (
         StageDerivativeNystromTimeStepper,
         ClassicNystrom4Tableau,
     )
-    from .stage_derivative import getForm
     from .stage_value import StageValueTimeStepper
 
     from .pc import (
@@ -93,6 +92,7 @@ try:
     __all__ += [
         "DIRKTimeStepper",
         "BoundsConstrainedDirichletBC",
+        "getForm",
         "RadauIIAIMEXMethod",
         "DIRKIMEXMethod",
         "DIRKNystromTimeStepper",
@@ -112,7 +112,6 @@ try:
         "MultistepTimeStepper",
         "TimeQuadratureLabel",
         "TimeStepper",
-        "getForm",
     ]
 
 except ModuleNotFoundError:
