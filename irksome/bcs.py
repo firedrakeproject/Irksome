@@ -85,12 +85,10 @@ class BoundsConstrainedDirichletBC(metaclass=_BoundsConstrainedDirichletBCMeta):
         self.g = g
         self.solver_parameters = solver_parameters
         self.bounds = bounds
-        # NOTE: We store the name to pass it to the specific backend constructor later on.
-        self._backend_name = backend
-        backend_cls = get_backend(backend)
-        self.gnew = backend_cls.Function(V)
+        self._backend = get_backend(backend)
+        self.gnew = self._backend.Function(V)
 
-        F = inner(self.gnew - g, backend_cls.TestFunction(V)) * dx
+        F = inner(self.gnew - g, self._backend.TestFunction(V)) * dx
 
         if solver_parameters is None:
             solver_parameters = {
@@ -100,8 +98,8 @@ class BoundsConstrainedDirichletBC(metaclass=_BoundsConstrainedDirichletBCMeta):
                 "ksp_type": "preonly",
                 "mat_type": "aij",
             }
-        problem = backend_cls.create_variational_problem(F, self.gnew)
-        self.solver = backend_cls.create_variational_solver(
+        problem = self._backend.create_variational_problem(F, self.gnew)
+        self.solver = self._backend.create_variational_solver(
             problem, solver_parameters=solver_parameters
         )
         super().__init__(V, g, sub_domain)
@@ -122,4 +120,4 @@ class BoundsConstrainedDirichletBC(metaclass=_BoundsConstrainedDirichletBCMeta):
         V = V or self.function_space()
         g = g or self.g
         sub_domain = sub_domain or self.sub_domain
-        return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters, backend=self._backend_name)
+        return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters, backend=self._backend)
