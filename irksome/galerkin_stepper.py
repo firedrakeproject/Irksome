@@ -19,7 +19,6 @@ from .stage_derivative import getForm
 from .stage_value import getFormStage
 from .backend import get_backend
 import numpy as np
-from firedrake import Constant
 from firedrake.bcs import EquationBCSplit
 
 
@@ -177,6 +176,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     bcs = backend_cls.extract_bcs(bcs)
     bcsnew = []
 
+    Constant = backend_cls.Constant
     # list of dictionaries mapping time coordinates to weights to evaluate DOFs
     test_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
                   for (c,), wts in node.pt_dict.items()} for node in L_test.dual_basis()]
