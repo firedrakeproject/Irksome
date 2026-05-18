@@ -121,7 +121,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
     return Fnew
 
 
-def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong", max_quadrature_degree=None, backend:str="firedrake"):
+def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong", max_quadrature_degree=None, backend="firedrake"):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
