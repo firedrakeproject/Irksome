@@ -2,6 +2,7 @@
 
 try:
     from mpi4py import MPI
+    from petsc4py import PETSc
     import basix.ufl
     import dolfinx.fem.petsc
     import ufl
@@ -25,51 +26,48 @@ try:
         """Extract boundary conditions"""
         return bcs
 
-    def create_linearvariational_problem(
-        a: ufl.Form,
-        L: ufl.Form,
-        u: ufl.Coefficient | typing.Sequence[ufl.Coefficient],
-        bcs: typing.Sequence | None = None,
-        aP: ufl.Form | None = None,
-        **kwargs,
-    ) -> dolfinx.fem.petsc.LinearProblem:
-        return dolfinx.fem.petsc.LinearProblem(
-            a,
-            L,
-            u,
-            bcs=bcs,
-            petsc_options_prefix="IrkSomeLinearSolver",
-            P=aP,
-            **kwargs,
-        )
+    def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
+        """Create a variational problem."""
+        breakpoint()
+        if len(F.arguments()) == 2:
+            a, L = ufl.system(F)
+            return dolfinx.fem.petsc.LinearProblem(
+                a,
+                L,
+                u,
+                bcs=bcs,
+                petsc_options_prefix="IrkSomeLinearSolver",
+                P=aP,
+                **kwargs,
+            )
+        else:
+            return dolfinx.fem.petsc.NonlinearProblem(
+                F,
+                u,
+                petsc_options_prefix="IrkSomeNonlinearSolver",
+                bcs=bcs,
+                petsc_options=kwargs.get("solver_parameters"),
+            )
 
-    def create_linear_solver(
-        problem: dolfinx.fem.petsc.LinearProblem,
-        solver_parameters: dict | None = None,
+    def create_variational_solver(
+        problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
         **kwargs,
     ):
         """Create a linear variational solver that uses PETSc KSP."""
-        return problem
-
-    def create_nonlinearvariational_problem(
-        F: ufl.Form,
-        g: ufl.Coefficient,
-        bcs: typing.Sequence | None = None,
-        solver_parameters: dict | None = None,
-    ) -> dolfinx.fem.petsc.NonlinearProblem:
-        return dolfinx.fem.petsc.NonlinearProblem(
-            F,
-            g,
-            petsc_options_prefix="IrkSomeNonlinearSolver",
-            bcs=bcs,
-            petsc_options=solver_parameters,
+        
+        solver_parameters = kwargs.get("solver_parameters", {})
+        solver = problem.solver
+        solver_prefix = problem.solver.getOptionsPrefix()
+        opts = PETSc.Options(
         )
-
-    def create_nonlinear_solver(
-        problem: dolfinx.fem.petsc.NonlinearProblem,
-        solver_parameters: dict | None = None,
-    ):
-        """Create a non-linear variational solver that uses PETSc SNES."""
+        opts.prefixPush(solver_prefix)
+        for k, v in solver_parameters.items():
+            opts.setValue(k, v)
+        solver.setFromOptions()
+        opts.prefixPop()
+        # For some strange reason delValue doesn't respect prefixes
+        for k, v in solver_parameters.items():
+            opts.delValue(f"{solver_prefix}{k}")
         return problem
 
     def get_function_space(u: ufl.Coefficient) -> ufl.FunctionSpace:
@@ -125,7 +123,7 @@ try:
         pass
 
     def norm(
-        v: ufl.core.Expr, norm_type: str = "L2", mesh: ufl.Mesh | None = None
+        v: ufl.core.expr.Expr, norm_type: str = "L2", mesh: ufl.Mesh | None = None
     ) -> float:
         """Compute the norm of a function in the backend language."""
         if mesh is not None:
@@ -144,7 +142,7 @@ try:
         norm_loc = dolfinx.fem.assemble_scalar(form)
         return form.mesh.comm.Allreduce(MPI.IN_PLACE, norm_loc, op=MPI.SUM) ** (1 / p)
 
-    def assemble(expr: ufl.core.Expr | float):
+    def assemble(expr: ufl.core.expr.Expr | float):
         """Assemble a UFL expression in the backend language."""
         if isinstance(expr, float):
             return float
