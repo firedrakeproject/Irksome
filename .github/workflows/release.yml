@@ -51,7 +51,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build petsctools
+      - name: Build irksome
         run: |
           pip install build
           python -m build .
