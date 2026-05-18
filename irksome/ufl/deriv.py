@@ -10,7 +10,7 @@ from ufl.algorithms.apply_derivatives import GenericDerivativeRuleset
 from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl.form import BaseForm
 from ufl.classes import (Argument, Coefficient, Conj, Curl, ConstantValue, Derivative,
-                         Div, Expr, Grad, Indexed, Label, ReferenceGrad,
+                         Div, Expr, Grad, Indexed, ReferenceGrad,
                          ReferenceValue, SpatialCoordinate, Variable)
 from ufl.corealg.multifunction import MultiFunction
 
@@ -83,17 +83,6 @@ def Dt(f, order=1):
     for k in range(order):
         f = TimeDerivative(f)
     return f
-
-
-# A :class:`ufl.Label` to mark nodes that are only evaluated at the start of
-# the timestep.
-lag_label = Label()
-
-
-def lag(expr):
-    """Mark a sub-expression to be evaluated only at the start of the
-    timestep during the implicit solve."""
-    return Variable(expr, lag_label)
 
 
 class TimeDerivativeRuleset(GenericDerivativeRuleset):
