@@ -159,7 +159,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     backend_cls = get_backend(backend)
     Vbig = backend_cls.get_function_space(stages)
     test = backend_cls.TestFunction(Vbig)
-    Constant = MeshConstant(Vbig.ufl_domain(), backend=backend).Constant
+    Constant = backend_cls.Constant
 
     degree_mapping = get_degree_mapping(as_form(F), L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
