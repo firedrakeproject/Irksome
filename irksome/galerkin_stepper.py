@@ -297,7 +297,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         self.backend = backend
         backend_cls = get_backend(backend)
         V = backend_cls.get_function_space(u0)
-        self._ConstantImpl = backend_cls.MeshConstant((F.ufl_domain())) 
+        self._ConstantImpl = backend_cls.MeshConstant((F.ufl_domain()))
 
         self.num_fields = len(V)
 
