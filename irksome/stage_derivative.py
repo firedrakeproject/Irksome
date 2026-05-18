@@ -214,7 +214,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                  solver_parameters=None, splitting=AI,
                  appctx=None, bc_type="DAE", aux_indices=None, sample_points=None,
                  backend: str = "firedrake", **kwargs):
-        self.num_fields = len(self._backend.get_function_space(u0))                 
+        self.num_fields = len(self._backend.get_function_space(u0))
         self.butcher_tableau = butcher_tableau
         A1, A2 = splitting(butcher_tableau.A)
         try:
