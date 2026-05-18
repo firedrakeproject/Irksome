@@ -78,3 +78,6 @@ Function = firedrake.Function
 TestFunction = firedrake.TestFunction
 TrialFunction = firedrake.TrialFunction
 DirichletBC = firedrake.DirichletBC
+EquationBC = firedrake.bcs.EquationBC
+EquationBCSplit = firedrake.bcs.EquationBCSplit
+Constant = firedrake.Constant

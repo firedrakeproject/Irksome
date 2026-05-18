@@ -40,7 +40,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
         constraints in the style of a differential-algebraic
         equation, or "ODE", which takes the time derivative of the
         boundary data and evaluates this for the stage values.
-        Support for `firedrake.EquationBC` in `bcs` is limited
+        Support for `EquationBC` in `bcs` is limited
         to DAE style BCs.
     :kwarg splitting: a callable that maps the (floating point) Butcher matrix
         to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
@@ -52,7 +52,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
-       - `bcnew`, a list of :class:`firedrake.DirichletBC` or :class:`EquationBC`
+       - `bcnew`, a list of :class:`DirichletBC` or :class:`EquationBC`
          objects to be posed on the stages
     """
     backend_cls = get_backend(backend)
@@ -109,9 +109,8 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
 
         def bc2stagebc(bc, i):
-            from firedrake.bcs import EquationBCSplit
 
-            if isinstance(bc, EquationBCSplit):
+            if isinstance(bc, backend_cls.EquationBCSplit):
                 raise NotImplementedError("EquationBC not implemented for ODE formulation")
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u,))
@@ -126,14 +125,14 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
         def bc2stagebc(bc, i):
-            from firedrake.bcs import EquationBCSplit, EquationBC
 
-            if isinstance(bc, EquationBCSplit):
+            if isinstance(bc, backend_cls.EquationBCSplit):
                 F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u,))
                 F_bc_new = replace(F_bc_orig, repl[i])
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
-                                  bcs=[bc2stagebc(innerbc, i)
+                return backend_cls.EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
+
+                                  bcs=[bc2stagebc(innerbc, i) 
                                        for innerbc in backend_cls.extract_bcs(bc.bcs)])
             else:
                 gcur = bc._original_arg
@@ -161,15 +160,15 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
         the Runge-Kutta method to be used for time marching.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time step size.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`firedrake.EquationBC`
+    :arg bcs: An iterable of :class:`DirichletBC` or :class:`EquationBC`
         containing the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the RK method.
@@ -179,7 +178,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         constraints in the style of a differential-algebraic
         equation, or "ODE", which takes the time derivative of the
         boundary data and evaluates this for the stage values.
-        Support for :class:`firedrake.EquationBC` in `bcs` is limited
+        Support for :class:`EquationBC` in `bcs` is limited
         to DAE style BCs.
     :arg solver_parameters: A :class:`dict` of solver parameters that
         will be used in solving the algebraic problem associated
@@ -266,13 +265,13 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
         the Runge-Kutta method to be used for time marching.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time step size.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
     :arg tol: The temporal truncation error tolerance
     :arg dtmin: Minimal acceptable time step.  An exception is raised
@@ -297,7 +296,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         a proposed step is rejected
     :arg gamma0_params: Solver parameters for mass matrix solve when using
         an embedded scheme with explicit first stage
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`EquationBC`
+    :arg bcs: An iterable of :class:`DirichletBC` or :class:`EquationBC`
         containing the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the RK method.

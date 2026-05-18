@@ -39,17 +39,17 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
         advance in time.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time step size.
         The user may adjust this value between time steps.
     :arg u0: a :class:`Function` referring to the state of
         the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-        It lives in a :class:`firedrake.FunctionSpace` corresponding to the
+        It lives in a :class:`FunctionSpace` corresponding to the
         s-way tensor product of the space on which the semidiscrete
         form lives.
     :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
@@ -73,7 +73,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
-       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
+       - `bcnew`, a list of :class:`DirichletBC` objects to be posed
          on the stages
     """
     v, u = extract_timedep_arguments(F, u0)

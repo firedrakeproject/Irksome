@@ -1,7 +1,7 @@
 from typing import Protocol, Any, Sequence
 import ufl
 from importlib import import_module
-
+import types
 
 class Backend(Protocol):
     def get_function_space(self, V: ufl.Coefficient) -> ufl.FunctionSpace:
@@ -28,6 +28,9 @@ class Backend(Protocol):
         Returns:
             A coefficient in the new function space
         """
+
+    class Constant:
+        """MeshLess constant class"""
 
     class MeshConstant:
         def __init__(self, msh: ufl.Mesh):
@@ -92,8 +95,13 @@ class Backend(Protocol):
     def invalidate_jacobian(solver: Any):
         """Invalidate the Jacobian matrix in the backend language."""
 
+    class EquationBCSplit:
+        ...
 
-def get_backend(backend: str) -> Backend:
+    class EquationBC:
+        ...
+
+def get_backend(backend: str|types.ModuleType ) -> Backend:
     """Get backend class from backend name.
 
     Args:
@@ -102,6 +110,8 @@ def get_backend(backend: str) -> Backend:
     Returns:
         Backend class
     """
+    if isinstance(backend, types.ModuleType):
+        return backend
     if backend == "firedrake":
         from .backends import firedrake as fd_backend
 

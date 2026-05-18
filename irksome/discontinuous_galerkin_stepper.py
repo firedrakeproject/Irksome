@@ -150,7 +150,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     On output, we return a tuple consisting of two parts:
 
        - Fnew, the :class:`Form` corresponding to the DG-in-Time discretized problem
-       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
+       - `bcnew`, a list of :class:`DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
     """
     num_stages = L.space_dimension()
@@ -201,15 +201,15 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg scheme: a :class:`DiscontinuousGalerkinScheme` instance describing the order,
         basis type, default quadrature scheme, and time derivative integration type.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time step size.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+    :arg bcs: An iterable of :class:`.DirichletBC` containing
         the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the method.

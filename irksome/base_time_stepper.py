@@ -52,25 +52,25 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
         ``F(t, u; v) == 0``, where ``u`` is the unknown
-        :class:`firedrake.Function` and ``v`` is the
-        :class:`firedrake.TestFunction`. To specify a linear problem,
+        :class:`Function` and ``v`` is the
+        :class:`TestFunction`. To specify a linear problem,
         ``F`` must be of the form ``a(t; w, v) - L(t; v)``, where
-        ``w`` is a :class:`firedrake.TrialFunction`.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        ``w`` is a :class:`TrialFunction`.
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time step size.
         The user may adjust this value between time steps.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
     :arg num_stages: The number of stages to solve for.  It could be the number of
         RK stages or relate to the polynomial degree (Galerkin)
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`firedrake.EquationBC`
+    :arg bcs: An iterable of :class:`DirichletBC` or :class:`EquationBC`
         containing the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
-        stage of the RK method.  Support for `firedrake.EquationBC` is limited
+        stage of the RK method.  Support for `EquationBC` is limited
         to the stage derivative formulation with DAE style BCs.
     :arg Fp: A :class:`ufl.Form` instance to precondition the semi-discrete linearization.
     :arg solver_parameters: An optional :class:`dict` of solver parameters that
@@ -80,8 +80,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         This gets included with particular things that Irksome will
         pass into the nonlinear solver so that, say, user-defined preconditioners
         have access to it.
-    :arg nullspace: A :class:`firedrake.VectorSpaceBasis`
-        or :class:`firedrake.MixedVectorSpaceBasis` specifying a nullspace
+    :arg nullspace: A :class:`VectorSpaceBasis`
+        or :class:`MixedVectorSpaceBasis` specifying a nullspace
         over the space of ``u0``.
     :arg splitting: An optional kwarg (not used by all superclasses)
     :arg bc_type: An optional kwarg (not used by all superclasses)

@@ -160,6 +160,20 @@ try:
     Function = dolfinx.fem.Function
     TestFunction = ufl.TestFunction
 
+    class Constant(ufl.constantvalue.ScalarValue):
+        # NOTE: If dolfinx ever get's meshless constants we should change this
+        def assign(self, value):
+            self._value = value
+
+
+    class EquationBCSplit:
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError("DOLFINx does not support EquationBCSplit")
+        
+    class EquationBC:
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError("DOLFINx does not support EquationBC")
+
     def invalidate_jacobian(solver: dolfinx.fem.petsc.LinearProblem):
         """Invalidate the Jacobian matrix in the backend language."""
         raise RuntimeError("DOLFINx does not support Jacobian invalidation")

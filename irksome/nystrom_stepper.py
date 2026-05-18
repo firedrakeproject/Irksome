@@ -7,7 +7,6 @@ from .constant import vecconst
 import numpy
 from ufl import Form, as_ufl
 
-
 class NystromTableau:
     def __init__(self, A, b, c, Abar, bbar, order):
         self.A = A

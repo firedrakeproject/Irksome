@@ -28,6 +28,19 @@ from .tableaux.wso_dirk_tableaux import WSODIRK
 from .scheme import create_time_quadrature
 from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 from .scheme import GalerkinCollocationScheme, DiscontinuousGalerkinCollocationScheme
+from .bcs import BoundsConstrainedDirichletBC
+from .dirk_stepper import DIRKTimeStepper
+from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
+from .stage_derivative import getForm
+from .nystrom_dirk_stepper import DIRKNystromTimeStepper, ExplicitNystromTimeStepper
+from .nystrom_stepper import (
+    StageDerivativeNystromTimeStepper,
+    ClassicNystrom4Tableau,
+)
+from .stage_value import StageValueTimeStepper
+
+from .multistep import MultistepTimeStepper
+
 
 __all__ = [
     "AdamsBashforth",
@@ -36,11 +49,9 @@ __all__ = [
     "ARS_DIRK_IMEX",
     "BackwardEuler",
     "BDF",
-    "ContinuousPetrovGalerkinScheme",
     "create_time_quadrature",
     "DIRK_IMEX",
     "DiscontinuousGalerkinCollocationScheme",
-    "DiscontinuousGalerkinScheme",
     "Dt",
     "expand_time_derivatives",
     "GalerkinCollocationScheme",
@@ -56,6 +67,19 @@ __all__ = [
     "SSPButcherTableau",
     "SSPK_DIRK_IMEX",
     "WSODIRK",
+    "DIRKTimeStepper",
+    "BoundsConstrainedDirichletBC",
+    "getForm",
+    "RadauIIAIMEXMethod",
+    "DIRKIMEXMethod",
+    "DIRKNystromTimeStepper",
+    "ExplicitNystromTimeStepper",
+    "StageDerivativeNystromTimeStepper",
+    "ClassicNystrom4Tableau",
+    "StageValueTimeStepper",
+    "ContinuousPetrovGalerkinTimeStepper",
+    "DiscontinuousGalerkinTimeStepper",
+    "MultistepTimeStepper",
 ]
 
 
@@ -63,16 +87,9 @@ try:
     import importlib
 
     importlib.import_module("firedrake")
-    from .bcs import BoundsConstrainedDirichletBC
-    from .dirk_stepper import DIRKTimeStepper
-    from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
-    from .stage_derivative import getForm
-    from .nystrom_dirk_stepper import DIRKNystromTimeStepper, ExplicitNystromTimeStepper
-    from .nystrom_stepper import (
-        StageDerivativeNystromTimeStepper,
-        ClassicNystrom4Tableau,
-    )
-    from .stage_value import StageValueTimeStepper
+    from .labeling import TimeQuadratureLabel
+    from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
+    from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
 
     from .pc import (
         ClinesBase,
@@ -83,36 +100,21 @@ try:
         RanaLD,
         IRKAuxiliaryOperatorPC,
     )
-    from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
-    from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
-    from .multistep import MultistepTimeStepper
-    from .labeling import TimeQuadratureLabel
     from .stepper import TimeStepper
 
     __all__ += [
-        "DIRKTimeStepper",
-        "BoundsConstrainedDirichletBC",
-        "getForm",
-        "RadauIIAIMEXMethod",
-        "DIRKIMEXMethod",
-        "DIRKNystromTimeStepper",
-        "ExplicitNystromTimeStepper",
-        "StageDerivativeNystromTimeStepper",
-        "ClassicNystrom4Tableau",
+        "TimeQuadratureLabel",
+        "DiscontinuousGalerkinScheme",
+        "ContinuousPetrovGalerkinScheme",
         "ClinesBase",
         "ClinesLD",
-        "IRKAuxiliaryOperatorPC",
         "NystromAuxiliaryOperatorPC",
         "RanaBase",
         "RanaDU",
         "RanaLD",
-        "StageValueTimeStepper",
-        "ContinuousPetrovGalerkinTimeStepper",
-        "DiscontinuousGalerkinTimeStepper",
-        "MultistepTimeStepper",
-        "TimeQuadratureLabel",
+        "IRKAuxiliaryOperatorPC",
         "TimeStepper",
-    ]
+           ]
 
 except ModuleNotFoundError:
     pass
