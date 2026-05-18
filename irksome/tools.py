@@ -116,7 +116,7 @@ def replace(e, mapping):
         if var.ufl_operands[1] is lag_label:
             cmapping.setdefault(var, var)
     if isinstance(e, LabelledForm):
-        enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
+        enew = LabelledForm(*(Term(replace(term.form, cmapping), term.labels)
                               for term in e.terms))
         return enew
     else:
