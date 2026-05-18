@@ -15,6 +15,7 @@ from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 from .backend import get_backend
 
+
 def to_value(u0, stages, vandermonde):
     """convert from Bernstein to Lagrange representation
 
