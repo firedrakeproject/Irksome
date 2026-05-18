@@ -1,6 +1,5 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
 import numpy
-from firedrake import TestFunction
 
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
@@ -14,6 +13,7 @@ from .ufl.manipulation import split_time_derivative_terms, remove_time_derivativ
 from .tools import AI, extract_timedep_arguments, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
+from .backend import get_backend
 
 
 def to_value(u0, stages, vandermonde):
@@ -32,24 +32,24 @@ def to_value(u0, stages, vandermonde):
     return dot(vandermonde[1:], u_np)
 
 
-def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None):
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None, backend: str = "firedrake"):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
         advance in time.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time step size.
         The user may adjust this value between time steps.
     :arg u0: a :class:`Function` referring to the state of
         the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-        It lives in a :class:`firedrake.FunctionSpace` corresponding to the
+        It lives in a :class:`FunctionSpace` corresponding to the
         s-way tensor product of the space on which the semidiscrete
         form lives.
     :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
@@ -73,26 +73,27 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
-       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
+       - `bcnew`, a list of :class:`DirichletBC` objects to be posed
          on the stages
     """
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
+    backend_cls = get_backend(backend)
+    V = backend_cls.get_function_space(v)
     assert V == u0.function_space()
 
-    c = vecconst(butch.c)
+    c = vecconst(butch.c, backend=backend)
     bA1, bA2 = splitting(butch.A)
     try:
         bA2inv = numpy.linalg.inv(bA2)
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
-    A1 = vecconst(bA1)
-    A2inv = vecconst(bA2inv)
+    A1 = vecconst(bA1, backend=backend)
+    A2inv = vecconst(bA2inv, backend=backend)
 
     # s-way product space for the stage variables
     num_stages = butch.num_stages
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    Vbig = backend_cls.get_function_space(stages)
+    test = backend_cls.TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))
@@ -135,7 +136,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     bcsnew = []
 
     if vandermonde is not None:
-        Vander_inv = vecconst(numpy.linalg.inv(vandermonde.astype(float)))
+        Vander_inv = vecconst(numpy.linalg.inv(vandermonde.astype(float)), backend=backend)
 
     # For each BC, we need a new BC for each stage
     # so we need to figure out how the function is indexed (mixed + vec)
@@ -162,9 +163,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                  appctx=None, bounds=None,
                  use_collocation_update=False,
                  sample_points=None,
+                 backend: str = "firedrake",
                  **kwargs):
 
-        self.num_fields = len(u0.function_space())
         self.butcher_tableau = butcher_tableau
         self.basis_type = basis_type
 
@@ -180,8 +181,9 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, butcher_tableau=butcher_tableau, bounds=bounds,
-                         sample_points=sample_points,
+                         sample_points=sample_points, backend=backend,
                          **kwargs)
+        self.num_fields = len(self._backend.get_function_space(u0))
 
         self.set_initial_guess()
 
@@ -197,7 +199,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             try:
                 A = butcher_tableau.A
                 b = butcher_tableau.b
-                self.bAinv = vecconst(numpy.linalg.solve(A.T, b))
+                self.bAinv = vecconst(numpy.linalg.solve(A.T, b), backend=backend)
                 self.update_scale = 1-numpy.sum(self.bAinv)
                 self._update = self._update_Ainv
             except numpy.linalg.LinAlgError:

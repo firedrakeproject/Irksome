@@ -1,13 +1,12 @@
-from .tools import replace
 from .constant import vecconst
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .ufl.deriv import expand_time_derivatives
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
 from .bcs import stage2spaces4bc
+from .tools import replace
 from ufl import Form
 from ufl.constantvalue import as_ufl
-from firedrake import NonlinearVariationalProblem, NonlinearVariationalSolver, derivative, Constant
 
 
 class MultistepTimeStepper(BaseTimeStepper):
@@ -16,17 +15,17 @@ class MultistepTimeStepper(BaseTimeStepper):
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
         F(t, u; v) == 0, where `u` is the unknown
-        :class:`firedrake.Function and `v` is the
-        :class:firedrake.TestFunction`.
+        :class:`Function and `v` is the
+        :class:TestFunction`.
     :arg method: A :class:`MultistepMethod` corresponding to the desired multistep method.
     :arg t: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time.
     :arg dt: a :class:`Function` on the Real space over the same mesh as
          `u0`.  This serves as a variable referring to the current time step.
          The user may adjust this value between time steps.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
             state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+    :arg bcs: An iterable of :class:`DirichletBC` containing
             the strongly-enforced boundary conditions.
     :arg solver_parameters: A :class:`dict` of solver parameters that
             will be used in solving the algebraic problem associated
@@ -40,13 +39,12 @@ class MultistepTimeStepper(BaseTimeStepper):
     """
 
     def __init__(self, F, method, t, dt, u0, bcs=None, Fp=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
-                 transpose_nullspace=None, near_nullspace=None, startup_parameters=None, **kwargs):
+                 transpose_nullspace=None, near_nullspace=None, startup_parameters=None, backend: str = "firedrake", **kwargs):
 
         assert isinstance(method, MultistepTableau)
 
         super().__init__(F, t, dt, u0,
-                         bcs=bcs, appctx=appctx, nullspace=nullspace)
-
+                         bcs=bcs, appctx=appctx, nullspace=nullspace, backend=backend)
         self.num_prev_steps = len(method.b) - 1
         self.a = vecconst(method.a)
         self.b = vecconst(method.b)
@@ -56,21 +54,17 @@ class MultistepTimeStepper(BaseTimeStepper):
 
         if Fp is not None:
             Fpnew, _ = self.get_form_and_bcs(Fp, t, dt, u0, self.a, self.b, bcs=bcs)
-            Jp = derivative(Fpnew, self.us[-1])
+            Jp = self._backend.derivative(Fpnew, self.us[-1])
         else:
             Jp = None
 
-        self.problem = NonlinearVariationalProblem(Fnew, self.us[-1], J=Jp, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
-                                                   is_linear=kwargs.pop("is_linear", False),
-                                                   restrict=kwargs.pop("restrict", False))
+        self.problem = self._backend.create_variational_problem(
+            Fnew, self.us[-1], J=Jp, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+            is_linear=kwargs.pop("is_linear", False), restrict=kwargs.pop("restrict", False))
 
-        self.solver = NonlinearVariationalSolver(self.problem, appctx=self.appctx,
-                                                 nullspace=nullspace,
-                                                 transpose_nullspace=transpose_nullspace,
-                                                 near_nullspace=near_nullspace,
-                                                 solver_parameters=solver_parameters,
-                                                 **kwargs
-                                                 )
+        self.solver = self._backend.create_variational_solver(
+            self.problem, appctx=self.appctx, nullspace=nullspace, transpose_nullspace=transpose_nullspace,
+            near_nullspace=near_nullspace, solver_parameters=solver_parameters, **kwargs)
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
@@ -81,12 +75,11 @@ class MultistepTimeStepper(BaseTimeStepper):
 
     # optional method to mechanically find the required starting values via a single step method
     def startup(self):
-
         if self.startup_parameters is None:
             return ValueError('No startup parameters provided')
         else:
             if self.num_prev_steps == 1:  # No startup required
-                self.startup_t = Constant(self.t) if isinstance(self.t, Constant) else self.t.copy(deepcopy=True)
+                self.startup_t = self._backend.Constant(self.t) if isinstance(self.t, self._backend.Constant) else self.t.copy(deepcopy=True)
                 return
 
             butcher_tableau = self.startup_parameters.get('tableau', None)
@@ -99,13 +92,13 @@ class MultistepTimeStepper(BaseTimeStepper):
             # delayed import to avoid a circular import
             from .stepper import TimeStepper
 
-            if isinstance(self.dt, Constant):
-                startup_dt = Constant(self.dt / num_startup_steps)
+            if isinstance(self.dt, self._backend.Constant):
+                startup_dt = self._backend.Constant(self.dt / num_startup_steps)
             else:
                 startup_dt = self.dt.copy(deepcopy=True)
                 startup_dt.assign(startup_dt / num_startup_steps)
 
-            self.startup_t = Constant(self.t) if isinstance(self.t, Constant) else self.t.copy(deepcopy=True)
+            self.startup_t = self._backend.Constant(self.t) if isinstance(self.t, self._backend.Constant) else self.t.copy(deepcopy=True)
 
             self.us[0].assign(self.u0)
 
@@ -152,7 +145,6 @@ class MultistepTimeStepper(BaseTimeStepper):
         for (i, coeff) in enumerate(a):
             Fnew += coeff * replace(F_dtless, {u0: self.us[i],
                                                t: t + (i - self.num_prev_steps + 1) * dt})
-
         # form the right hand side
         for (i, coeff) in enumerate(b):
             Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i],
@@ -171,7 +163,6 @@ class MultistepTimeStepper(BaseTimeStepper):
         return Fnew, bcsnew
 
     def advance(self):
-
         self.solver.solve(bounds=self.bounds)
 
         # update previous steps

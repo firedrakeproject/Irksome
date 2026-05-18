@@ -1,11 +1,11 @@
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
+from .backend import get_backend
 from .tools import dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
-from firedrake import TestFunction, as_ufl
 import numpy
-from ufl import Form
+from ufl import Form, as_ufl
 
 
 class NystromTableau:
@@ -72,13 +72,14 @@ class ClassicNystrom4Tableau(NystromTableau):
 
 
 def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
-                   bcs=None, bc_type=None):
+                   bcs=None, bc_type=None, backend="firedrake"):
+    backend_cls = get_backend(backend)
     if bc_type is None:
         bc_type = "DAE"
 
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
@@ -88,8 +89,8 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     c = vecconst(tableau.c)
 
     num_stages = tableau.num_stages
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    Vbig = backend_cls.get_function_space(stages)
+    test = backend_cls.TestFunction(Vbig)
 
     v_np = reshape(test, (num_stages, *u0.ufl_shape))
     k_np = reshape(stages, (num_stages, *u0.ufl_shape))
