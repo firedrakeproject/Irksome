@@ -31,23 +31,23 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
     :kwarg bcs: optionally, a :class:`DirichletBC` or :class:`EquationBC`
-            object (or iterable thereof) containing (possibly time-dependent)
-            boundary conditions imposed on the system.
-        :kwarg bc_type: How to manipulate the strongly-enforced boundary
-            conditions to derive the stage boundary conditions.  Should
-            be a string, either "DAE", which implements BCs as
-            constraints in the style of a differential-algebraic
-            equation, or "ODE", which takes the time derivative of the
-            boundary data and evaluates this for the stage values.
-            Support for `firedrake.EquationBC` in `bcs` is limited
-            to DAE style BCs.
-        :kwarg splitting: a callable that maps the (floating point) Butcher matrix
-            to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
-            to vary between the classical RK formulation and Butcher's reformulation
-            that leads to a denser mass matrix with block-diagonal stiffness.
-            Some choices of function will assume that `butch.A` is invertible.
-        :kwarg aux_indices: a list of field indices to be discretized as :class:`TimeDerivative`,
-            analogous to :class:`ContinouosPetrovGalerkinTimeStepper`.
+        object (or iterable thereof) containing (possibly time-dependent)
+        boundary conditions imposed on the system.
+    :kwarg bc_type: How to manipulate the strongly-enforced boundary
+        conditions to derive the stage boundary conditions.  Should
+        be a string, either "DAE", which implements BCs as
+        constraints in the style of a differential-algebraic
+        equation, or "ODE", which takes the time derivative of the
+        boundary data and evaluates this for the stage values.
+        Support for `firedrake.EquationBC` in `bcs` is limited
+        to DAE style BCs.
+    :kwarg splitting: a callable that maps the (floating point) Butcher matrix
+        to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
+        to vary between the classical RK formulation and Butcher's reformulation
+        that leads to a denser mass matrix with block-diagonal stiffness.
+        Some choices of function will assume that `butch.A` is invertible.
+    :kwarg aux_indices: a list of field indices to be discretized as :class:`TimeDerivative`,
+        analogous to :class:`ContinouosPetrovGalerkinTimeStepper`.
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
