@@ -44,7 +44,6 @@ def test_stefan_implicit():
     u.assign(u_0)
     F = (Dt(u) * v + lag(k) * inner(grad(u), grad(v))) * dx
     stepper = irksome.TimeStepper(F, method, t, dt, u, **params)
-    
     energy = 0.5 * u**2 * dx
     initial_energy = assemble(energy)
 
