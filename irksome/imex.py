@@ -1,6 +1,5 @@
 import FIAT
 import numpy as np
-from firedrake import Function, TestFunction
 from ufl import Form, as_ufl, dx, inner
 
 from .backend import get_backend
@@ -35,23 +34,24 @@ def riia_explicit_coeffs(k):
     return A
 
 
-def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
+def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedrake"):
     """Processes the explicitly split-off part for a RadauIIA-IMEX
     method.  Returns the forms for both the iterator and propagator,
     which really just differ by which constants are in them."""
+    backend_cls = get_backend(backend)
+
     v, u = extract_timedep_arguments(Fexp, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
-    Vbig = UU.function_space()
-    VV = TestFunction(Vbig)
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
+    Vbig = backend_cls.get_function_space(UU)
+    VV = backend_cls.TestFunction(Vbig)
 
     num_stages = butch.num_stages
 
     Aexp = riia_explicit_coeffs(num_stages)
-
-    Aprop = vecconst(Aexp)
-    Ait = vecconst(butch.A)
-    C = vecconst(butch.c)
+    Aprop = vecconst(Aexp, backend=backend)
+    Ait = vecconst(butch.A, backend=backend)
+    C = vecconst(butch.c, backend=backend)
 
     v_np = reshape(VV, (num_stages, *u0.ufl_shape))
     u_np = reshape(UU, (num_stages, *u0.ufl_shape))
@@ -87,7 +87,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None):
             Fit += dt * replace(Fexp, repl)
 
         # dense contribution to propagator
-        AinvAexp = vecconst(np.linalg.solve(butch.A, Aexp))
+        AinvAexp = vecconst(np.linalg.solve(butch.A, Aexp), backend=backend)
 
         for i in range(num_stages):
             # replace test function
@@ -124,25 +124,25 @@ class RadauIIAIMEXMethod:
     :arg F: A :class:`ufl.Form` instance describing the implicit part of
         the semi-discrete problem
         ``F(t, u; v) == 0``, where ``u`` is the unknown
-        :class:`firedrake.Function` and ``v`` is the
-        :class:`firedrake.TestFunction`. To specify a linear problem,
+        :class:`Function` and ``v`` is the
+        :class:`TestFunction`. To specify a linear problem,
         ``F`` must be of the form ``a(t; w, v) - L(t; v)``, where
-        ``w`` is a :class:`firedrake.TrialFunction`.
+        ``w`` is a :class:`TrialFunction`.
     :arg Fexp: A :class:`ufl.Form` instance describing the part of the
         PDE that is explicitly split off.
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
         the Runge-Kutta method to be used for time marching.
         Only RadauIIA is allowed here (but it can be any number of stages).
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time step size.
         The user may adjust this value between time steps.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+    :arg bcs: An iterable of :class:`DirichletBC` containing
         the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the RK method.
@@ -174,7 +174,7 @@ class RadauIIAIMEXMethod:
         self.u0 = u0
         self.t = t
         self.dt = dt
-        self.num_fields = len(u0.function_space())
+        self.num_fields = len(backend_cls.get_function_space(u0))
         self.num_stages = len(butcher_tableau.b)
         self.butcher_tableau = butcher_tableau
         self.num_its_initial = num_its_initial
@@ -191,8 +191,8 @@ class RadauIIAIMEXMethod:
 
         # Since this assumes stiff accuracy, we drop
         # the update information on the floor.
-        V = u0.function_space()
-        Vbig = get_stage_space(V, self.num_stages)
+        V = backend_cls.get_function_space(u0)
+        Vbig = get_stage_space(V, self.num_stages, backend=backend)
         UU = backend_cls.Function(Vbig)
 
         restrict = kwargs.pop("restrict", False)
@@ -201,14 +201,14 @@ class RadauIIAIMEXMethod:
 
         Fbig, bigBCs = getFormStage(
             F, butcher_tableau, t, dt, u0, UU, bcs,
-            splitting=splitting)
+            splitting=splitting, backend=backend)
 
-        nsp = getNullspace(u0.function_space(),
-                           UU.function_space(),
+        nsp = getNullspace(backend_cls.get_function_space(u0),
+                           backend_cls.get_function_space(UU),
                            self.num_stages, nullspace)
 
         self.UU = UU
-        self.UU_old = UU_old = Function(UU.function_space())
+        self.UU_old = UU_old = backend_cls.Function(backend_cls.get_function_space(UU))
         self.UU_old_split = UU_old.subfunctions
         self.bigBCs = bigBCs
 
@@ -311,24 +311,25 @@ class RadauIIAIMEXMethod:
         self._backend.invalidate_jacobian(self.it_solver)
 
 
-def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
+def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None, backend="firedrake"):
+    backend_cls = get_backend(backend)
     if bcs is None:
         bcs = []
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
     Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u,))
 
     num_stages = butch.num_stages
-    k0 = Function(V)
-    g = Function(V)
+    k0 = backend_cls.Function(V)
+    g = backend_cls.Function(V)
 
-    khat0 = Function(V)
-    ghat = Function(V)
-    vhat = TestFunction(V)
+    khat0 = backend_cls.Function(V)
+    ghat = backend_cls.Function(V)
+    vhat = backend_cls.TestFunction(V)
     if u == u0:
         k = k0
         khat = khat0
@@ -341,7 +342,7 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None):
     # the loop over stages in the advance method.  The Constants a and chat are
     # used similarly in the variational forms
     msh = V.mesh()
-    MC = MeshConstant(msh)
+    MC = MeshConstant(msh, backend=backend)
     c = MC.Constant(1.0)
     chat = MC.Constant(1.0)
     a = MC.Constant(1.0)
@@ -418,15 +419,15 @@ class DIRKIMEXMethod:
         self.t = t
         self.dt = dt
         self.num_fields = len(u0.function_space())
-        self.ks = [Function(V) for _ in range(self.num_stages)]
-        self.k_hat_s = [Function(V) for _ in range(self.num_stages)]
+        self.ks = [backend_cls.Function(V) for _ in range(self.num_stages)]
+        self.k_hat_s = [backend_cls.Function(V) for _ in range(self.num_stages)]
 
         restrict = kwargs.pop("restrict", False)
         is_linear = kwargs.pop("is_linear", False)
         constant_jacobian = kwargs.pop("constant_jacobian", False)
 
         stage_F, (k, g, a, c), bcnew, Fhat, (khat, ghat, chat), (a_vals, ahat_vals, d_val) = getFormsDIRKIMEX(
-            F, F_explicit, self.ks, self.k_hat_s, butcher_tableau, t, dt, u0, bcs=bcs)
+            F, F_explicit, self.ks, self.k_hat_s, butcher_tableau, t, dt, u0, bcs=bcs, backend=backend)
 
         self.bcnew = bcnew
 

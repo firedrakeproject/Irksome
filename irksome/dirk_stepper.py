@@ -1,11 +1,11 @@
 import numpy
 from ufl import as_ufl, lhs
 
-from .constant import vecconst
-from .backend import get_backend
+from .constant import vecconst, MeshConstant
 from .bcs import bc2space
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .tools import extract_timedep_arguments, replace
+from .backend import get_backend
 
 
 def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake"):
@@ -14,8 +14,8 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
         bcs = []
 
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
@@ -26,14 +26,15 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constant a is
     # used similarly in the variational form
-    MC = backend_cls.MeshConstant(V.mesh())
+    MC = MeshConstant(V.mesh(), backend=backend)
     if kgac is None:
-        k = backend_cls.Function(V)
+        k0 = backend_cls.Function(V)
         g = backend_cls.Function(V)
         a = MC.Constant(1.0)
         c = MC.Constant(1.0)
     else:
-        k, g, a, c = kgac
+        k0, g, a, c = kgac
+    k = k0 if u0 == u else u
 
     repl = {t: t + c * dt,
             u: g + k * (a * dt),
@@ -61,7 +62,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
             gdat /= d_val * dt
             bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k, g, a, c), bcnew, (a_vals, d_val)
+    return stage_F, (k0, g, a, c), bcnew, (a_vals, d_val)
 
 
 class DIRKTimeStepper:
@@ -120,7 +121,7 @@ class DIRKTimeStepper:
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
         stage_F, kgac, bcnew, (a_vals, d_val) = getFormDIRK(
-            F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
+            F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs, backend=backend)
         k, g, a, c = kgac
         self.kgac = kgac
         self.bcnew = bcnew
@@ -129,8 +130,7 @@ class DIRKTimeStepper:
         stage_Jp = None
         if Fp is not None:
             Fp_linear = len(Fp.arguments()) == 2
-            ks_Fp = Fp.arguments()[1] if Fp_linear else self.ks
-            stage_Fp, *_ = self.get_form_and_bcs(ks_Fp, F=Fp, bcs=())
+            stage_Fp, *_ = self.get_form_and_bcs(self.ks, F=Fp, bcs=())
             stage_Jp = lhs(stage_Fp) if Fp_linear else backend_cls.derivative(stage_Fp, k)
 
         appctx_irksome = {"stepper": self}
@@ -147,6 +147,10 @@ class DIRKTimeStepper:
             restrict=kwargs.pop("restrict", False),
             constant_jacobian=kwargs.pop("constant_jacobian", False),
         )
+        constant_jacobian = kwargs.pop("constant_jacobian", False)
+        if constant_jacobian:
+            raise ValueError("Cannot set constant_jacobian=True on a DIRK")
+
         self.solver = backend_cls.create_variational_solver(
             self.problem, appctx=appctx,
             nullspace=nullspace,

@@ -1,44 +1,45 @@
 import numpy
-from firedrake import (Function,
-                       NonlinearVariationalProblem,
-                       NonlinearVariationalSolver)
-from ufl.constantvalue import as_ufl
+from ufl import as_ufl, lhs
 
 from .ufl.deriv import Dt, expand_time_derivatives
 from .tools import extract_timedep_arguments, replace
 from .bcs import bc2space
 from .constant import MeshConstant, vecconst
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
+from .backend import get_backend
 
 
-def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
+def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, kgac=None, backend="firedrake"):
+    backend_cls = get_backend(backend)
     if bcs is None:
         bcs = []
     if bc_type is None:
         bc_type = "DAE"
 
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     num_stages = tableau.num_stages
-    k0 = Function(V)
-    g1 = Function(V)
-    g2 = Function(V)
-    k = k0 if u0 == u else u
 
     # Note: the Constant c is used for substitution in both the
     # variational form and BC's, and we update it for each stage in
-    # the loop over stages in the advance method.  The Constants a
+# the loop over stages in the advance method.  The Constants a
     # and abar are used similarly in the variational form
-    msh = V.mesh()
-    MC = MeshConstant(msh)
-    c = MC.Constant(1.0)
-    a = MC.Constant(1.0)
-    abar = MC.Constant(1.0)
+    MC = MeshConstant(V.mesh(), backend=backend)
+    if kgac is None:
+        k0 = backend_cls.Function(V)
+        g1 = backend_cls.Function(V)
+        g2 = backend_cls.Function(V)
+        a = MC.Constant(1.0)
+        abar = MC.Constant(1.0)
+        c = MC.Constant(1.0)
+    else:
+        k0, g1, g2, a, abar, c = kgac
+    k = k0 if u0 == u else u
 
     repl = {t: t + c * dt,
             u: g1 + k * (abar * dt**2),
@@ -46,7 +47,6 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None):
             Dt(u, 2): k}
     stage_F = replace(F, repl)
 
-    # BC's
     bcnew = []
 
     # For the DIRK case, we need one new BC for each old one (rather
@@ -98,12 +98,14 @@ class DIRKNystromTimeStepper:
     """Front-end class for advancing a second-order time-dependent PDE via a diagonally-implicit
     Runge-Kutta-Nystrom method formulated in terms of stage derivatives."""
 
-    def __init__(self, F, tableau, t, dt, u0, ut0, bcs=None,
+    def __init__(self, F, tableau, t, dt, u0, ut0, bcs=None, Fp=None,
                  solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
                  bc_type=None,
+                 backend: str = "firedrake",
                  **kwargs):
+        backend_cls = get_backend(backend)
         if not isinstance(tableau, NystromTableau):
             tableau = butcher_to_nystrom(tableau)
         assert tableau.is_diagonally_implicit
@@ -117,43 +119,50 @@ class DIRKNystromTimeStepper:
         self.tableau = tableau
         self.num_stages = num_stages = tableau.num_stages
 
-        self.AA = vecconst(tableau.A)
-        self.AAbar = vecconst(tableau.Abar)
-        self.BB = vecconst(tableau.b)
-        self.BBbar = vecconst(tableau.bbar)
-        self.CC = vecconst(tableau.c)
+        self.AA = vecconst(tableau.A, backend=backend)
+        self.AAbar = vecconst(tableau.Abar, backend=backend)
+        self.BB = vecconst(tableau.b, backend=backend)
+        self.BBbar = vecconst(tableau.bbar, backend=backend)
+        self.CC = vecconst(tableau.c, backend=backend)
 
         if bc_type == "DAE":
             if tableau.is_explicit:
                 raise NotImplementedError("Cannot have DAE BCs with Explicit Nystrom methods")
-            self.AABbar = vecconst(tableau.Abar)
-            self.CCone = vecconst(tableau.c)
+            self.AABbar = vecconst(tableau.Abar, backend=backend)
+            self.CCone = vecconst(tableau.c, backend=backend)
         elif bc_type == "dDAE":
             if tableau.is_explicit:
                 AABbar = numpy.vstack((tableau.A, tableau.b))
-                self.AABbar = vecconst(AABbar[1:])
+                self.AABbar = vecconst(AABbar[1:], backend=backend)
                 CCone = numpy.append(tableau.c[1:], 1.0)
-                self.CCone = vecconst(CCone)
+                self.CCone = vecconst(CCone, backend=backend)
             else:
-                self.AABbar = vecconst(tableau.A)
-                self.CCone = vecconst(tableau.c)
+                self.AABbar = vecconst(tableau.A, backend=backend)
+                self.CCone = vecconst(tableau.c, backend=backend)
         else:
             raise NotImplementedError(f"No implementation for bc_type {bc_type} for DIRK-Nystrom or Explicit-Nystrom methods")
 
-        V = u0.function_space()
+        V = backend_cls.get_function_space(u0)
         self.V = V
         self.u0 = u0
         self.ut0 = ut0
         self.t = t
         self.dt = dt
-        self.num_fields = len(u0.function_space())
-        self.ks = [Function(V) for _ in range(num_stages)]
+        self.orig_bcs = bcs
+        self.num_fields = len(backend_cls.get_function_space(u0))
+        self.ks = [backend_cls.Function(V) for _ in range(num_stages)]
 
         stage_F, self.kgac, bcnew, (abar_vals, d_val) = getFormDIRKNystrom(
-            F, self.ks, tableau, t, dt, u0, ut0, bcs=bcs)
+            F, self.ks, tableau, t, dt, u0, ut0, bcs=bcs, backend=backend)
 
         k = self.kgac[0]
         self.bcnew = bcnew
+
+        stage_Jp = None
+        if Fp is not None:
+            Fp_linear = len(Fp.arguments()) == 2
+            stage_Fp, *_ = self.get_form_and_bcs(self.ks, F=Fp, bcs=())
+            stage_Jp = lhs(stage_Fp) if Fp_linear else backend_cls.derivative(stage_Fp, k)
 
         appctx_irksome = {"stepper": self}
         if appctx is None:
@@ -162,13 +171,17 @@ class DIRKNystromTimeStepper:
             appctx = {**appctx, **appctx_irksome}
         self.appctx = appctx
 
-        self.problem = NonlinearVariationalProblem(
-            stage_F, k, bcs=bcnew,
+        self.problem = backend_cls.create_variational_problem(
+            stage_F, k, bcs=bcnew, Jp=stage_Jp,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
         )
-        self.solver = NonlinearVariationalSolver(
+        constant_jacobian = kwargs.pop("constant_jacobian", False)
+        if constant_jacobian:
+            raise ValueError("Cannot set constant_jacobian=True on a DIRK")
+
+        self.solver = backend_cls.create_variational_solver(
             self.problem, appctx=appctx,
             nullspace=nullspace,
             transpose_nullspace=transpose_nullspace,
@@ -218,6 +231,22 @@ class DIRKNystromTimeStepper:
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
 
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
+        return getFormDIRKNystrom(F or self.F,
+                                  stages,
+                                  tableau or self.tableau,
+                                  self.t, self.dt,
+                                  self.u0, self.ut0,
+                                  bcs=bcs, kgac=self.kgac)
+
+    def invalidate_jacobian(self):
+        """
+        Forces the matrix to be reassembled next time it is required.
+        """
+        self._backend.invalidate_jacobian(self.solver)
+
 
 class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
     """Front-end class for advancing a second-order time-dependent PDE via an explicit
@@ -228,6 +257,7 @@ class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
                  bc_type=None,
+                 backend: str = "firedrake",
                  **kwargs):
         if not isinstance(tableau, NystromTableau):
             tableau = butcher_to_nystrom(tableau)
@@ -247,4 +277,5 @@ class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
             nullspace=None,
             transpose_nullspace=None, near_nullspace=None,
             bc_type=None,
+            backend=backend,
             **kwargs)

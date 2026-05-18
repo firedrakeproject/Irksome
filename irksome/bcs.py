@@ -1,21 +1,5 @@
-from firedrake.solving import _extract_bcs
-from firedrake import (
-    DirichletBC,
-    Function,
-    TestFunction,
-    NonlinearVariationalProblem,
-    NonlinearVariationalSolver,
-    replace,
-    inner,
-    dx,
-)
-
-from ufl import as_ufl
-
-
-def extract_bcs(bcs):
-    """Return an iterable of boundary conditions on the residual form"""
-    return tuple(bc.extract_form("F") for bc in _extract_bcs(bcs))
+from .backend import get_backend
+from ufl import as_ufl, replace
 
 
 def get_sub(u, indices):
@@ -57,50 +41,12 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
         ws = stages.subfunctions[field::len(V)]
         btilde = butcher_tableau.btilde
         num_stages = butcher_tableau.num_stages
-
         g = replace(as_ufl(gorig), {t: t + dt}) - gorig
         g -= sum(get_sub(ws[j], comp) * (btilde[j] * dt) for j in range(num_stages))
     return bc.reconstruct(V=Vbc, g=g)
 
 
-class BoundsConstrainedDirichletBC(DirichletBC):
+def BoundsConstrainedDirichletBC(V, g, sub_domain, bounds, solver_parameters=None, backend="firedrake"):
     """A DirichletBC with bounds-constrained data."""
-
-    def __init__(self, V, g, sub_domain, bounds, solver_parameters=None):
-        if solver_parameters is None:
-            solver_parameters = {
-                "snes_type": "vinewtonrsls",
-                "snes_max_it": 300,
-                "snes_atol": 1.0e-8,
-                "ksp_type": "preonly",
-                "mat_type": "aij",
-            }
-        self.g = g
-        self.solver_parameters = solver_parameters
-        self.bounds = bounds
-
-        self.gnew = Function(V)
-        F = inner(self.gnew - g, TestFunction(V)) * dx
-        problem = NonlinearVariationalProblem(F, self.gnew)
-        self.solver = NonlinearVariationalSolver(
-            problem, solver_parameters=self.solver_parameters
-        )
-        super().__init__(V, g, sub_domain)
-
-    @property
-    def function_arg(self):
-        """The value of this boundary condition."""
-        self.solver.solve(bounds=self.bounds)
-        return self.gnew
-
-    @function_arg.setter
-    def function_arg(self, g):
-        """Set the value of this boundary condition."""
-        self.solver.solve(bounds=self.bounds)
-        return self.gnew
-
-    def reconstruct(self, V=None, g=None, sub_domain=None):
-        V = V or self.function_space()
-        g = g or self.g
-        sub_domain = sub_domain or self.sub_domain
-        return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters)
+    backend_class = get_backend(backend)
+    return backend_class.create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=solver_parameters)
