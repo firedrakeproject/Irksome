@@ -214,6 +214,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                  solver_parameters=None, splitting=AI,
                  appctx=None, bc_type="DAE", aux_indices=None, sample_points=None,
                  backend: str = "firedrake", **kwargs):
+        self.num_fields = len(self._backend.get_function_space(u0))                 
         self.butcher_tableau = butcher_tableau
         A1, A2 = splitting(butcher_tableau.A)
         try:
@@ -222,24 +223,13 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
 
         self.aux_indices = aux_indices
-        super().__init__(
-            F,
-            t,
-            dt,
-            u0,
-            butcher_tableau.num_stages,
-            bcs=bcs,
-            solver_parameters=solver_parameters,
-            appctx=appctx,
-            splitting=splitting,
-            bc_type=bc_type,
-            butcher_tableau=butcher_tableau,
-            sample_points=sample_points,
-            backend=backend,
-            **kwargs,
-        )
-        self.num_fields = len(self._backend.get_function_space(u0))
-
+        super().__init__(F, t, dt, u0,
+                         butcher_tableau.num_stages, bcs=bcs,
+                         solver_parameters=solver_parameters,
+                         appctx=appctx,
+                         splitting=splitting, bc_type=bc_type,
+                         butcher_tableau=butcher_tableau,
+                         sample_points=sample_points, **kwargs)
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
