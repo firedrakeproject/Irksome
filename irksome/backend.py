@@ -53,37 +53,20 @@ class Backend(Protocol):
     ) -> ufl.Argument:
         """Return a trial-function that can be used by forms in the backend."""
 
-    def create_nonlinearvariational_problem(
+    def create_variational_problem(
         F: ufl.Form,
         u: ufl.Coefficient,
         bcs: DirichletBC | Sequence | None = None,
         **kwargs,
     ) -> Any:
-        """Create a non-linear variational problem in the backend language."""
+        """Create a variational problem in the backend language."""
 
-    def create_nonlinear_solver(
+    def create_variational_solver(
         problem: Any,
         solver_parameters: dict | None = None,
         **kwargs,
     ):
-        """Create a non-linear variational solver in the backend language."""
-
-    def create_linearvariational_problem(
-        a: ufl.Form,
-        L: ufl.Form,
-        u: ufl.Coefficient | Sequence[ufl.Coefficient],
-        bcs: DirichletBC | Sequence | None = None,
-        aP: ufl.Form | None = None,
-        **kwargs,
-    ) -> Any:
-        """Create a linear variational problem in the backend language."""
-
-    def create_linear_solver(
-        problem: Any,
-        solver_parameters: dict | None = None,
-        **kwargs,
-    ):
-        """Create a linear variational solver in the backend language."""
+        """Create a variational solver in the backend language."""
 
     def get_stage_spaces(V: ufl.FunctionSpace, num_stages: int) -> ufl.FunctionSpace:
         """Create a stage space with M number of components."""
