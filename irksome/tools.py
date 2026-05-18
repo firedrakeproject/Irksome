@@ -43,6 +43,18 @@ def split_stages(V, stages):
     return ks
 
 
+def extract_timedep_arguments(F, u0):
+    """Return both arguments if ``F`` is a bilinear form, otherwise
+    return the unique argument and ``u0``.
+    """
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
+    return v, u
+
+
 def fields_to_components(V, fields):
     """
     Returns the scalar component indices corresponding to the possibly
@@ -107,6 +119,11 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     return nspnew
 
 
+def replace(e, mapping):
+    """A wrapper for ufl.replace that allows numpy arrays."""
+    cmapping = {k: as_tensor(v) for k, v in mapping.items()}
+    return ufl_replace(e, cmapping)
+
 
 # Utility functions that help us refactor
 def AI(A):
@@ -137,7 +154,8 @@ def get_lagrange_permutation(L):
 
     points = []
     for ell in L.dual.nodes:
-        assert isinstance(ell, FIAT.functional.PointEvaluation)
+        if not isinstance(ell, FIAT.functional.PointEvaluation):
+            raise TypeError("Expecting a Lagrange element")
         pt, = ell.get_point_dict().keys()
         points.append(pt[0])
 

@@ -90,26 +90,34 @@ def get_mesh_constant(MC: MeshConstant | None):
     return MC.Constant if MC else firedrake.Constant
 
 
-def invalidate_jacobian(solver: firedrake.LinearVariationalSolver):
-    """Invalidate the Jacobian matrix in the backend language."""
-    firedrake.LinearVariationalSolver.invalidate_jacobian(solver)
+def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
+    if len(F.arguments()) == 2:
+        a = ufl.lhs(F)
+        L = ufl.rhs(F)
+        kwargs.pop("is_linear", None)
+        problem = firedrake.LinearVariationalProblem(a, L, u, bcs=bcs, aP=Jp, **kwargs)
+    else:
+        constant_jacobian = kwargs.pop("constant_jacobian", False)
+        problem = firedrake.NonlinearVariationalProblem(F, u, bcs=bcs, J=J, Jp=Jp, **kwargs)
+        if constant_jacobian:
+            problem._constant_jacobian = constant_jacobian
+    return problem
 
-def replace(e, mapping):
-    """A wrapper for ufl.replace that allows numpy arrays."""
-    cmapping = {k: ufl.as_tensor(v) for k, v in mapping.items()}
-    if isinstance(e, firedrake.fml.LabelledForm):
-        return firedrake.fml.LabelledForm(*(firedrake.fml.Term(ufl.replace(term.form, cmapping), term.labels)
-                                for term in e.terms))
-    return ufl.replace(e, cmapping)
 
-Function = firedrake.Function
+def create_variational_solver(problem, **kwargs):
+    if isinstance(problem, firedrake.LinearVariationalProblem):
+        return firedrake.LinearVariationalSolver(problem, **kwargs)
+    else:
+        return firedrake.NonlinearVariationalSolver(problem, **kwargs)
 
-DirichletBC = firedrake.DirichletBC
 
-norm = firedrake.norm
+def invalidate_jacobian(solver):
+    return firedrake.LinearVariationalSolver.invalidate_jacobian(solver)
+
 
 assemble = firedrake.assemble
-
 derivative = firedrake.derivative
+norm = firedrake.norm
+Function = firedrake.Function
 TestFunction = firedrake.TestFunction
 TrialFunction = firedrake.TrialFunction

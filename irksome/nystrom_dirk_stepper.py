@@ -5,6 +5,7 @@ from firedrake import (Function,
 from ufl.constantvalue import as_ufl
 
 from .ufl.deriv import Dt, expand_time_derivatives
+from .tools import extract_timedep_arguments, replace
 from .bcs import bc2space
 from .constant import MeshConstant, vecconst
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
@@ -19,10 +20,12 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, b
     if bc_type is None:
         bc_type = "DAE"
 
-    v, = F.arguments()
+    v, u = extract_timedep_arguments(F, u0)
     V = v.function_space()
-    msh = V.mesh()
     assert V == u0.function_space()
+
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     num_stages = tableau.num_stages
     k = Function(V)
@@ -33,13 +36,11 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, b
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constants a
     # and abar are used similarly in the variational form
+    msh = V.mesh()
     MC = MeshConstant(msh)
     c = MC.Constant(1.0)
     a = MC.Constant(1.0)
     abar = MC.Constant(1.0)
-
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
 
     repl = {t: t + c * dt,
             u0: g1 + k * (abar * dt**2),

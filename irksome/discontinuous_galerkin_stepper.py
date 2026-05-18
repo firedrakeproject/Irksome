@@ -9,8 +9,11 @@ from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .scheme import create_time_quadrature, ufc_line
-from .tools import dot, reshape
+from .tools import IA, dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
+from .tableaux.ButcherTableaux import CollocationButcherTableau
+from .stage_value import getFormStage
+
 import numpy as np
 from .backend import get_backend
 
@@ -37,11 +40,10 @@ def getElement(basis_type, order):
         return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
-def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", backend:str="firedrake"):
-    backend_cls = get_backend(backend)
-    v, = F.arguments()
-    V = backend_cls.get_function_space(v)
-    assert V == backend_cls.get_function_space(u0)
+def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
+    v, u = extract_timedep_arguments(F, u0)
+    V = v.function_space()
+    assert V == u0.function_space()
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -66,7 +68,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
     dtusub = dot(trial_dvals.T, u_np)
 
     # preprocess time derivatives
-    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
     F_dtless = remove_time_derivatives(split_form.time)
     if F_dtless.empty():
         Fnew = F_dtless
@@ -79,9 +81,9 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         u_at_0 = dot(L_at_0.T, u_np)
         v_at_0 = dot(L_at_0.T, v_np)
 
-        repl_tminus = {v: v_at_0}
-        repl_tplus = {v: v_at_0, u0: u_at_0}
-        Fnew = backend_cls.replace(F_dtless, repl_tplus) - backend_cls.replace(F_dtless, repl_tminus)
+        repl_tminus = {v: v_at_0, u: u0}
+        repl_tplus = {v: v_at_0, u: u_at_0}
+        Fnew = replace(F_dtless, repl_tplus) - replace(F_dtless, repl_tminus)
         F_remainder = F
     elif deriv_type == "weak":
         # Integrate by parts once (Dt(g(u)), v)
@@ -91,9 +93,9 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         u_at_01 = dot(L_at_01.T, u_np)
         v_at_01 = dot(L_at_01.T, v_np)
 
-        repl_tminus = {v: v_at_01[0]}
-        repl_tnew = {v: v_at_01[1], u0: u_at_01[1], t: t + dt}
-        Fnew = backend_cls.replace(F_dtless, repl_tnew) - backend_cls.replace(F_dtless, repl_tminus)
+        repl_tminus = {v: v_at_01[0], u: u0}
+        repl_tnew = {v: v_at_01[1], u: u_at_01[1], t: t + dt}
+        Fnew = replace(F_dtless, repl_tnew) - replace(F_dtless, repl_tminus)
 
         # Terms with time derivatives: -(g(u), Dt(v))
         test_dvals_w = vecconst(basis_dvals_w)
@@ -101,21 +103,21 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         for q in range(len(qpts)):
             repl = {t: t + qpts[q] * dt,
                     v: dtvsub[q],
-                    u0: usub[q]}
-            Fnew -= backend_cls.replace(F_dtless, repl)
+                    u: usub[q]}
+            Fnew -= replace(F_dtless, repl)
         F_remainder = split_form.remainder
     else:
         raise ValueError(f"Unrecongnized deriv_type {deriv_type}")
 
     # Handle the rest of the terms
-    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
-    dtu0 = TimeDerivative(u0)
+    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u,))
+    dtu = TimeDerivative(u)
     for q in range(len(qpts)):
         repl = {t: t + qpts[q] * dt,
                 v: vsub[q] * dt,
-                u0: usub[q],
-                dtu0: dtusub[q] / dt}
-        Fnew += backend_cls.replace(F_remainder, repl)
+                u: usub[q],
+                dtu: dtusub[q] / dt}
+        Fnew += replace(F_remainder, repl)
     return Fnew
 
 
@@ -232,6 +234,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         self.num_fields = len(V)
 
         self.el = getElement(basis_type, order)
+        num_stages = self.el.space_dimension()
 
         quad_degree = scheme.quadrature_degree
         if quad_degree is None:
@@ -248,18 +251,37 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         self.quadrature = quadrature
         self.max_quadrature_degree = scheme.max_quadrature_degree
 
-        num_stages = order+1
-
         self.update_b = vecconst(self.el.tabulate(0, (1.0,))[(0,)])
+
+        try:
+            self.butcher_tableau = CollocationButcherTableau(self.el, None)
+        except TypeError:
+            self.butcher_tableau = None
 
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
 
-    def get_form_and_bcs(self, stages, F=None, bcs=None, basis_type=None, order=None,
+    def get_form_and_bcs(self, stages, F=None, bcs=None,
+                         tableau=None, basis_type=None, order=None,
                          quadrature=None, deriv_type=None):
         if bcs is None:
             bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
+
+        if tableau is not None:
+            # Galerkin collocation is equivalent to an IRK up to row scaling
+            row_scale = tableau.b
+
+            def scaledIA(A):
+                # For stage-value the splitting exposes row scaling
+                A1, A2 = IA(A)
+                np.multiply(A1, row_scale, out=A1)
+                np.multiply(1/row_scale, A2, out=A2)
+                return A1, A2
+
+            return getFormStage(F, tableau, self.t, self.dt, self.u0, stages,
+                                bcs=bcs, splitting=scaledIA)
+
         if order is None:
             order = self.order
         if basis_type == self.basis_type and order == self.order:

@@ -3,7 +3,7 @@ import numpy
 from ufl import as_ufl, as_tensor, Form, Coefficient, dx, inner
 from .tableaux import ButcherTableaux
 from .constant import vecconst
-from .tools import AI, dot, reshape, fields_to_components
+from .tools import AI, dot,  extract_timedep_arguments, fields_to_components, replace, reshape
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 
@@ -72,12 +72,11 @@ def getForm(
 
     if bc_type is None:
         bc_type = "DAE"
-
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    (v,) = F.arguments()
+    v, u = extract_timedep_arguments(F, u0)
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     c = vecconst(butch.c, backend=backend)
     bA1, bA2 = splitting(butch.A)
@@ -95,10 +94,10 @@ def getForm(
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))
-    w_np = reshape(stages, (num_stages, *u0.ufl_shape))
+    w_np = reshape(stages, (num_stages, *u.ufl_shape))
     A1w = dot(A1, w_np)
     A2invw = dot(A2inv, w_np)
-    dtu = TimeDerivative(u0)
+    dtu = TimeDerivative(u)
 
     aux_components = fields_to_components(V, aux_indices or [])
 
@@ -111,7 +110,10 @@ def getForm(
             usub = reshape(usub, u0.ufl_shape)
             usub[aux_components] = dtusub[aux_components] * dt
 
-        repl[i] = {t: t + c[i] * dt, v: v_np[i], u0: usub, dtu: dtusub}
+        repl[i] = {t: t + c[i] * dt,
+                   v: v_np[i],
+                   u: usub,
+                   dtu: dtusub}
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 
@@ -131,7 +133,7 @@ def getForm(
                     "EquationBC not implemented for ODE formulation"
                 )
             gorig = as_ufl(bc._original_arg)
-            gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u0,))
+            gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u,))
             gcur = replace(gfoo, {t: t + c[i] * dt})
             return BCStageData(bc, gcur, u0, stages, i)
 
@@ -149,7 +151,7 @@ def getForm(
             from firedrake.bcs import EquationBCSplit, EquationBC
 
             if isinstance(bc, EquationBCSplit):
-                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u0,))
+                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u,))
                 F_bc_new = replace(F_bc_orig, repl[i])
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
                 return EquationBC(
@@ -284,18 +286,12 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
             bcs = self.orig_bcs
-        return getForm(
-            F or self.F,
-            tableau or self.butcher_tableau,
-            self.t,
-            self.dt,
-            self.u0,
-            stages,
-            bcs,
-            self.bc_type,
-            splitting=self.splitting,
-            aux_indices=self.aux_indices,
-        )
+        return getForm(F or self.F,
+                       tableau or self.butcher_tableau,
+                       self.t, self.dt, self.u0,
+                       stages, bcs, self.bc_type,
+                       splitting=self.splitting,
+                       aux_indices=self.aux_indices)
 
     def tabulate_poly(self, sample_points):
         if not isinstance(self.butcher_tableau, CollocationButcherTableau):
@@ -428,7 +424,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.onscale_factor = onscale_factor
         self.safety_factor = safety_factor
 
-        self.error_func = self._backend_cls.Function(u0.function_space())
+        self.error_func = self._backend.Function(u0.function_space())
         self.tol = tol
         self.err_old = 0.0
         self.contreject = 0
@@ -456,6 +452,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         the temporal truncation error by taking the norm of the
         difference between the new solutions computed by the two
         methods.  Typically will not be called by the end user."""
+        backend_cls = self._backend
         dtc = float(self.dt)
         delb = self.delb
         ws = self.stages.subfunctions
@@ -464,28 +461,21 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         u0 = self.u0
 
         # Initialize e to be gamma*h*f(old value of u)
-        error_func = self._backend_cls.Function(u0.function_space())
+        error_func = backend_cls.Function(u0.function_space())
         # Only do the hard stuff if gamma0 is not zero
         if self.gamma0 != 0.0:
-            error_test = self._backend_cls.TestFunction(u0.function_space())
-            f_form = (
-                inner(error_func, error_test) * dx
-                - self.gamma0 * dtc * self.dtless_form
-            )
-            f_problem = self._backend_cls.create_nonlinearvariational_problem(
-                f_form, error_func, bcs=self.embbc
-            )
-            f_solver = self._backend_cls.create_nonlinear_solver(
-                f_problem, solver_parameters=self.gamma0_params
-            )
+            error_test = backend_cls.TestFunction(u0.function_space())
+            f_form = inner(error_func, error_test)*dx-self.gamma0*dtc*self.dtless_form
+            f_problem = backend_cls.create_variational_problem(f_form, error_func, bcs=self.embbc)
+            f_solver = backend_cls.create_variational_solver(f_problem, solver_parameters=self.gamma0_params)
             f_solver.solve()
 
         # Accumulate delta-b terms over stages
         error_func_bits = error_func.subfunctions
         for s in range(ns):
             for i, e in enumerate(error_func_bits):
-                e += dtc * float(delb[s]) * ws[nf * s + i]
-        return self._backend_cls.norm(self._backend_cls.assemble(error_func))
+                e += dtc*float(delb[s])*ws[nf*s+i]
+        return backend_cls.norm(error_func)
 
     def advance(self):
         """Attempts to advances the system from time `t` to time `t +

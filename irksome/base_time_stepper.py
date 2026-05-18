@@ -2,7 +2,7 @@ from abc import abstractmethod
 
 from petsc4py import PETSc
 from .tools import AI, getNullspace, flatten_dats, split_stages
-from .labeling import as_form, as_linear_form
+from .labeling import as_form
 from .backend import get_backend
 import ufl
 import numpy
@@ -121,14 +121,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         **kwargs,
     ):
 
-        is_linear = False
-        if len(as_form(F).arguments()) == 2:
-            F = as_linear_form(F, u0)
-            is_linear = True
-
-        super().__init__(
-            F, t, dt, u0, bcs=bcs, appctx=appctx, nullspace=nullspace, backend=backend
-        )
+        super().__init__(F, t, dt, u0,
+                         bcs=bcs, appctx=appctx, nullspace=nullspace, backend=backend)
 
         self.num_stages = num_stages
         if butcher_tableau:
@@ -146,65 +140,41 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         stages = self.get_stages()
         self.stages = stages
 
-        Fbig, bigBCs = self.get_form_and_bcs(stages)
-        Jpbig = None
-        if Fp is not None:
-            Fp = as_linear_form(Fp, u0)
-            Fpbig, _ = self.get_form_and_bcs(stages, F=Fp, bcs=())
-            Jpbig = self._backend.derivative(Fpbig, stages)
-
         V = u0.function_space()
         Vbig = stages.function_space()
+
+        F_linear = len(as_form(F).arguments()) == 2
+        stages_F = self._backend.TrialFunction(Vbig) if F_linear else stages
+        Fbig, bigBCs = self.get_form_and_bcs(stages_F)
+
+        Jpbig = None
+        if Fp is not None:
+            Fp_linear = len(as_form(Fp).arguments()) == 2
+            stages_Fp = self._backend.TrialFunction(Vbig) if Fp_linear else stages
+            Fpbig, _ = self.get_form_and_bcs(stages_Fp, F=Fp, bcs=())
+            Jpbig = ufl.lhs(Fpbig) if Fp_linear else self._backend.derivative(Fpbig, stages_Fp)
+
         nullspace = getNullspace(V, Vbig, num_stages, nullspace)
         transpose_nullspace = getNullspace(V, Vbig, num_stages, transpose_nullspace)
         near_nullspace = getNullspace(V, Vbig, num_stages, near_nullspace)
 
         self.bigBCs = bigBCs
 
-        if is_linear:
-            Fbig = self._backend.replace(
-                Fbig, {stages: self._backend.TrialFunction(stages.function_space())}
-            )
-            abig = ufl.lhs(Fbig)
-            Lbig = ufl.rhs(Fbig)
-            problem = self._backend.create_linearvariational_problem(
-                abig,
-                Lbig,
-                stages,
-                bcs=bigBCs,
-                aP=Jpbig,
-                form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
-                constant_jacobian=kwargs.pop("constant_jacobian", False),
-                restrict=kwargs.pop("restrict", False),
-            )
-            self.solver = self._backend.create_linear_solver(
-                problem,
-                appctx=self.appctx,
-                nullspace=nullspace,
-                transpose_nullspace=transpose_nullspace,
-                near_nullspace=near_nullspace,
-                solver_parameters=solver_parameters,
-            )
-        else:
-            problem = self._backend.create_nonlinearvariational_problem(
-                Fbig,
-                stages,
-                bcs=bigBCs,
-                Jp=Jpbig,
-                form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
-                is_linear=kwargs.pop("is_linear", False),
-                restrict=kwargs.pop("restrict", False),
-            )
-            problem._constant_jacobian = kwargs.pop("constant_jacobian", False)
-            self.solver = self._backend.create_nonlinear_solver(
-                problem,
-                appctx=self.appctx,
-                nullspace=nullspace,
-                transpose_nullspace=transpose_nullspace,
-                near_nullspace=near_nullspace,
-                solver_parameters=solver_parameters,
-                **kwargs,
-            )
+        self.problem = self._backend.create_variational_problem(
+            Fbig, stages, bcs=bigBCs, Jp=Jpbig,
+            form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+            is_linear=kwargs.pop("is_linear", False),
+            restrict=kwargs.pop("restrict", False),
+            constant_jacobian=kwargs.pop("constant_jacobian", False),
+        )
+        self.solver = self._backend.create_variational_solver(
+            self.problem, appctx=self.appctx,
+            nullspace=nullspace,
+            transpose_nullspace=transpose_nullspace,
+            near_nullspace=near_nullspace,
+            solver_parameters=solver_parameters,
+            **kwargs,
+        )
 
         # stash these for later in case we do bounds constraints
         self.stage_bounds = self.get_stage_bounds(bounds)
@@ -229,7 +199,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     # allow butcher tableau as input for preconditioners to create
     # an alternate operator
     @abstractmethod
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         pass
 
     def solver_stats(self):
@@ -265,12 +235,12 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             V = self.u0.function_space()
             if lower is not None:
                 ninfty = self._backend.Function(V).assign(PETSc.NINFINITY)
-                dats = [ninfty.dat] * (self.num_stages - 1)
+                dats = [ninfty.dat] * (self.num_stages-1)
                 dats.append(lower.dat)
                 slb = self._backend.Function(Vbig, val=flatten_dats(dats))
             if upper is not None:
                 infty = self._backend.Function(V).assign(PETSc.INFINITY)
-                dats = [infty.dat] * (self.num_stages - 1)
+                dats = [infty.dat] * (self.num_stages-1)
                 dats.append(upper.dat)
                 sub = self._backend.Function(Vbig, val=flatten_dats(dats))
 
