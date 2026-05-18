@@ -1,12 +1,12 @@
 from ufl.algorithms.apply_algebra_lowering import apply_algebra_lowering
 from ufl import BaseForm, Form, FormSum
+from firedrake.fml import Label, keep, drop, LabelledForm
 from collections import defaultdict
 from .scheme import create_time_quadrature
 import numpy as np
 
 
 
-from firedrake.fml import Label, keep, drop, LabelledForm
 
 explicit = Label("explicit")
 
@@ -14,7 +14,6 @@ class TimeQuadratureLabel(Label):
     """If the constructor gets one argument, it's an integer for the
     order of the quadrature rule.
     If there are two arguments, assume they are the points and weights."""
-
     def __init__(self, *args, scheme="default"):
         if len(args) == 1:
             Q = create_time_quadrature(args[0], scheme=scheme)

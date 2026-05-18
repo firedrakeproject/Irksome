@@ -50,7 +50,6 @@ def get_mesh_constant(MC: MeshConstant | None):
 
 def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
     if len(F.arguments()) == 2:
-        a = ufl.lhs(F)
         a, L = ufl.system(F)
         kwargs.pop("is_linear", None)
         problem = firedrake.LinearVariationalProblem(a, L, u, bcs=bcs, aP=Jp, **kwargs)
