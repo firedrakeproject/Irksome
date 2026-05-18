@@ -112,7 +112,7 @@ def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays and skips
     substitution into sub-expressions wrapped by :func:`~.lag`."""
     if isinstance(e, LabelledForm):
-        enew = LabelledForm(*(Term(replace(term.form, cmapping), term.labels)
+        enew = LabelledForm(*(Term(replace(term.form, mapping), term.labels)
                               for term in e.terms))
         return enew
     else:
