@@ -44,7 +44,7 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
         ws = stages.subfunctions[field :: len(V)]
         btilde = butcher_tableau.btilde
         num_stages = butcher_tableau.num_stages
-        g = get_backend(bc._backend).replace(as_ufl(gorig), {t: t + dt}) - gorig
+        g = replace(as_ufl(gorig), {t: t + dt}) - gorig
         g -= sum(get_sub(ws[j], comp) * (btilde[j] * dt) for j in range(num_stages))
     return bc.reconstruct(V=Vbc, g=g)
 
