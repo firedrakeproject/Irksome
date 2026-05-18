@@ -27,7 +27,7 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, k
 
     # Note: the Constant c is used for substitution in both the
     # variational form and BC's, and we update it for each stage in
-# the loop over stages in the advance method.  The Constants a
+    # the loop over stages in the advance method.  The Constants a
     # and abar are used similarly in the variational form
     MC = MeshConstant(V.mesh(), backend=backend)
     if kgac is None:
