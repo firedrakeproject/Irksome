@@ -1,36 +1,35 @@
 import numpy
-from firedrake import TestFunction
-from firedrake.bcs import EquationBC, EquationBCSplit
 
-from FIAT import ufc_simplex
-from FIAT.barycentric_interpolation import LagrangePolynomialSet
-
-from ufl import as_tensor, as_ufl, dx, inner
-
-from .tableaux.ButcherTableaux import CollocationButcherTableau
+from petsc4py import PETSc
+from ufl import as_ufl, as_tensor, dx, inner
 from .constant import vecconst
 from .tools import AI, dot, extract_timedep_arguments, fields_to_components, replace, reshape
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
-from .bcs import EmbeddedBCData, BCStageData, extract_bcs, bc2space, stage2spaces4bc
-from .ufl.manipulation import split_time_derivative_terms
+from .backend import get_backend
+
+from .bcs import EmbeddedBCData, BCStageData, stage2spaces4bc, bc2space
+
 from .base_time_stepper import StageCoupledTimeStepper
+from .tableaux.ButcherTableaux import CollocationButcherTableau
+from FIAT import ufc_simplex
+from FIAT.barycentric_interpolation import LagrangePolynomialSet
+from .ufl.manipulation import split_time_derivative_terms
 
 
-def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, aux_indices=None):
+def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, aux_indices=None, backend: str = "firedrake"):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butch: the :class:`ButcherTableau` for the RK method being used to
          advance in time.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
-        on the Real space over the same mesh as ``u0``.  This serves as
-        a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
-        on the Real space over the same mesh as ``u0``.  This serves as
-        a variable referring to the current time step size.
+    :arg t: a :class:`Constant` or :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time.
+    :arg dt: a :class:`Constant` or :class:`Function` on the Real space over the same mesh as
+         `u0`.  This serves as a variable referring to the current time step.
+         The user may adjust this value between time steps.
     :arg u0: a :class:`Function` referring to the state of
-        the PDE system at time `t`
+         the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
     :kwarg bcs: optionally, a :class:`DirichletBC` or :class:`EquationBC`
         object (or iterable thereof) containing (possibly time-dependent)
@@ -41,7 +40,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
         constraints in the style of a differential-algebraic
         equation, or "ODE", which takes the time derivative of the
         boundary data and evaluates this for the stage values.
-        Support for `firedrake.EquationBC` in `bcs` is limited
+        Support for `EquationBC` in `bcs` is limited
         to DAE style BCs.
     :kwarg splitting: a callable that maps the (floating point) Butcher matrix
         to a pair of matrices `A1, A2` such that `butch.A = A1 A2`.  This is used
@@ -53,30 +52,31 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form`
-       - `bcnew`, a list of :class:`firedrake.DirichletBC` or :class:`EquationBC`
+       - `bcnew`, a list of :class:`DirichletBC` or :class:`EquationBC`
          objects to be posed on the stages
     """
+    backend_cls = get_backend(backend)
     if bc_type is None:
         bc_type = "DAE"
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
-    c = vecconst(butch.c)
+    c = vecconst(butch.c, backend=backend)
     bA1, bA2 = splitting(butch.A)
     try:
         bA2inv = numpy.linalg.inv(bA2)
     except numpy.linalg.LinAlgError:
         raise NotImplementedError("We require A = A1 A2 with A2 invertible")
-    A1 = vecconst(bA1)
-    A2inv = vecconst(bA2inv)
+    A1 = vecconst(bA1, backend=backend)
+    A2inv = vecconst(bA2inv, backend=backend)
 
     # s-way product space for the stage variables
     num_stages = butch.num_stages
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    Vbig = backend_cls.get_function_space(stages)
+    test = backend_cls.TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))
@@ -109,7 +109,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
         assert splitting == AI, "ODE-type BC aren't implemented for this splitting strategy"
 
         def bc2stagebc(bc, i):
-            if isinstance(bc, EquationBCSplit):
+            if isinstance(bc, backend_cls.EquationBCSplit):
                 raise NotImplementedError("EquationBC not implemented for ODE formulation")
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u,))
@@ -119,17 +119,18 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     elif bc_type == "DAE":
         try:
             bA1inv = numpy.linalg.inv(bA1)
-            A1inv = vecconst(bA1inv)
+            A1inv = vecconst(bA1inv, backend=backend)
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("Cannot have DAE BCs for this Butcher Tableau/splitting")
 
         def bc2stagebc(bc, i):
-            if isinstance(bc, EquationBCSplit):
+            if isinstance(bc, backend_cls.EquationBCSplit):
                 F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u,))
                 F_bc_new = replace(F_bc_orig, repl[i])
                 Vbigi = stage2spaces4bc(bc, V, Vbig, i)
-                return EquationBC(F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
-                                  bcs=[bc2stagebc(innerbc, i) for innerbc in extract_bcs(bc.bcs)])
+                return backend_cls.EquationBC(
+                    F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
+                    bcs=[bc2stagebc(innerbc, i) for innerbc in backend_cls.extract_bcs(bc.bcs)])
             else:
                 gcur = bc._original_arg
                 if gcur != 0:
@@ -143,7 +144,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     # This logic uses information set up in the previous section to
     # set up the new BCs for either method
-    bcs = extract_bcs(bcs)
+    bcs = backend_cls.extract_bcs(bcs)
     bcnew = [bc2stagebc(bc, i) for i in range(num_stages) for bc in bcs]
 
     return Fnew, bcnew
@@ -156,15 +157,15 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
         the Runge-Kutta method to be used for time marching.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time step size.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`firedrake.EquationBC`
+    :arg bcs: An iterable of :class:`DirichletBC` or :class:`EquationBC`
         containing the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the RK method.
@@ -174,7 +175,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         constraints in the style of a differential-algebraic
         equation, or "ODE", which takes the time derivative of the
         boundary data and evaluates this for the stage values.
-        Support for :class:`firedrake.EquationBC` in `bcs` is limited
+        Support for :class:`EquationBC` in `bcs` is limited
         to DAE style BCs.
     :arg solver_parameters: A :class:`dict` of solver parameters that
         will be used in solving the algebraic problem associated
@@ -190,9 +191,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
                  solver_parameters=None, splitting=AI,
-                 appctx=None, bc_type="DAE", aux_indices=None, sample_points=None, **kwargs):
-
-        self.num_fields = len(u0.function_space())
+                 appctx=None, bc_type="DAE", aux_indices=None, sample_points=None,
+                 backend: str = "firedrake", **kwargs):
         self.butcher_tableau = butcher_tableau
         A1, A2 = splitting(butcher_tableau.A)
         try:
@@ -207,7 +207,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
                          butcher_tableau=butcher_tableau,
-                         sample_points=sample_points, **kwargs)
+                         sample_points=sample_points,
+                         backend=backend, **kwargs)
+        self.num_fields = len(self._backend.get_function_space(u0))
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -260,13 +262,13 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
         the Runge-Kutta method to be used for time marching.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time step size.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
     :arg tol: The temporal truncation error tolerance
     :arg dtmin: Minimal acceptable time step.  An exception is raised
@@ -291,7 +293,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         a proposed step is rejected
     :arg gamma0_params: Solver parameters for mass matrix solve when using
         an embedded scheme with explicit first stage
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`EquationBC`
+    :arg bcs: An iterable of :class:`DirichletBC` or :class:`EquationBC`
         containing the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the RK method.
@@ -305,13 +307,13 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                  bc_type="DAE", splitting=AI, nullspace=None,
                  tol=1.e-3, dtmin=1.e-15, dtmax=1.0, KI=1/15, KP=0.13,
                  max_reject=10, onscale_factor=1.2, safety_factor=0.9,
-                 gamma0_params=None, **kwargs):
+                 gamma0_params=None, backend: str = "firedrake", **kwargs):
         assert butcher_tableau.btilde is not None
         super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
                                                   t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
-                                                  bc_type=bc_type, splitting=splitting, nullspace=nullspace, **kwargs)
+                                                  bc_type=bc_type, splitting=splitting, nullspace=nullspace,
+                                                  backend=backend, **kwargs)
 
-        from firedrake.petsc import PETSc
         self.print = PETSc.Sys.Print
 
         self.dt_min = dtmin
@@ -408,7 +410,6 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
 
             # Initial time-step selector
             elif self.num_steps == 0 and dt_current < self.dt_max and dt_pred > self.onscale_factor*dt_current and self.contreject <= self.max_reject:
-
                 # Increase the initial time-step
                 dtnew = min(dt_pred, self.dt_max)
                 self.print("\tIncreasing time-step to %e" % (dtnew))

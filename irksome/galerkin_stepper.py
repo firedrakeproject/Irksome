@@ -5,7 +5,7 @@ from ufl.classes import Zero
 from ufl import as_ufl, as_tensor
 
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import bc2space, extract_bcs, stage2spaces4bc
+from .bcs import bc2space, stage2spaces4bc
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
@@ -14,14 +14,11 @@ from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components,
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
-
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .stage_derivative import getForm
 from .stage_value import getFormStage
-
+from .backend import get_backend
 import numpy as np
-from firedrake import TestFunction, Constant
-from firedrake.bcs import EquationBCSplit
 
 
 def getTrialElement(basis_type, order):
@@ -65,10 +62,11 @@ def getElements(basis_type, order):
     return L_trial, L_test
 
 
-def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
+def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend="firedrake"):
     v, u = extract_timedep_arguments(F, u0)
-    V = v.function_space()
-    assert V == u0.function_space()
+    backend_cls = get_backend(backend)
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
@@ -115,7 +113,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     return Fnew
 
 
-def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None):
+def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None, backend: str = "firedrake"):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
 
@@ -134,7 +132,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :kwarg bcs: optionally, a :class:`firedrake.DirichletBC` object (or iterable thereof)
+    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
     :kwarg bc_type: How to manipulate the strongly-enforced boundary
@@ -143,7 +141,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
          constraints in the style of a differential-algebraic
          equation, or "ODE", which evaluates the temporal degrees of
          freedom of the boundary data.
-         Currently there is no support for :class:`firedrake.EquationBC`.
+         Currently there is no support for :class:`EquationBC`.
     :kwarg aux_indices: a list of field indices to be discretized in the test space
          rather than trial space.
     :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
@@ -152,16 +150,17 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form` corresponding to the Galerkin-in-Time discretized problem
-       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
+       - `bcnew`, a list of :class:`DirichletBC` objects to be posed
          on the Galerkin-in-time solution
     """
     if bc_type is None:
         bc_type = "DAE"
     assert L_test.get_reference_element() == L_trial.get_reference_element()
     assert L_trial.space_dimension() == L_test.space_dimension() + 1
-
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    backend_cls = get_backend(backend)
+    Vbig = backend_cls.get_function_space(stages)
+    test = backend_cls.TestFunction(Vbig)
+    Constant = backend_cls.Constant
 
     degree_mapping = get_degree_mapping(as_form(F), L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
@@ -175,7 +174,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     V = u0.function_space()
     if bcs is None:
         bcs = []
-    bcs = extract_bcs(bcs)
+    bcs = backend_cls.extract_bcs(bcs)
     bcsnew = []
 
     # list of dictionaries mapping time coordinates to weights to evaluate DOFs
@@ -241,7 +240,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
 
     num_stages = L_test.space_dimension()
     for bc in bcs:
-        if isinstance(bc, EquationBCSplit):
+        if isinstance(bc, backend_cls.EquationBCSplit):
             raise NotImplementedError("EquationBC not implemented for Galerkin-in-Time")
         if aux_indices and bc.function_space().index in aux_indices:
             g_np = aux_bc_data(bc)
@@ -260,16 +259,16 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg scheme: :class:`ContinuousPetrovGalerkinScheme` encoding the order,
         basis type, and default quadrature rule of the method.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time step size.
         The user may adjust this value between time steps.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :kwarg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+    :kwarg bcs: An iterable of :class:`DirichletBC` containing
         the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the method.
@@ -279,7 +278,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         constraints in the style of a differential-algebraic
         equation, or "ODE", which evaluates the temporal degrees of
         freedom of the boundary data.
-        Currently there is no support for `firedrake.EquationBC`.
+        Currently there is no support for `EquationBC`.
     :kwarg solver_parameters: A :class:`dict` of solver parameters that
         will be used in solving the algebraic problem associated
         with each time step.
@@ -292,11 +291,13 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         rather than trial space.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None,
-                 bc_type=None, aux_indices=None, **kwargs):
+                 bc_type=None, aux_indices=None, backend: str = "firedrake", **kwargs):
         self.order = scheme.order
         self.basis_type = scheme.basis_type
+        self.backend = backend
+        backend_cls = get_backend(backend)
+        V = backend_cls.get_function_space(u0)
 
-        V = u0.function_space()
         self.num_fields = len(V)
 
         self.trial_el, self.test_el = getElements(self.basis_type, self.order)
@@ -421,7 +422,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
         trial_dofs = np.delete(trial_dofs, i0, axis=0)
 
-        dof = Constant(0)
+        dof = self._backend.Constant(0)
         for k in range(self.num_stages):
             for i, u0bit in enumerate(self.u0.subfunctions):
                 sbit = self.stages.subfunctions[self.num_fields*k+i]

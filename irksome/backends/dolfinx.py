@@ -1,9 +1,72 @@
 """DOLFINx backend for Irksome"""
 
 try:
+    from mpi4py import MPI
+    from petsc4py import PETSc
     import basix.ufl
-    import dolfinx
+    import dolfinx.fem.petsc
     import ufl
+    import typing
+    import numpy as np
+
+    def get_stage_space(V: ufl.FunctionSpace, num_stages: int) -> ufl.FunctionSpace:
+        if num_stages == 1:
+            me = V.ufl_elemet()
+        else:
+            el = V.ufl_element()
+            if el.num_sub_elements > 0:
+                me = basix.ufl.mixed_element(
+                    np.tile(el.sub_elements, num_stages).tolist()
+                )
+            else:
+                me = basix.ufl.blocked_element(el, shape=(num_stages,))
+        return dolfinx.fem.functionspace(V.mesh, me)
+
+    def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
+        """Extract boundary conditions"""
+        return bcs
+
+    def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
+        """Create a variational problem."""
+        if len(F.arguments()) == 2:
+            a, L = ufl.system(F)
+            return dolfinx.fem.petsc.LinearProblem(
+                a,
+                L,
+                u,
+                bcs=bcs,
+                petsc_options_prefix="IrkSomeLinearSolver",
+                P=aP,
+                **kwargs,
+            )
+        else:
+            return dolfinx.fem.petsc.NonlinearProblem(
+                F,
+                u,
+                petsc_options_prefix="IrkSomeNonlinearSolver",
+                bcs=bcs,
+                petsc_options=kwargs.get("solver_parameters"),
+            )
+
+    def create_variational_solver(
+        problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
+        **kwargs,
+    ):
+        """Create a variational solver that uses PETSc SNES or KSP."""
+        solver_parameters = kwargs.get("solver_parameters", {})
+        solver = problem.solver
+        solver_prefix = problem.solver.getOptionsPrefix()
+        opts = PETSc.Options(
+        )
+        opts.prefixPush(solver_prefix)
+        for k, v in solver_parameters.items():
+            opts.setValue(k, v)
+        solver.setFromOptions()
+        opts.prefixPop()
+        # For some strange reason delValue doesn't respect prefixes
+        for k, v in solver_parameters.items():
+            opts.delValue(f"{solver_prefix}{k}")
+        return problem
 
     def get_function_space(u: ufl.Coefficient) -> ufl.FunctionSpace:
         return u.ufl_function_space()
@@ -31,11 +94,20 @@ try:
         def __init__(self, msh):
             self.msh = msh
             try:
-                import scifem
-            except ModuleNotFoundError:
-                raise RuntimeError("Scifem is required to make mesh-constants")
+                import basix.ufl
 
-            self.V = scifem.create_real_functionspace(msh, ())
+                r_el = basix.ufl.real_element(
+                    msh.basix_cell(), value_shape=(), dtype=dolfinx.default_scalar_type
+                )
+                self.V = dolfinx.fem.functionspace(msh, r_el)
+            except TypeError:
+                try:
+                    import scifem
+                except ModuleNotFoundError:
+                    raise RuntimeError(
+                        "DOLFINx with real element support or Scifem is required to make mesh-constants"
+                    )
+                self.V = scifem.create_real_functionspace(msh, ())
 
         def Constant(self, val=0.0) -> ufl.Coefficient:
             v = dolfinx.fem.Function(self.V)
@@ -44,6 +116,69 @@ try:
 
     def get_mesh_constant(MC: MeshConstant | None) -> ufl.core.expr.Expr:
         return MC.Constant if MC is not None else ufl.constantvalue.ComplexValue
+
+    class DirichletBC(dolfinx.fem.DirichletBC):
+        pass
+
+    def norm(
+        v: ufl.core.expr.Expr, norm_type: str = "L2", mesh: ufl.Mesh | None = None
+    ) -> float:
+        """Compute the norm of a function in the backend language."""
+        if mesh is not None:
+            dx = ufl.Mesure("dx", domain=mesh)
+        else:
+            dx = ufl.dx
+        p = 2
+        if norm_type.startswith("L"):
+            p = int(norm_type[1:])
+            if p < 1:
+                raise ValueError(f"Invalid norm type {norm_type}")
+            expr = ufl.inner(v, v) ** (p / 2)
+            form = dolfinx.fem.form(expr * dx)
+        else:
+            raise NotImplementedError(f"Norm type {norm_type} not implemented")
+        norm_loc = dolfinx.fem.assemble_scalar(form)
+        return form.mesh.comm.Allreduce(MPI.IN_PLACE, norm_loc, op=MPI.SUM) ** (1 / p)
+
+    def assemble(expr: ufl.core.expr.Expr | float):
+        """Assemble a UFL expression in the backend language."""
+        if isinstance(expr, float):
+            return float
+        else:
+            form = dolfinx.fem.form(expr)
+            if form.rank == 0:
+                return dolfinx.fem.assemble_scalar(form)
+            elif form.rank == 1:
+                return dolfinx.fem.assemble_vector(form)
+            elif form.rank == 2:
+                return dolfinx.fem.assemble_matrix(form)
+            else:
+                raise ValueError(f"Cannot assemble form of rank {form.rank}")
+
+    derivative = ufl.derivative
+    TrialFunction = ufl.TrialFunction
+    Function = dolfinx.fem.Function
+    TestFunction = ufl.TestFunction
+
+    class Constant(ufl.constantvalue.ScalarValue):
+        # NOTE: If dolfinx ever get's meshless constants we should change this
+        def assign(self, value):
+            self._value = value
+
+    class EquationBCSplit:
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError("DOLFINx does not support EquationBCSplit")
+
+    class EquationBC:
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError("DOLFINx does not support EquationBC")
+
+    def invalidate_jacobian(solver: dolfinx.fem.petsc.LinearProblem):
+        """Invalidate the Jacobian matrix in the backend language."""
+        raise RuntimeError("DOLFINx does not support Jacobian invalidation")
+
+    def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None):
+        raise NotImplementedError("Bounds-constrained BCs are not implemented for DOLFINx")
 
 except ModuleNotFoundError:
     pass
