@@ -20,7 +20,7 @@ from .stage_derivative import getForm
 from .stage_value import getFormStage
 from .backend import get_backend
 import numpy as np
-from firedrake import TestFunction, Constant
+from firedrake import Constant
 from firedrake.bcs import EquationBCSplit
 
 
@@ -185,7 +185,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     def evaluate_dof(dof, g):
         if isinstance(g, Zero):
             return g
-        return sum(backend_cls.replace(g, {t: t + c * dt}) * w for c, w in dof.items())
+        return sum(replace(g, {t: t + c * dt}) * w for c, w in dof.items())
 
     aux_bc_data = lambda bc: [evaluate_dof(dof, as_ufl(bc._original_arg)) for dof in test_dicts]
 
@@ -233,7 +233,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
             if isinstance(g, Zero):
                 return [g]*len(test_dicts)
             ucur = bc2space(bc, u0)
-            gq = np.array([backend_cls.replace(g, {t: t + q * dt}) - phi0 * ucur
+            gq = np.array([replace(g, {t: t + q * dt}) - phi0 * ucur
                            for phi0, q in zip(trial_vals0, qpts)])
             return dot(trial_proj, gq)
     else:

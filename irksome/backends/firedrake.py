@@ -79,3 +79,4 @@ norm = firedrake.norm
 Function = firedrake.Function
 TestFunction = firedrake.TestFunction
 TrialFunction = firedrake.TrialFunction
+DirichletBC = firedrake.DirichletBC

@@ -77,6 +77,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
          on the stages
     """
     v, u = extract_timedep_arguments(F, u0)
+    backend_cls = get_backend(backend)
     V = backend_cls.get_function_space(v)
     assert V == u0.function_space()
 
@@ -113,7 +114,6 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # Dt(g(u)) is discretised as g(U_i) - g(u0), not g(U_i - u0).
     # These are identical for linear g but differ for nonlinear g,
     # and the two-evaluation form is what gives mass conservation.
-    replace = backend_cls.replace
     for i in range(num_stages):
         repl_new = {t: t + c[i] * dt,
                     v: A2invTv[i],

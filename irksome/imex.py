@@ -76,7 +76,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
                         u: u_np[j]}
 
                 # and sum the contribution
-                replF = backend_cls.replace(Ftmp, repl)
+                replF = replace(Ftmp, repl)
                 Fit += Ait[i, j] * dt * replF
                 Fprop += Aprop[i, j] * dt * replF
     elif splitting == IA:
@@ -86,7 +86,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
                     u: u_np[i],
                     v: v_np[i]}
 
-            Fit += dt * backend_cls.replace(Fexp, repl)
+            Fit += dt * replace(Fexp, repl)
 
         # dense contribution to propagator
         AinvAexp = vecconst(np.linalg.solve(butch.A, Aexp), backend=backend)
@@ -102,7 +102,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
                         u: u_np[j]}
 
                 # and sum the contribution
-                Fprop += AinvAexp[i, j] * dt * backend_cls.replace(Ftmp, repl)
+                Fprop += AinvAexp[i, j] * dt * replace(Ftmp, repl)
     else:
         raise NotImplementedError(
             "Must specify splitting to either IA or AI")

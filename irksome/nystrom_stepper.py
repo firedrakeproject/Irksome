@@ -4,7 +4,7 @@ from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 from .tools import dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
-from firedrake import TestFunction, as_ufl
+from firedrake import as_ufl
 import numpy
 from ufl import Form
 
@@ -110,7 +110,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
                 u: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
                 dtu: ut0 + Ak[i] * dt,
                 dt2u: k_np[i]}
-        Fnew += backend_cls.replace(F, repl)
+        Fnew += replace(F, repl)
 
     if bcs is None:
         bcs = []
@@ -118,7 +118,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig, 2), t=t, timedep_coeffs=(u0,))
-            return backend_cls.replace(gfoo, {t: t + c[i] * dt})
+            return replace(gfoo, {t: t + c[i] * dt})
 
     elif bc_type == "DAE":
         if tableau.is_explicit:
@@ -133,7 +133,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
             gorig = as_ufl(bc._original_arg)
             ucur = bc2space(bc, u0)
             utcur = bc2space(bc, ut0)
-            gcur = (1/dt**2) * sum((backend_cls.replace(gorig, {t: t + c[j]*dt}) - ucur - utcur * (dt * c[j])) * A1inv[i, j]
+            gcur = (1/dt**2) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur - utcur * (dt * c[j])) * A1inv[i, j]
                                    for j in range(num_stages))
             return gcur
 
@@ -160,7 +160,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig, 1), t=t, timedep_coeffs=(u0,))
             utcur = bc2space(bc, ut0)
-            gcur = (1/dt) * sum((backend_cls.replace(gfoo, {t: t + c_ddae[j]*dt}) - utcur) * A1inv[i, j]
+            gcur = (1/dt) * sum((replace(gfoo, {t: t + c_ddae[j]*dt}) - utcur) * A1inv[i, j]
                                 for j in range(num_stages))
             return gcur
 

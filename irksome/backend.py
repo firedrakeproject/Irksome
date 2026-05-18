@@ -79,9 +79,6 @@ class Backend(Protocol):
     def assemble(expr: ufl.core.expr.Expr) -> Any:
         """Assemble a UFL expression in the backend language."""
 
-    def replace(expr: ufl.core.expr.Expr, mapping: dict) -> ufl.core.expr.Expr:
-        """Replace sub-expressions in a UFL expression with other expressions."""
-
     def derivative(
         form: ufl.Form,
         u: ufl.Coefficient,

@@ -1,7 +1,7 @@
 from .backend import get_backend
 import numpy
 from ufl.algorithms.analysis import extract_type
-from ufl import as_tensor
+from ufl import as_tensor, replace as ufl_replace
 
 import FIAT
 

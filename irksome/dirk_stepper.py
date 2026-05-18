@@ -1,10 +1,11 @@
 import numpy
 from ufl import as_ufl, lhs
 
-from .constant import MeshConstant, vecconst
+from .constant import vecconst
 from .bcs import bc2space
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .tools import extract_timedep_arguments, replace
+from .backend import get_backend
 
 
 def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake"):

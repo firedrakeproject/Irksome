@@ -159,12 +159,6 @@ try:
             else:
                 raise ValueError(f"Cannot assemble form of rank {form.rank}")
 
-    def replace(e: ufl.core.expr.Expr, mapping: dict) -> ufl.core.expr.Expr:
-        """A wrapper for ufl.replace that allows numpy arrays."""
-        cmapping = {k: ufl.as_tensor(v) for k, v in mapping.items()}
-        return ufl.replace(e, cmapping)
-
-
     derivative = ufl.derivative
     TrialFunction = ufl.TrialFunction
     Function = dolfinx.fem.Function
