@@ -15,19 +15,7 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from .ufl.manipulation import split_time_derivative_terms
 
 
-def getForm(
-    F: Form,
-    butch: ButcherTableaux,
-    t: Coefficient,
-    dt: Coefficient,
-    u0: Coefficient,
-    stages,
-    bcs=None,
-    bc_type=None,
-    splitting=AI,
-    aux_indices=None,
-    backend: str = "firedrake",
-):
+def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, aux_indices=None, backend: str = "firedrake"):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 

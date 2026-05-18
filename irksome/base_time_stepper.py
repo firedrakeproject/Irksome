@@ -179,11 +179,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         pass
 
     def solver_stats(self):
-        return (
-            self.num_steps,
-            self.num_nonlinear_iterations,
-            self.num_linear_iterations,
-        )
+        return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
 
     def get_stages(self) -> ufl.Coefficient:
         return self._backend.get_stages(self.V, self.num_stages)
