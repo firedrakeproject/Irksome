@@ -1,6 +1,5 @@
 # formulate RK methods to solve for stage values rather than the stage derivatives.
 import numpy
-from firedrake import TestFunction
 
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet

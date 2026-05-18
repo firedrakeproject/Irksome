@@ -10,9 +10,11 @@ class Backend(Protocol):
     def extract_bcs(bcs: Any) -> tuple[Any]:
         """Extract boundary conditions"""
 
-    class Function: ...
+    class Function:
+        ...
 
-    class DirichletBC: ...
+    class DirichletBC:
+        ...
 
     def get_stages(self, V: ufl.FunctionSpace, num_stages: int) -> ufl.Coefficient:
         """

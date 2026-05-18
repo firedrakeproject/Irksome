@@ -53,7 +53,6 @@ try:
         **kwargs,
     ):
         """Create a variational solver that uses PETSc SNES or KSP."""
-        
         solver_parameters = kwargs.get("solver_parameters", {})
         solver = problem.solver
         solver_prefix = problem.solver.getOptionsPrefix()

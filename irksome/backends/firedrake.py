@@ -2,7 +2,6 @@
 
 import firedrake
 import ufl
-from ..tools import get_stage_space
 import typing
 
 
