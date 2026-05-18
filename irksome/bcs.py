@@ -2,7 +2,7 @@ from functools import lru_cache
 
 
 from .backend import get_backend
-from ufl import as_ufl, inner, dx
+from ufl import as_ufl, inner, dx, replace
 
 
 def get_sub(u, indices):
