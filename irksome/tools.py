@@ -115,7 +115,6 @@ def replace(e, mapping):
         enew = LabelledForm(*(Term(replace(term.form, mapping), term.labels)
                               for term in e.terms))
         return enew
-    else:
 
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
     for var in extract_type(e, Variable):
