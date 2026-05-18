@@ -238,7 +238,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             backend=backend,
             **kwargs,
         )
-        self.num_fields = len(self._backend_cls.get_function_space(u0))
+        self.num_fields = len(self._backend.get_function_space(u0))
 
 
     def _update(self):
