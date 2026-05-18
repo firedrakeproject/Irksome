@@ -1,8 +1,5 @@
 """Firedrake backend for Irksome"""
 
-from operator import mul
-from functools import reduce
-
 import firedrake
 import ufl
 from ..tools import get_stage_space
@@ -10,7 +7,7 @@ import typing
 
 
 def get_stage_space(V: ufl.FunctionSpace, num_stages: int) -> ufl.FunctionSpace:
-    return reduce(mul, (V for _ in range(num_stages)))
+    return firedrake.MixedFunctionSpace(tuple(V) * num_stages)
 
 
 def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
