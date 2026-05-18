@@ -114,7 +114,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     return Fnew
 
 
-def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None, backend:str="firedrake"):
+def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None, backend: str = "firedrake"):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
 
@@ -291,7 +291,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         rather than trial space.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None,
-                 bc_type=None, aux_indices=None, backend:str="firedrake", **kwargs):
+                 bc_type=None, aux_indices=None, backend: str = "firedrake", **kwargs):
         self.order = scheme.order
         self.basis_type = scheme.basis_type
         self.backend = backend
