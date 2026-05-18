@@ -240,10 +240,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         ks = [self.u_old]
         ks.extend(split_stages(self.u0.function_space(), self.stages))
         num_samples = vander.shape[1]
-        self.sample_values = [
-            sum(ks[j] * vander[j, i] for j in range(len(ks)))
-            for i in range(num_samples)
-        ]
+        self.sample_values = [sum(ks[j] * vander[j, i] for j in range(len(ks)))
+                              for i in range(num_samples)]
 
     def invalidate_jacobian(self):
         """

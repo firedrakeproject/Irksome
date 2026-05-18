@@ -41,7 +41,7 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages):
         V = u0.function_space()
         field = 0 if len(V) == 1 else bc.function_space_index()
         comp = (bc.function_space().component,)
-        ws = stages.subfunctions[field :: len(V)]
+        ws = stages.subfunctions[field::len(V)]
         btilde = butcher_tableau.btilde
         num_stages = butcher_tableau.num_stages
         g = replace(as_ufl(gorig), {t: t + dt}) - gorig
@@ -121,11 +121,4 @@ class BoundsConstrainedDirichletBC(metaclass=_BoundsConstrainedDirichletBCMeta):
         V = V or self.function_space()
         g = g or self.g
         sub_domain = sub_domain or self.sub_domain
-        return type(self)(
-            V,
-            g,
-            sub_domain,
-            self.bounds,
-            self.solver_parameters,
-            backend=self._backend_name,
-        )
+        return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters, backend=self._backend_name)

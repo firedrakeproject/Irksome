@@ -53,7 +53,7 @@ try:
         problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
         **kwargs,
     ):
-        """Create a linear variational solver that uses PETSc KSP."""
+        """Create a variational solver that uses PETSc SNES or KSP."""
         
         solver_parameters = kwargs.get("solver_parameters", {})
         solver = problem.solver

@@ -154,7 +154,6 @@ class MultistepTimeStepper(BaseTimeStepper):
         for (i, coeff) in enumerate(a):
             Fnew += coeff * replace(F_dtless, {u0: self.us[i],
                                                t: t + (i - self.num_prev_steps + 1) * dt})
-    
         # form the right hand side
         for (i, coeff) in enumerate(b):
             Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i],
@@ -173,6 +172,7 @@ class MultistepTimeStepper(BaseTimeStepper):
         return Fnew, bcsnew
 
     def advance(self):
+    
         self.solver.solve(bounds=self.bounds)
 
         # update previous steps
