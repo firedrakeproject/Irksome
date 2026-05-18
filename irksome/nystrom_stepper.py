@@ -4,9 +4,8 @@ from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 from .tools import dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
-from firedrake import as_ufl
 import numpy
-from ufl import Form
+from ufl import Form, as_ufl
 
 
 class NystromTableau:
