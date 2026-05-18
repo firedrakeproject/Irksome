@@ -58,40 +58,40 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
         ``F(t, u; v) == 0``, where ``u`` is the unknown
-        :class:`firedrake.Function` and ``v`` is the
-        :class:`firedrake.TestFunction`. To specify a linear problem,
+        :class:`Function` and ``v`` is the
+        :class:`TestFunction`. To specify a linear problem,
         ``F`` must be of the form ``a(t; w, v) - L(t; v)``, where
-        ``w`` is a :class:`firedrake.TrialFunction`.
+        ``w`` is a :class:`TrialFunction`.
     :arg method: A :class:`ButcherTableau` instance (for RK methods) or
         a :class:`GalerkinScheme` instance (for CPG or DG) methods
         to be used in time marching.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time step size.
         The user may adjust this value between time steps.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :kwarg bcs: An iterable of :class:`firedrake.DirichletBC` or
-        :class: `firedrake.EquationBC` containing
+    :kwarg bcs: An iterable of :class:`DirichletBC` or
+        :class: `EquationBC` containing
         the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the RK method.
     :kwarg constant_jacobian: A boolean flag indicating whether the Jacobian
         does not change between time steps. If ``dt`` is updated, the Jacobian
         may be flagged for an update via :func:`invalidate_jacobian`.
-    :kwarg nullspace: A :class:`firedrake.VectorSpaceBasis`
-        or :class:`firedrake.MixedVectorSpaceBasis` specifying a nullspace
+    :kwarg nullspace: A :class:`VectorSpaceBasis`
+        or :class:`MixedVectorSpaceBasis` specifying a nullspace
         over the space of ``u0``.
     :kwarg stage_type: Whether to formulate in terms of a stage
-        derivatives or stage values. Support for :class:`firedrake.EquationBC`
+        derivatives or stage values. Support for :class:`EquationBC`
         in ``bcs`` is limited to the stage derivative formulation.
     :kwarg splitting: A callable used to factor the Butcher matrix
     :kwarg bc_type: For stage derivative formulation, how to manipulate
         the strongly-enforced boundary conditions.
-        Support for :class:`firedrake.EquationBC` in ``bcs`` is limited
+        Support for :class:`EquationBC` in ``bcs`` is limited
         to DAE style BCs.
     :kwarg solver_parameters: A :class:`dict` of solver parameters that
         will be used in solving the algebraic problem associated

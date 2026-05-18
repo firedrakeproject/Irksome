@@ -1,7 +1,11 @@
 from abc import abstractmethod
-from firedrake.petsc import PETSc
+
+from petsc4py import PETSc
 from .tools import AI, getNullspace, flatten_dats, split_stages
-from .labeling import as_form
+try:
+    from .labeling import as_form
+except ImportError:
+    as_form = lambda x: x
 from .backend import get_backend
 import ufl
 import numpy
@@ -13,7 +17,6 @@ class BaseTimeStepper:
     """
     def __init__(self, F, t, dt, u0,
                  bcs=None, appctx=None, nullspace=None, backend: str = "firedrake"):
-        self._backend = get_backend(backend)
         self.F = F
         self.t = t
         self.dt = dt
@@ -22,6 +25,7 @@ class BaseTimeStepper:
             bcs = ()
         self.orig_bcs = bcs
         self.nullspace = nullspace
+        self._backend = get_backend(backend)
         self.V = self._backend.get_function_space(u0)
 
         appctx_base = {"stepper": self}
@@ -47,25 +51,25 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
         ``F(t, u; v) == 0``, where ``u`` is the unknown
-        :class:`firedrake.Function` and ``v`` is the
-        :class:`firedrake.TestFunction`. To specify a linear problem,
+        :class:`Function` and ``v`` is the
+        :class:`TestFunction`. To specify a linear problem,
         ``F`` must be of the form ``a(t; w, v) - L(t; v)``, where
-        ``w`` is a :class:`firedrake.TrialFunction`.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+        ``w`` is a :class:`TrialFunction`.
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
         a variable referring to the current time step size.
         The user may adjust this value between time steps.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
     :arg num_stages: The number of stages to solve for.  It could be the number of
         RK stages or relate to the polynomial degree (Galerkin)
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or :class:`firedrake.EquationBC`
+    :arg bcs: An iterable of :class:`DirichletBC` or :class:`EquationBC`
         containing the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
-        stage of the RK method.  Support for `firedrake.EquationBC` is limited
+        stage of the RK method.  Support for `EquationBC` is limited
         to the stage derivative formulation with DAE style BCs.
     :arg Fp: A :class:`ufl.Form` instance to precondition the semi-discrete linearization.
     :arg solver_parameters: An optional :class:`dict` of solver parameters that
@@ -75,8 +79,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         This gets included with particular things that Irksome will
         pass into the nonlinear solver so that, say, user-defined preconditioners
         have access to it.
-    :arg nullspace: A :class:`firedrake.VectorSpaceBasis`
-        or :class:`firedrake.MixedVectorSpaceBasis` specifying a nullspace
+    :arg nullspace: A :class:`VectorSpaceBasis`
+        or :class:`MixedVectorSpaceBasis` specifying a nullspace
         over the space of ``u0``.
     :arg splitting: An optional kwarg (not used by all superclasses)
     :arg bc_type: An optional kwarg (not used by all superclasses)
@@ -86,16 +90,17 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
             at additional points in time.
     """
+
     def __init__(self, F, t, dt, u0, num_stages,
                  bcs=None, Fp=None, solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
                  splitting=None, bc_type=None,
                  butcher_tableau=None, bounds=None, sample_points=None,
-                 **kwargs):
+                 backend="firedrake", **kwargs):
 
         super().__init__(F, t, dt, u0,
-                         bcs=bcs, appctx=appctx, nullspace=nullspace)
+                         bcs=bcs, appctx=appctx, nullspace=nullspace, backend=backend)
 
         self.num_stages = num_stages
         if butcher_tableau:
@@ -158,7 +163,6 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     def advance(self):
         """Advances the system from time `t` to time `t + dt`.
         Note: overwrites the value `u0`."""
-
         self.solver.solve(bounds=self.stage_bounds)
 
         self.num_steps += 1
@@ -224,13 +228,13 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         pass
 
     def build_poly(self):
-        '''
+        """
         When provided with a list of `sample_points` (intended to be in the interval [0,1]), this
         builds a symbolic expression for the values of the RK collocation polynomial at the
         corresponding points on the interval [t_n, t_{n+1}].  These are stored in the list
         `self.sample_values` as functions in the same FunctionSpace as `self.u0`.  The resulting
         expressions can then be assigned to a Function on that same FunctionSpace.
-        '''
+        """
         pts = numpy.reshape(self.sample_points, (-1, 1))
         vander = self.tabulate_poly(pts)
 
