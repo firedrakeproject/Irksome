@@ -81,7 +81,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
 
         repl_tminus = {v: v_at_0}
         repl_tplus = {v: v_at_0, u0: u_at_0}
-        Fnew = replace(F_dtless, repl_tplus) - replace(F_dtless, repl_tminus)
+        Fnew = backend_cls.replace(F_dtless, repl_tplus) - backend_cls.replace(F_dtless, repl_tminus)
         F_remainder = F
     elif deriv_type == "weak":
         # Integrate by parts once (Dt(g(u)), v)
@@ -93,7 +93,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
 
         repl_tminus = {v: v_at_01[0]}
         repl_tnew = {v: v_at_01[1], u0: u_at_01[1], t: t + dt}
-        Fnew = replace(F_dtless, repl_tnew) - replace(F_dtless, repl_tminus)
+        Fnew = backend_cls.replace(F_dtless, repl_tnew) - backend_cls.replace(F_dtless, repl_tminus)
 
         # Terms with time derivatives: -(g(u), Dt(v))
         test_dvals_w = vecconst(basis_dvals_w)
@@ -102,7 +102,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
             repl = {t: t + qpts[q] * dt,
                     v: dtvsub[q],
                     u0: usub[q]}
-            Fnew -= replace(F_dtless, repl)
+            Fnew -= backend_cls.replace(F_dtless, repl)
         F_remainder = split_form.remainder
     else:
         raise ValueError(f"Unrecongnized deriv_type {deriv_type}")
@@ -115,7 +115,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
                 v: vsub[q] * dt,
                 u0: usub[q],
                 dtu0: dtusub[q] / dt}
-        Fnew += replace(F_remainder, repl)
+        Fnew += backend_cls.replace(F_remainder, repl)
     return Fnew
 
 
