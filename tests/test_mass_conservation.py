@@ -9,12 +9,13 @@ directly in the stage equations.
 import pytest
 from firedrake import (
     Constant, Function, FunctionSpace, TestFunction,
-    UnitSquareMesh, assemble, ds, dx, exp, grad, inner,
+    UnitIntervalMesh, UnitSquareMesh, assemble, ds, dx, exp, grad, inner,
 )
 from irksome import (
     AdamsMoulton, BackwardEuler, BDF, DiscontinuousGalerkinScheme, Dt,
     GaussLegendre, MultistepTableau, QinZhang, RadauIIA, TimeStepper,
 )
+from irksome.ufl.manipulation import has_nonlinear_time_derivative
 import numpy as np
 
 
@@ -105,6 +106,48 @@ def test_mass_conservation_stage_value(scheme):
     err = run_richards(scheme, stage_type="value")
     assert err < 10*np.finfo(np.dtype(err)).eps, (
         f"mass error should be near machine precision, got {err:.2e}"
+    )
+
+
+def test_linear_scaled_mass_uses_Ainv_path():
+    """Regression guard for stage_value.py:200 dispatch.
+
+    Dt(c*u) with c a Constant is linear in u and must route through
+    _update_Ainv on a non-stiffly-accurate tableau.  Pin both the
+    classifier verdict and the actual stepper dispatch, so a future
+    change to either side cannot silently re-narrow the contract to
+    g = identity.
+    """
+    mesh = UnitIntervalMesh(8)
+    V = FunctionSpace(mesh, "CG", 1)
+    u = Function(V).interpolate(Constant(1.0))
+    v = TestFunction(V)
+    t = Constant(0.0)
+    dt = Constant(0.1)
+    c = Constant(2.7)
+
+    F = inner(Dt(c * u), v) * dx
+    assert not has_nonlinear_time_derivative(F, u)
+
+    stepper = TimeStepper(F, GaussLegendre(2), t, dt, u, stage_type="value")
+    # Identity-by-name check: _update is assigned the unbound method
+    # directly at stage_value.py:217, so __name__ is stable today.  If a
+    # future refactor wraps _update in a partial or descriptor, swap this
+    # for `stepper._update.__func__ is type(stepper)._update_Ainv`.
+    assert stepper._update.__name__ == "_update_Ainv"
+
+    one = Function(V).interpolate(Constant(1.0))
+    mass_form = inner(c * u, one) * dx
+    m0 = assemble(mass_form)
+    for _ in range(10):
+        stepper.advance()
+        t.assign(t + dt)
+    m1 = assemble(mass_form)
+    # Pure-mass form, no remainder -- _update_Ainv is an algebraic
+    # combination of stage values, so mass conservation sits at the
+    # stage solve's machine-precision floor, not at solver rtol.
+    assert abs(m1 - m0) < 100 * np.finfo(float).eps, (
+        f"mass error {abs(m1 - m0):.2e} exceeds machine precision floor"
     )
 
 

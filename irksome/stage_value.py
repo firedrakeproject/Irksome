@@ -198,13 +198,15 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             self._update = self._update_collocation
 
         elif (not butcher_tableau.is_stiffly_accurate) and (vandermonde is None):
-            # For nonlinear Dt(g(u)) we need the conservative variational
-            # update; the bAinv linear combination of stages is correct
-            # for g = identity but breaks for nonlinear g.  For the
-            # linear case we keep the bAinv shortcut: it is conservative
-            # by construction (g = id makes both formulations agree)
-            # AND it handles DAEs correctly, which the conservative
-            # variational update does not.
+            # Conservative variational update is needed only when Dt's
+            # argument is nonlinear in u0; for any g linear in u0
+            # (g = c*u, g = c(x)*u, g = M*u; affine g = u + f(t,x) too,
+            # with the f(t,x) piece handled by the remainder via the
+            # Dt-split) the bAinv shortcut commutes with g and is exact.
+            # It is also the only correct path under DAE structure: the
+            # conservative variational head reduces to 0 on algebraic
+            # blocks where Dt is absent, so it does not determine u_new
+            # there.
             if has_nonlinear_time_derivative(F, u0):
                 self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
                 self._update = self._update_general

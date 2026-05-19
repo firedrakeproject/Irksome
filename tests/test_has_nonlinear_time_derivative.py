@@ -44,11 +44,16 @@ def test_linear_arithmetic_is_not_flagged(setup):
     not be flagged.  These are linear in u; ``_update_Ainv`` is correct
     for them and is also the path that handles DAE structure."""
     V, u, v, t = setup
+    # Spatial coefficient independent of u_0 -- c(x) is a separate
+    # Function whose values do not depend on u_0, so the form is linear
+    # in u_0 even though extract_coefficients(D) will list c alongside u.
+    c = Function(V).interpolate(Constant(2.7))
     forms = {
         "Dt(2*u)": Dt(Constant(2.0) * u),
         "Dt(u/2)": Dt(u / Constant(2.0)),
         "Dt(u + sin(t))": Dt(u + sin(t)),
         "Dt(2*u + 3)": Dt(Constant(2.0) * u + Constant(3.0)),
+        "Dt(c(x)*u)": Dt(c * u),
     }
     for name, expr in forms.items():
         F = inner(expr, v) * dx
