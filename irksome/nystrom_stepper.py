@@ -89,7 +89,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     c = vecconst(tableau.c)
 
     num_stages = tableau.num_stages
-    Vbig = stages.function_space
+    Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
 
     v_np = reshape(test, (num_stages, *u0.ufl_shape))
