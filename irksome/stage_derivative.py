@@ -222,8 +222,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
 
         # Note: this now catches the optimized/stiffly accurate case as b[s] == Zero() will get dropped
 
-        for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
+        for i, u0bit in enumerate(self._backend.extract_subfunctions(self.u0)):
+            u0bit += sum(self._backend.extract_subfunctions(self.stages)[nf * s + i] * (b[s] * dt) for s in range(ns))
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
@@ -354,7 +354,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         backend_cls = self._backend
         dtc = float(self.dt)
         delb = self.delb
-        ws = self.stages.subfunctions
+        ws = backend_cls.extract_subfunctions(self.stages)
         nf = self.num_fields
         ns = self.num_stages
         u0 = self.u0
@@ -370,7 +370,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
             f_solver.solve()
 
         # Accumulate delta-b terms over stages
-        error_func_bits = error_func.subfunctions
+        error_func_bits = backend_cls.extract_subfunctions(error_func)
         for s in range(ns):
             for i, e in enumerate(error_func_bits):
                 e += dtc*float(delb[s])*ws[nf*s+i]

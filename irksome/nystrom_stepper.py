@@ -201,9 +201,9 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
 
         # Note: order matters here.  derivative update doesn't
         # depend on old solution value.
-        kp = self.stages.subfunctions
-        for i, (u0bit, ut0bit) in enumerate(zip(self.u0.subfunctions,
-                                                self.ut0.subfunctions)):
+        kp = self._backend.extract_subfunctions(self.stages)
+        for i, (u0bit, ut0bit) in enumerate(zip(self._backend.extract_subfunctions(self.u0),
+                                                self._backend.extract_subfunctions(self.ut0))):
             u0bit += (ut0bit * dt
                       + sum(kp[nf * s + i] * (bbar[s] * dt**2)
                             for s in range(ns)))

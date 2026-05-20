@@ -111,6 +111,9 @@ class Backend(Protocol):
     def get_number_of_fields(V) -> int:
         ...
 
+    def extract_subfunctions(f: ufl.Coefficient) -> Sequence[ufl.Coefficient]:
+        ...
+
 
 def get_backend(backend: str | types.ModuleType) -> Backend:
     """Get backend class from backend name.

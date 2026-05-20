@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-
+import itertools
 from irksome.tools import get_sub
 
 try:
@@ -18,7 +18,9 @@ try:
 
     class LinearProblem(dolfinx.fem.petsc.LinearProblem):
 
-        def solve(self):
+        def solve(self, bounds=None):
+            if bounds is not None:
+                raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
             [bc.pack() for bc in self._bcs]
             super().solve()
 
@@ -82,6 +84,15 @@ try:
                 [bc.pack() for bc in bcs]
                 current_jac(_snes, x, J, P_mat, u, jacobian, preconditioner, bcs)
             self.solver.setJacobian(assemble_jacobian, _jac, _jacP, args=args, kargs=kargs)
+
+        def solve(self, bounds=None):
+            if bounds is not None:
+                raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
+            super().solve()
+
+        @property
+        def snes(self) -> PETSc.SNES:  # type: ignore[name-defined]
+            return self.solver
 
     def dirichletbc(
         value: dolfinx.fem.Function
@@ -326,6 +337,15 @@ try:
         Vbig = ufl.MixedFunctionSpace(*_Vbig)
         return ufl.as_vector([dolfinx.fem.Function(Vi) for Vi in Vbig.ufl_sub_spaces()])
 
+    class FloatConstantFunction(dolfinx.fem.Function):
+        def __float__(self):
+            if len(self.x.array) != 1:
+                raise ValueError("Can only convert a FloatConstantFunction to float if it has exactly one degree of freedom")
+            return float(self.x.array[0])
+
+        def assign(self, value):
+            self.x.array[0] = self.x.array.dtype.type(value)
+
     class MeshConstant(object):
         def __init__(self, msh):
             self.msh = msh
@@ -346,8 +366,8 @@ try:
                 self.V = scifem.create_real_functionspace(msh, ())
 
         def Constant(self, val=0.0) -> ufl.Coefficient:
-            v = dolfinx.fem.Function(self.V)
-            v.value = val
+            v = FloatConstantFunction(self.V)
+            v.x.array[:] = val
             return v
 
     def get_mesh_constant(MC: MeshConstant | None) -> ufl.core.expr.Expr:
@@ -408,7 +428,8 @@ try:
 
     def invalidate_jacobian(solver: dolfinx.fem.petsc.LinearProblem):
         """Invalidate the Jacobian matrix in the backend language."""
-        raise RuntimeError("DOLFINx does not support Jacobian invalidation")
+        pass
+        # raise RuntimeError("DOLFINx does not support Jacobian invalidation")
 
     def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None):
         raise NotImplementedError(
@@ -440,5 +461,14 @@ try:
         else:
             raise ValueError(f"Unsupported function space type {type(V)} for get_number_of_fields")
 
+    def extract_subfunctions(f: ufl.Coefficient | list[ufl.Coefficient]) -> Sequence[ufl.Coefficient]:
+        if isinstance(f, ufl.Coefficient):
+            num_sub_elements = f.ufl_element().num_sub_elements
+            if num_sub_elements == 0:
+                return [f]
+            else:
+                return [f.sub(i) for i in range(num_sub_elements)]
+        else:
+            return list(itertools.chain.from_iterable(extract_subfunctions(f.ufl_operands[i]) for i in range(len(f))))
 except ModuleNotFoundError:
     pass

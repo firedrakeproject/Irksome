@@ -299,8 +299,8 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
                                    max_quadrature_degree=max_quadrature_degree)
 
     def _update(self):
-        stages_np = np.array(self.stages.subfunctions, dtype=object)
-        for i, u0bit in enumerate(self.u0.subfunctions):
+        stages_np = np.array(self._backend.extract_subfunctions(self.stages), dtype=object)
+        for i, u0bit in enumerate(self._backend.extract_subfunctions(self.u0)):
             u0bit.assign(stages_np[i::self.num_fields] @ self.update_b)
 
     def tabulate_poly(self, sample_points):

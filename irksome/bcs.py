@@ -1,5 +1,6 @@
 from .backend import get_backend
 import ufl
+from irksome.tools import get_sub
 
 
 def BCStageData(bc, gcur, u0, stages, i, backend="firedrake"):
@@ -22,11 +23,11 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages, backend="firedrake"):
         V = backend_cls.get_function_space(u0)
         field = 0 if len(V) == 1 else bc.function_space_index()
         comp = (bc.function_space().component,)
-        ws = stages.subfunctions[field::len(V)]
+        ws = backend_cls.extract_subfunctions(stages)[field::len(V)]
         btilde = butcher_tableau.btilde
         num_stages = butcher_tableau.num_stages
         g = ufl.replace(ufl.as_ufl(gorig), {t: t + dt}) - gorig
-        g -= sum(backend_cls.get_sub(ws[j], comp) * (btilde[j] * dt) for j in range(num_stages))
+        g -= sum(get_sub(ws[j], comp) * (btilde[j] * dt) for j in range(num_stages))
     return bc.reconstruct(V=Vbc, g=g)
 
 
