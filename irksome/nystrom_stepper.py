@@ -188,9 +188,9 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                          tableau.num_stages, bcs=bcs,
                          bc_type=bc_type, backend=backend, **kwargs)
 
-        self.updateb = vecconst(tableau.b)
-        self.updatebbar = vecconst(tableau.bbar)
-        self.num_fields = self._backend.get_number_of_fields(self._backend.get_function_space(u0))
+        self.updateb = vecconst(tableau.b, backend=backend)
+        self.updatebbar = vecconst(tableau.bbar, backend=backend)
+        self.num_fields = len(self._backend.get_function_space(u0))
 
     def _update(self):
         b = self.updateb
@@ -201,9 +201,9 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
 
         # Note: order matters here.  derivative update doesn't
         # depend on old solution value.
-        kp = self._backend.extract_subfunctions(self.stages)
-        for i, (u0bit, ut0bit) in enumerate(zip(self._backend.extract_subfunctions(self.u0),
-                                                self._backend.extract_subfunctions(self.ut0))):
+        kp = (self.stages.subfunctions)
+        for i, (u0bit, ut0bit) in enumerate(zip((self.u0.subfunctions),
+                                                (self.ut0.subfunctions))):
             u0bit += (ut0bit * dt
                       + sum(kp[nf * s + i] * (bbar[s] * dt**2)
                             for s in range(ns)))

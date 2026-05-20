@@ -110,7 +110,7 @@ class DIRKTimeStepper:
         self.t = t
         self.dt = dt
         self.orig_bcs = bcs
-        self.num_fields = self._backend.get_number_of_fields(self._backend.get_function_space(u0))
+        self.num_fields = len(self._backend.get_function_space(u0))
         self.ks = [backend_cls.Function(V) for _ in range(num_stages)]
 
         # "k" is a generic function for which we will solve the

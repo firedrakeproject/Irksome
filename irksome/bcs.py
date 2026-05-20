@@ -23,7 +23,7 @@ def EmbeddedBCData(bc, butcher_tableau, t, dt, u0, stages, backend="firedrake"):
         V = backend_cls.get_function_space(u0)
         field = 0 if len(V) == 1 else bc.function_space_index()
         comp = (bc.function_space().component,)
-        ws = backend_cls.extract_subfunctions(stages)[field::len(V)]
+        ws = stages.subfunctions[field::len(V)]
         btilde = butcher_tableau.btilde
         num_stages = butcher_tableau.num_stages
         g = ufl.replace(ufl.as_ufl(gorig), {t: t + dt}) - gorig

@@ -3,7 +3,6 @@
 import firedrake
 import ufl
 import typing
-from collections.abc import Sequence
 from functools import reduce
 from operator import mul
 from irksome.tools import get_sub
@@ -191,11 +190,3 @@ def getNullspace(V, Vbig, num_stages, nullspace):
         nspnew = MixedVectorSpaceBasis(Vbig, nspnew)
 
     return nspnew
-
-
-def get_number_of_fields(V) -> int:
-    return len(V)
-
-
-def extract_subfunctions(f: ufl.Coefficient) -> Sequence[ufl.Coefficient]:
-    return f.subfunctions

@@ -209,7 +209,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          butcher_tableau=butcher_tableau,
                          sample_points=sample_points,
                          backend=backend, **kwargs)
-        self.num_fields = self._backend.get_number_of_fields(self._backend.get_function_space(u0))
+        self.num_fields = len(self._backend.get_function_space(u0))
 
     def _update(self):
         """Assuming the algebraic problem for the RK stages has been
@@ -221,9 +221,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         nf = self.num_fields
 
         # Note: this now catches the optimized/stiffly accurate case as b[s] == Zero() will get dropped
-
-        for i, u0bit in enumerate(self._backend.extract_subfunctions(self.u0)):
-            u0bit += sum(self._backend.extract_subfunctions(self.stages)[nf * s + i] * (b[s] * dt) for s in range(ns))
+        for i, u0bit in enumerate(self.u0.subfunctions):
+            u0bit += sum((self.stages.subfunctions)[nf * s + i] * (b[s] * dt) for s in range(ns))
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
@@ -329,7 +328,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.onscale_factor = onscale_factor
         self.safety_factor = safety_factor
 
-        self.error_func = self._backend.Function(u0.function_space())
+        self.error_func = self._backend.Function(self._backend.get_function_space(u0))
         self.tol = tol
         self.err_old = 0.0
         self.contreject = 0
@@ -354,23 +353,23 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         backend_cls = self._backend
         dtc = float(self.dt)
         delb = self.delb
-        ws = backend_cls.extract_subfunctions(self.stages)
+        ws = self.stages.subfunctions
         nf = self.num_fields
         ns = self.num_stages
         u0 = self.u0
 
         # Initialize e to be gamma*h*f(old value of u)
-        error_func = backend_cls.Function(u0.function_space())
+        error_func = backend_cls.Function(backend_cls.get_function_space(u0))
         # Only do the hard stuff if gamma0 is not zero
         if self.gamma0 != 0.0:
-            error_test = backend_cls.TestFunction(u0.function_space())
+            error_test = backend_cls.TestFunction(backend_cls.get_function_space(u0))
             f_form = inner(error_func, error_test)*dx-self.gamma0*dtc*self.dtless_form
             f_problem = backend_cls.create_variational_problem(f_form, error_func, bcs=self.embbc)
             f_solver = backend_cls.create_variational_solver(f_problem, solver_parameters=self.gamma0_params)
             f_solver.solve()
 
         # Accumulate delta-b terms over stages
-        error_func_bits = backend_cls.extract_subfunctions(error_func)
+        error_func_bits = error_func.subfunctions
         for s in range(ns):
             for i, e in enumerate(error_func_bits):
                 e += dtc*float(delb[s])*ws[nf*s+i]

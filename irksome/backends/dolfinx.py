@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 
-import itertools
 from irksome.tools import get_sub
 
 try:
@@ -15,6 +14,31 @@ try:
     import typing
     import numpy as np
     import numpy.typing as npt
+
+    # Patching of DOLFINx objects to mimick firedrake naming and properties.
+    def function_space_length(self):
+        num_sub_elements = self.ufl_element().num_sub_elements
+        return 1 if num_sub_elements == 0 else num_sub_elements
+
+    def mixed_space_length(self):
+        return len(self.ufl_sub_spaces())
+
+    def subfunctions(self):
+        """Get subfunctions for a DOLFINx function, which may be in a mixed space."""
+        if self.function_space.ufl_element().num_sub_elements == 0:
+            return [self]
+        else:
+            return [self.sub(i) for i in range(self.function_space().ufl_element().num_sub_elements)]
+
+    dolfinx.fem.FunctionSpace.__len__ = function_space_length
+    dolfinx.fem.Function.subfunctions = property(subfunctions)
+    ufl.MixedFunctionSpace.__len__ = mixed_space_length
+
+    class ListTensor(ufl.tensors.ListTensor):
+        """A list tensor that exposes subfunctions for DOLFINx functions"""
+        @property
+        def subfunctions(self):
+            return [self.ufl_operands[i] for i in range(len(self))]
 
     class LinearProblem(dolfinx.fem.petsc.LinearProblem):
 
@@ -265,8 +289,8 @@ try:
     def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
         """Create a variational problem."""
         rank = len(np.unique([arg.number() for arg in F.arguments()]))
-        if isinstance(u, ufl.tensors.ListTensor):
-            u = u.ufl_operands
+        if isinstance(u, ListTensor):
+            u = u.subfunctions
         if rank == 2:
             a, L = ufl.system(F)
             a = ufl.extract_blocks(a)
@@ -321,7 +345,7 @@ try:
                 *[u[i].ufl_function_space() for i in range(u.ufl_shape[0])]
             )
 
-    def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ufl.Coefficient:
+    def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ListTensor:
         """
         Given a function space for a single time-step, get a duplicate of this space,
         repeated `num_stages` times.
@@ -335,7 +359,7 @@ try:
         """
         _Vbig = [V.clone() for _ in range(num_stages)]
         Vbig = ufl.MixedFunctionSpace(*_Vbig)
-        return ufl.as_vector([dolfinx.fem.Function(Vi) for Vi in Vbig.ufl_sub_spaces()])
+        return ListTensor(*[dolfinx.fem.Function(Vi, name=f"stage_{i}") for i, Vi in enumerate(Vbig.ufl_sub_spaces())])
 
     class FloatConstantFunction(dolfinx.fem.Function):
         def __float__(self):
@@ -410,7 +434,14 @@ try:
 
     derivative = ufl.derivative
     TrialFunction = ufl.TrialFunctions
-    Function = dolfinx.fem.Function
+
+    def Function(V: ufl.FunctionSpace | ufl.MixedFunctionSpace, name=None):
+        """Create a function in the backend language."""
+        if isinstance(V, ufl.MixedFunctionSpace):
+            return ListTensor(*[dolfinx.fem.Function(Vi, name=f"{name}_{i}") for i, Vi in enumerate(V.ufl_sub_spaces())])
+        else:
+            return dolfinx.fem.Function(V, name=name)
+
     TestFunction = ufl.TestFunctions
 
     class Constant(ufl.constantvalue.ScalarValue):
@@ -453,22 +484,5 @@ try:
             raise NotImplementedError("Nullspace computation is not implemented for DOLFINx")
         return nspnew
 
-    def get_number_of_fields(V) -> int:
-        if isinstance(V, ufl.MixedFunctionSpace):
-            return V.num_sub_spaces()
-        elif isinstance(V, ufl.FunctionSpace):
-            return 1
-        else:
-            raise ValueError(f"Unsupported function space type {type(V)} for get_number_of_fields")
-
-    def extract_subfunctions(f: ufl.Coefficient | list[ufl.Coefficient]) -> Sequence[ufl.Coefficient]:
-        if isinstance(f, ufl.Coefficient):
-            num_sub_elements = f.ufl_element().num_sub_elements
-            if num_sub_elements == 0:
-                return [f]
-            else:
-                return [f.sub(i) for i in range(num_sub_elements)]
-        else:
-            return list(itertools.chain.from_iterable(extract_subfunctions(f.ufl_operands[i]) for i in range(len(f))))
 except ModuleNotFoundError:
     pass
