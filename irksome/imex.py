@@ -271,7 +271,7 @@ class RadauIIAIMEXMethod:
 
         ns = self.num_stages
         nf = self.num_fields
-        u0split = (self.u0.subfunctions)
+        u0split = self.u0.subfunctions
         for i, u0bit in enumerate(u0split):
             u0bit.assign(self.UU_old_split[(ns-1)*nf + i])
 
@@ -518,9 +518,9 @@ class DIRKIMEXMethod:
             g.assign(u0)
             # Update g with contributions from previous stages
             for j in range(i):
-                ksplit = (ks[j].subfunctions)
-                k_hat_split = (k_hat_s[j].subfunctions)
-                for gbit, kbit, k_hat_bit in zip((g.subfunctions), ksplit, k_hat_split):
+                ksplit = ks[j].subfunctions
+                k_hat_split = k_hat_s[j].subfunctions
+                for gbit, kbit, k_hat_bit in zip(g.subfunctions, ksplit, k_hat_split):
                     gbit += dtc * (float(AA[i, j]) * kbit + float(A_hat[i, j]) * k_hat_bit)
 
             # Solve for current stage
@@ -541,7 +541,7 @@ class DIRKIMEXMethod:
             ks[i].assign(k)
 
             # Update the solution for next stage
-            for ghatbit, gbit, kbit in zip((ghat.subfunctions), (g.subfunctions), (ks[i].subfunctions)):
+            for ghatbit, gbit, kbit in zip(ghat.subfunctions, g.subfunctions, ks[i].subfunctions):
                 ghatbit.assign(gbit)
                 ghatbit += dtc * float(AA[i, i]) * kbit
 
@@ -583,7 +583,7 @@ class DIRKIMEXMethod:
         ks[0].assign(k)
 
         # Update the solution for second stage
-        for ghatbit, gbit, kbit in zip((ghat.subfunctions), (g.subfunctions), (ks[0].subfunctions)):
+        for ghatbit, gbit, kbit in zip(ghat.subfunctions, g.subfunctions, ks[0].subfunctions):
             ghatbit.assign(gbit)
             ghatbit += dtc * float(AA[0, 0]) * kbit
 
@@ -608,8 +608,8 @@ class DIRKIMEXMethod:
 
         # Final solution update
         for i in range(ns):
-            for u0bit, kbit, k_hat_bit in zip((u0.subfunctions), (ks[i].subfunctions),
-                                              (k_hat_s[i].subfunctions)):
+            for u0bit, kbit, k_hat_bit in zip(u0.subfunctions, ks[i].subfunctions,
+                                              k_hat_s[i].subfunctions):
                 u0bit += dtc * (float(BB[i]) * kbit + float(B_hat[i]) * k_hat_bit)
 
     # Last part of advance for the case where last explicit stage is not used
@@ -625,15 +625,15 @@ class DIRKIMEXMethod:
 
         # Final solution update
         for i in range(ns):
-            for u0bit, kbit, k_hat_bit in zip((u0.subfunctions), (ks[i].subfunctions),
-                                              (k_hat_s[i].subfunctions)):
+            for u0bit, kbit, k_hat_bit in zip(u0.subfunctions, ks[i].subfunctions,
+                                              k_hat_s[i].subfunctions):
                 u0bit += dtc * (BB[i] * kbit + B_hat[i] * k_hat_bit)
 
     # Last part of advance for the case where last implicit stage is new solution
     def _finalize_stiffly_accurate(self):
         khat, ghat, chat = self.kgchat
         u0 = self.u0
-        for u0bit, ghatbit in zip((u0.subfunctions), (ghat.subfunctions)):
+        for u0bit, ghatbit in zip(u0.subfunctions, ghat.subfunctions):
             u0bit.assign(ghatbit)
 
     def solver_stats(self):

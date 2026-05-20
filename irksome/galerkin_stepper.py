@@ -385,7 +385,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                                max_quadrature_degree=max_quadrature_degree)
 
     def _update(self):
-        for u0bit, expr in zip((self.u0.subfunctions), self.u_update):
+        for u0bit, expr in zip(self.u0.subfunctions, self.u_update):
             u0bit.assign(expr)
 
     def set_update_expressions(self):
@@ -397,12 +397,12 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         i0, = self.trial_el.entity_dofs()[0][0]
         self.u_update = []
         for i in range(self.num_fields):
-            ks = list((self.stages.subfunctions)[i::self.num_fields])
+            ks = list(self.stages.subfunctions[i::self.num_fields])
             if self.aux_indices and i in self.aux_indices:
                 wts = update_test
             else:
                 wts = update_trial
-                ks.insert(i0, (self.u0.subfunctions)[i])
+                ks.insert(i0, self.u0.subfunctions[i])
             self.u_update.append(sum(w * k for w, k in zip(wts, ks)))
 
     def set_initial_guess(self):
@@ -422,8 +422,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
 
         dof = self._backend.Constant(0)
         for k in range(self.num_stages):
-            for i, u0bit in enumerate((self.u0.subfunctions)):
-                sbit = (self.stages.subfunctions)[self.num_fields*k+i]
+            for i, u0bit in enumerate(self.u0.subfunctions):
+                sbit = self.stages.subfunctions[self.num_fields*k+i]
                 if self.aux_indices and i in self.aux_indices:
                     dof.assign(test_dofs[k])
                 else:
