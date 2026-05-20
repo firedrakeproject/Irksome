@@ -212,12 +212,12 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         ns = self.num_stages
         scale = self.update_scale
         bAinv = self.bAinv
-        for i, u0bit in enumerate((self.u0.subfunctions)):
+        for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit *= scale
             u0bit += sum(self.stages.subfunctions[nf * s + i] * bAinv[s] for s in range(ns))
 
     def _update_stiff_acc(self):
-        for i, u0bit in enumerate((self.u0.subfunctions)):
+        for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(self.stages.subfunctions[self.num_fields*(self.num_stages-1)+i])
 
     def get_update_solver(self, update_solver_parameters):
