@@ -4,12 +4,15 @@ import numpy
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
-from ufl import Form, as_tensor, as_ufl, dx, inner
+from ufl import Form, as_tensor, as_ufl
 
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
-from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
+from .ufl.manipulation import (has_nonlinear_time_derivative,
+                               split_time_derivative_terms,
+                               remove_time_derivatives)
+
 from .tools import AI, extract_timedep_arguments, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
@@ -191,20 +194,32 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             # Use the terminal value of the collocation polynomial to update the solution.
             # Note: collocation update is only implemented for constant-in-time boundary conditions.
             # TODO: create an assertion to check for constant-in-time boundary conditions.
-
             self.collocation_vander = self.tabulate_poly((1.0,))
             self._update = self._update_collocation
 
         elif (not butcher_tableau.is_stiffly_accurate) and (vandermonde is None):
-            try:
-                A = butcher_tableau.A
-                b = butcher_tableau.b
-                self.bAinv = vecconst(numpy.linalg.solve(A.T, b), backend=backend)
-                self.update_scale = 1-numpy.sum(self.bAinv)
-                self._update = self._update_Ainv
-            except numpy.linalg.LinAlgError:
+            # Conservative variational update is needed only when Dt's
+            # argument is nonlinear in u0; for any g linear in u0
+            # (g = c*u, g = c(x)*u, g = M*u; affine g = u + f(t,x) too,
+            # with the f(t,x) piece handled by the remainder via the
+            # Dt-split) the bAinv shortcut commutes with g and is exact.
+            # It is also the only correct path under DAE structure: the
+            # conservative variational head reduces to 0 on algebraic
+            # blocks where Dt is absent, so it does not determine u_new
+            # there.
+            if has_nonlinear_time_derivative(F, u0):
                 self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
                 self._update = self._update_general
+            else:
+                try:
+                    A = butcher_tableau.A
+                    b = butcher_tableau.b
+                    self.bAinv = vecconst(numpy.linalg.solve(A.T, b), backend=backend)
+                    self.update_scale = 1-numpy.sum(self.bAinv)
+                    self._update = self._update_Ainv
+                except numpy.linalg.LinAlgError:
+                    self.unew, self.update_solver = self.get_update_solver(update_solver_parameters)
+                    self._update = self._update_general
         else:
             self._update = self._update_stiff_acc
 
@@ -222,6 +237,30 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             u0bit.assign(self.stages.subfunctions[self.num_fields*(self.num_stages-1)+i])
 
     def get_update_solver(self, update_solver_parameters):
+        """Build a conservative variational update solve for u_new.
+
+        For a mass term ``inner(Dt(g(u)), v) * dx`` the update head is
+
+            inner(g(u_new) - g(u_0), v) * dx
+
+        evaluated at the stage-solve test function ``v``.  For
+        ``g = identity`` it reduces to ``inner(u_new - u_0, v) * dx``,
+        so the discrete update equation is unchanged in the linear
+        case.  The remaining (non-time-derivative) part of the form is
+        contributed by the standard RK quadrature
+        ``sum_i b_i * F_remainder(stage_i)``.
+
+        ``update_solver_parameters`` does not inherit from
+        ``solver_parameters``.  The update solve is a different
+        problem from the stage solve -- it is posed on ``V`` rather
+        than ``V^s = V x ... x V``, and its Jacobian is a (nonlinear)
+        weighted mass matrix rather than the stage operator.  Stage-
+        tuned options such as fieldsplit indices, ``snes_type='ksponly'``,
+        lagged Jacobians, or custom multigrid transfers generally do
+        not apply.  If ``update_solver_parameters`` is None, Firedrake's
+        default solver parameters are used (typically a sparse direct
+        solve).  Pass an explicit dict to override.
+        """
         # only form update stuff if we need it
         # which means neither stiffly accurate nor Vandermonde
         backend_cls = self._backend
@@ -233,11 +272,13 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         u0 = self.u0
         v, u = extract_timedep_arguments(F, u0)
         unew = backend_cls.Function(u.function_space())
-        Fupdate = inner(unew - self.u0, v) * dx
 
         split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
+        F_dtless = remove_time_derivatives(split_form.time)
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
-        u_np = to_value(self.u0, self.stages, self.vandermonde)
+
+        Fupdate = replace(F_dtless, {u: unew}) - replace(F_dtless, {u: u0})
+        u_np = to_value(u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
@@ -257,6 +298,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         return unew, update_solver
 
     def _update_general(self):
+        # Constant-in-time initial guess to prevent singular Jacobian
+        self.unew.assign(self.u0)
         self.update_solver.solve()
         self.u0.assign(self.unew)
 

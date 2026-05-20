@@ -9,9 +9,13 @@ directly in the stage equations.
 import pytest
 from firedrake import (
     Constant, Function, FunctionSpace, TestFunction,
-    UnitSquareMesh, assemble, ds, dx, exp, grad, inner,
+    UnitIntervalMesh, UnitSquareMesh, assemble, ds, dx, exp, grad, inner,
 )
-from irksome import BackwardEuler, DiscontinuousGalerkinScheme, Dt, RadauIIA, TimeStepper, BDF, AdamsMoulton, MultistepTableau
+from irksome import (
+    AdamsMoulton, BackwardEuler, BDF, DiscontinuousGalerkinScheme, Dt,
+    GaussLegendre, MultistepTableau, QinZhang, RadauIIA, TimeStepper,
+)
+from irksome.ufl.manipulation import has_nonlinear_time_derivative
 import numpy as np
 
 
@@ -47,11 +51,15 @@ def run_richards(scheme, **kwargs):
         kwargs['startup_parameters'] = {'tableau': RadauIIA(2),
                                         'stepper_kwargs': {'stage_type': 'value'}}
 
+    snes_params = {"snes_rtol": 1e-10, "snes_atol": 1e-14}
+    if kwargs.get("stage_type") == "value":
+        # The update solve does not inherit solver options from the stage
+        # solve; pass tight SNES tolerances explicitly so the conservation
+        # assertion below sits at machine precision rather than at the
+        # default SNES rtol.
+        kwargs["update_solver_parameters"] = snes_params
     stepper = TimeStepper(F, scheme, t, dt, h,
-                          solver_parameters={
-                              "snes_rtol": 1e-10,
-                              "snes_atol": 1e-14,
-                          },
+                          solver_parameters=snes_params,
                           **kwargs)
 
     if isinstance(scheme, MultistepTableau):
@@ -80,13 +88,66 @@ def run_richards(scheme, **kwargs):
     return mean_error
 
 
-@pytest.mark.parametrize("scheme", [BackwardEuler(), RadauIIA(2), BDF(1), AdamsMoulton(0), AdamsMoulton(1), AdamsMoulton(2)],
-                         ids=["BackwardEuler", "RadauIIA2", "BDF1", "AM0", "AM1", "AM2"])
+# The three non-SA tableaux at the end (GaussLegendre(1) = ImplicitMidpoint,
+# GaussLegendre(2), QinZhang) exercise the conservative variational update
+# path introduced for non-stiffly-accurate stage_value.  On master they fail
+# this test with mass errors of order 1e-6 to 1e-7 because the linear-
+# combination update destroys the conservation property the stage equations
+# build for nonlinear theta(h).
+@pytest.mark.parametrize("scheme",
+                         [BackwardEuler(), RadauIIA(2), BDF(1),
+                          AdamsMoulton(0), AdamsMoulton(1), AdamsMoulton(2),
+                          GaussLegendre(1), GaussLegendre(2), QinZhang()],
+                         ids=["BackwardEuler", "RadauIIA2", "BDF1",
+                              "AM0", "AM1", "AM2",
+                              "ImplicitMidpoint", "GaussLegendre2", "QinZhang"])
 def test_mass_conservation_stage_value(scheme):
     """Test mass conservation with Dt(theta(h))"""
     err = run_richards(scheme, stage_type="value")
     assert err < 10*np.finfo(np.dtype(err)).eps, (
         f"mass error should be near machine precision, got {err:.2e}"
+    )
+
+
+def test_linear_scaled_mass_uses_Ainv_path():
+    """Regression guard for stage_value.py:200 dispatch.
+
+    Dt(c*u) with c a Constant is linear in u and must route through
+    _update_Ainv on a non-stiffly-accurate tableau.  Pin both the
+    classifier verdict and the actual stepper dispatch, so a future
+    change to either side cannot silently re-narrow the contract to
+    g = identity.
+    """
+    mesh = UnitIntervalMesh(8)
+    V = FunctionSpace(mesh, "CG", 1)
+    u = Function(V).interpolate(Constant(1.0))
+    v = TestFunction(V)
+    t = Constant(0.0)
+    dt = Constant(0.1)
+    c = Constant(2.7)
+
+    F = inner(Dt(c * u), v) * dx
+    assert not has_nonlinear_time_derivative(F, u)
+
+    stepper = TimeStepper(F, GaussLegendre(2), t, dt, u, stage_type="value")
+    # Identity-by-name check: _update is assigned the unbound method
+    # directly at stage_value.py:217, so __name__ is stable today.  If a
+    # future refactor wraps _update in a partial or descriptor, swap this
+    # for `stepper._update.__func__ is type(stepper)._update_Ainv`.
+    assert stepper._update.__name__ == "_update_Ainv"
+
+    one = Function(V).interpolate(Constant(1.0))
+    mass_form = inner(c * u, one) * dx
+    m0 = assemble(mass_form)
+    for _ in range(10):
+        stepper.advance()
+        t.assign(t + dt)
+    m1 = assemble(mass_form)
+    # Pure-mass form, no remainder -- _update_Ainv is an algebraic
+    # combination of stage values, so mass conservation sits at the
+    # stage solve's machine-precision floor, not at solver rtol.
+    assert abs(m1 - m0) < 100 * np.finfo(float).eps, (
+        f"mass error {abs(m1 - m0):.2e} exceeds machine precision floor"
     )
 
 
