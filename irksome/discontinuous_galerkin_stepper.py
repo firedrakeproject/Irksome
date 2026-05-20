@@ -300,7 +300,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
 
     def _update(self):
         stages_np = np.array((self.stages.subfunctions), dtype=object)
-        for i, u0bit in enumerate((self.u0.subfunctions)):
+        for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(stages_np[i::self.num_fields] @ self.update_b)
 
     def tabulate_poly(self, sample_points):
