@@ -1,5 +1,5 @@
 import numpy
-from ufl.constantvalue import as_ufl
+from ufl import as_ufl, lhs
 
 from .ufl.deriv import Dt, expand_time_derivatives
 from .tools import extract_timedep_arguments, replace
@@ -9,7 +9,7 @@ from .nystrom_stepper import butcher_to_nystrom, NystromTableau
 from .backend import get_backend
 
 
-def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, backend="firedrake"):
+def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, kgac=None, backend="firedrake"):
     backend_cls = get_backend(backend)
     if bcs is None:
         bcs = []
@@ -24,27 +24,29 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, b
     F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     num_stages = tableau.num_stages
-    k = backend_cls.Function(V)
-    g1 = backend_cls.Function(V)
-    g2 = backend_cls.Function(V)
 
     # Note: the Constant c is used for substitution in both the
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constants a
     # and abar are used similarly in the variational form
-    msh = V.mesh()
-    MC = MeshConstant(msh, backend=backend)
-    c = MC.Constant(1.0)
-    a = MC.Constant(1.0)
-    abar = MC.Constant(1.0)
+    MC = MeshConstant(V.mesh(), backend=backend)
+    if kgac is None:
+        k0 = backend_cls.Function(V)
+        g1 = backend_cls.Function(V)
+        g2 = backend_cls.Function(V)
+        a = MC.Constant(1.0)
+        abar = MC.Constant(1.0)
+        c = MC.Constant(1.0)
+    else:
+        k0, g1, g2, a, abar, c = kgac
+    k = k0 if u0 == u else u
 
     repl = {t: t + c * dt,
-            u0: g1 + k * (abar * dt**2),
-            Dt(u0): g2 + k * (a * dt),
-            Dt(u0, 2): k}
+            u: g1 + k * (abar * dt**2),
+            Dt(u): g2 + k * (a * dt),
+            Dt(u, 2): k}
     stage_F = replace(F, repl)
 
-    # BC's
     bcnew = []
 
     # For the DIRK case, we need one new BC for each old one (rather
@@ -89,14 +91,14 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, b
                 gdat /= d_val * dt
                 bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k, g1, g2, a, abar, c), bcnew, (abar_vals, d_val)
+    return stage_F, (k0, g1, g2, a, abar, c), bcnew, (abar_vals, d_val)
 
 
 class DIRKNystromTimeStepper:
     """Front-end class for advancing a second-order time-dependent PDE via a diagonally-implicit
     Runge-Kutta-Nystrom method formulated in terms of stage derivatives."""
 
-    def __init__(self, F, tableau, t, dt, u0, ut0, bcs=None,
+    def __init__(self, F, tableau, t, dt, u0, ut0, bcs=None, Fp=None,
                  solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
@@ -146,6 +148,7 @@ class DIRKNystromTimeStepper:
         self.ut0 = ut0
         self.t = t
         self.dt = dt
+        self.orig_bcs = bcs
         self.num_fields = len(backend_cls.get_function_space(u0))
         self.ks = [backend_cls.Function(V) for _ in range(num_stages)]
 
@@ -155,6 +158,12 @@ class DIRKNystromTimeStepper:
         k = self.kgac[0]
         self.bcnew = bcnew
 
+        stage_Jp = None
+        if Fp is not None:
+            Fp_linear = len(Fp.arguments()) == 2
+            stage_Fp, *_ = self.get_form_and_bcs(self.ks, F=Fp, bcs=())
+            stage_Jp = lhs(stage_Fp) if Fp_linear else backend_cls.derivative(stage_Fp, k)
+
         appctx_irksome = {"stepper": self}
         if appctx is None:
             appctx = appctx_irksome
@@ -163,11 +172,15 @@ class DIRKNystromTimeStepper:
         self.appctx = appctx
 
         self.problem = backend_cls.create_variational_problem(
-            stage_F, k, bcs=bcnew,
+            stage_F, k, bcs=bcnew, Jp=stage_Jp,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
         )
+        constant_jacobian = kwargs.pop("constant_jacobian", False)
+        if constant_jacobian:
+            raise ValueError("Cannot set constant_jacobian=True on a DIRK")
+
         self.solver = backend_cls.create_variational_solver(
             self.problem, appctx=appctx,
             nullspace=nullspace,
@@ -217,6 +230,22 @@ class DIRKNystromTimeStepper:
 
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
+
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
+        return getFormDIRKNystrom(F or self.F,
+                                  stages,
+                                  tableau or self.tableau,
+                                  self.t, self.dt,
+                                  self.u0, self.ut0,
+                                  bcs=bcs, kgac=self.kgac)
+
+    def invalidate_jacobian(self):
+        """
+        Forces the matrix to be reassembled next time it is required.
+        """
+        self._backend.invalidate_jacobian(self.solver)
 
 
 class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):

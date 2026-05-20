@@ -247,7 +247,6 @@ def test_stokes_bcs(butcher_tableau, bctype):
     z_dirk = Function(Z)
     test_z = TestFunction(Z)
     (u, p) = split(z)
-    (u_dirk, p_dirk) = split(z_dirk)
     (v, q) = split(test_z)
     F = (inner(Dt(u), v)*dx
          + inner(grad(u), grad(v))*dx
@@ -255,7 +254,6 @@ def test_stokes_bcs(butcher_tableau, bctype):
          - inner(q, div(u))*dx
          - inner(u_rhs, v)*dx
          - inner(p_rhs, q)*dx)
-    Fdirk = replace(F, {z: z_dirk})
 
     nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=mesh.comm)])
 
@@ -276,6 +274,9 @@ def test_stokes_bcs(butcher_tableau, bctype):
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
                           bcs=bcs, solver_parameters=lu, nullspace=nsp)
 
+    # Test LinearVariationalSolver interface
+    trial_z = TrialFunction(Z)
+    Fdirk = replace(F, {z: trial_z})
     stepperdirk = TimeStepper(
         Fdirk, butcher_tableau, t, dt, z_dirk,
         bcs=bcs, solver_parameters=lu, nullspace=nsp,
