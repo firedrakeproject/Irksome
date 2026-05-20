@@ -145,7 +145,7 @@ class DIRKNystromTimeStepper:
         self.ut0 = ut0
         self.t = t
         self.dt = dt
-        self.num_fields = len(backend_cls.get_function_space(u0))
+        self.num_fields = len(V)
         self.ks = [backend_cls.Function(V) for _ in range(num_stages)]
 
         stage_F, self.kgac, bcnew, (abar_vals, d_val) = getFormDIRKNystrom(

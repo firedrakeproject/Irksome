@@ -103,7 +103,7 @@ class MultistepTimeStepper(BaseTimeStepper):
 
             F_startup = replace(self.F, {self.t: self.startup_t})
             v, = F_startup.arguments()
-            V = v.function_space()
+            V = self._backend.get_function_space(v)
 
             # grab a copy of the boundary conditions w.r.t. startup_t
             startup_bcs = []

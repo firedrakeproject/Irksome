@@ -78,7 +78,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     v, u = extract_timedep_arguments(F, u0)
     backend_cls = get_backend(backend)
     V = backend_cls.get_function_space(v)
-    assert V == u0.function_space()
+    assert V == backend_cls.get_function_space(u0)
 
     c = vecconst(butch.c, backend=backend)
     bA1, bA2 = splitting(butch.A)
@@ -91,7 +91,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
 
     # s-way product space for the stage variables
     num_stages = butch.num_stages
-    Vbig = backend_cls.get_function_space(stages)
+    Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
@@ -231,7 +231,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         dt = self.dt
         u0 = self.u0
         v, u = extract_timedep_arguments(F, u0)
-        unew = backend_cls.Function(u.function_space())
+        unew = backend_cls.Function(backend_cls.get_function_space(u))
         Fupdate = inner(unew - self.u0, v) * dx
 
         split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))

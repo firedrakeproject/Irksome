@@ -75,7 +75,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     # s-way product space for the stage variables
     num_stages = butch.num_stages
-    Vbig = backend_cls.get_function_space(stages)
+    Vbig = stages.function_space()
     test = as_tensor(backend_cls.TestFunction(Vbig))
 
     # set up the pieces we need to work with to do our substitutions
@@ -359,10 +359,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         u0 = self.u0
 
         # Initialize e to be gamma*h*f(old value of u)
-        error_func = backend_cls.Function(backend_cls.get_function_space(u0))
+        V = backend_cls.get_function_space(u0)
+        error_func = backend_cls.Function(V)
         # Only do the hard stuff if gamma0 is not zero
         if self.gamma0 != 0.0:
-            error_test = backend_cls.TestFunction(backend_cls.get_function_space(u0))
+            error_test = backend_cls.TestFunction(V)
             f_form = inner(error_func, error_test)*dx-self.gamma0*dtc*self.dtless_form
             f_problem = backend_cls.create_variational_problem(f_form, error_func, bcs=self.embbc)
             f_solver = backend_cls.create_variational_solver(f_problem, solver_parameters=self.gamma0_params)

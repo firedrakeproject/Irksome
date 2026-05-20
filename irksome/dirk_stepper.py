@@ -105,12 +105,12 @@ class DIRKTimeStepper:
         self.AA = vecconst(butcher_tableau.A, backend=backend)
         self.BB = vecconst(butcher_tableau.b, backend=backend)
 
-        self.V = V = u0.function_space()
+        self.V = V = self._backend.get_function_space(u0)
         self.u0 = u0
         self.t = t
         self.dt = dt
         self.orig_bcs = bcs
-        self.num_fields = len(self._backend.get_function_space(u0))
+        self.num_fields = len(V)
         self.ks = [backend_cls.Function(V) for _ in range(num_stages)]
 
         # "k" is a generic function for which we will solve the

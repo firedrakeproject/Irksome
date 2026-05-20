@@ -156,7 +156,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     num_stages = L.space_dimension()
     backend_cls = get_backend(backend)
     V = backend_cls.get_function_space(u0)
-    Vbig = backend_cls.get_function_space(stages)
+    Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
 
     degree_mapping = get_degree_mapping(as_form(F), L.degree(), L.degree(), t=t, timedep_coeffs=(u0,))

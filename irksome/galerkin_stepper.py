@@ -157,7 +157,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     assert L_test.get_reference_element() == L_trial.get_reference_element()
     assert L_trial.space_dimension() == L_test.space_dimension() + 1
     backend_cls = get_backend(backend)
-    Vbig = backend_cls.get_function_space(stages)
+    Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
     Constant = backend_cls.Constant
 
@@ -170,7 +170,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
-    V = u0.function_space()
+    V = backend_cls.get_function_space(u0)
     if bcs is None:
         bcs = []
     bcs = backend_cls.extract_bcs(bcs)
@@ -293,8 +293,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                  bc_type=None, aux_indices=None, backend: str = "firedrake", **kwargs):
         self.order = scheme.order
         self.basis_type = scheme.basis_type
-        self.backend = backend
-        backend_cls = get_backend(backend)
+        self._backend = backend_cls = get_backend(backend)
         V = backend_cls.get_function_space(u0)
 
         self.num_fields = len(V)

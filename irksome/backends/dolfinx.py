@@ -40,6 +40,9 @@ try:
         def subfunctions(self):
             return [self.ufl_operands[i] for i in range(len(self))]
 
+        def function_space(self):
+            return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(len(self))])
+
     class LinearProblem(dolfinx.fem.petsc.LinearProblem):
 
         def solve(self, bounds=None):
@@ -335,15 +338,11 @@ try:
             opts.delValue(f"{solver_prefix}{k}")
         return problem
 
-    def get_function_space(
-        u: list[ufl.Coefficient | ufl.Argument] | ufl.Coefficient,
-    ) -> ufl.FunctionSpace:
+    def get_function_space(u: ufl.Coefficient | ufl.Argument) -> ufl.FunctionSpace:
         if isinstance(u, (ufl.Coefficient, ufl.Argument)):
             return u.ufl_function_space()
         else:
-            return ufl.MixedFunctionSpace(
-                *[u[i].ufl_function_space() for i in range(u.ufl_shape[0])]
-            )
+            raise ValueError(f"Cannot get function space for object of type {type(u)}")
 
     def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ListTensor:
         """

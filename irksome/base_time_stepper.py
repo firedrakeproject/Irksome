@@ -119,7 +119,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.stages = stages
 
         V = self._backend.get_function_space(u0)
-        Vbig = self._backend.get_function_space(stages)
+        Vbig = stages.function_space()
 
         F_linear = len(as_form(F).arguments()) == 2
         stages_F = self._backend.TrialFunction(Vbig) if F_linear else stages
@@ -206,7 +206,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                 sub = self._backend.Function(Vbig, val=flatten_dats(dats))
 
         elif bounds_type == "last_stage":
-            V = self.u0.function_space()
+            V = self._backend.get_function_space(self.u0)
             if lower is not None:
                 ninfty = self._backend.Function(V).assign(PETSc.NINFINITY)
                 dats = [ninfty.dat] * (self.num_stages-1)

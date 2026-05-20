@@ -8,7 +8,7 @@ def BCStageData(bc, gcur, u0, stages, i, backend="firedrake"):
     if bc._original_arg == 0:
         gcur = 0
     V = backend_cls.get_function_space(u0)
-    Vbig = backend_cls.get_function_space(stages)
+    Vbig = stages.function_space()
     Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
     return bc.reconstruct(V=Vbigi, g=gcur)
 
