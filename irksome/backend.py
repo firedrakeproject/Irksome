@@ -105,6 +105,12 @@ class Backend(Protocol):
     def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None) -> DirichletBC:
         ...
 
+    def getNullspace(V, Vbig, num_stages, nullspace):
+        ...
+
+    def get_number_of_fields(V) -> int:
+        ...
+
 
 def get_backend(backend: str | types.ModuleType) -> Backend:
     """Get backend class from backend name.

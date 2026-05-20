@@ -3,7 +3,6 @@ from .ufl.manipulation import split_time_derivative_terms, remove_time_derivativ
 from .ufl.deriv import expand_time_derivatives
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
-from .bcs import stage2spaces4bc
 from .tools import replace
 from ufl import Form
 from ufl.constantvalue import as_ufl
@@ -114,7 +113,7 @@ class MultistepTimeStepper(BaseTimeStepper):
                 for bc in self.orig_bcs:
                     bcarg = as_ufl(bc._original_arg)
                     bcarg_startup = replace(bcarg, {self.t: self.startup_t})
-                    bc_space = stage2spaces4bc(bc, V, V, 0)
+                    bc_space = self._backend.stage2spaces4bc(bc, V, V, 0)
                     startup_bcs.extend(bc.reconstruct(V=bc_space, g=bcarg_startup))
 
             self.startup_TS = TimeStepper(F_startup, butcher_tableau, self.startup_t, startup_dt, self.u0, bcs=startup_bcs, **stepper_kwargs)
@@ -157,7 +156,7 @@ class MultistepTimeStepper(BaseTimeStepper):
         for bc in bcs:
             bcarg = as_ufl(bc._original_arg)
             new_bcarg = replace(bcarg, {t: t + dt})
-            bc_space = stage2spaces4bc(bc, V, V, 0)
+            bc_space = self._backend.stage2spaces4bc(bc, V, V, 0)
             bcsnew.extend(bc.reconstruct(V=bc_space, g=new_bcarg))
 
         return Fnew, bcsnew

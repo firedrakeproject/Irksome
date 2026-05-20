@@ -3,7 +3,6 @@ from ufl.constantvalue import as_ufl
 
 from .ufl.deriv import Dt, expand_time_derivatives
 from .tools import extract_timedep_arguments, replace
-from .bcs import bc2space
 from .constant import MeshConstant, vecconst
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
 from .backend import get_backend
@@ -65,8 +64,8 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, b
                 bcnew.append(bc)
             else:
                 bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
-                gdat = bcarg_stage - bc2space(bc, u0) - c*dt*bc2space(bc, ut0)
-                gdat -= sum(bc2space(bc, ks[i]) * (abar_vals[i] * dt**2) for i in range(num_stages))
+                gdat = bcarg_stage - backend_cls.bc2space(bc, u0) - c*dt*backend_cls.bc2space(bc, ut0)
+                gdat -= sum(backend_cls.bc2space(bc, ks[i]) * (abar_vals[i] * dt**2) for i in range(num_stages))
                 gdat /= d_val * dt**2
                 bcnew.append(bc.reconstruct(g=gdat))
     elif bc_type == "dDAE":
@@ -84,8 +83,8 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, b
             else:
                 bcprime = expand_time_derivatives(Dt(as_ufl(bcarg)), t=t, timedep_coefs=(u0,))
                 bcprime_stage = replace(bcprime, {t: t+c*dt})
-                gdat = bcprime_stage - bc2space(bc, ut0)
-                gdat -= sum(bc2space(bc, ks[i]) * (abar_vals[i] * dt) for i in range(num_stages))
+                gdat = bcprime_stage - backend_cls.bc2space(bc, ut0)
+                gdat -= sum(backend_cls.bc2space(bc, ks[i]) * (abar_vals[i] * dt) for i in range(num_stages))
                 gdat /= d_val * dt
                 bcnew.append(bc.reconstruct(g=gdat))
 

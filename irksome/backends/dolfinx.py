@@ -1,36 +1,266 @@
 """DOLFINx backend for Irksome"""
 
+from collections.abc import Sequence
+
+
+from irksome.tools import get_sub
+
 try:
     from mpi4py import MPI
     from petsc4py import PETSc
-    import basix.ufl
     import dolfinx.fem.petsc
+    from dolfinx.typing import Scalar
+
     import ufl
     import typing
     import numpy as np
+    import numpy.typing as npt
+
+    class LinearProblem(dolfinx.fem.petsc.LinearProblem):
+
+        def solve(self):
+            [bc.pack() for bc in self._bcs]
+            super().solve()
+
+    class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
+
+        def __init__(
+            self,
+            F: ufl.form.Form | Sequence[ufl.form.Form],
+            u: dolfinx.fem.Function | Sequence[dolfinx.fem.Function],
+            *,
+            petsc_options_prefix: str,
+            bcs: Sequence[dolfinx.fem.DirichletBC] | None = None,
+            J: ufl.form.Form | Sequence[Sequence[ufl.form.Form]] | None = None,
+            P: ufl.form.Form | Sequence[Sequence[ufl.form.Form]] | None = None,
+            kind: str | Sequence[Sequence[str]] | None = None,
+            petsc_options: dict | None = None,
+            form_compiler_options: dict | None = None,
+            jit_options: dict | None = None,
+            entity_maps: Sequence[dolfinx.mesh.EntityMap] | None = None,
+        ):
+            super().__init__(
+                F,
+                u,
+                petsc_options_prefix=petsc_options_prefix,
+                bcs=bcs,
+                J=J,
+                P=P,
+                kind=kind,
+                petsc_options=petsc_options,
+                form_compiler_options=form_compiler_options,
+                jit_options=jit_options,
+                entity_maps=entity_maps,
+            )
+            _vec, (current_func, args, kargs) = self.solver.getFunction()
+
+            def assemble_residual(
+                    _snes: PETSc.SNES,  # type: ignore[name-defined]
+                    x: PETSc.Vec,  # type: ignore[name-defined]
+                    b: PETSc.Vec,  # type: ignore[name-defined]
+                    u: dolfinx.fem.Function | Sequence[dolfinx.fem.Function],
+                    residual: dolfinx.fem.Form | Sequence[dolfinx.fem.Form],
+                    jacobian: dolfinx.fem.Form | Sequence[Sequence[dolfinx.fem.Form]],
+                    bcs: Sequence[dolfinx.fem.DirichletBC],
+                    _blocks: tuple[tuple[int, int, int], ...] | None = None,):
+                [bc.pack() for bc in bcs]
+                current_func(_snes, x, b, u, residual, jacobian, bcs, _blocks)
+            self.solver.setFunction(assemble_residual, _vec, args=args, kargs=kargs)
+
+            _jac, _jacP, (current_jac, args, kargs) = self.solver.getJacobian()
+
+            def assemble_jacobian(
+                    _snes: PETSc.SNES,  # type: ignore[name-defined]
+                    x: PETSc.Vec,  # type: ignore[name-defined]
+                    J: PETSc.Mat,  # type: ignore[name-defined]
+                    P_mat: PETSc.Mat,  # type: ignore[name-defined]
+                    u: Sequence[dolfinx.fem.Function] | dolfinx.fem.Function,
+                    jacobian: dolfinx.fem.Form | Sequence[Sequence[dolfinx.fem.Form]],
+                    preconditioner: dolfinx.fem.Form | Sequence[Sequence[dolfinx.fem.Form]] | None,
+                    bcs: Sequence[dolfinx.fem.DirichletBC],
+            ):
+                [bc.pack() for bc in bcs]
+                current_jac(_snes, x, J, P_mat, u, jacobian, preconditioner, bcs)
+            self.solver.setJacobian(assemble_jacobian, _jac, _jacP, args=args, kargs=kargs)
+
+    def dirichletbc(
+        value: dolfinx.fem.Function
+        | dolfinx.fem.Constant
+        | npt.NDArray[Scalar]
+        | float
+        | complex,
+        dofs: npt.NDArray[np.int32],
+        V: dolfinx.fem.FunctionSpace | None = None,
+    ):
+        """Overloaded DirichletBC so that we can reconstruct BCs with UFL expressions"""
+        bc = dolfinx.fem.dirichletbc(value, dofs, V)
+        bc._ufl_space = V if V is not None else value.ufl_function_space()
+        return bc
 
     def get_stage_space(V: ufl.FunctionSpace, num_stages: int) -> ufl.FunctionSpace:
         if num_stages == 1:
-            me = V.ufl_elemet()
+            space_list = [V]
         else:
-            el = V.ufl_element()
-            if el.num_sub_elements > 0:
-                me = basix.ufl.mixed_element(
-                    np.tile(el.sub_elements, num_stages).tolist()
-                )
+            space_list = [V.clone() for _ in range(num_stages)]
+        return ufl.MixedFunctionSpace(*space_list)
+
+    class DirichletBC(dolfinx.fem.DirichletBC):
+        _pack_expression: dolfinx.fem.Expression | None
+
+        def __init__(self, bc: dolfinx.fem.DirichletBC, V=None, new_value=None):
+            """
+            Create an Irksome compatible DirichletBC from an existing DOLFINx bc, created by `irksome.backends.dolfinx.dirichletbc`.
+
+            Args:
+                bc: A DOLFINx DirichletBC object
+                V: A function space V to reconstruct the BC on.
+                new_value: A new value to reconstruct the BC with.
+
+            """
+
+            # Attach UFL function space (to be able to reconstruct functions and constants on the same UFL domain)
+            if not hasattr(bc, "_ufl_space"):
+                if V is not None:
+                    bc._ufl_space = V
+                else:
+                    raise RuntimeError(
+                        "Dirichlet condition must be constructed with `irksome.backends.dolfinx.dirichletbc` in order to be reconstructable with UFL expressions"
+                    )
+            self._ufl_space = bc._ufl_space
+
+            # Get dof indices of existing BC
+            dof_indices = bc.dof_indices()[0].copy()
+
+            # If reconstructing use V as the new space rather than the BC space
+            bc_space = bc.function_space if V is None else V
+
+            # If we are not reconstructing the BC with a new value, we can reuse existing C++ objects
+            if new_value is None:
+                val = bc.g
+                self._pack_expression = None
             else:
-                me = basix.ufl.blocked_element(el, shape=(num_stages,))
-        return dolfinx.fem.functionspace(V.mesh, me)
+                # If we are reconstructing the BC with a new value, we need to check if the new value is a DOLFINx function or Constant.
+                # If True, we do not need to do anything for reconstruction.
+                if isinstance(new_value, (dolfinx.fem.Function, dolfinx.fem.Constant)):
+                    val = new_value
+                    self._pack_expression = None
+                else:
+                    # If not, we need to take the ufl.core.expr.Expr and pack it into a DOLFINx Expression
+                    if bc_space.component() != []:
+                        # If working with a subspace of a single stage, we need to create the (parent_dof, sub_dof) mapping
+                        V_sub, sub_to_parent = bc_space.collapse()
+                        if len(sub_to_parent) != 1:
+                            raise NotImplementedError(
+                                "Mixed topology is not supported for reconstructing BCs with UFL expressions"
+                            )
+                        else:
+                            sub_to_parent = sub_to_parent[0]
+                            parent_to_sub = np.full(
+                                bc_space.dofmap.index_map.size_local
+                                * bc_space.dofmap.index_map_bs,
+                                -1,
+                                dtype=np.int32,
+                            )
+                            parent_to_sub[sub_to_parent] = np.arange(len(sub_to_parent))
+
+                            dof_indices = (dof_indices, parent_to_sub[dof_indices])
+                            val = dolfinx.fem.Function(V_sub, name=f"bc_{str(new_value)}")._cpp_object
+                    else:
+                        val = dolfinx.fem.Function(bc_space, name=f"bc_{str(new_value)}")._cpp_object
+                    self._pack_expression = dolfinx.fem.Expression(
+                        new_value, bc.function_space.element.interpolation_points()
+                    )
+
+            # Reconstruct the C++ object
+            # Note: We compare against bc._cpp_object.function_space, NOT the class type.
+            cpp_class = type(bc._cpp_object)
+            if (
+                isinstance(
+                    val,
+                    (
+                        dolfinx.cpp.fem.Function_complex128,
+                        dolfinx.cpp.fem.Function_complex64,
+                        dolfinx.cpp.fem.Function_float32,
+                        dolfinx.cpp.fem.Function_float64,
+                    ),
+                )
+                and val.function_space == bc_space._cpp_object
+            ):
+                new_cpp_object = cpp_class(val, dof_indices)
+            else:
+                # Depending on your FEniCSx version, the C++ constructor might strictly
+                # expect the C++ FunctionSpace instead of the Python FunctionSpace wrapper.
+                try:
+                    new_cpp_object = cpp_class(val, dof_indices, bc_space)
+                except TypeError:
+                    new_cpp_object = cpp_class(val, dof_indices, bc_space._cpp_object)
+
+            # 4. Initialize the parent dolfinx.fem.DirichletBC wrapper with the newly minted C++ object
+            super().__init__(new_cpp_object)
+
+            # 5. Store your custom properties
+            self._orig_g = val
+
+        def pack(self):
+            if self._pack_expression is not None:
+                self.g.interpolate_expr(self._pack_expression._cpp_object, None, None)
+
+        @property
+        def _original_arg(self):
+
+            if isinstance(
+                self._orig_g,
+                (
+                    dolfinx.cpp.fem.Function_complex128,
+                    dolfinx.cpp.fem.Function_complex64,
+                    dolfinx.cpp.fem.Function_float32,
+                    dolfinx.cpp.fem.Function_float64,
+                ),
+            ):
+                return dolfinx.fem.Function(self._ufl_space, self._orig_g.x, name=f"orig_{self._orig_g.name:s}")
+            elif isinstance(
+                self._orig_g,
+                (
+                    dolfinx.cpp.fem.Constant_complex64,
+                    dolfinx.cpp.fem.Constant_complex128,
+                    dolfinx.cpp.fem.Constant_float32,
+                    dolfinx.cpp.fem.Constant_float64,
+                ),
+            ):
+                return dolfinx.fem.Constant(
+                    self._ufl_space.ufl_domain(), self._orig_g.value
+                )
+            return self._orig_g
+
+        def reconstruct(self, V, g):
+            return DirichletBC(self, new_value=g, V=V)
+
+    def bc2space(bc, V):
+        return get_sub(V, bc.function_space.component())
+
+    def stage2spaces4bc(bc, V, Vbig, i):
+        """used to figure out how to apply Dirichlet BC to each stage"""
+        comp = bc.function_space.component()
+        Vbig_i = Vbig.ufl_sub_spaces()[i]
+        return get_sub(Vbig_i, comp)
 
     def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
         """Extract boundary conditions"""
-        return bcs
+        new_bcs = []
+        for bc in bcs:
+            new_bcs.append(DirichletBC(bc))
+        return new_bcs
 
     def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
         """Create a variational problem."""
-        if len(F.arguments()) == 2:
+        rank = len(np.unique([arg.number() for arg in F.arguments()]))
+        if isinstance(u, ufl.tensors.ListTensor):
+            u = u.ufl_operands
+        if rank == 2:
             a, L = ufl.system(F)
-            return dolfinx.fem.petsc.LinearProblem(
+            a = ufl.extract_blocks(a)
+            L = ufl.extract_blocks(L)
+            return LinearProblem(
                 a,
                 L,
                 u,
@@ -39,14 +269,17 @@ try:
                 P=aP,
                 **kwargs,
             )
-        else:
-            return dolfinx.fem.petsc.NonlinearProblem(
+        elif rank == 1:
+            F = ufl.extract_blocks(F)
+            return NonlinearProblem(
                 F,
                 u,
                 petsc_options_prefix="IrkSomeNonlinearSolver",
                 bcs=bcs,
                 petsc_options=kwargs.get("solver_parameters"),
             )
+        else:
+            raise RuntimeError(f"Forms of rank {rank} are not supported in create_variational_problem")
 
     def create_variational_solver(
         problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
@@ -56,8 +289,7 @@ try:
         solver_parameters = kwargs.get("solver_parameters", {})
         solver = problem.solver
         solver_prefix = problem.solver.getOptionsPrefix()
-        opts = PETSc.Options(
-        )
+        opts = PETSc.Options()
         opts.prefixPush(solver_prefix)
         for k, v in solver_parameters.items():
             opts.setValue(k, v)
@@ -68,8 +300,15 @@ try:
             opts.delValue(f"{solver_prefix}{k}")
         return problem
 
-    def get_function_space(u: ufl.Coefficient) -> ufl.FunctionSpace:
-        return u.ufl_function_space()
+    def get_function_space(
+        u: list[ufl.Coefficient | ufl.Argument] | ufl.Coefficient,
+    ) -> ufl.FunctionSpace:
+        if isinstance(u, (ufl.Coefficient, ufl.Argument)):
+            return u.ufl_function_space()
+        else:
+            return ufl.MixedFunctionSpace(
+                *[u[i].ufl_function_space() for i in range(u.ufl_shape[0])]
+            )
 
     def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ufl.Coefficient:
         """
@@ -83,12 +322,9 @@ try:
         Returns:
             A coefficient in the new function space
         """
-        if V.num_sub_spaces == 0:
-            el = basix.ufl.mixed_element([V.ufl_element()] * num_stages)
-        else:
-            el = basix.ufl.mixed_element(V.ufl_element().sub_elements * num_stages)
-        Vbig = dolfinx.fem.functionspace(V.mesh, el)
-        return dolfinx.fem.Function(Vbig)
+        _Vbig = [V.clone() for _ in range(num_stages)]
+        Vbig = ufl.MixedFunctionSpace(*_Vbig)
+        return ufl.as_vector([dolfinx.fem.Function(Vi) for Vi in Vbig.ufl_sub_spaces()])
 
     class MeshConstant(object):
         def __init__(self, msh):
@@ -116,9 +352,6 @@ try:
 
     def get_mesh_constant(MC: MeshConstant | None) -> ufl.core.expr.Expr:
         return MC.Constant if MC is not None else ufl.constantvalue.ComplexValue
-
-    class DirichletBC(dolfinx.fem.DirichletBC):
-        pass
 
     def norm(
         v: ufl.core.expr.Expr, norm_type: str = "L2", mesh: ufl.Mesh | None = None
@@ -156,9 +389,9 @@ try:
                 raise ValueError(f"Cannot assemble form of rank {form.rank}")
 
     derivative = ufl.derivative
-    TrialFunction = ufl.TrialFunction
+    TrialFunction = ufl.TrialFunctions
     Function = dolfinx.fem.Function
-    TestFunction = ufl.TestFunction
+    TestFunction = ufl.TestFunctions
 
     class Constant(ufl.constantvalue.ScalarValue):
         # NOTE: If dolfinx ever get's meshless constants we should change this
@@ -178,7 +411,34 @@ try:
         raise RuntimeError("DOLFINx does not support Jacobian invalidation")
 
     def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None):
-        raise NotImplementedError("Bounds-constrained BCs are not implemented for DOLFINx")
+        raise NotImplementedError(
+            "Bounds-constrained BCs are not implemented for DOLFINx"
+        )
+
+    def getNullspace(V, Vbig, num_stages, nullspace):
+        """
+        Computes the nullspace for a multi-stage method.
+
+        :arg V: The :class:`ufl.FunctionSpace` on which the original time-dependent PDE is posed.
+        :arg Vbig: The multi-stage :class:`ufl.MixedFunctionSpace` for the stage problem
+        :arg num_stages: The number of stages in the RK method
+        :arg nullspace: The nullspace for the original problem.
+
+        On output, we produce a PETSc nullspace defining the nullspace for the multistage problem.
+        """
+        if nullspace is None:
+            nspnew = None
+        else:
+            raise NotImplementedError("Nullspace computation is not implemented for DOLFINx")
+        return nspnew
+
+    def get_number_of_fields(V) -> int:
+        if isinstance(V, ufl.MixedFunctionSpace):
+            return V.num_sub_spaces()
+        elif isinstance(V, ufl.FunctionSpace):
+            return 1
+        else:
+            raise ValueError(f"Unsupported function space type {type(V)} for get_number_of_fields")
 
 except ModuleNotFoundError:
     pass

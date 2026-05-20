@@ -6,7 +6,6 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
 from ufl import Form, as_tensor, as_ufl, dx, inner
 
-from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
 from .ufl.deriv import expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
@@ -150,7 +149,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
             g_np = Vander_inv[1:, 1:] @ g_np
 
         for i in range(num_stages):
-            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.extend(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 

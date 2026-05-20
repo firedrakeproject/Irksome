@@ -5,7 +5,6 @@ from ufl.classes import Zero
 from ufl import as_ufl, as_tensor
 
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import bc2space, stage2spaces4bc
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
@@ -231,7 +230,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
             g = as_ufl(bc._original_arg)
             if isinstance(g, Zero):
                 return [g]*len(test_dicts)
-            ucur = bc2space(bc, u0)
+            ucur = backend_cls.bc2space(bc, u0)
             gq = np.array([replace(g, {t: t + q * dt}) - phi0 * ucur
                            for phi0, q in zip(trial_vals0, qpts)])
             return dot(trial_proj, gq)
@@ -247,7 +246,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
         else:
             g_np = bc_data(bc)
         for i in range(num_stages):
-            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 

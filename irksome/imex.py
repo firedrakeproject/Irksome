@@ -3,7 +3,6 @@ import numpy as np
 from ufl import Form, as_ufl, dx, inner
 
 from .backend import get_backend
-from .bcs import bc2space
 from .constant import MeshConstant, vecconst
 from .stage_value import getFormStage
 from .tools import (AI, IA, extract_timedep_arguments, reshape, replace,
@@ -380,9 +379,9 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None, backend="fi
             bcnew.append(bc.reconstruct(g=0))
             continue
 
-        gdat = bcarg_stage - bc2space(bc, u0)
+        gdat = bcarg_stage - backend_cls.bc2space(bc, u0)
         for i in range(num_stages):
-            gdat -= dt*(a_vals[i]*bc2space(bc, ks[i]) + ahat_vals[i]*bc2space(bc, khats[i]))
+            gdat -= dt*(a_vals[i]*backend_cls.bc2space(bc, ks[i]) + ahat_vals[i]*backend_cls.bc2space(bc, khats[i]))
 
         gdat /= dt*d_val
         bcnew.append(bc.reconstruct(g=gdat))
@@ -414,11 +413,11 @@ class DIRKIMEXMethod:
         self.butcher_tableau = butcher_tableau
         self.num_stages = butcher_tableau.num_stages
 
-        self.V = V = u0.function_space()
+        self.V = V = backend_cls.get_function_space(u0)
         self.u0 = u0
         self.t = t
         self.dt = dt
-        self.num_fields = len(u0.function_space())
+        self.num_fields = backend_cls.get_number_of_fields(V)
         self.ks = [backend_cls.Function(V) for _ in range(self.num_stages)]
         self.k_hat_s = [backend_cls.Function(V) for _ in range(self.num_stages)]
 

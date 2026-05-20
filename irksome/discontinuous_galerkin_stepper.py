@@ -3,7 +3,6 @@ from FIAT import (Bernstein,
                   GaussLobattoLegendre, GaussRadau)
 from ufl import as_ufl, as_tensor
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import stage2spaces4bc
 from .labeling import split_quadrature, as_form
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
@@ -190,7 +189,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
             gq = np.array([replace(g0, {t: t + c*dt}) for c in qpts])
             g_np = proj @ gq
             for i in range(num_stages):
-                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
                 bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
@@ -224,15 +223,16 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
     :arg nullspace: An optional nullspace object.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None, **kwargs):
+                 quadrature=None, backend="firedrake", **kwargs):
         order = self.order = scheme.order
         assert order >= 0, "DG must be order >= 0"
 
         self.basis_type = basis_type = scheme.basis_type
         self.deriv_type = scheme.deriv_type
 
-        V = u0.function_space()
-        self.num_fields = len(V)
+        backend_cls = get_backend(backend)
+        V = backend_cls.get_function_space(u0)
+        self.num_fields = backend_cls.get_number_of_fields(V)
 
         self.el = getElement(basis_type, order)
         num_stages = self.el.space_dimension()
