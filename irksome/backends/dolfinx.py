@@ -1,50 +1,227 @@
 """DOLFINx backend for Irksome"""
 
 from collections.abc import Sequence
-
 from irksome.tools import get_sub
 
 try:
     from mpi4py import MPI
     from petsc4py import PETSc
     import dolfinx.fem.petsc
-    from dolfinx.typing import Scalar
 
     import ufl
     import typing
     import numpy as np
     import numpy.typing as npt
 
+    def extract_dtype(expr: ufl.core.expr.Expr) -> npt.DTypeLike:
+        """Extract the dtype from an expression.
+
+        Looks for any constants or coefficients and returning their dtype.
+        This is necessary for determining which DOLFINx DirichletBC constructor
+        to use when packing UFL expressions into DOLFINx Expressions for use in
+        BC reconstruction.
+        """
+        consts = ufl.algorithms.analysis.extract_constants(expr)
+        for c in consts:
+            if hasattr(c, "dtype"):
+                return c.dtype
+        coeffs = ufl.algorithms.extract_coefficients(expr)
+        for c in coeffs:
+            if hasattr(c, "dtype"):
+                return c.dtype
+        raise ValueError("Could not extract dtype from expression, please ensure that all constants and coefficients have a dtype attribute")
+
+    def extract_scalar_value(scalar_expr):
+        """Extract float from a scalar UFL expression."""
+        if isinstance(scalar_expr, (ufl.classes.IntValue, ufl.classes.FloatValue)):
+            return float(scalar_expr)
+        elif isinstance(scalar_expr, dolfinx.fem.Function):
+            # Check if it's a RealElement (constant stored as Function)
+            if scalar_expr.function_space.ufl_element().is_real and scalar_expr.ufl_shape == ():
+                return float(scalar_expr.x.array[0])
+            else:
+                raise ValueError(f"Cannot extract scalar from spatial Function: {scalar_expr}")
+        elif isinstance(scalar_expr, dolfinx.fem.Constant) and scalar_expr.ufl_shape == ():
+            val = scalar_expr.value
+            return float(val) if hasattr(val, '__float__') else float(val.item())
+        elif isinstance(scalar_expr, ufl.classes.ScalarValue):
+            return float(scalar_expr._value)
+        elif isinstance(scalar_expr, ufl.classes.Product):
+            result = 1.0
+            for op in scalar_expr.ufl_operands:
+                result *= extract_scalar_value(op)
+            return result
+        elif isinstance(scalar_expr, ufl.classes.Division):
+            num, den = scalar_expr.ufl_operands
+            return extract_scalar_value(num) / extract_scalar_value(den)
+        else:
+            raise ValueError(f"Cannot extract scalar from {type(scalar_expr)}: {scalar_expr}")
+
+    def extract_function(expr) -> tuple[bool, dolfinx.fem.Function | None]:
+        """Recursively extract a Function from nested UFL expressions.
+
+        Returns:
+            (is_real, func) where is_real=True means func is on RealElement (a constant)
+
+        Note: Returns (False, None) for RealElement functions so they get handled
+        as scalars by extract_scalar_value, preserving any multipliers.
+        """
+        if isinstance(expr, dolfinx.fem.Function):
+            is_real = expr.function_space.ufl_element().is_real
+            if is_real:
+                # Don't return RealElement functions - let them be handled as scalars
+                return (False, None)
+            return (False, expr)
+        elif isinstance(expr, (ufl.classes.Indexed, ufl.classes.ComponentTensor)):
+            # Indexed or ComponentTensor wraps the actual function
+            # Get the operand and recurse
+            return extract_function(expr.ufl_operands[0])
+        elif hasattr(expr, 'ufl_operands'):
+            # Try each operand
+            for op in expr.ufl_operands:
+                is_real, func = extract_function(op)
+                if func is not None:
+                    return (is_real, func)
+        return (False, None)
+
+    def extract_term(term):
+        """Extract (weight, function) from a single term."""
+        if isinstance(term, dolfinx.fem.Function):
+            is_real = term.ufl_element().is_real
+            if is_real:
+                return None  # RealElement is a constant, not a spatial function
+            return (1.0, term)
+        elif isinstance(term, ufl.classes.ComponentTensor):
+            # ComponentTensor(Product(Indexed(func), scalar), index)
+            # Extract from the inner product
+            inner_expr = term.ufl_operands[0]
+            return extract_term(inner_expr)
+        elif isinstance(term, ufl.classes.Indexed):
+            # Indexed(func, index) - just extract the function
+            is_real, func = extract_function(term)
+            if func is None:
+                return None
+            return (1.0, func)
+        elif isinstance(term, ufl.classes.Product):
+            weight = 1.0
+            func = None
+            for op in term.ufl_operands:
+                is_real, extracted_func = extract_function(op)
+                if extracted_func is not None:
+                    # It's a spatial function (RealElement functions return None)
+                    func = extracted_func
+                else:
+                    # Not a function, or is a RealElement - extract as scalar
+                    weight *= extract_scalar_value(op)
+            return (weight, func) if func is not None else None
+        elif isinstance(term, ufl.classes.Division):
+            num, den = term.ufl_operands
+            denom_val = extract_scalar_value(den)
+            if isinstance(num, dolfinx.fem.Function):
+                is_real = num.function_space.ufl_element().family() == "Real"
+                if is_real:
+                    return None
+                return (1.0 / denom_val, num)
+            elif isinstance(num, ufl.classes.Product):
+                result = extract_term(num)
+                return (result[0] / denom_val, result[1]) if result else None
+        return None
+
+    def extract_linear_combination(expr: ufl.core.expr.Expr) -> list[tuple[float, "dolfinx.fem.Function"]]:
+        """Extract (weight, function) pairs from a UFL linear combination.
+
+        Analyzes expressions like: 0.5*u + 0.3*v + 0.2*w
+        Returns: [(0.5, u), (0.3, v), (0.2, w)]
+
+        Args:
+            expr: UFL expression (Sum, Product, or single Function)
+
+        Returns:
+            List of (weight, function) tuples
+        """
+
+        # Parse the expression
+        if isinstance(expr, ufl.classes.Sum):
+            summands = expr.ufl_operands
+        else:
+            summands = [expr]
+        terms = []
+        for summand in summands:
+            result = extract_term(summand)
+            if result is not None:
+                terms.append(result)
+        return terms
+
+    def function_iadd(func: "dolfinx.fem.Function", expr: ufl.core.expr.Expr) -> None:
+        """Add a UFL expression to a DOLFINx Function in-place (func += expr).
+
+        Extracts the linear combination structure and adds terms directly using
+        PETSc vector operations. Works with mixed spaces and subfunction views.
+
+        Args:
+            func: DOLFINx Function or subfunction view to update in-place
+            expr: UFL expression (linear combination of Functions)
+
+        Example:
+            function_iadd(u, 0.5 * v + 0.3 * w)  # equivalent to u += 0.5*v + 0.3*w
+        """
+        # Extract the linear combination: [(weight1, func1), (weight2, func2), ...]
+        terms = extract_linear_combination(expr)
+
+        # Add each term
+        for weight, term_func in terms:
+            if not (term_func.ufl_element() == func.ufl_element()) or not np.allclose(term_func.function_space.dofmap.list, func.function_space.dofmap.list):
+                raise ValueError(f"Function {term_func} is not compatible for addition with {func}")
+            func.x.array[:] += weight * term_func.x.array[:]
+
     # Patching of DOLFINx objects to mimick firedrake naming and properties.
     def function_space_length(self):
-        num_sub_elements = self.ufl_element().num_sub_elements
-        return 1 if num_sub_elements == 0 else num_sub_elements
+        return 1
 
     def mixed_space_length(self):
         return len(self.ufl_sub_spaces())
 
     def subfunctions(self):
         """Get subfunctions for a DOLFINx function, which may be in a mixed space."""
-        if self.function_space.ufl_element().num_sub_elements == 0:
-            return [self]
-        else:
-            return [self.sub(i) for i in range(self.function_space().ufl_element().num_sub_elements)]
+        return [self]
+
+    def function_iadd_method(self, other):
+        """In-place addition for DOLFINx functions (self += other).
+
+        This method is monkey-patched onto :py:class:`dolfinx.fem.Function` to enable
+        Firedrake-style arithmetic operations.
+
+        Args:
+            self: The function to be modified
+            other: The expression to add. Can be a UFL expression, Function, Constant, or scalar.
+
+        Returns:
+            self (for chaining)
+        """
+        # Delegate to the standalone function_iadd which handles all the complexity
+        function_iadd(self, other)
+        return self
 
     dolfinx.fem.FunctionSpace.__len__ = function_space_length
     dolfinx.fem.Function.subfunctions = property(subfunctions)
+    dolfinx.fem.Function.__iadd__ = function_iadd_method
     ufl.MixedFunctionSpace.__len__ = mixed_space_length
 
     class ListTensor(ufl.tensors.ListTensor):
         """A list tensor that exposes subfunctions for DOLFINx functions"""
         @property
         def subfunctions(self):
-            return [self.ufl_operands[i] for i in range(len(self))]
+            sub_funcs = []
+            for i in range(self.ufl_shape[0]):
+                func = self.ufl_operands[i]
+                sub_funcs.append(func)
+            return sub_funcs
 
         def function_space(self):
-            return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(len(self))])
+            return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(self.ufl_shape[0])])
 
     class LinearProblem(dolfinx.fem.petsc.LinearProblem):
-
+        """Overloaded linear problem that pack BCs before solving"""
         def solve(self, bounds=None):
             if bounds is not None:
                 raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
@@ -52,7 +229,11 @@ try:
             super().solve()
 
     class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
-
+        """Overloaded nonlinear problem that pack BCs before solving.
+        
+        Done eac  Newton iteration or line search step by overriding the
+        SNES function and Jacobian assembly routines to pack BCs before assembly.
+        """
         def __init__(
             self,
             F: ufl.form.Form | Sequence[ufl.form.Form],
@@ -94,6 +275,7 @@ try:
                     _blocks: tuple[tuple[int, int, int], ...] | None = None,):
                 [bc.pack() for bc in bcs]
                 current_func(_snes, x, b, u, residual, jacobian, bcs, _blocks)
+
             self.solver.setFunction(assemble_residual, _vec, args=args, kargs=kargs)
 
             _jac, _jacP, (current_jac, args, kargs) = self.solver.getJacobian()
@@ -122,18 +304,16 @@ try:
             return self.solver
 
     def dirichletbc(
-        value: dolfinx.fem.Function
-        | dolfinx.fem.Constant
-        | npt.NDArray[Scalar]
-        | float
-        | complex,
-        dofs: npt.NDArray[np.int32],
+        value: ufl.core.expr.Expr, dofs: npt.NDArray[np.int32],
         V: dolfinx.fem.FunctionSpace | None = None,
     ):
-        """Overloaded DirichletBC so that we can reconstruct BCs with UFL expressions"""
-        bc = dolfinx.fem.dirichletbc(value, dofs, V)
-        bc._ufl_space = V if V is not None else value.ufl_function_space()
-        return bc
+        """Overloaded DirichletBC so that we can reconstruct BCs with UFL expressions.
+        
+        value: A UFL expression representing the boundary condition.
+        dofs: An array of degree-of-freedom indices in `V` where the BC should be applied.
+        V: The function space on which the BC applies. It can be a subspace of a mixed/blocked space.
+        """
+        return DirichletBC(value, dofs, V)
 
     def get_stage_space(V: ufl.FunctionSpace, num_stages: int) -> ufl.FunctionSpace:
         if num_stages == 1:
@@ -144,74 +324,77 @@ try:
 
     class DirichletBC(dolfinx.fem.DirichletBC):
         _pack_expression: dolfinx.fem.Expression | None
+        _ufl_expr: ufl.core.expr.Expr | None  # Store original UFL expression
 
-        def __init__(self, bc: dolfinx.fem.DirichletBC, V=None, new_value=None):
+        def __init__(self, g: ufl.core.expr.Expr, dofs: npt.NDArray[np.int32], V: dolfinx.fem.FunctionSpace):
             """
             Create an Irksome compatible DirichletBC from an existing DOLFINx bc, created by `irksome.backends.dolfinx.dirichletbc`.
 
             Args:
-                bc: A DOLFINx DirichletBC object
-                V: A function space V to reconstruct the BC on.
-                new_value: A new value to reconstruct the BC with.
-
+                g: The boundary condition expression
+                dofs: An array of degree-of-freedom indices in V
+                V: The space to construct the BC on.
             """
 
             # Attach UFL function space (to be able to reconstruct functions and constants on the same UFL domain)
-            if not hasattr(bc, "_ufl_space"):
-                if V is not None:
-                    bc._ufl_space = V
-                else:
-                    raise RuntimeError(
-                        "Dirichlet condition must be constructed with `irksome.backends.dolfinx.dirichletbc` in order to be reconstructable with UFL expressions"
+            self._ufl_space = V.ufl_function_space()
+
+            # Store original UFL expression for time-varying BCs
+            if not isinstance(g, (dolfinx.fem.Function, dolfinx.fem.Constant, int, float, complex)):
+                self._ufl_expr = g  # Save the symbolic expression
+            else:
+                self._ufl_expr = None
+            self._ufl_space = V.ufl_function_space()
+
+            # If reconstructing with a sub space, we need to get the subspace dof indices
+            # If working with a subspace of a single stage, we need to create the (parent_dof, sub_dof) mapping
+            if V.component() != []:
+                V_sub, sub_to_parent = V.collapse()
+                if len(sub_to_parent) != 1:
+                    raise NotImplementedError(
+                        "Mixed topology is not supported for reconstructing BCs with UFL expressions"
                     )
-            self._ufl_space = bc._ufl_space
-
-            # Get dof indices of existing BC
-            dof_indices = bc.dof_indices()[0].copy()
-
-            # If reconstructing use V as the new space rather than the BC space
-            bc_space = bc.function_space if V is None else V
+                else:
+                    sub_to_parent = sub_to_parent[0]
+                    parent_to_sub = np.full(
+                        V.dofmap.index_map.size_local
+                        * V.dofmap.index_map_bs,
+                        -1,
+                        dtype=np.int32,
+                    )
+                    parent_to_sub[sub_to_parent] = np.arange(len(sub_to_parent))
+                    sub_dofs = parent_to_sub[dofs]
+                    dofs = (dofs, sub_dofs)
 
             # If we are not reconstructing the BC with a new value, we can reuse existing C++ objects
-            if new_value is None:
-                val = bc.g
+            self._pack_expression = None
+
+            # If we are reconstructing the BC with a new value, we need to check if the new value is a DOLFINx function or Constant.
+            # If True, we do not need to do anything for reconstruction.
+            if isinstance(g, (dolfinx.fem.Function, dolfinx.fem.Constant)):
+                val = g
                 self._pack_expression = None
             else:
-                # If we are reconstructing the BC with a new value, we need to check if the new value is a DOLFINx function or Constant.
-                # If True, we do not need to do anything for reconstruction.
-                if isinstance(new_value, (dolfinx.fem.Function, dolfinx.fem.Constant)):
-                    val = new_value
-                    self._pack_expression = None
+                # If not, we need to take the ufl.core.expr.Expr and pack it into a DOLFINx Expression
+                if V.component() != []:
+                    val = dolfinx.fem.Function(V_sub, name=f"bc_{str(g)}")._cpp_object
                 else:
-                    # If not, we need to take the ufl.core.expr.Expr and pack it into a DOLFINx Expression
-                    if bc_space.component() != []:
-                        # If working with a subspace of a single stage, we need to create the (parent_dof, sub_dof) mapping
-                        V_sub, sub_to_parent = bc_space.collapse()
-                        if len(sub_to_parent) != 1:
-                            raise NotImplementedError(
-                                "Mixed topology is not supported for reconstructing BCs with UFL expressions"
-                            )
-                        else:
-                            sub_to_parent = sub_to_parent[0]
-                            parent_to_sub = np.full(
-                                bc_space.dofmap.index_map.size_local
-                                * bc_space.dofmap.index_map_bs,
-                                -1,
-                                dtype=np.int32,
-                            )
-                            parent_to_sub[sub_to_parent] = np.arange(len(sub_to_parent))
+                    val = dolfinx.fem.Function(V, name=f"bc_{str(g)}")._cpp_object
+                self._pack_expression = dolfinx.fem.Expression(g, V.element.interpolation_points)
 
-                            dof_indices = (dof_indices, parent_to_sub[dof_indices])
-                            val = dolfinx.fem.Function(V_sub, name=f"bc_{str(new_value)}")._cpp_object
-                    else:
-                        val = dolfinx.fem.Function(bc_space, name=f"bc_{str(new_value)}")._cpp_object
-                    self._pack_expression = dolfinx.fem.Expression(
-                        new_value, bc.function_space.element.interpolation_points()
-                    )
+            # Get correct C++ implementation based on dtype of expression
+            dtype = extract_dtype(g)
+            if np.issubdtype(dtype, np.float32):
+                bctype = dolfinx.cpp.fem.DirichletBC_float32
+            elif np.issubdtype(dtype, np.float64):
+                bctype = dolfinx.cpp.fem.DirichletBC_float64
+            elif np.issubdtype(dtype, np.complex64):
+                bctype = dolfinx.cpp.fem.DirichletBC_complex64
+            elif np.issubdtype(dtype, np.complex128):
+                bctype = dolfinx.cpp.fem.DirichletBC_complex128
+            else:
+                raise NotImplementedError(f"Type {dtype} not supported.")
 
-            # Reconstruct the C++ object
-            # Note: We compare against bc._cpp_object.function_space, NOT the class type.
-            cpp_class = type(bc._cpp_object)
             if (
                 isinstance(
                     val,
@@ -222,16 +405,16 @@ try:
                         dolfinx.cpp.fem.Function_float64,
                     ),
                 )
-                and val.function_space == bc_space._cpp_object
+                and val.function_space == V._cpp_object
             ):
-                new_cpp_object = cpp_class(val, dof_indices)
+                new_cpp_object = bctype(val, dofs)
             else:
                 # Depending on your FEniCSx version, the C++ constructor might strictly
                 # expect the C++ FunctionSpace instead of the Python FunctionSpace wrapper.
                 try:
-                    new_cpp_object = cpp_class(val, dof_indices, bc_space)
+                    new_cpp_object = bctype(val, dofs, V._cpp_object)
                 except TypeError:
-                    new_cpp_object = cpp_class(val, dof_indices, bc_space._cpp_object)
+                    new_cpp_object = bctype(val._cpp_object, dofs, V._cpp_object)
 
             # 4. Initialize the parent dolfinx.fem.DirichletBC wrapper with the newly minted C++ object
             super().__init__(new_cpp_object)
@@ -245,7 +428,11 @@ try:
 
         @property
         def _original_arg(self):
+            # If we stored the original UFL expression, return it for time substitution
+            if hasattr(self, '_ufl_expr') and self._ufl_expr is not None:
+                return self._ufl_expr
 
+            # Otherwise return the wrapped Function/Constant
             if isinstance(
                 self._orig_g,
                 (
@@ -255,7 +442,7 @@ try:
                     dolfinx.cpp.fem.Function_float64,
                 ),
             ):
-                return dolfinx.fem.Function(self._ufl_space, self._orig_g.x, name=f"orig_{self._orig_g.name:s}")
+                return dolfinx.fem.Function(self._ufl_space, dolfinx.la.Vector(self._orig_g.x), name=f"orig_{self._orig_g.name:s}")
             elif isinstance(
                 self._orig_g,
                 (
@@ -271,7 +458,7 @@ try:
             return self._orig_g
 
         def reconstruct(self, V, g):
-            return DirichletBC(self, new_value=g, V=V)
+            return DirichletBC(g, self.dof_indices()[0], V=V)
 
     def bc2space(bc, V):
         return get_sub(V, bc.function_space.component())
@@ -284,10 +471,7 @@ try:
 
     def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
         """Extract boundary conditions"""
-        new_bcs = []
-        for bc in bcs:
-            new_bcs.append(DirichletBC(bc))
-        return new_bcs
+        return bcs
 
     def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
         """Create a variational problem."""
@@ -401,7 +585,7 @@ try:
     ) -> float:
         """Compute the norm of a function in the backend language."""
         if mesh is not None:
-            dx = ufl.Mesure("dx", domain=mesh)
+            dx = ufl.Measure("dx", domain=mesh)
         else:
             dx = ufl.dx
         p = 2
@@ -414,7 +598,8 @@ try:
         else:
             raise NotImplementedError(f"Norm type {norm_type} not implemented")
         norm_loc = dolfinx.fem.assemble_scalar(form)
-        return form.mesh.comm.Allreduce(MPI.IN_PLACE, norm_loc, op=MPI.SUM) ** (1 / p)
+        norm_global = form.mesh.comm.allreduce(norm_loc, op=MPI.SUM)
+        return norm_global ** (1 / p)
 
     def assemble(expr: ufl.core.expr.Expr | float):
         """Assemble a UFL expression in the backend language."""
