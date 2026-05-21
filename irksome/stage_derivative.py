@@ -76,7 +76,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     # s-way product space for the stage variables
     num_stages = butch.num_stages
     Vbig = stages.function_space()
-    test = as_tensor(backend_cls.TestFunction(Vbig))
+    test = backend_cls.TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))

@@ -432,7 +432,7 @@ try:
                 raise ValueError(f"Cannot assemble form of rank {form.rank}")
 
     derivative = ufl.derivative
-    TrialFunction = ufl.TrialFunctions
+    TrialFunction = lambda function_space: ufl.as_tensor(ufl.TrialFunctions(function_space))
 
     def Function(V: ufl.FunctionSpace | ufl.MixedFunctionSpace, name=None):
         """Create a function in the backend language."""
@@ -441,7 +441,7 @@ try:
         else:
             return dolfinx.fem.Function(V, name=name)
 
-    TestFunction = ufl.TestFunctions
+    TestFunction = lambda function_space: ufl.as_tensor(ufl.TestFunctions(function_space))
 
     class Constant(ufl.constantvalue.ScalarValue):
         # NOTE: If dolfinx ever get's meshless constants we should change this
