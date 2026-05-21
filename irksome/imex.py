@@ -246,7 +246,7 @@ class RadauIIAIMEXMethod:
             nullspace=nsp, **kwargs)
 
         num_fields = len(backend_cls.get_function_space(u0))
-        u0split = (u0.subfunctions)
+        u0split = u0.subfunctions
         for i, u0bit in enumerate(u0split):
             for s in range(self.num_stages):
                 ii = s * num_fields + i
