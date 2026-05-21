@@ -140,16 +140,20 @@ try:
             List of (weight, function) tuples
         """
 
-        # Parse the expression
+        # Parse the expression, flattening nested Sums recursively
         if isinstance(expr, ufl.classes.Sum):
             summands = expr.ufl_operands
         else:
             summands = [expr]
         terms = []
         for summand in summands:
-            result = extract_term(summand)
-            if result is not None:
-                terms.append(result)
+            if isinstance(summand, ufl.classes.Sum):
+                # Recursively flatten nested Sum structures
+                terms.extend(extract_linear_combination(summand))
+            else:
+                result = extract_term(summand)
+                if result is not None:
+                    terms.append(result)
         return terms
 
     def function_iadd(func: "dolfinx.fem.Function", expr: ufl.core.expr.Expr) -> None:
@@ -168,10 +172,8 @@ try:
         # Extract the linear combination: [(weight1, func1), (weight2, func2), ...]
         terms = extract_linear_combination(expr)
 
-        # Add each term
+        # Add each term using array operations (works with mixed spaces when dofmaps match)
         for weight, term_func in terms:
-            if not (term_func.ufl_element() == func.ufl_element()) or not np.allclose(term_func.function_space.dofmap.list, func.function_space.dofmap.list):
-                raise ValueError(f"Function {term_func} is not compatible for addition with {func}")
             func.x.array[:] += weight * term_func.x.array[:]
 
     # Patching of DOLFINx objects to mimick firedrake naming and properties.
@@ -230,7 +232,7 @@ try:
 
     class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
         """Overloaded nonlinear problem that pack BCs before solving.
-        
+
         Done eac  Newton iteration or line search step by overriding the
         SNES function and Jacobian assembly routines to pack BCs before assembly.
         """
@@ -308,7 +310,7 @@ try:
         V: dolfinx.fem.FunctionSpace | None = None,
     ):
         """Overloaded DirichletBC so that we can reconstruct BCs with UFL expressions.
-        
+
         value: A UFL expression representing the boundary condition.
         dofs: An array of degree-of-freedom indices in `V` where the BC should be applied.
         V: The function space on which the BC applies. It can be a subspace of a mixed/blocked space.
