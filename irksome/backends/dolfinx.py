@@ -620,6 +620,7 @@ try:
 
         def assign(self, value):
             self.x.array[0] = self.x.array.dtype.type(value)
+            self.x.scatter_forward()
 
     class MeshConstant(object):
         def __init__(self, msh):
