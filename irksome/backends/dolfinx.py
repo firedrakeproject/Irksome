@@ -686,6 +686,7 @@ try:
                 raise ValueError(f"Cannot assemble form of rank {form.rank}")
 
     derivative = ufl.derivative
+
     def TrialFunction(function_space):
         """Create a trial function in the backend language."""
         return ufl.as_tensor(ufl.TrialFunction(function_space))
@@ -743,7 +744,22 @@ try:
         if nullspace is None:
             nspnew = None
         else:
-            raise NotImplementedError("Nullspace computation is not implemented for DOLFINx")
+            old_vecs = nullspace.getVecs()
+            tmp_func = dolfinx.fem.Function(V)
+            new_vecs = [
+                dolfinx.fem.petsc.create_vector(Vbig.ufl_sub_spaces())
+                for _ in range(len(old_vecs))
+            ]
+            for i in range(len(old_vecs)):
+                # Copy the old nullspace vector into the first stage of the new nullspace vector
+                old_vecs[i].copy(tmp_func.x.petsc_vec)
+                tmp_func.x.scatter_forward()
+                dolfinx.fem.petsc.assign(
+                    [tmp_func for j in range(num_stages)], new_vecs[i]
+                )
+            nspnew = PETSc.NullSpace().create(
+                vectors=new_vecs, comm=nullspace.getComm()
+            )
         return nspnew
 
 except ModuleNotFoundError:
