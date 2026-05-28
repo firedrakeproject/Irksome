@@ -521,6 +521,7 @@ try:
     def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
         """Create a variational problem."""
         rank = len(np.unique([arg.number() for arg in F.arguments()]))
+        prefix = kwargs.get("petsc_options_prefix", "IrkSomeSolver")
         if isinstance(u, ListTensor):
             u = u.subfunctions
         if rank == 2:
@@ -532,7 +533,7 @@ try:
                 L,
                 u,
                 bcs=bcs,
-                petsc_options_prefix="IrkSomeLinearSolver",
+                petsc_options_prefix=prefix,
                 P=aP,
                 **kwargs,
             )
@@ -541,7 +542,7 @@ try:
             return NonlinearProblem(
                 F,
                 u,
-                petsc_options_prefix="IrkSomeNonlinearSolver",
+                petsc_options_prefix=prefix,
                 bcs=bcs,
                 petsc_options=kwargs.get("solver_parameters"),
             )
@@ -555,16 +556,38 @@ try:
         """Create a variational solver that uses PETSc SNES or KSP."""
         solver_parameters = kwargs.get("solver_parameters", {})
         solver = problem.solver
-        solver_prefix = problem.solver.getOptionsPrefix()
+
+        # Update solver prefix
+        solver_prefix = solver_parameters.get(
+            "petsc_options_prefix", problem.solver.getOptionsPrefix()
+        )
+        problem._petsc_options_prefix = solver_prefix
+        problem.solver.setOptionsPrefix(solver_prefix)
+        problem.A.setOptionsPrefix(f"{solver_prefix}A_")
+        problem.b.setOptionsPrefix(f"{solver_prefix}b_")
+        problem.x.setOptionsPrefix(f"{solver_prefix}x_")
+        if problem.P_mat is not None:
+            problem.P_mat.setOptionsPrefix(f"{solver_prefix}P_mat_")
+        # Push new options with prefix, filtering out irksome-internal keys
+        petsc_opts = {
+            k: v for k, v in solver_parameters.items() if k != "petsc_options_prefix"
+        }
         opts = PETSc.Options()
         opts.prefixPush(solver_prefix)
-        for k, v in solver_parameters.items():
+        for k, v in petsc_opts.items():
             opts.setValue(k, v)
         solver.setFromOptions()
         opts.prefixPop()
         # For some strange reason delValue doesn't respect prefixes
-        for k, v in solver_parameters.items():
+        for k in petsc_opts:
             opts.delValue(f"{solver_prefix}{k}")
+
+        nullspace = kwargs.get("nullspace", None)
+        near_nullspace = kwargs.get("near_nullspace", None)
+        if nullspace is not None:
+            problem.A.setNullSpace(nullspace)
+        if near_nullspace is not None:
+            problem.A.setNearNullSpace(near_nullspace)
         return problem
 
     def get_function_space(u: ufl.Coefficient | ufl.Argument) -> ufl.FunctionSpace:
