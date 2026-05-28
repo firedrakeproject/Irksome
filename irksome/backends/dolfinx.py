@@ -76,7 +76,7 @@ try:
             # Indexed or ComponentTensor wraps the actual function
             # Get the operand and recurse
             return extract_function(expr.ufl_operands[0])
-        elif hasattr(expr, 'ufl_operands'):
+        elif hasattr(expr, "ufl_operands"):
             # Try each operand
             for op in expr.ufl_operands:
                 is_real, func = extract_function(op)
