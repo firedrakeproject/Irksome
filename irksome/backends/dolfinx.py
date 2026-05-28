@@ -402,7 +402,7 @@ try:
                 else:
                     sub_to_parent = sub_to_parent[0]
                     parent_to_sub = np.full(
-                        V.dofmap.index_map.size_local
+                        (V.dofmap.index_map.size_local + V.dofmap.index_map.num_ghosts)
                         * V.dofmap.index_map_bs,
                         -1,
                         dtype=np.int32,
