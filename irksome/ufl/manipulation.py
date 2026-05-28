@@ -11,6 +11,9 @@ from itertools import chain
 from operator import or_
 from typing import NamedTuple, Sequence, FrozenSet
 
+from ufl import derivative
+from ufl.algorithms import expand_derivatives
+from ufl.algorithms.analysis import extract_coefficients, extract_type
 from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.corealg.dag_traverser import DAGTraverser
 from ufl.classes import (
@@ -23,7 +26,46 @@ from ufl.classes import (
 
 from .deriv import TimeDerivative
 
-__all__ = ("SplitTimeForm", "check_integrals", "split_time_derivative_terms", "remove_time_derivatives")
+__all__ = ("SplitTimeForm", "check_integrals", "split_time_derivative_terms",
+           "remove_time_derivatives", "has_nonlinear_time_derivative")
+
+
+def has_nonlinear_time_derivative(F, u0):
+    """True iff ``F`` contains a TimeDerivative of an expression that is
+    nonlinear in u0 -- i.e. ``Dt(g(u0))`` for some nonlinear g.  These
+    cases lose mass conservation when chain-ruled through the
+    stage-derivative form, and require the conservative two-evaluation
+    discretisation.
+
+    For each ``Dt(f)`` in the form, the Gateaux derivative of ``f`` with
+    respect to ``u0`` is taken in a trial direction.  If the derivative
+    still depends on ``u0``, ``f`` is nonlinear in u0.  This delegates
+    the classification of linear operators (Grad, Div, Indexed,
+    restrictions, ListTensor, ComponentTensor, ...) to UFL's own
+    derivative machinery rather than maintaining a parallel exemption
+    list inside Irksome.
+
+    .. warning::
+
+       The detection is syntactic: it checks whether ``u0`` appears
+       under ``Dt`` after differentiation.  If a user creates an
+       intermediate :class:`~firedrake.Function` whose values were
+       interpolated from an expression in u0 and then writes
+       ``Dt(that_intermediate)``, the syntactic dependence on u0 is
+       lost and this function will declare the form safe.  The
+       resulting discretisation is *not* mass-conservative.  Always
+       wrap the symbolic expression directly in ``Dt`` (as
+       ``Dt(theta(u))``, not ``Dt(theta_function)``).
+    """
+    for td in extract_type(F, TimeDerivative):
+        f, = td.ufl_operands
+        if u0 not in extract_coefficients(f):
+            # Dt(f(t,x)) -- no u0 dependence, chain-ruled analytically
+            continue
+        D = expand_derivatives(derivative(f, u0))
+        if u0 in extract_coefficients(D):
+            return True
+    return False
 
 
 class SplitTimeForm(NamedTuple):

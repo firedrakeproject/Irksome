@@ -27,12 +27,13 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
     # used similarly in the variational form
     MC = MeshConstant(V.mesh(), backend=backend)
     if kgac is None:
-        k = backend_cls.Function(V)
+        k0 = backend_cls.Function(V)
         g = backend_cls.Function(V)
         a = MC.Constant(1.0)
         c = MC.Constant(1.0)
     else:
-        k, g, a, c = kgac
+        k0, g, a, c = kgac
+    k = k0 if u0 == u else u
 
     repl = {t: t + c * dt,
             u: g + k * (a * dt),
@@ -60,7 +61,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
             gdat /= d_val * dt
             bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k, g, a, c), bcnew, (a_vals, d_val)
+    return stage_F, (k0, g, a, c), bcnew, (a_vals, d_val)
 
 
 class DIRKTimeStepper:
@@ -128,8 +129,7 @@ class DIRKTimeStepper:
         stage_Jp = None
         if Fp is not None:
             Fp_linear = len(Fp.arguments()) == 2
-            ks_Fp = Fp.arguments()[1] if Fp_linear else self.ks
-            stage_Fp, *_ = self.get_form_and_bcs(ks_Fp, F=Fp, bcs=())
+            stage_Fp, *_ = self.get_form_and_bcs(self.ks, F=Fp, bcs=())
             stage_Jp = lhs(stage_Fp) if Fp_linear else backend_cls.derivative(stage_Fp, k)
 
         appctx_irksome = {"stepper": self}
@@ -146,6 +146,10 @@ class DIRKTimeStepper:
             restrict=kwargs.pop("restrict", False),
             constant_jacobian=kwargs.pop("constant_jacobian", False),
         )
+        constant_jacobian = kwargs.pop("constant_jacobian", False)
+        if constant_jacobian:
+            raise ValueError("Cannot set constant_jacobian=True on a DIRK")
+
         self.solver = backend_cls.create_variational_solver(
             self.problem, appctx=appctx,
             nullspace=nullspace,

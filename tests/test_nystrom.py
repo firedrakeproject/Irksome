@@ -1,7 +1,7 @@
 import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, VectorFunctionSpace, assemble, cos, div, dx,
-                       norm, grad, inner, pi, project, sin, split)
+                       TestFunction, TrialFunction, UnitIntervalMesh, VectorFunctionSpace,
+                       assemble, cos, div, dx, norm, grad, inner, pi, project, sin, split)
 from irksome import Dt, ExplicitNystromTimeStepper, GaussLegendre, MeshConstant, DIRKNystromTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
 
 
@@ -193,11 +193,12 @@ def mixed_wave(n, deg, time_stages):
     z = Function(z0)  # copy
     zt = Function(Z)
 
-    sigma, u = split(z)
+    # Test LinearVariationalSolver interface
     tau, v = split(TestFunction(Z))
-
+    sigma, u = split(TrialFunction(Z))
     F = inner(Dt(u, 2), v) * dx + inner(div(sigma), v) * dx + inner(u, div(tau)) * dx - inner(sigma, tau)*dx
 
+    sigma, u = split(z)
     sigmat, ut = split(zt)
     E = 0.5 * inner(ut, ut) * dx + 0.5 * inner(sigma, sigma) * dx
 
