@@ -1,5 +1,5 @@
 import pytest
-
+import gc
 
 from mpi4py import MPI
 from petsc4py import PETSc
@@ -15,7 +15,7 @@ from irksome.tools import AI
 dolfinx = pytest.importorskip("dolfinx")
 
 
-@pytest.mark.parametrize("num_stages", [1, 2, 3])
+@pytest.mark.parametrize("num_stages", [1, 2, 3, 4])
 def test_stokes(num_stages):
     butcher_tableau = GaussLegendre(num_stages=num_stages)
 
@@ -34,7 +34,7 @@ def test_stokes(num_stages):
     dt = MC.Constant(1.0 / N)
     (x, y) = SpatialCoordinate(msh)
 
-    Q, Q_to_W = W.sub(1).collapse()
+    _, Q_to_W = W.sub(1).collapse()
     nsp = dolfinx.fem.Function(W)
     nsp.x.array[Q_to_W] = 1
     nullspace = [nsp.x]
@@ -82,9 +82,7 @@ def test_stokes(num_stages):
     solver_parameters = {
         "ksp_type": "preonly",
         "pc_type": "lu",
-        # "snes_monitor": None,
         "snes_error_if_not_converged": True,
-        # "ksp_monitor": None,
         "snes_max_iter": 50,
         "pc_factor_mat_solver_type": "mumps",
         "ksp_error_if_not_converged": True,
@@ -95,10 +93,6 @@ def test_stokes(num_stages):
         "snes_rtol": 1e-8,
         "petsc_options_prefix": f"IrkSomeStokesSolver{num_stages}",
     }
-    print(
-        f"Rank {MPI.COMM_WORLD.rank}: {solver_parameters['petsc_options_prefix']} {num_stages=}",
-        flush=True,
-    )
     linear_stepper = StageDerivativeTimeStepper(
         F,
         butcher_tableau,
@@ -110,13 +104,12 @@ def test_stokes(num_stages):
         bc_type="DAE",
         splitting=AI,
         solver_parameters=solver_parameters,
-        # nullspace=nsp,
+        nullspace=nsp,  # Nullspace doesn't do anything for this solver setup, but we include it to check the code path
         backend="dolfinx",
     )
-
     z0 = z.sub(0).collapse()
 
-    V, vel_to_mixed = W.sub(0).collapse()
+    _, vel_to_mixed = W.sub(0).collapse()
 
     end_time = 1.0
     while float(t) < end_time - 1e-10:
@@ -126,10 +119,11 @@ def test_stokes(num_stages):
             dt.assign(end_time - float(t))
 
         linear_stepper.advance()
-
         t.assign(float(t) + float(dt))
         z0.x.array[:] = z.x.array[vel_to_mixed]
         z0.x.scatter_forward()
 
         error = norm(z0 - uexact, norm_type="L2", mesh=msh)
         assert error < 1e-10, f"Error {error} exceeds tolerance at timestep {float(t)}"
+    del linear_stepper
+    gc.collect()
