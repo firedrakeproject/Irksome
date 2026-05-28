@@ -264,37 +264,80 @@ try:
                 jit_options=jit_options,
                 entity_maps=entity_maps,
             )
-            _vec, (current_func, args, kargs) = self.solver.getFunction()
+            self._bcs = bcs
 
             def assemble_residual(
-                    _snes: PETSc.SNES,  # type: ignore[name-defined]
-                    x: PETSc.Vec,  # type: ignore[name-defined]
-                    b: PETSc.Vec,  # type: ignore[name-defined]
-                    u: dolfinx.fem.Function | Sequence[dolfinx.fem.Function],
-                    residual: dolfinx.fem.Form | Sequence[dolfinx.fem.Form],
-                    jacobian: dolfinx.fem.Form | Sequence[Sequence[dolfinx.fem.Form]],
-                    bcs: Sequence[dolfinx.fem.DirichletBC],
-                    _blocks: tuple[tuple[int, int, int], ...] | None = None,):
+                _snes: PETSc.SNES,  # type: ignore[name-defined]
+                x: PETSc.Vec,  # type: ignore[name-defined]
+                b: PETSc.Vec,  # type: ignore[name-defined]
+                u: dolfinx.fem.Function | Sequence[dolfinx.fem.Function],
+                residual: dolfinx.fem.Form | Sequence[dolfinx.fem.Form],
+                jacobian: dolfinx.fem.Form | Sequence[Sequence[dolfinx.fem.Form]],
+                bcs: Sequence[dolfinx.fem.DirichletBC],
+                _blocks: tuple[tuple[int, int, int], ...] | None = None,
+            ):
+
                 [bc.pack() for bc in bcs]
-                current_func(_snes, x, b, u, residual, jacobian, bcs, _blocks)
+                # Cover single stage problems where _blocks is None
+                dolfinx.fem.petsc.assemble_residual(
+                    _snes, x, b, u, residual, jacobian, bcs, _blocks
+                )
 
-            self.solver.setFunction(assemble_residual, _vec, args=args, kargs=kargs)
-
-            _jac, _jacP, (current_jac, args, kargs) = self.solver.getJacobian()
+            if isinstance(u, Sequence) and len(u) == 1:
+                assert len(self.F) == 1 and len(self.J) == 1 and len(self.J[0]) == 1
+                kargs = {
+                    "u": u[0],
+                    "residual": self.F[0],
+                    "jacobian": self.J[0][0],
+                    "bcs": self._bcs,
+                    "_blocks": self.b.getAttr("_blocks"),
+                }
+                jac_kargs = {
+                    "u": u[0],
+                    "jacobian": self.J[0][0],
+                    "bcs": self._bcs,
+                    "preconditioner": self._preconditioner,
+                }
+                if self._P_mat is not None:
+                    assert (
+                        len(self._preconditioner) == 1
+                        and len(self._preconditioner[0]) == 1
+                    )
+            else:
+                kargs = {
+                    "u": u,
+                    "residual": self.F,
+                    "jacobian": self.J,
+                    "bcs": self._bcs,
+                    "_blocks": self.b.getAttr("_blocks"),
+                }
+                jac_kargs = {
+                    "u": u,
+                    "jacobian": self.J,
+                    "bcs": self._bcs,
+                    "preconditioner": self._preconditioner,
+                }
+            self.solver.setFunction(assemble_residual, self.b, kargs=kargs)
 
             def assemble_jacobian(
-                    _snes: PETSc.SNES,  # type: ignore[name-defined]
-                    x: PETSc.Vec,  # type: ignore[name-defined]
-                    J: PETSc.Mat,  # type: ignore[name-defined]
-                    P_mat: PETSc.Mat,  # type: ignore[name-defined]
-                    u: Sequence[dolfinx.fem.Function] | dolfinx.fem.Function,
-                    jacobian: dolfinx.fem.Form | Sequence[Sequence[dolfinx.fem.Form]],
-                    preconditioner: dolfinx.fem.Form | Sequence[Sequence[dolfinx.fem.Form]] | None,
-                    bcs: Sequence[dolfinx.fem.DirichletBC],
+                _snes: PETSc.SNES,  # type: ignore[name-defined]
+                x: PETSc.Vec,  # type: ignore[name-defined]
+                J: PETSc.Mat,  # type: ignore[name-defined]
+                P_mat: PETSc.Mat,  # type: ignore[name-defined]
+                u: Sequence[dolfinx.fem.Function] | dolfinx.fem.Function,
+                jacobian: dolfinx.fem.Form | Sequence[Sequence[dolfinx.fem.Form]],
+                preconditioner: dolfinx.fem.Form
+                | Sequence[Sequence[dolfinx.fem.Form]]
+                | None,
+                bcs: Sequence[dolfinx.fem.DirichletBC],
             ):
                 [bc.pack() for bc in bcs]
-                current_jac(_snes, x, J, P_mat, u, jacobian, preconditioner, bcs)
-            self.solver.setJacobian(assemble_jacobian, _jac, _jacP, args=args, kargs=kargs)
+                dolfinx.fem.petsc.assemble_jacobian(
+                    _snes, x, J, P_mat, u, jacobian, preconditioner, bcs
+                )
+            self.solver.setJacobian(
+                assemble_jacobian, self.A, self.P_mat, kargs=jac_kargs
+            )
 
         def solve(self, bounds=None):
             if bounds is not None:
