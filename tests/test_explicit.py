@@ -49,7 +49,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
     F = (
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
-        - inner(rhs, v) * dx
+        - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     )
     bc = [
         DirichletBC(V, u_1, 2),
@@ -64,7 +64,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         stage_type="explicit"
     )
 
-    bnd_error = inner(u-uexact, u-uexact) * ds
+    bnd_error = inner(u-uexact, u-uexact) * ds(metadata={"max_quadrature_degree": 4})
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:

@@ -41,7 +41,7 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
     v = TestFunction(V)
     u_init = Function(V)
 
-    G = inner(u_init - uexact, v) * dx
+    G = inner(u_init - uexact, v) * dx(metadata={"max_quadrature_degree": 4})
 
     nlvp = NonlinearVariationalProblem(G, u_init)
     nlvs = NonlinearVariationalSolver(nlvp, solver_parameters=vi_params)
@@ -58,7 +58,7 @@ def heat(butcher_tableau, basis_type, bounds_type, **kwargs):
 
     v_c = TestFunction(V)
 
-    F_c = (inner(Dt(u_c), v_c) * dx + inner(grad(u_c), grad(v_c)) * dx - inner(rhs, v_c) * dx)
+    F_c = (inner(Dt(u_c), v_c) * dx + inner(grad(u_c), grad(v_c)) * dx - inner(rhs, v_c) * dx(metadata={"max_quadrature_degree": 4}))
 
     bounds = (bounds_type, lb, ub)
 
@@ -120,12 +120,12 @@ def heat_BC(N, butcher_tableau):
 
     u = Function(V)
     v = TestFunction(V)
-    G = inner(u - uexact, v) * dx
+    G = inner(u - uexact, v) * dx(metadata={"max_quadrature_degree": 4})
     nlvp = NonlinearVariationalProblem(G, u)
     nlvs = NonlinearVariationalSolver(nlvp, solver_parameters=vi_params)
     nlvs.solve(bounds=(lb, ub))
 
-    F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(rhs, v) * dx)
+    F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4}))
 
     kwargs = {"stage_type": "value",
               "bounds": bounds,
@@ -141,7 +141,7 @@ def heat_BC(N, butcher_tableau):
         stepper.advance()
         t.assign(float(t) + float(dt))
 
-    return assemble(inner(u - uexact, u - uexact) * ds)**0.5
+    return assemble(inner(u - uexact, u - uexact) * ds(metadata={"max_quadrature_degree": 4}))**0.5
 
 
 def wave_H1(butcher_tableau):

@@ -39,7 +39,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
     F = (
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
-        - inner(rhs, v) * dx
+        - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     )
     bcs = [
         DirichletBC(V, u_1, 2),
@@ -51,7 +51,7 @@ def test_1d_heat_dirichletbc(order, basis_type):
     scheme = DiscontinuousGalerkinScheme(order, basis_type)
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams)
 
-    bnd_error = inner(u-uexact, u-uexact) * ds
+    bnd_error = inner(u-uexact, u-uexact) * ds(metadata={"max_quadrature_degree": 4})
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -85,7 +85,7 @@ def test_1d_heat_neumannbc(order, quadrature_degree):
     F = (
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
-        - inner(rhs, v) * dx
+        - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     )
     F_Radau = replace(F, {u: u_Radau})
 
@@ -130,7 +130,7 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     F = (
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
-        - inner(rhs, v) * dx
+        - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     )
     F_Radau = replace(F, {u: u_Radau})
 

@@ -59,12 +59,12 @@ def compare_scalar_heat(N, butcher_tableau):
     u.interpolate(uexact)
 
     v = TestFunction(V)
-    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx
+    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx(metadata={"max_quadrature_degree": 4})
 
     u_adapt = Function(V)
     u_adapt.interpolate(uexact)
 
-    F_adapt = inner(Dt(u_adapt), v)*dx + inner(grad(u_adapt), grad(v))*dx - inner(rhs, v)*dx
+    F_adapt = inner(Dt(u_adapt), v)*dx + inner(grad(u_adapt), grad(v))*dx - inner(rhs, v)*dx(metadata={"max_quadrature_degree": 4})
 
     bc = DirichletBC(V, uexact, "on_boundary")
 

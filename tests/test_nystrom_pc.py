@@ -13,7 +13,7 @@ def Fubc(V, t, uexact):
     u.interpolate(uexact)
     v = TestFunction(V)
     rhs = Dt(uexact, 2) - div(grad(uexact)) - uexact * (1-uexact)
-    F = inner(Dt(u, 2), v)*dx + inner(grad(u), grad(v))*dx - inner(u*(1-u), v)*dx - inner(rhs, v)*dx
+    F = inner(Dt(u, 2), v)*dx + inner(grad(u), grad(v))*dx - inner(u*(1-u), v)*dx - inner(rhs, v)*dx(metadata={"max_quadrature_degree": 4})
 
     bc = DirichletBC(V, uexact, "on_boundary")
 

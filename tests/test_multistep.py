@@ -40,7 +40,7 @@ def heat_problem(msh=None, N=16, spatial_basis='Lagrange'):
 
     u = Function(V).interpolate(uexact)
     v = TestFunction(V)
-    F_semi = inner(Dt(u), v) * dx - (inner(rhs, v) * dx - inner(grad(u), grad(v)) * dx)
+    F_semi = inner(Dt(u), v) * dx - (inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4}) - inner(grad(u), grad(v)) * dx)
 
     return V, t, dt, v, u, uexact, rhs, bc, F_semi
 
@@ -111,9 +111,9 @@ def heat_cust_hand(msh, N, spatial_basis):
     rhsu0 = replace(rhs, {t: t - 5 * dt})
 
     F_cust = (inner(u, v) * dx - 0.5 * inner(u3, v) * dx - 0.5 * inner(u2, v) * dx
-              - (dt * ((3.0 / 4.0) * (inner(rhsu4, v) * dx - inner(grad(u4), grad(v)) * dx)
-                       + (3.0 / 4.0) * (inner(rhsu3, v) * dx - inner(grad(u3), grad(v)) * dx)
-                       + (- 1.0 / 2.0) * (inner(rhsu0, v) * dx - inner(grad(u0), grad(v)) * dx))))
+              - (dt * ((3.0 / 4.0) * (inner(rhsu4, v) * dx(metadata={"max_quadrature_degree": 4}) - inner(grad(u4), grad(v)) * dx)
+                       + (3.0 / 4.0) * (inner(rhsu3, v) * dx(metadata={"max_quadrature_degree": 4}) - inner(grad(u3), grad(v)) * dx)
+                       + (- 1.0 / 2.0) * (inner(rhsu0, v) * dx(metadata={"max_quadrature_degree": 4}) - inner(grad(u0), grad(v)) * dx))))
 
     stepper_prob = NonlinearVariationalProblem(F_cust, u, bcs=bc)
     stepper = NonlinearVariationalSolver(stepper_prob)

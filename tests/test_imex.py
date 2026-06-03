@@ -23,7 +23,7 @@ def convdiff_neumannbc(butcher_tableau, order, N, labeled=False):
     Fimp = (
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
-        - inner(rhs, v) * dx
+        - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     )
     Fexp = inner(u.dx(0), v)*dx
 
@@ -105,7 +105,7 @@ def heat_dirichletbc(butcher_tableau):
         inner(Dt(w), v) * dx
         + inner(grad(w), grad(v)) * dx
     )
-    Fexp = -inner(rhs, v) * dx
+    Fexp = -inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
 
     bc = [
         DirichletBC(V, u_1, 2),
@@ -121,7 +121,7 @@ def heat_dirichletbc(butcher_tableau):
         constant_jacobian=True,
     )
 
-    bnd_error = inner(u-uexact, u-uexact) * ds
+    bnd_error = inner(u-uexact, u-uexact) * ds(metadata={"max_quadrature_degree": 4})
     t_end = 2.0
     while float(t) < t_end:
         print("Current time: ", float(t))
@@ -163,7 +163,7 @@ def vecconvdiff_neumannbc(butcher_tableau, order, N):
     F = (
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
-        - inner(rhs, v) * dx
+        - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     )
     Fexp = inner(u.dx(0), v)*dx
 
@@ -220,7 +220,7 @@ def mixed_convdiff(butcher_tableau, order, N):
     rhs = Dt(pexact) - div(grad(pexact)) - c*pexact.dx(0)
 
     bc = DirichletBC(Z.sub(0), 0, "on_boundary")
-    F = inner(Dt(p), w) * dx + inner(u.dx(0), w) * dx + inner(u, v) * dx - inner(p, v.dx(0)) * dx - inner(rhs, w) * dx
+    F = inner(Dt(p), w) * dx + inner(u.dx(0), w) * dx + inner(u, v) * dx - inner(p, v.dx(0)) * dx - inner(rhs, w) * dx(metadata={"max_quadrature_degree": 4})
     Fexp = c * inner(u, w) * dx
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}

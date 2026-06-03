@@ -124,9 +124,9 @@ def test_mixed_heat_twoways():
     n = FacetNormal(msh)
 
     F = (inner(Dt(u), w) * dx + inner(div(q), w) * dx
-         + inner(q, v) * dx - inner(u, div(v)) * dx - inner(u_exact, dot(v, n))*ds)
+         + inner(q, v) * dx - inner(u, div(v)) * dx - inner(u_exact, dot(v, n))*ds(metadata={"max_quadrature_degree": 4}))
     F2 = (inner(Dt(u2), w) * dx + inner(div(q2), w) * dx
-          + inner(q2, v) * dx - inner(u2, div(v)) * dx - inner(u_exact, dot(v, n))*ds)
+          + inner(q2, v) * dx - inner(u2, div(v)) * dx - inner(u_exact, dot(v, n))*ds(metadata={"max_quadrature_degree": 4}))
 
     bc = DirichletBC(Z.sub(0), q_exact, "on_boundary")
 

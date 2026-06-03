@@ -38,7 +38,7 @@ def run_1d_heat_dirichletbc(scheme, **kwargs):
     F = (
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
-        - inner(rhs, v) * dx
+        - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     )
     bcs = [
         DirichletBC(V, u_1, 2),
@@ -49,7 +49,7 @@ def run_1d_heat_dirichletbc(scheme, **kwargs):
 
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams, **kwargs)
 
-    bnd_error = inner(u-uexact, u-uexact) * ds
+    bnd_error = inner(u-uexact, u-uexact) * ds(metadata={"max_quadrature_degree": 4})
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -101,7 +101,7 @@ def test_1d_heat_neumannbc(order, quad_degree):
     F = (
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
-        - inner(rhs, v) * dx
+        - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     )
     F_GL = replace(F, {u: u_GL})
 
@@ -146,7 +146,7 @@ def test_1d_heat_homogeneous_dirichletbc(order):
     F = (
         inner(Dt(w), v) * dx
         + inner(grad(w), grad(v)) * dx
-        - inner(rhs, v) * dx
+        - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     )
 
     sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
@@ -196,7 +196,7 @@ def test_1d_heat_homogeneous_dirichletbc_timequadlabels(order):
 
     F0 = inner(Dt(u), v) * dx
     F1 = inner(grad(u), grad(v)) * dx
-    F2 = inner(rhs, v) * dx
+    F2 = inner(rhs, v) * dx(metadata={"max_quadrature_degree": 4})
     F = Llow(F0) + F1 - Lhigh(F2)
 
     sparams = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
