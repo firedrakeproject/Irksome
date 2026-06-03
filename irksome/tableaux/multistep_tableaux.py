@@ -10,10 +10,11 @@ class MultistepTableau(object):
     :arg a: a 1d array containing the coefficients of the previous steps
     :arg b: a 1d array containing the weights of the right hand side of the method
     """
-    def __init__(self, a, b):
+    def __init__(self, a, b, order=None):
 
         self.a = a
         self.b = b
+        self.order = order
 
     @property
     def num_total_steps(self):
@@ -33,23 +34,28 @@ class MultistepTableau(object):
     def is_implicit(self):
         return not self.is_explicit
 
+    def __repr__(self):
+        return type(self).__name__ + \
+            f"({'' if self.order is None else self.order})"
+
+
 
 class BDF(MultistepTableau):
     def __init__(self, order):
         a, b = get_weights_BDF(order)
-        super().__init__(a, b)
+        super().__init__(a, b, order)
 
 
 class AdamsMoulton(MultistepTableau):
     def __init__(self, order):
         a, b = get_weights_AM(order)
-        super().__init__(a, b)
+        super().__init__(a, b, order)
 
 
 class AdamsBashforth(MultistepTableau):
     def __init__(self, order):
         a, b = get_weights_AB(order)
-        super().__init__(a, b)
+        super().__init__(a, b, order)
 
 
 def get_weights_BDF(order):
