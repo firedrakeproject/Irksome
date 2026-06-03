@@ -39,7 +39,6 @@ class MultistepTableau(object):
             f"({'' if self.order is None else self.order})"
 
 
-
 class BDF(MultistepTableau):
     def __init__(self, order):
         a, b = get_weights_BDF(order)
