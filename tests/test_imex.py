@@ -220,7 +220,7 @@ def mixed_convdiff(butcher_tableau, order, N):
     rhs = Dt(pexact) - div(grad(pexact)) - c*pexact.dx(0)
 
     bc = DirichletBC(Z.sub(0), 0, "on_boundary")
-    F = inner(Dt(p), w) * dx + inner(u.dx(0), w) * dx + inner(u, v) * dx - inner(p, v.dx(0)) * dx - inner(rhs, w) * dx(metadata={"max_quadrature_degree": 4})
+    F = inner(Dt(p), w) * dx + inner(u.dx(0), w) * dx + inner(u, v) * dx - inner(p, v.dx(0)) * dx - inner(rhs, w) * dx(metadata={"max_quadrature_degree": 2*(order - 1)})
     Fexp = c * inner(u, w) * dx
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}

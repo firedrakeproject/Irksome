@@ -49,7 +49,7 @@ def run_1d_heat_dirichletbc(scheme, **kwargs):
 
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs, solver_parameters=sparams, **kwargs)
 
-    bnd_error = inner(u-uexact, u-uexact) * ds(metadata={"max_quadrature_degree": 4})
+    bnd_error = inner(u-uexact, u-uexact) * ds(metadata={"max_quadrature_degree": 8})
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:

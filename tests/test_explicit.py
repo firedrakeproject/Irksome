@@ -64,7 +64,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         stage_type="explicit"
     )
 
-    bnd_error = inner(u-uexact, u-uexact) * ds(metadata={"max_quadrature_degree": 4})
+    bnd_error = inner(u-uexact, u-uexact) * ds(metadata={"max_quadrature_degree": 8})
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:

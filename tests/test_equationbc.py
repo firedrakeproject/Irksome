@@ -95,7 +95,7 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
     u, sigma = split(sln)
 
     v, tau = TestFunctions(Z)
-    F = (inner(Dt(u) + div(sigma), v)*dx - inner(rhs, v)*dx(metadata={"max_quadrature_degree": 4})
+    F = (inner(Dt(u) + div(sigma), v)*dx - inner(rhs, v)*dx(metadata={"max_quadrature_degree": 10})
          + inner(sigma, tau)*dx - inner(u, div(tau))*dx)
 
     bc = EquationBC(inner(u + (u ** 2) - dot(sigma, nml) - bdrydata, dot(tau, nml)) * ds(metadata={"max_quadrature_degree": 4}) == 0, sln, (1, 2, 3, 4), V=Z.sub(1))
@@ -138,10 +138,10 @@ def test_2d_equation_and_dirichlet_bc(butcher_tableau, stage_type):
     u = Function(V)
     v = TestFunction(V)
 
-    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx(metadata={"max_quadrature_degree": 4})
+    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(rhs, v)*dx(metadata={"max_quadrature_degree": 8})
 
     bc0 = DirichletBC(V, uexact, ((1, 3), (1, 4), (2, 3), (2, 4)))
-    bc1 = EquationBC(inner((u ** 2) - (uexact ** 2), v) * ds((1, 2), metadata={"max_quadrature_degree": 4}) == 0, u, (1, 2), bcs=[bc0])
+    bc1 = EquationBC(inner((u ** 2) - (uexact ** 2), v) * ds((1, 2), metadata={"max_quadrature_degree": 10}) == 0, u, (1, 2), bcs=[bc0])
     bc2 = DirichletBC(V, uexact, (3, 4))
 
     params = {"snes_rtol": 1e-12, "snes_atol": 1e-12, "ksp_type": "preonly", "pc_type": "lu"}
@@ -164,4 +164,4 @@ def test_2d_equation_and_dirichlet_bc(butcher_tableau, stage_type):
     assert diff.at([1, 1]) < 1e-10
 
     # Check that the BCs from bc1, bc2 are satisfied
-    assert sqrt(assemble(((u - uexact) ** 2) * ds((1, 2, 3, 4), metadata={"max_quadrature_degree": 4}))) < 1e-6
+    assert sqrt(assemble(((u - uexact) ** 2) * ds((1, 2, 3, 4), metadata={"max_quadrature_degree": 10}))) < 1e-6
