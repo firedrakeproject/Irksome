@@ -1,7 +1,7 @@
 from FIAT import (Bernstein, DiscontinuousLagrange,
                   GaussRadau, IntegratedLegendre, Lagrange,
                   NodalEnrichedElement, RestrictedElement)
-from ufl.classes import Index, IndexSum, MultiIndex, Zero
+from ufl.classes import Index, IndexSum, Zero
 from ufl import as_ufl, as_tensor
 
 from .base_time_stepper import StageCoupledTimeStepper
@@ -108,7 +108,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
             v: as_tensor(vsub)[q],
             u: as_tensor(usub)[q],
             dtu: as_tensor(dtusub)[q] / dt}
-    Fnew = IndexSum(replace(F, repl), MultiIndex((q,)))
+    Fnew = IndexSum(replace(F, repl), q)
     return Fnew
 
 

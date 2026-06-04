@@ -5,7 +5,7 @@ from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
 from ufl import as_tensor, as_ufl
-from ufl.classes import Index, IndexSum, MultiIndex
+from ufl.classes import Index, IndexSum
 
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
@@ -121,8 +121,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     repl_new = {t: t + as_tensor(c)[s] * dt,
                 v: as_tensor(A2invTv)[s],
                 u: as_tensor(w_np)[s]}
-    # Evaluate g at the old solution u0 (not substituted) and
-    # old time t (not substituted).
+    # Evaluate g at the old solution u0 and old time t (not substituted).
     repl_old = {v: as_tensor(A2invTv)[s], u: u0}
     Fnew = replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
 
@@ -132,7 +131,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
             v: as_tensor(A1Tv)[s],
             u: as_tensor(w_np)[s]}
     Fnew += replace(F_remainder, repl)
-    Fnew = IndexSum(Fnew, MultiIndex((s,)))
+    Fnew = IndexSum(Fnew, s)
 
     if bcs is None:
         bcs = []
