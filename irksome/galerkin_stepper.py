@@ -104,12 +104,11 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
 
     # now loop over quadrature points
     q = Index()
-    tnew = qpts * dt
-    tnew += t
+    tnew = qpts * dt + vecconst(np.ones(qpts.shape)) * t
     repl = {t: as_tensor(tnew)[q],
-            v: as_tensor(vsub)[q],
-            u: as_tensor(usub)[q],
-            dtu: as_tensor(dtusub)[q] / dt}
+            v: as_tensor(vsub)[q, ...],
+            u: as_tensor(usub)[q, ...],
+            dtu: as_tensor(dtusub)[q, ...] / dt}
     Fnew = IndexSum(replace(F, repl), q)
     return Fnew
 

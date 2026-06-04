@@ -96,12 +96,11 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
         usub[:, aux_components] = dtusub[:, aux_components] * dt
 
     s = Index()
-    tnew = c * dt
-    tnew += t
+    tnew = c * dt + vecconst(numpy.ones(c.shape)) * t
     repl = {t: as_tensor(tnew)[s],
-            v: as_tensor(v_np)[s],
-            u: as_tensor(usub)[s],
-            dtu: as_tensor(dtusub)[s]}
+            v: as_tensor(v_np)[s, ...],
+            u: as_tensor(usub)[s, ...],
+            dtu: as_tensor(dtusub)[s, ...]}
     Fnew = IndexSum(replace(F, repl), s)
 
     if bcs is None:
