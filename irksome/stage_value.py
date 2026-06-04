@@ -5,6 +5,7 @@ from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
 from ufl import as_tensor, as_ufl
+from ufl.classes import Index, IndexSum, MultiIndex
 
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
