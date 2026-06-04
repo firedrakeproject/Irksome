@@ -104,7 +104,9 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
 
     # now loop over quadrature points
     q = Index()
-    repl = {t: t + as_tensor(qpts)[q] * dt,
+    tnew = qpts * dt
+    tnew += t
+    repl = {t: as_tensor(tnew)[q],
             v: as_tensor(vsub)[q],
             u: as_tensor(usub)[q],
             dtu: as_tensor(dtusub)[q] / dt}

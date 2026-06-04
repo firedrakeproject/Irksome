@@ -69,6 +69,10 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
     usub = dot(trial_vals.T, u_np)
     dtusub = dot(trial_dvals.T, u_np)
 
+    q = Index()
+    tnew = qpts * dt
+    tnew += t
+
     # preprocess time derivatives
     split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
     F_dtless = remove_time_derivatives(split_form.time)
@@ -102,11 +106,10 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         # Terms with time derivatives: -(g(u), Dt(v))
         test_dvals_w = vecconst(basis_dvals_w)
         dtvsub = dot(test_dvals_w.T, v_np)
-        for q in range(len(qpts)):
-            repl = {t: t + qpts[q] * dt,
-                    v: dtvsub[q],
-                    u: usub[q]}
-            Fnew -= replace(F_dtless, repl)
+        repl = {t: as_tensor(tnew)[q],
+                v: as_tensor(dtvsub)[q],
+                u: as_tensor(usub)[q]}
+        Fnew -= IndexSum(replace(F_dtless, repl), q)
         F_remainder = split_form.remainder
     else:
         raise ValueError(f"Unrecongnized deriv_type {deriv_type}")
@@ -114,8 +117,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
     # Handle the rest of the terms
     F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u,))
     dtu = TimeDerivative(u)
-    q = Index()
-    repl = {t: t + as_tensor(qpts)[q] * dt,
+    repl = {t: as_tensor(tnew)[q],
             v: as_tensor(vsub)[q],
             u: as_tensor(usub)[q],
             dtu: as_tensor(dtusub)[q] / dt}

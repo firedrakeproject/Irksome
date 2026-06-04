@@ -93,10 +93,12 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     dtusub = A2invw
     if aux_components:
         # Apply TimeDerivative substitution to auxiliary fields
-        usub[..., aux_components] = dtusub[..., aux_components] * dt
+        usub[:, aux_components] = dtusub[:, aux_components] * dt
 
     s = Index()
-    repl = {t: t + as_tensor(c)[s] * dt,
+    tnew = c * dt
+    tnew += t
+    repl = {t: as_tensor(tnew)[s],
             v: as_tensor(v_np)[s],
             u: as_tensor(usub)[s],
             dtu: as_tensor(dtusub)[s]}

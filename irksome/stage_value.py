@@ -114,11 +114,14 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
     s = Index()
+    tnew = c * dt
+    tnew += t
+
     # Terms with time derivatives: use two evaluations so that
     # Dt(g(u)) is discretised as g(U_i) - g(u0), not g(U_i - u0).
     # These are identical for linear g but differ for nonlinear g,
     # and the two-evaluation form is what gives mass conservation.
-    repl_new = {t: t + as_tensor(c)[s] * dt,
+    repl_new = {t: as_tensor(tnew)[s],
                 v: as_tensor(A2invTv)[s],
                 u: as_tensor(w_np)[s]}
     # Evaluate g at the old solution u0 and old time t (not substituted).
@@ -127,7 +130,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
 
     # Handle the rest of the terms
     # replace the solution with stage values
-    repl = {t: t + as_tensor(c)[s] * dt,
+    repl = {t: as_tensor(tnew)[s],
             v: as_tensor(A1Tv)[s],
             u: as_tensor(w_np)[s]}
     Fnew += replace(F_remainder, repl)
