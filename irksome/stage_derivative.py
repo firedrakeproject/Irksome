@@ -2,6 +2,7 @@ import numpy
 
 from petsc4py import PETSc
 from ufl import as_ufl, as_tensor, dx, inner
+from ufl.classes import Index, IndexSum, MultiIndex
 from .constant import vecconst
 from .tools import AI, dot, extract_timedep_arguments, fields_to_components, replace, reshape
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
@@ -87,21 +88,19 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     aux_components = fields_to_components(V, aux_indices or [])
 
-    repl = {}
-    for i in range(num_stages):
-        usub = u0 + as_tensor(A1w[i]) * dt
-        dtusub = A2invw[i]
-        if aux_components:
-            # Apply TimeDerivative substitution to auxiliary fields
-            usub = reshape(usub, u0.ufl_shape)
-            usub[aux_components] = dtusub[aux_components] * dt
+    usub = A1w * dt
+    usub += u0
+    dtusub = A2invw
+    if aux_components:
+        # Apply TimeDerivative substitution to auxiliary fields
+        usub[aux_components] = dtusub[aux_components] * dt
 
-        repl[i] = {t: t + c[i] * dt,
-                   v: v_np[i],
-                   u: usub,
-                   dtu: dtusub}
-
-    Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
+    i = Index()
+    repl = {t: t + as_tensor(c)[i] * dt,
+            v: as_tensor(v_np)[i],
+            u: as_tensor(usub)[i],
+            dtu: as_tensor(dtusub)[i]}
+    Fnew = IndexSum(replace(F, repl), MultiIndex((i,)))
 
     if bcs is None:
         bcs = []

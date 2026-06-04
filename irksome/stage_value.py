@@ -4,7 +4,7 @@ import numpy
 from FIAT import Bernstein, ufc_simplex
 from FIAT.barycentric_interpolation import LagrangePolynomialSet
 
-from ufl import Form, as_tensor, as_ufl
+from ufl import as_tensor, as_ufl
 
 from .bcs import stage2spaces4bc
 from .tableaux.ButcherTableaux import CollocationButcherTableau
@@ -112,27 +112,26 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     F_dtless = remove_time_derivatives(split_form.time)
     F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
-    Fnew = Form([])
+    s = Index()
     # Terms with time derivatives: use two evaluations so that
     # Dt(g(u)) is discretised as g(U_i) - g(u0), not g(U_i - u0).
     # These are identical for linear g but differ for nonlinear g,
     # and the two-evaluation form is what gives mass conservation.
-    for i in range(num_stages):
-        repl_new = {t: t + c[i] * dt,
-                    v: A2invTv[i],
-                    u: w_np[i]}
-        # Evaluate g at the old solution u0 (not substituted) and
-        # old time t (not substituted).
-        repl_old = {v: A2invTv[i], u: u0}
-        Fnew += replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
+    repl_new = {t: t + as_tensor(c)[s] * dt,
+                v: as_tensor(A2invTv)[s],
+                u: as_tensor(w_np)[s]}
+    # Evaluate g at the old solution u0 (not substituted) and
+    # old time t (not substituted).
+    repl_old = {v: as_tensor(A2invTv)[s], u: u0}
+    Fnew = replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
 
     # Handle the rest of the terms
-    for i in range(num_stages):
-        # replace the solution with stage values
-        repl = {t: t + c[i] * dt,
-                v: A1Tv[i] * dt,
-                u: w_np[i]}
-        Fnew += replace(F_remainder, repl)
+    # replace the solution with stage values
+    repl = {t: t + as_tensor(c)[s] * dt,
+            v: as_tensor(A1Tv)[s],
+            u: as_tensor(w_np)[s]}
+    Fnew += replace(F_remainder, repl)
+    Fnew = IndexSum(Fnew, MultiIndex((s,)))
 
     if bcs is None:
         bcs = []

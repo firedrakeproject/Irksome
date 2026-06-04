@@ -1,7 +1,7 @@
 from FIAT import (Bernstein, DiscontinuousLagrange,
                   GaussRadau, IntegratedLegendre, Lagrange,
                   NodalEnrichedElement, RestrictedElement)
-from ufl.classes import Zero
+from ufl.classes import Index, IndexSum, MultiIndex, Zero
 from ufl import as_ufl, as_tensor
 
 from .base_time_stepper import StageCoupledTimeStepper
@@ -103,13 +103,12 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
         usub[:, aux_components] = dot(test_vals.T, w_np[:, aux_components])
 
     # now loop over quadrature points
-    repl = {}
-    for q in range(len(qpts)):
-        repl[q] = {t: t + qpts[q] * dt,
-                   v: vsub[q] * dt,
-                   u: usub[q],
-                   dtu: dtusub[q] / dt}
-    Fnew = sum(replace(F, repl[q]) for q in repl)
+    q = Index()
+    repl = {t: t + as_tensor(qpts)[q] * dt,
+            v: as_tensor(vsub)[q],
+            u: as_tensor(usub)[q],
+            dtu: as_tensor(dtusub)[q] / dt}
+    Fnew = IndexSum(replace(F, repl), MultiIndex((q,)))
     return Fnew
 
 

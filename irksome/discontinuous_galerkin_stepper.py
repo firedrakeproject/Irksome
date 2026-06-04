@@ -2,6 +2,7 @@ from FIAT import (Bernstein,
                   DiscontinuousLagrange, Legendre,
                   GaussLobattoLegendre, GaussRadau)
 from ufl import as_ufl, as_tensor
+from ufl.classes import Index, IndexSum, MultiIndex
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import stage2spaces4bc
 from .labeling import split_quadrature, as_form
@@ -113,12 +114,12 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
     # Handle the rest of the terms
     F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u,))
     dtu = TimeDerivative(u)
-    for q in range(len(qpts)):
-        repl = {t: t + qpts[q] * dt,
-                v: vsub[q] * dt,
-                u: usub[q],
-                dtu: dtusub[q] / dt}
-        Fnew += replace(F_remainder, repl)
+    q = Index()
+    repl = {t: t + as_tensor(qpts)[q] * dt,
+            v: as_tensor(vsub)[q],
+            u: as_tensor(usub)[q],
+            dtu: as_tensor(dtusub)[q] / dt}
+    Fnew += IndexSum(replace(F_remainder, repl), MultiIndex((q,)))
     return Fnew
 
 
