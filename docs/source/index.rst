@@ -46,7 +46,12 @@ Getting started
 Irksome requires `Firedrake <https://www.firedrakeproject.org/>`__.
 Instructions for installing Firedrake can be found
 `here <https://www.firedrakeproject.org/install.html>`__.
-Once Firedrake is installed you can install Irksome by running::
+
+If you have used pip to install the release version of Firedrake, you can::
+
+   $ pip install IRKsome
+
+in your virtual environment.  If you are running the developer/main branch of Firedrake, you can also get our development branch by::
 
    $ pip install --src . --editable git+https://github.com/firedrakeproject/Irksome.git#egg=Irksome
 
