@@ -218,7 +218,6 @@ class LobattoIIIC(ButcherTableau):
                                for k in range(num_stages-1)])
             A[i, 1:] = numpy.linalg.solve(mat, rhs)
 
-        self.num_stages = num_stages
         super(LobattoIIIC, self).__init__(A, b, btilde, c, 2 * num_stages - 2, embedded_order, gamma0)
 
     def __repr__(self):
