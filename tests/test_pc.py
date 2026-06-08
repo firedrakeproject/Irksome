@@ -9,7 +9,7 @@ from firedrake import (
 from irksome import (
     Dt, DiscontinuousGalerkinCollocationScheme,
     ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme,
-    IRKAuxiliaryOperatorPC, LobattoIIIC,
+    GaussLegendre, IRKAuxiliaryOperatorPC, LobattoIIIC,
     MeshConstant, RadauIIA, TimeStepper, TimeQuadratureLabel
 )
 from irksome.tools import AI, IA
@@ -325,9 +325,10 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
         assert numpy.allclose(numpy.imag(eigs), 0)
 
 
+@pytest.mark.parametrize('quasi_newton', (False, True))
 @pytest.mark.parametrize('stage_type', ("value", "deriv"))
 @pytest.mark.parametrize('order', (1, 2))
-def test_bbm_underintegrated_preconditioner(stage_type, order):
+def test_bbm_underintegrated_preconditioner(stage_type, order, quasi_newton):
     N = 8000
     L = 100
     msh = PeriodicIntervalMesh(N, L)
@@ -374,11 +375,19 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
 
     dHdu = derivative(I3(u), u, v)
     F = h1inner(Dt(u), v)*dx + Lhigh(-dHdu(v.dx(0)))
+    scheme = GalerkinCollocationScheme(order, stage_type=stage_type)
 
-    # Drop quadrature labels to define an under-integrated preconditioner
-    Jp = as_form(F)
+    Jp = None
+    scheme_J = None
+    if quasi_newton:
+        # IRK Jacobian
+        scheme_J = GaussLegendre(order)
+    else:
+        # Drop quadrature labels to define an under-integrated preconditioner
+        Jp = as_form(F)
 
     sparams = {
+        "snes_monitor": None,
         "mat_type": "matfree",
         "pmat_type": "aij",
         "ksp_type": "gmres",
@@ -391,9 +400,10 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
         "pc_factor_mat_solver_type": "mumps",
     }
 
-    scheme = GalerkinCollocationScheme(order, stage_type=stage_type)
     stepper = TimeStepper(F, scheme, t, dt, u,
-                          Jp=Jp, solver_parameters=sparams)
+                          Jp=Jp,
+                          scheme_J=scheme_J,
+                          solver_parameters=sparams)
 
     times = [float(t)]
     functionals = (I1(u), I2(u), I3(u))

@@ -79,6 +79,10 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the RK method.
+    :kwarg J: A :class:`ufl.Form` instance with the Jacobian of the semi-discrete problem.
+    :kwarg Jp: A :class:`ufl.Form` instance to precondition the semi-discrete linearization.
+    :kwarg scheme_J: A :class:`ButcherTableau` or :class:`GalerkinScheme` to discretize the Jacobian.
+    :kwarg scheme_Jp: A :class:`ButcherTableau` or :class:`GalerkinScheme` to discretize the preconditioner.
     :kwarg constant_jacobian: A boolean flag indicating whether the Jacobian
         does not change between time steps. If ``dt`` is updated, the Jacobian
         may be flagged for an update via :func:`invalidate_jacobian`.

@@ -71,15 +71,6 @@ class MultistepTimeStepper(BaseTimeStepper):
         self.startup_parameters = startup_parameters
         self.bounds = bounds
 
-    def get_bilinear_form(self, form, u0, method=None):
-        if method is not None:
-            raise NotImplementedError("Cannot change the method for the preconditioner")
-        if form is None:
-            return form
-        Fbig, *_ = self.get_form_and_bcs(form, self.t, self.dt, u0, self.a, self.b)
-        is_bilinear = len(Fbig.arguments()) == 2
-        return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, u0)
-
     # optional method to mechanically find the required starting values via a single step method
     def startup(self):
         if self.startup_parameters is None:
@@ -137,10 +128,12 @@ class MultistepTimeStepper(BaseTimeStepper):
 
         v, u = extract_timedep_arguments(F, u0)
         V = v.function_space()
+        us = list(self.us)
+        us[-1] = u0
 
         assert V == u0.function_space()
 
-        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
         F_dtless = remove_time_derivatives(split_form.time)
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
@@ -150,11 +143,11 @@ class MultistepTimeStepper(BaseTimeStepper):
         # g(a_s * u_{n+s} + ... + a_0 * g(u_0)).
         Fnew = Form([])
         for (i, coeff) in enumerate(a):
-            Fnew += coeff * replace(F_dtless, {u: self.us[i],
+            Fnew += coeff * replace(F_dtless, {u: us[i],
                                                t: t + (i - self.num_prev_steps + 1) * dt})
         # form the right hand side
         for (i, coeff) in enumerate(b):
-            Fnew += dt * coeff * replace(F_remainder, {u: self.us[i],
+            Fnew += dt * coeff * replace(F_remainder, {u: us[i],
                                                        t: t + (i - self.num_prev_steps + 1) * dt})
         if bcs is None:
             bcs = []
@@ -168,6 +161,16 @@ class MultistepTimeStepper(BaseTimeStepper):
             bcsnew.extend(bc.reconstruct(V=bc_space, g=new_bcarg))
 
         return Fnew, bcsnew
+
+    def get_bilinear_form(self, form, u0, method=None):
+        if method is not None:
+            raise NotImplementedError("Cannot change the method for the preconditioner")
+        if form is None:
+            return form
+        _, k = extract_timedep_arguments(form, u0)
+        Fbig, *_ = self.get_form_and_bcs(form, self.t, self.dt, k, self.a, self.b)
+        is_bilinear = len(Fbig.arguments()) == 2
+        return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, k)
 
     def advance(self):
         self.solver.solve(bounds=self.bounds)

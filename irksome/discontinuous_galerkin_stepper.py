@@ -291,7 +291,9 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             el = getElement(basis_type, order)
         deriv_type = deriv_type or self.deriv_type
         max_quadrature_degree = self.max_quadrature_degree
-        return getFormDiscGalerkin(F or self.F,
+        F = F or self.F
+        F = as_form(F)
+        return getFormDiscGalerkin(F,
                                    el,
                                    quadrature or self.quadrature,
                                    self.t, self.dt, self.u0, stages,

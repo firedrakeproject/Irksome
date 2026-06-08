@@ -358,6 +358,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             else:
                 raise ValueError("Expecting a GalerkinCollocationScheme")
 
+            F = as_form(F)
             Fnew, bcnew = get_irk_form(F, tableau, self.t, self.dt, self.u0, stages,
                                        bcs=bcs, splitting=splitting, aux_indices=aux_indices)
 
