@@ -259,7 +259,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         except TypeError:
             self.butcher_tableau = None
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, scheme_F=scheme, **kwargs)
 
     def get_form_and_bcs(self, stages, F=None, bcs=None,
                          tableau=None, basis_type=None, order=None,

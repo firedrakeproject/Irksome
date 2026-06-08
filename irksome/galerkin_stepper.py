@@ -322,7 +322,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         except TypeError:
             self.butcher_tableau = None
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, **kwargs)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, scheme_F=scheme, **kwargs)
         self.set_initial_guess()
         self.set_update_expressions()
 
@@ -336,7 +336,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             basis_type = self.basis_type
         aux_indices = aux_indices or self.aux_indices
 
-        if tableau is not None:
+        if isinstance(tableau, CollocationButcherTableau):
             # Galerkin collocation is equivalent to an IRK up to row scaling
             row_scale = tableau.b
 
@@ -371,6 +371,9 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
 
             return Fnew, bcnew
 
+        if tableau is not None:
+            basis_type = tableau.basis_type
+            order = tableau.order
         if order is None:
             order = self.order
         if basis_type == self.basis_type and order == self.order:

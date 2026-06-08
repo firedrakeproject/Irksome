@@ -270,7 +270,7 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
         - inner(p_rhs, q)*dx
     )
     # Augmented Lagrangian preconditioner
-    Fp = inner(grad(u), grad(v))*dx + Llow(inner(Dt(u), v)*dx + inner(div(u), div(v))*dx + inner(p, q)*dx)
+    Jp = inner(grad(u), grad(v))*dx + Llow(inner(Dt(u), v)*dx + inner(div(u), div(v))*dx + inner(p, q)*dx)
 
     bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
 
@@ -293,7 +293,7 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
         sparams["pc_type"] = "lu"
 
     stepper = TimeStepper(F, scheme, t, dt, z,
-                          bcs=bcs, Fp=Fp,
+                          bcs=bcs, Jp=Jp,
                           solver_parameters=sparams,
                           constant_jacobian=True)
 
@@ -376,7 +376,7 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
     F = h1inner(Dt(u), v)*dx + Lhigh(-dHdu(v.dx(0)))
 
     # Drop quadrature labels to define an under-integrated preconditioner
-    Fp = as_form(F)
+    Jp = as_form(F)
 
     sparams = {
         "mat_type": "matfree",
@@ -393,7 +393,7 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
 
     scheme = GalerkinCollocationScheme(order, stage_type=stage_type)
     stepper = TimeStepper(F, scheme, t, dt, u,
-                          Fp=Fp, solver_parameters=sparams)
+                          Jp=Jp, solver_parameters=sparams)
 
     times = [float(t)]
     functionals = (I1(u), I2(u), I3(u))

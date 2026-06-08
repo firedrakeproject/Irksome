@@ -4,8 +4,8 @@ from .ufl.deriv import expand_time_derivatives
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
 from .bcs import stage2spaces4bc
-from .tools import replace
-from ufl import Form
+from .tools import extract_timedep_arguments, replace
+from ufl import lhs, Form
 from ufl.constantvalue import as_ufl
 
 
@@ -38,8 +38,10 @@ class MultistepTimeStepper(BaseTimeStepper):
             to find the required starting values.
     """
 
-    def __init__(self, F, method, t, dt, u0, bcs=None, Fp=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
-                 transpose_nullspace=None, near_nullspace=None, startup_parameters=None, backend: str = "firedrake", **kwargs):
+    def __init__(self, F, method, t, dt, u0, bcs=None, J=None, Jp=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
+                 transpose_nullspace=None, near_nullspace=None, startup_parameters=None, backend: str = "firedrake",
+                 scheme_J=None, scheme_Jp=None,
+                 **kwargs):
 
         assert isinstance(method, MultistepTableau)
 
@@ -51,15 +53,11 @@ class MultistepTimeStepper(BaseTimeStepper):
         self.us = [u0.copy(deepcopy=True) for coeff in self.a[:-1]]
         self.us.append(u0)
         Fnew, bcsnew = self.get_form_and_bcs(F, t, dt, u0, self.a, self.b, bcs=bcs)
-
-        if Fp is not None:
-            Fpnew, _ = self.get_form_and_bcs(Fp, t, dt, u0, self.a, self.b, bcs=bcs)
-            Jp = self._backend.derivative(Fpnew, self.us[-1])
-        else:
-            Jp = None
+        J = self.get_bilinear_form(J, u0, method=scheme_J)
+        Jp = self.get_bilinear_form(Jp, u0, method=scheme_Jp)
 
         self.problem = self._backend.create_variational_problem(
-            Fnew, self.us[-1], J=Jp, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
+            Fnew, self.us[-1], J=J, Jp=Jp, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False), restrict=kwargs.pop("restrict", False))
 
         self.solver = self._backend.create_variational_solver(
@@ -72,6 +70,15 @@ class MultistepTimeStepper(BaseTimeStepper):
 
         self.startup_parameters = startup_parameters
         self.bounds = bounds
+
+    def get_bilinear_form(self, form, u0, method=None):
+        if method is not None:
+            raise NotImplementedError("Cannot change the method for the preconditioner")
+        if form is None:
+            return form
+        Fbig, *_ = self.get_form_and_bcs(form, self.t, self.dt, u0, self.a, self.b)
+        is_bilinear = len(Fbig.arguments()) == 2
+        return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, u0)
 
     # optional method to mechanically find the required starting values via a single step method
     def startup(self):
@@ -128,7 +135,7 @@ class MultistepTimeStepper(BaseTimeStepper):
 
     def get_form_and_bcs(self, F, t, dt, u0, a, b, bcs=None):
 
-        v, = F.arguments()
+        v, u = extract_timedep_arguments(F, u0)
         V = v.function_space()
 
         assert V == u0.function_space()
@@ -143,11 +150,11 @@ class MultistepTimeStepper(BaseTimeStepper):
         # g(a_s * u_{n+s} + ... + a_0 * g(u_0)).
         Fnew = Form([])
         for (i, coeff) in enumerate(a):
-            Fnew += coeff * replace(F_dtless, {u0: self.us[i],
+            Fnew += coeff * replace(F_dtless, {u: self.us[i],
                                                t: t + (i - self.num_prev_steps + 1) * dt})
         # form the right hand side
         for (i, coeff) in enumerate(b):
-            Fnew += dt * coeff * replace(F_remainder, {u0: self.us[i],
+            Fnew += dt * coeff * replace(F_remainder, {u: self.us[i],
                                                        t: t + (i - self.num_prev_steps + 1) * dt})
         if bcs is None:
             bcs = []
@@ -179,4 +186,4 @@ class MultistepTimeStepper(BaseTimeStepper):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
 
 
-valid_multistep_kwargs = ("Fp", "bounds", "startup_parameters")
+valid_multistep_kwargs = ("bounds", "startup_parameters")

@@ -71,7 +71,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         manipulate these to obtain boundary conditions for each
         stage of the RK method.  Support for `EquationBC` is limited
         to the stage derivative formulation with DAE style BCs.
-    :arg Fp: A :class:`ufl.Form` instance to precondition the semi-discrete linearization.
+    :arg J: A :class:`ufl.Form` instance with the semi-discrete Jacobian.
+    :arg Jp: A :class:`ufl.Form` instance to precondition the semi-discrete linearization.
     :arg solver_parameters: An optional :class:`dict` of solver parameters that
         will be used in solving the algebraic problem associated
         with each time step.
@@ -92,19 +93,28 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     """
 
     def __init__(self, F, t, dt, u0, num_stages,
-                 bcs=None, Fp=None, solver_parameters=None,
-                 appctx=None, nullspace=None,
-                 transpose_nullspace=None, near_nullspace=None,
+                 bcs=None, J=None, Jp=None,
+                 solver_parameters=None,
+                 appctx=None,
+                 nullspace=None,
+                 transpose_nullspace=None,
+                 near_nullspace=None,
                  splitting=None, bc_type=None,
-                 butcher_tableau=None, bounds=None, sample_points=None,
+                 scheme_F=None, scheme_J=None, scheme_Jp=None,
+                 bounds=None, sample_points=None,
                  backend="firedrake", **kwargs):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, appctx=appctx, nullspace=nullspace, backend=backend)
 
         self.num_stages = num_stages
-        if butcher_tableau:
-            assert num_stages == butcher_tableau.num_stages
+        if scheme_F:
+            assert num_stages == scheme_F.num_stages
+        if scheme_J:
+            assert num_stages == scheme_J.num_stages
+        if scheme_Jp:
+            assert num_stages == scheme_Jp.num_stages
+
         if splitting is None:
             splitting = AI
         self.splitting = splitting
@@ -121,16 +131,18 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         V = u0.function_space()
         Vbig = stages.function_space()
 
-        F_linear = len(as_form(F).arguments()) == 2
-        stages_F = self._backend.TrialFunction(Vbig) if F_linear else stages
+        F_bilinear = len(as_form(F).arguments()) == 2
+        stages_F = self._backend.TrialFunction(Vbig) if F_bilinear else stages
         Fbig, bigBCs = self.get_form_and_bcs(stages_F)
 
-        Jpbig = None
-        if Fp is not None:
-            Fp_linear = len(as_form(Fp).arguments()) == 2
-            stages_Fp = self._backend.TrialFunction(Vbig) if Fp_linear else stages
-            Fpbig, _ = self.get_form_and_bcs(stages_Fp, F=Fp, bcs=())
-            Jpbig = ufl.lhs(Fpbig) if Fp_linear else self._backend.derivative(Fpbig, stages_Fp)
+        if J is None and scheme_J is not None:
+            J = F
+        if Jp is None and scheme_Jp is not None:
+            Jp = J
+        scheme_J = scheme_J or scheme_F
+        scheme_Jp = scheme_Jp or scheme_J
+        Jbig = self.get_bilinear_form(J, stages, tableau=scheme_J)
+        Jpbig = self.get_bilinear_form(Jp, stages, tableau=scheme_Jp)
 
         nullspace = getNullspace(V, Vbig, num_stages, nullspace)
         transpose_nullspace = getNullspace(V, Vbig, num_stages, transpose_nullspace)
@@ -139,7 +151,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.bigBCs = bigBCs
 
         self.problem = self._backend.create_variational_problem(
-            Fbig, stages, bcs=bigBCs, Jp=Jpbig,
+            Fbig, stages, bcs=bigBCs, J=Jbig, Jp=Jpbig,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
@@ -179,6 +191,14 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     @abstractmethod
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         pass
+
+    def get_bilinear_form(self, form, stages, tableau=None):
+        if form is None:
+            return form
+        is_bilinear = len(as_form(form).arguments()) == 2
+        ks = self._backend.TrialFunction(stages.function_space()) if is_bilinear else stages
+        abig, _ = self.get_form_and_bcs(ks, F=form, bcs=(), tableau=tableau)
+        return ufl.lhs(abig) if is_bilinear else self._backend.derivative(abig, ks)
 
     def solver_stats(self):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
