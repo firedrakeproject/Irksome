@@ -179,5 +179,9 @@ class WSODIRK(ButcherTableau):
             A, b, c = wsodict[ns, order, ws_order]
         except KeyError:
             raise NotImplementedError("No WSO DIRK method for that combination of stages, order and weak stage order")
+        self.ns = ns
         self.ws_order = ws_order
         super(WSODIRK, self).__init__(A, b, None, c, order, None, None)
+
+    def __repr__(self):
+        return f"{type(self).__name__}{self.ns, self.order, self.ws_order}"
