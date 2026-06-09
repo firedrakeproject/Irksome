@@ -62,6 +62,21 @@ def getElements(basis_type, order):
     return L_trial, L_test
 
 
+def get_elements_and_quadrature(scheme):
+    trial_el, test_el = getElements(scheme.basis_type, scheme.order)
+    quad_degree = scheme.quadrature_degree
+    if quad_degree is None:
+        quad_degree = trial_el.degree() + test_el.degree()
+    quad_scheme = scheme.quadrature_scheme
+    if quad_scheme is None and isinstance(test_el, GaussRadau):
+        quad_scheme = "radau"
+    if quad_degree == "auto":
+        quadrature = quad_scheme
+    else:
+        quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
+    return trial_el, test_el, quadrature
+
+
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend="firedrake"):
     v, u = extract_timedep_arguments(F, u0)
     backend_cls = get_backend(backend)
@@ -299,22 +314,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         V = backend_cls.get_function_space(u0)
 
         self.num_fields = len(V)
-
-        self.trial_el, self.test_el = getElements(self.basis_type, self.order)
+        self.trial_el, self.test_el, self.quadrature = get_elements_and_quadrature(scheme)
         num_stages = self.test_el.space_dimension()
-
-        quad_degree = scheme.quadrature_degree
-        if quad_degree is None:
-            quad_degree = self.trial_el.degree() + self.test_el.degree()
-        quad_scheme = scheme.quadrature_scheme
-        if quad_scheme is None and isinstance(self.test_el, GaussRadau):
-            quad_scheme = "radau"
-
-        if quad_degree == "auto":
-            quadrature = quad_scheme
-        else:
-            quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
-        self.quadrature = quadrature
         self.max_quadrature_degree = scheme.max_quadrature_degree
         self.aux_indices = aux_indices
         try:
@@ -334,6 +335,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
+        if order is None:
+            order = self.order
         aux_indices = aux_indices or self.aux_indices
 
         if isinstance(tableau, CollocationButcherTableau):
@@ -373,27 +376,20 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             return Fnew, bcnew
 
         elif isinstance(tableau, ContinuousPetrovGalerkinScheme):
-            order = tableau.order
-            basis_type = tableau.basis_type
-            quad_degree = tableau.quadrature_degree
-            quad_scheme = tableau.quadrature_scheme
-            if quad_degree == "auto":
-                quadrature = quad_scheme
+            trial_el, test_el, quadrature = get_elements_and_quadrature(tableau)
+            max_quadrature_degree = tableau.max_quadrature_degree or self.max_quadrature_degree
+
+        elif tableau is None:
+            if basis_type == self.basis_type and order == self.order:
+                trial_el = self.trial_el
+                test_el = self.test_el
             else:
-                quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
-        elif tableau is not None:
+                trial_el, test_el = getElements(basis_type, order)
+            quadrature = quadrature or self.quadrature
+            max_quadrature_degree = self.max_quadrature_degree
+        else:
             raise TypeError("Expecting CollocationButcherTableau or ContinuousPetrovGalerkinScheme")
 
-        if order is None:
-            order = self.order
-        if basis_type == self.basis_type and order == self.order:
-            trial_el = self.trial_el
-            test_el = self.test_el
-        else:
-            trial_el, test_el = getElements(basis_type, order)
-
-        quadrature = quadrature or self.quadrature
-        max_quadrature_degree = self.max_quadrature_degree
         return getFormGalerkin(F, trial_el, test_el, quadrature,
                                self.t, self.dt, self.u0, stages,
                                bcs=bcs, bc_type=self.bc_type,
