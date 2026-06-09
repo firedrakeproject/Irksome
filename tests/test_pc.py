@@ -416,7 +416,8 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
         assert numpy.allclose(iprev[2], icur[2], atol=1e-14)
 
 
-def test_git_irk_equivalence_scheme_Jp():
+@pytest.mark.parametrize("stage_type", ("value", "deriv"))
+def test_git_irk_equivalence_scheme_Jp(stage_type):
     # discretization
     N = 32
     msh = UnitSquareMesh(N, N)
@@ -439,7 +440,6 @@ def test_git_irk_equivalence_scheme_Jp():
          + inner(u**3 - u, v) * dx)
 
     time_deg = 2
-    stage_type = "value"
     scheme = GalerkinCollocationScheme(time_deg, stage_type=stage_type, quadrature_degree="auto")
 
     def run(solver_parameters, **kwargs):
@@ -475,6 +475,7 @@ def test_git_irk_equivalence_scheme_Jp():
         "snes_linesearch_type": "bisection",
         "snes_divergence_tolerance": 1e12,
         "ksp_converged_reason": None,
+        "ksp_view_eigenvalues": None,
         "ksp_type": "gmres",
         "ksp_rtol": 1.e-12,
         "ksp_atol": 1.e-14,
@@ -494,13 +495,21 @@ def test_git_irk_equivalence_scheme_Jp():
         "snes_linesearch_type": "bisection",
         "snes_divergence_tolerance": 1e12,
         "ksp_converged_reason": None,
+        "ksp_view_eigenvalues": None,
         "ksp_type": "gmres",
         "ksp_rtol": 1.e-12,
         "ksp_atol": 1.e-14,
         "pc_type": "lu",
     }
     scheme_Jp = GalerkinCollocationScheme(time_deg, stage_type=stage_type)
-    aux_snes_its, aux_ksp_its = run(solver_parameters, scheme_Jp=scheme_Jp)
+
+    w = TrialFunction(V)
+    Jp = (inner(Dt(w), v) * dx
+         + eps**2 * inner(grad(w), grad(v)) * dx
+         + inner((3*u**2 - 1) * w, v) * dx)
+    # Failing if you uncomment this line
+    # Jp = None
+    aux_snes_its, aux_ksp_its = run(solver_parameters, Jp=Jp, scheme_Jp=scheme_Jp)
     assert errornorm(ubase, u) < 1E-12
     assert base_snes_its == aux_snes_its
     assert irkaux_ksp_its == aux_ksp_its

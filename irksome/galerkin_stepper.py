@@ -315,9 +315,9 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
 
         self.num_fields = len(V)
         self.trial_el, self.test_el, self.quadrature = get_elements_and_quadrature(scheme)
-        num_stages = self.test_el.space_dimension()
         self.max_quadrature_degree = scheme.max_quadrature_degree
         self.aux_indices = aux_indices
+        num_stages = self.test_el.space_dimension()
         try:
             self.butcher_tableau = CollocationButcherTableau(self.test_el, None)
         except TypeError:
