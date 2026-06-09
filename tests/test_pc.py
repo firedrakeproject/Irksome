@@ -503,13 +503,7 @@ def test_git_irk_equivalence_scheme_Jp(stage_type):
     }
     scheme_Jp = GalerkinCollocationScheme(time_deg, stage_type=stage_type)
 
-    w = TrialFunction(V)
-    Jp = (inner(Dt(w), v) * dx
-         + eps**2 * inner(grad(w), grad(v)) * dx
-         + inner((3*u**2 - 1) * w, v) * dx)
-    # Failing if you uncomment this line
-    # Jp = None
-    aux_snes_its, aux_ksp_its = run(solver_parameters, Jp=Jp, scheme_Jp=scheme_Jp)
+    aux_snes_its, aux_ksp_its = run(solver_parameters, scheme_Jp=scheme_Jp)
     assert errornorm(ubase, u) < 1E-12
     assert base_snes_its == aux_snes_its
     assert irkaux_ksp_its == aux_ksp_its

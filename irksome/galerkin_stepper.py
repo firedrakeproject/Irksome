@@ -124,6 +124,7 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
                    v: vsub[q] * dt,
                    u: usub[q],
                    dtu: dtusub[q] / dt}
+
     Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
@@ -369,9 +370,9 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                 v0 = F.arguments()[0]
                 test = Fnew.arguments()[0]
                 test_np = reshape(test, (-1, *v0.ufl_shape))
-                test_np = np.multiply(vecconst(row_scale).reshape(-1, *(1,)*len(v0.ufl_shape)), test_np)
+                test_np = np.multiply(self.dt*vecconst(row_scale).reshape(-1, *(1,)*len(v0.ufl_shape)), test_np)
                 test_np = test_np.reshape(test.ufl_shape)
-                Fnew = replace(Fnew, {test: test_np})
+                Fnew = replace(Fnew, {test: test_np, stages: stages/self.dt})
 
             return Fnew, bcnew
 
