@@ -98,7 +98,7 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
     F = (inner(Dt(u) + div(sigma), v)*dx - inner(rhs, v)*dx(metadata={"max_quadrature_degree": 10})
          + inner(sigma, tau)*dx - inner(u, div(tau))*dx)
 
-    bc = EquationBC(inner(u + (u ** 2) - dot(sigma, nml) - bdrydata, dot(tau, nml)) * ds(metadata={"max_quadrature_degree": 4}) == 0, sln, (1, 2, 3, 4), V=Z.sub(1))
+    bc = EquationBC(inner(u + (u ** 2) - dot(sigma, nml) - bdrydata, dot(tau, nml)) * ds(metadata={"max_quadrature_degree": 6}) == 0, sln, (1, 2, 3, 4), V=Z.sub(1))
 
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 

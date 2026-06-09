@@ -34,10 +34,10 @@ def heat(n, deg, scheme, **kwargs):
     u = Function(V)
 
     F = (inner(Dt(w), v) * dx + inner(grad(w), grad(v)) * dx
-         - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 2*deg}))
+         - inner(rhs, v) * dx(metadata={"max_quadrature_degree": max(4, 2*deg)}))
 
     # Ritz projection is crucial to observe the right order of convergence
-    solve(inner(grad(u - uexact), grad(v)) * dx(metadata={"max_quadrature_degree": 2*deg}) == 0, u, bcs=bcs,
+    solve(inner(grad(u - uexact), grad(v)) * dx(metadata={"max_quadrature_degree": max(4, 2*deg)}) == 0, u, bcs=bcs,
           solver_parameters=params)
 
     # set constant_jacobian=True to optimize for the linear case
@@ -110,7 +110,7 @@ def telegraph(n, deg, scheme, **kwargs):
     ut = Function(V).interpolate(diff(uexact, t))
 
     F = (inner(Dt(Dt(w) + w), v) * dx + inner(grad(w), grad(v)) * dx
-         - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 2*deg}))
+         - inner(rhs, v) * dx(metadata={"max_quadrature_degree": max(4, 2*deg)}))
 
     stepper = StageDerivativeNystromTimeStepper(F, scheme, t, dt, u, ut,
                                                 bcs=bcs, solver_parameters=params,

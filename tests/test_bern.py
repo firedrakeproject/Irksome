@@ -52,7 +52,7 @@ def heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs):
     v = TestFunction(V)
 
     F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
-         - inner(rhs, v) * dx(metadata={"max_quadrature_degree": 2*deg}))
+         - inner(rhs, v) * dx(metadata={"max_quadrature_degree": max(4, 2*deg)}))
 
     bc = DirichletBC(V, uexact, "on_boundary")
 
@@ -109,10 +109,10 @@ def mixed_heat(n, deg, butcher_tableau, solver_parameters, bounds_type, **kwargs
 
     F = (inner(Dt(p), w) * dx
          + inner(div(u), w) * dx
-         - inner(rhs, w) * dx(metadata={"max_quadrature_degree": 2*deg})
+         - inner(rhs, w) * dx(metadata={"max_quadrature_degree": max(4, 2*deg)})
          + inner(u, v) * dx
          - inner(p, div(v)) * dx
-         + inner(pexact, dot(v, n)) * ds(metadata={"max_quadrature_degree": 2*deg}))
+         + inner(pexact, dot(v, n)) * ds(metadata={"max_quadrature_degree": max(4, 2*deg)}))
 
     up.subfunctions[1].project(pexact)
 
