@@ -138,7 +138,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         if J is None and scheme_J is not None:
             J = F
         if Jp is None and scheme_Jp is not None:
-            Jp = J
+            Jp = J or F
         scheme_J = scheme_J or scheme_F
         scheme_Jp = scheme_Jp or scheme_J
         Jbig = self.get_bilinear_form(J, stages, tableau=scheme_J)

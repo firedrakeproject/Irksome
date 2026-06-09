@@ -2,8 +2,8 @@ import numpy
 import pytest
 from firedrake import (
     Constant, DirichletBC, Function, FunctionSpace, MixedVectorSpaceBasis,
-    SpatialCoordinate, TestFunction, TrialFunction, PeriodicIntervalMesh,
-    UnitSquareMesh, VectorFunctionSpace, VectorSpaceBasis,
+    PCG64, RandomGenerator, SpatialCoordinate, TestFunction, TrialFunction,
+    PeriodicIntervalMesh, UnitSquareMesh, VectorFunctionSpace, VectorSpaceBasis,
     assemble, as_vector, derivative, div, dx, errornorm, exp, grad, inner, split, solve
 )
 from irksome import (
@@ -422,3 +422,112 @@ def test_bbm_underintegrated_preconditioner(stage_type, order, quasi_newton):
         icur = invariants[-1]
         assert numpy.allclose(iprev[0], icur[0], atol=1e-14)
         assert numpy.allclose(iprev[2], icur[2], atol=1e-14)
+
+
+def test_quasi_newton():
+    # discretization
+    N = 32
+    msh = UnitSquareMesh(N, N)
+    V = FunctionSpace(msh, "CG", 1)
+    v = TestFunction(V)
+
+    time_deg = 2
+    scheme = GalerkinCollocationScheme(time_deg, quadrature_degree="auto")
+
+    dt = Constant(1.e-1)
+    Tfinal = 0.5
+    Nt = int(Tfinal / float(dt))
+    Nt = 1
+
+    eps = Constant(1.e-2)
+    t = Constant(0.0)
+
+    # seed IC once
+    rg = RandomGenerator(PCG64(seed=0))
+    uic = rg.uniform(V)
+
+    # Blunt Newton with direct solve, full Jacobian
+    # copy of IC to do blunt Newton with
+    u = Function(uic)
+
+    fprime = u**3 - u
+    F = (inner(Dt(u), v) * dx + eps**2 * inner(grad(u), grad(v)) * dx
+         + inner(fprime, v) * dx)
+
+    solver_parameters = {
+        # Outer (nonlinear) solver
+        "snes_atol": 1e-12,
+        "snes_rtol": 1e-10,
+        "snes_linesearch_type": "bisection",
+        "snes_divergence_tolerance": 1e12,
+        # Inner (linear) solver
+        "ksp_type": "preonly",
+        "pc_type": "lu"
+    }
+
+    stepper = TimeStepper(F, scheme, t, dt, u,
+                          solver_parameters=solver_parameters)
+    for _ in range(Nt):
+        stepper.advance()
+    ubase = Function(u)
+    nts, newt_base_total, _ = stepper.solver_stats()
+    newt_base_per = newt_base_total / nts
+
+    # Now do Newton-Krylov with the Jacobian preconditioned by a lower-order scheme, accessed by IRK Auxiliary Operator
+
+    solver_parameters = {
+        # Outer (nonlinear) solver
+        "snes_monitor": None,
+        "snes_atol": 1e-12,
+        "snes_rtol": 1e-10,
+        "snes_linesearch_type": "bisection",
+        "snes_divergence_tolerance": 1e12,
+        # Inner (linear) solver
+        "ksp_converged_reason": None,
+        "ksp_type": "gmres",
+        "ksp_rtol": 1.e-12,
+        "ksp_atol": 1.e-14,
+        "pc_type": "python",
+        "pc_python_type": "irksome.IRKAuxiliaryOperatorPC",
+        "aux_pc_type": "lu",
+    }
+    u.assign(uic)
+    stepper = TimeStepper(F, scheme, t, dt, u,
+                          solver_parameters=solver_parameters)
+    for _ in range(Nt):
+        stepper.advance()
+    nts, newt, _ = stepper.solver_stats()
+    newt_irkaux_per = newt / nts
+
+    assert errornorm(ubase, u) < 1E-12
+    assert newt_base_per == newt_irkaux_per
+
+    # Next, Newton-Krylov with Jacobian preconditioned by lower-quadrature discretization, through the front door.
+
+    u.assign(uic)
+    solver_parameters = {
+        # Outer (nonlinear) solver
+        "snes_monitor": None,
+        "snes_atol": 1e-12,
+        "snes_rtol": 1e-10,
+        "snes_linesearch_type": "bisection",
+        "snes_divergence_tolerance": 1e12,
+        # Inner (linear) solver
+        "ksp_converged_reason": None,
+        "ksp_type": "gmres",
+        "ksp_rtol": 1.e-12,
+        "ksp_atol": 1.e-14,
+        "pc_type": "lu",
+    }
+    stepper = TimeStepper(F, scheme, t, dt, u,
+                          scheme_Jp=GaussLegendre(time_deg),
+                          solver_parameters=solver_parameters)
+    for _ in range(Nt):
+        stepper.advance()
+
+    nts, newt, _ = stepper.solver_stats()
+    newt_aux_per = newt / nts
+
+    assert errornorm(ubase, u) < 1E-12
+    assert newt_base_per == newt_aux_per
+    assert newt_irkaux_per == newt_aux_per

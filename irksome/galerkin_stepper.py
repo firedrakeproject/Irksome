@@ -9,7 +9,7 @@ from .bcs import bc2space, stage2spaces4bc
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
-from .scheme import create_time_quadrature, ufc_line
+from .scheme import ContinuousPetrovGalerkinScheme, create_time_quadrature, ufc_line
 from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components, reshape, replace
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
@@ -372,9 +372,18 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
 
             return Fnew, bcnew
 
-        if tableau is not None:
-            basis_type = tableau.basis_type
+        elif isinstance(tableau, ContinuousPetrovGalerkinScheme):
             order = tableau.order
+            basis_type = tableau.basis_type
+            quad_degree = tableau.quadrature_degree
+            quad_scheme = tableau.quadrature_scheme
+            if quad_degree == "auto":
+                quadrature = quad_scheme
+            else:
+                quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
+        elif tableau is not None:
+            raise TypeError("Expecting CollocationButcherTableau or ContinuousPetrovGalerkinScheme")
+
         if order is None:
             order = self.order
         if basis_type == self.basis_type and order == self.order:
@@ -382,6 +391,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             test_el = self.test_el
         else:
             trial_el, test_el = getElements(basis_type, order)
+
         quadrature = quadrature or self.quadrature
         max_quadrature_degree = self.max_quadrature_degree
         return getFormGalerkin(F, trial_el, test_el, quadrature,
