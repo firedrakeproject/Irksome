@@ -197,8 +197,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             return form
         is_bilinear = len(as_form(form).arguments()) == 2
         ks = self._backend.TrialFunction(stages.function_space()) if is_bilinear else stages
-        abig, _ = self.get_form_and_bcs(ks, F=form, bcs=(), tableau=tableau)
-        return ufl.lhs(abig) if is_bilinear else self._backend.derivative(abig, ks)
+        Fbig, _ = self.get_form_and_bcs(ks, F=form, bcs=(), tableau=tableau)
+        return ufl.lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, ks)
 
     def solver_stats(self):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)

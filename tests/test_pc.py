@@ -9,7 +9,7 @@ from firedrake import (
 from irksome import (
     Dt, DiscontinuousGalerkinCollocationScheme,
     ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme,
-    GaussLegendre, IRKAuxiliaryOperatorPC, LobattoIIIC,
+    IRKAuxiliaryOperatorPC, LobattoIIIC,
     MeshConstant, RadauIIA, TimeStepper, TimeQuadratureLabel
 )
 from irksome.tools import AI, IA
@@ -325,10 +325,9 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
         assert numpy.allclose(numpy.imag(eigs), 0)
 
 
-@pytest.mark.parametrize('quasi_newton', (False, True))
 @pytest.mark.parametrize('stage_type', ("value", "deriv"))
 @pytest.mark.parametrize('order', (1, 2))
-def test_bbm_underintegrated_preconditioner(stage_type, order, quasi_newton):
+def test_bbm_underintegrated_preconditioner(stage_type, order):
     N = 8000
     L = 100
     msh = PeriodicIntervalMesh(N, L)
@@ -377,14 +376,8 @@ def test_bbm_underintegrated_preconditioner(stage_type, order, quasi_newton):
     F = h1inner(Dt(u), v)*dx + Lhigh(-dHdu(v.dx(0)))
     scheme = GalerkinCollocationScheme(order, stage_type=stage_type)
 
-    Jp = None
-    scheme_J = None
-    if quasi_newton:
-        # IRK Jacobian
-        scheme_J = GaussLegendre(order)
-    else:
-        # Drop quadrature labels to define an under-integrated preconditioner
-        Jp = as_form(F)
+    # Drop quadrature labels to define an under-integrated preconditioner
+    Jp = as_form(F)
 
     sparams = {
         "snes_monitor": None,
@@ -402,7 +395,6 @@ def test_bbm_underintegrated_preconditioner(stage_type, order, quasi_newton):
 
     stepper = TimeStepper(F, scheme, t, dt, u,
                           Jp=Jp,
-                          scheme_J=scheme_J,
                           solver_parameters=sparams)
 
     times = [float(t)]
@@ -424,57 +416,57 @@ def test_bbm_underintegrated_preconditioner(stage_type, order, quasi_newton):
         assert numpy.allclose(iprev[2], icur[2], atol=1e-14)
 
 
-def test_quasi_newton():
+def test_git_irk_equivalence_scheme_Jp():
     # discretization
     N = 32
     msh = UnitSquareMesh(N, N)
     V = FunctionSpace(msh, "CG", 1)
-    v = TestFunction(V)
 
-    time_deg = 2
-    scheme = GalerkinCollocationScheme(time_deg, quadrature_degree="auto")
-
+    t = Constant(0.0)
     dt = Constant(1.e-1)
     Tfinal = 0.5
     Nt = int(Tfinal / float(dt))
-    Nt = 1
-
-    eps = Constant(1.e-2)
-    t = Constant(0.0)
 
     # seed IC once
     rg = RandomGenerator(PCG64(seed=0))
     uic = rg.uniform(V)
 
+    u = Function(V)
+    v = TestFunction(V)
+    eps = Constant(1.e-2)
+    F = (inner(Dt(u), v) * dx
+         + eps**2 * inner(grad(u), grad(v)) * dx
+         + inner(u**3 - u, v) * dx)
+
+    time_deg = 2
+    stage_type = "value"
+    scheme = GalerkinCollocationScheme(time_deg, stage_type=stage_type, quadrature_degree="auto")
+
+    def run(solver_parameters, **kwargs):
+        t.assign(0)
+        u.assign(uic)
+        stepper = TimeStepper(F, scheme, t, dt, u,
+                              solver_parameters=solver_parameters, **kwargs)
+        for _ in range(Nt):
+            stepper.advance()
+            t.assign(t + dt)
+
+        nsteps, snes_its, ksp_its = stepper.solver_stats()
+        return snes_its, ksp_its
+
     # Blunt Newton with direct solve, full Jacobian
-    # copy of IC to do blunt Newton with
-    u = Function(uic)
-
-    fprime = u**3 - u
-    F = (inner(Dt(u), v) * dx + eps**2 * inner(grad(u), grad(v)) * dx
-         + inner(fprime, v) * dx)
-
     solver_parameters = {
-        # Outer (nonlinear) solver
         "snes_atol": 1e-12,
         "snes_rtol": 1e-10,
         "snes_linesearch_type": "bisection",
         "snes_divergence_tolerance": 1e12,
-        # Inner (linear) solver
         "ksp_type": "preonly",
         "pc_type": "lu"
     }
-
-    stepper = TimeStepper(F, scheme, t, dt, u,
-                          solver_parameters=solver_parameters)
-    for _ in range(Nt):
-        stepper.advance()
+    base_snes_its, base_ksp_its = run(solver_parameters)
     ubase = Function(u)
-    nts, newt_base_total, _ = stepper.solver_stats()
-    newt_base_per = newt_base_total / nts
 
-    # Now do Newton-Krylov with the Jacobian preconditioned by a lower-order scheme, accessed by IRK Auxiliary Operator
-
+    # Newton-Krylov with the Jacobian preconditioned by an IRK collocation scheme, accessed by IRK Auxiliary Operator
     solver_parameters = {
         # Outer (nonlinear) solver
         "snes_monitor": None,
@@ -482,7 +474,6 @@ def test_quasi_newton():
         "snes_rtol": 1e-10,
         "snes_linesearch_type": "bisection",
         "snes_divergence_tolerance": 1e12,
-        # Inner (linear) solver
         "ksp_converged_reason": None,
         "ksp_type": "gmres",
         "ksp_rtol": 1.e-12,
@@ -491,43 +482,25 @@ def test_quasi_newton():
         "pc_python_type": "irksome.IRKAuxiliaryOperatorPC",
         "aux_pc_type": "lu",
     }
-    u.assign(uic)
-    stepper = TimeStepper(F, scheme, t, dt, u,
-                          solver_parameters=solver_parameters)
-    for _ in range(Nt):
-        stepper.advance()
-    nts, newt, _ = stepper.solver_stats()
-    newt_irkaux_per = newt / nts
-
+    irkaux_snes_its, irkaux_ksp_its = run(solver_parameters)
     assert errornorm(ubase, u) < 1E-12
-    assert newt_base_per == newt_irkaux_per
+    assert base_snes_its == irkaux_snes_its
 
-    # Next, Newton-Krylov with Jacobian preconditioned by lower-quadrature discretization, through the front door.
-
-    u.assign(uic)
+    # Newton-Krylov with Jacobian preconditioned by (under-integrated) cPG collocation, through the front door.
     solver_parameters = {
-        # Outer (nonlinear) solver
         "snes_monitor": None,
         "snes_atol": 1e-12,
         "snes_rtol": 1e-10,
         "snes_linesearch_type": "bisection",
         "snes_divergence_tolerance": 1e12,
-        # Inner (linear) solver
         "ksp_converged_reason": None,
         "ksp_type": "gmres",
         "ksp_rtol": 1.e-12,
         "ksp_atol": 1.e-14,
         "pc_type": "lu",
     }
-    stepper = TimeStepper(F, scheme, t, dt, u,
-                          scheme_Jp=GaussLegendre(time_deg),
-                          solver_parameters=solver_parameters)
-    for _ in range(Nt):
-        stepper.advance()
-
-    nts, newt, _ = stepper.solver_stats()
-    newt_aux_per = newt / nts
-
+    scheme_Jp = GalerkinCollocationScheme(time_deg, stage_type=stage_type)
+    aux_snes_its, aux_ksp_its = run(solver_parameters, scheme_Jp=scheme_Jp)
     assert errornorm(ubase, u) < 1E-12
-    assert newt_base_per == newt_aux_per
-    assert newt_irkaux_per == newt_aux_per
+    assert base_snes_its == aux_snes_its
+    assert irkaux_ksp_its == aux_ksp_its

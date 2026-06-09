@@ -363,8 +363,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                                        bcs=bcs, splitting=splitting, aux_indices=aux_indices)
 
             if splitting != scaledIA:
-                v0, = F.arguments()
-                test, = Fnew.arguments()
+                v0 = F.arguments()[0]
+                test = Fnew.arguments()[0]
                 test_np = reshape(test, (-1, *v0.ufl_shape))
                 test_np = np.multiply(vecconst(row_scale).reshape(-1, *(1,)*len(v0.ufl_shape)), test_np)
                 test_np = test_np.reshape(test.ufl_shape)
