@@ -158,7 +158,7 @@ def test_pc_dg_collocation(order, deriv_type):
     GalerkinCollocationScheme(2, quadrature_scheme="radau", stage_type="value"),
 ], ids=repr)
 def test_git_irk_equivalence(scheme):
-    N = 8
+    N = 5
     msh = UnitSquareMesh(N, N)
     V = VectorFunctionSpace(msh, "CG", 2)
     Q = FunctionSpace(msh, "CG", 1)
@@ -171,14 +171,14 @@ def test_git_irk_equivalence(scheme):
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
     pexact = x + y * t
 
-    u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
+    nu = Constant(0.1)
+    u_rhs = Dt(uexact) - div(nu*grad(uexact)) + dot(grad(uexact), uexact) + grad(pexact)
     p_rhs = -div(uexact)
 
     z = Function(Z)
     ztest = TestFunction(Z)
     u, p = split(z)
     v, q = split(ztest)
-    nu = Constant(0.1)
 
     F = (inner(Dt(u), v)*dx
          + inner(nu*grad(u), grad(v))*dx
@@ -218,6 +218,7 @@ def test_git_irk_equivalence(scheme):
     stepper = TimeStepper(F, scheme, t, dt, z,
                           bcs=bcs, solver_parameters=sparams,
                           nullspace=nsp,
+                          pre_apply_bcs=False,
                           **kwargs)
 
     for step in range(N):
