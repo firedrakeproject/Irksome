@@ -366,7 +366,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             Fnew, bcnew = get_irk_form(F, tableau, self.t, self.dt, self.u0, stages,
                                        bcs=bcs, splitting=splitting, aux_indices=aux_indices)
 
-            if splitting != scaledIA:
+            if trial_type == "deriv":
                 v0 = F.arguments()[0]
                 test = Fnew.arguments()[0]
                 test_np = reshape(test, (-1, *v0.ufl_shape))

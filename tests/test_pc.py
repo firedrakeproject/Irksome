@@ -4,7 +4,7 @@ from firedrake import (
     Constant, DirichletBC, Function, FunctionSpace, MixedVectorSpaceBasis,
     PCG64, RandomGenerator, SpatialCoordinate, TestFunction, TrialFunction,
     PeriodicIntervalMesh, UnitSquareMesh, VectorFunctionSpace, VectorSpaceBasis,
-    assemble, as_vector, derivative, div, dx, errornorm, exp, grad, inner, split, solve
+    assemble, as_vector, derivative, div, dot, dx, errornorm, exp, grad, inner, split, solve
 )
 from irksome import (
     Dt, DiscontinuousGalerkinCollocationScheme,
@@ -156,17 +156,16 @@ def test_pc_dg_collocation(order, deriv_type):
     GalerkinCollocationScheme(1, quadrature_scheme="radau", stage_type="value"),
     GalerkinCollocationScheme(2, quadrature_scheme="radau", stage_type="deriv"),
     GalerkinCollocationScheme(2, quadrature_scheme="radau", stage_type="value"),
-])
+], ids=repr)
 def test_git_irk_equivalence(scheme):
-    N = 5
+    N = 8
     msh = UnitSquareMesh(N, N)
     V = VectorFunctionSpace(msh, "CG", 2)
     Q = FunctionSpace(msh, "CG", 1)
     Z = V * Q
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
     (x, y) = SpatialCoordinate(msh)
 
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
@@ -179,9 +178,11 @@ def test_git_irk_equivalence(scheme):
     ztest = TestFunction(Z)
     u, p = split(z)
     v, q = split(ztest)
+    nu = Constant(0.1)
 
     F = (inner(Dt(u), v)*dx
-         + inner(grad(u), grad(v))*dx
+         + inner(nu*grad(u), grad(v))*dx
+         + inner(dot(grad(u), u), v)*dx
          - inner(p, div(v))*dx
          - inner(div(u), q)*dx
          - inner(u_rhs, v)*dx
@@ -206,7 +207,7 @@ def test_git_irk_equivalence(scheme):
         "aux": {
             "mat_type": "nest",
             "sub_mat_type": "aij",
-            "pc_type": "cholesky" if scheme.num_stages == 1 else "lu",
+            "pc_type": "lu",
             "pc_factor_mat_solver_type": "mumps",
         }
     }
@@ -222,7 +223,7 @@ def test_git_irk_equivalence(scheme):
     for step in range(N):
         stepper.advance()
         assert numpy.allclose(stepper.solver.snes.ksp.computeEigenvalues(), 1.0)
-        t.assign(float(t) + float(dt))
+        t.assign(t + dt)
 
 
 @pytest.mark.parametrize('order', (1, 2, 3))
@@ -416,8 +417,12 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
         assert numpy.allclose(iprev[2], icur[2], atol=1e-14)
 
 
-@pytest.mark.parametrize("stage_type", ("value", "deriv"))
-def test_git_irk_equivalence_scheme_Jp(stage_type):
+@pytest.mark.parametrize("scheme", [
+    DiscontinuousGalerkinCollocationScheme(1, quadrature_degree="auto"),
+    GalerkinCollocationScheme(2, stage_type="deriv", quadrature_degree="auto"),
+    GalerkinCollocationScheme(2, stage_type="value", quadrature_degree="auto"),
+], ids=repr)
+def test_git_irk_equivalence_scheme_Jp(scheme):
     # discretization
     N = 32
     msh = UnitSquareMesh(N, N)
@@ -438,9 +443,6 @@ def test_git_irk_equivalence_scheme_Jp(stage_type):
     F = (inner(Dt(u), v) * dx
          + eps**2 * inner(grad(u), grad(v)) * dx
          + inner(u**3 - u, v) * dx)
-
-    time_deg = 2
-    scheme = GalerkinCollocationScheme(time_deg, stage_type=stage_type, quadrature_degree="auto")
 
     def run(solver_parameters, **kwargs):
         t.assign(0)
@@ -501,8 +503,7 @@ def test_git_irk_equivalence_scheme_Jp(stage_type):
         "ksp_atol": 1.e-14,
         "pc_type": "lu",
     }
-    scheme_Jp = GalerkinCollocationScheme(time_deg, stage_type=stage_type)
-
+    scheme_Jp = scheme.as_collocation_scheme()
     aux_snes_its, aux_ksp_its = run(solver_parameters, scheme_Jp=scheme_Jp)
     assert errornorm(ubase, u) < 1E-12
     assert base_snes_its == aux_snes_its
