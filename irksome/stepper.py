@@ -21,8 +21,8 @@ valid_kwargs_per_stage_type = {
     "deriv": ["stage_type", "scheme_J", "scheme_Jp", "bc_type", "splitting", "adaptive_parameters", "aux_indices", "sample_points"],
     "value": ["stage_type", "scheme_J", "scheme_Jp", "basis_type",
               "update_solver_parameters", "splitting", "bounds", "use_collocation_update", "sample_points"],
-    "dirk": ["stage_type", "scheme_J", "scheme_Jp"],
-    "explicit": ["stage_type", "scheme_J", "scheme_Jp"],
+    "dirk": ["stage_type"],
+    "explicit": ["stage_type"],
     "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
              "splitting", "num_its_initial", "num_its_per_step"],
     "dirkimex": ["Fexp", "stage_type", "mass_parameters"],
@@ -209,14 +209,10 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
             **base_kwargs)
     elif stage_type == "dirk":
         return DIRKTimeStepper(
-            F, method, t, dt, u0, bcs,
-            scheme_J=scheme_J, scheme_Jp=scheme_Jp,
-            **base_kwargs)
+            F, method, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "explicit":
         return ExplicitTimeStepper(
-            F, method, t, dt, u0, bcs,
-            scheme_J=scheme_J, scheme_Jp=scheme_Jp,
-            **base_kwargs)
+            F, method, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "imex":
         Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
         appctx = base_kwargs.pop("appctx", None)

@@ -69,8 +69,7 @@ class DIRKTimeStepper:
     """Front-end class for advancing a time-dependent PDE via a diagonally-implicit
     Runge-Kutta method formulated in terms of stage derivatives."""
 
-    def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
-                 J=None, Jp=None, scheme_J=None, scheme_Jp=None,
+    def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None, J=None, Jp=None,
                  solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
@@ -128,10 +127,8 @@ class DIRKTimeStepper:
         self.bcnew = bcnew
         self.bc_constants = a_vals, d_val
 
-        scheme_J = scheme_J or butcher_tableau
-        scheme_Jp = scheme_Jp or scheme_J
-        stage_J = self.get_bilinear_form(J, u0, k, tableau=scheme_J)
-        stage_Jp = self.get_bilinear_form(Jp, u0, k, tableau=scheme_Jp)
+        stage_J = self.get_bilinear_form(J, u0, k, tableau=butcher_tableau)
+        stage_Jp = self.get_bilinear_form(Jp, u0, k, tableau=butcher_tableau)
 
         appctx_irksome = {"stepper": self}
         if appctx is None:
