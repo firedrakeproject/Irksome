@@ -92,6 +92,7 @@ def test_stokes(num_stages):
         "mat_mumps_icntl_25": 0,
         "snes_atol": 1e-8,
         "snes_rtol": 1e-8,
+        "snes_monitor": None,
         "petsc_options_prefix": f"IrkSomeStokesSolver{num_stages}",
     }
     linear_stepper = StageDerivativeTimeStepper(
@@ -118,7 +119,6 @@ def test_stokes(num_stages):
             float(t) + float(dt) > end_time
         ):  # To avoid floating point issues at end of simulation.
             dt.assign(end_time - float(t))
-
         linear_stepper.advance()
         t.assign(float(t) + float(dt))
         z0.x.array[:] = z.x.array[vel_to_mixed]
@@ -126,5 +126,8 @@ def test_stokes(num_stages):
 
         error = norm(z0 - uexact, norm_type="L2", mesh=msh)
         assert error < 2e-10, f"Error {error} exceeds tolerance at timestep {float(t)}"
+    msh.comm.Barrier()  # Ensure all processes have finished before cleaning up
     del linear_stepper
+    msh.comm.Barrier()
     gc.collect()
+    msh.comm.Barrier()
