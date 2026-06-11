@@ -38,12 +38,10 @@ def get_stages(V: firedrake.FunctionSpace, num_stages: int) -> firedrake.Functio
     Given a function space for a single time-step, get a duplicate of this space,
     repeated `num_stages` times.
 
-    Args:
-        V: Space for single step
-        num_stages: Number of stages
+    :param V: Space for single step
+    :param num_stages: Number of stages
 
-    Returns:
-        A coefficient in the new function space
+    :returns: A coefficient in the new function space
     """
     Vbig = get_stage_space(V, num_stages)
     return firedrake.Function(Vbig)
@@ -154,10 +152,10 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     """
     Computes the nullspace for a multi-stage method.
 
-    :arg V: The :class:`firedrake.FunctionSpace` on which the original time-dependent PDE is posed.
-    :arg Vbig: The multi-stage :class:`firedrake.FunctionSpace` for the stage problem
-    :arg num_stages: The number of stages in the RK method
-    :arg nullspace: The nullspace for the original problem.
+    :param V: The :class:`firedrake.FunctionSpace` on which the original time-dependent PDE is posed.
+    :param Vbig: The multi-stage :class:`firedrake.FunctionSpace` for the stage problem
+    :param num_stages: The number of stages in the RK method
+    :param nullspace: The nullspace for the original problem.
 
     On output, we produce a :class:`firedrake.MixedVectorSpaceBasis` defining the nullspace
     for the multistage problem.
