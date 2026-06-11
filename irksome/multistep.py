@@ -40,7 +40,6 @@ class MultistepTimeStepper(BaseTimeStepper):
 
     def __init__(self, F, method, t, dt, u0, bcs=None, J=None, Jp=None, solver_parameters=None, bounds=None, appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None, startup_parameters=None, backend: str = "firedrake",
-                 scheme_J=None, scheme_Jp=None,
                  **kwargs):
 
         assert isinstance(method, MultistepTableau)
@@ -53,8 +52,8 @@ class MultistepTimeStepper(BaseTimeStepper):
         self.us = [u0.copy(deepcopy=True) for coeff in self.a[:-1]]
         self.us.append(u0)
         Fnew, bcsnew = self.get_form_and_bcs(F, t, dt, u0, self.a, self.b, bcs=bcs)
-        J = self.get_bilinear_form(J, u0, method=scheme_J)
-        Jp = self.get_bilinear_form(Jp, u0, method=scheme_Jp)
+        J = self.get_bilinear_form(J, u0)
+        Jp = self.get_bilinear_form(Jp, u0)
 
         self.problem = self._backend.create_variational_problem(
             Fnew, self.us[-1], J=J, Jp=Jp, bcs=bcsnew, form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
@@ -162,9 +161,7 @@ class MultistepTimeStepper(BaseTimeStepper):
 
         return Fnew, bcsnew
 
-    def get_bilinear_form(self, form, u0, method=None):
-        if method is not None:
-            raise NotImplementedError("Cannot change the method for the preconditioner")
+    def get_bilinear_form(self, form, u0):
         if form is None:
             return form
         _, k = extract_timedep_arguments(form, u0)
