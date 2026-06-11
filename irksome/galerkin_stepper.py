@@ -124,7 +124,6 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
                    v: vsub[q] * dt,
                    u: usub[q],
                    dtu: dtusub[q] / dt}
-
     Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
