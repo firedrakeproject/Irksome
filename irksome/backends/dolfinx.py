@@ -17,6 +17,7 @@ import typing
 import numpy as np
 import numpy.typing as npt
 
+
 def extract_dtype(expr: ufl.core.expr.Expr) -> npt.DTypeLike:
     """Extract the dtype from an expression.
 
@@ -34,6 +35,7 @@ def extract_dtype(expr: ufl.core.expr.Expr) -> npt.DTypeLike:
         if hasattr(c, "dtype"):
             return c.dtype
     raise ValueError("Could not extract dtype from expression, please ensure that all constants and coefficients have a dtype attribute")
+
 
 def extract_scalar_value(scalar_expr):
     """Extract float from a scalar UFL expression."""
@@ -61,12 +63,13 @@ def extract_scalar_value(scalar_expr):
     else:
         raise ValueError(f"Cannot extract scalar from {type(scalar_expr)}: {scalar_expr}")
 
+
 def extract_function(expr) -> tuple[bool, dolfinx.fem.Function | None]:
     """Recursively extract a Function from nested UFL expressions.
 
     :returns: A tuple (is_real, func) where is_real=True means func is on RealElement (a constant)
 
-    .. note:: 
+    .. note::
         Returns (False, None) for RealElement functions so they get handled
         as scalars by extract_scalar_value, preserving any multipliers.
     """
@@ -87,6 +90,7 @@ def extract_function(expr) -> tuple[bool, dolfinx.fem.Function | None]:
             if func is not None:
                 return (is_real, func)
     return (False, None)
+
 
 def extract_term(term):
     """Extract (weight, function) from a single term."""
@@ -131,6 +135,7 @@ def extract_term(term):
             return (result[0] / denom_val, result[1]) if result else None
     return None
 
+
 def extract_linear_combination(expr: ufl.core.expr.Expr) -> list[tuple[float, "dolfinx.fem.Function"]]:
     """Extract (weight, function) pairs from a UFL linear combination.
 
@@ -157,6 +162,7 @@ def extract_linear_combination(expr: ufl.core.expr.Expr) -> list[tuple[float, "d
                 terms.append(result)
     return terms
 
+
 def function_iadd(func: "dolfinx.fem.Function", expr: ufl.core.expr.Expr) -> None:
     """Add a UFL expression to a DOLFINx Function in-place (func += expr).
 
@@ -167,7 +173,7 @@ def function_iadd(func: "dolfinx.fem.Function", expr: ufl.core.expr.Expr) -> Non
     :param expr: UFL expression (linear combination of Functions)
 
     .. code-block:: python
- 
+
         function_iadd(u, 0.5 * v + 0.3 * w)  # equivalent to u += 0.5*v + 0.3*w
     """
     # Extract the linear combination: [(weight1, func1), (weight2, func2), ...]
@@ -178,18 +184,23 @@ def function_iadd(func: "dolfinx.fem.Function", expr: ufl.core.expr.Expr) -> Non
         func.x.array[:] += weight * term_func.x.array[:]
 
 # Patching of DOLFINx objects to mimick firedrake naming and properties.
+
+
 def function_space_length(self):
     return 1
+
 
 def mixed_space_length(self):
     return len(self.ufl_sub_spaces())
 
+
 def function_subfunctions(self):
     """Get subfunctions for a DOLFINx function, which may be in a mixed space.
-    
+
     This function is called when updating `u0` in time-stepping problems.
     """
     return [self]
+
 
 def function_iadd_method(self, other):
     """In-place addition for DOLFINx functions (self += other).
@@ -206,10 +217,12 @@ def function_iadd_method(self, other):
     function_iadd(self, other)
     return self
 
+
 dolfinx.fem.FunctionSpace.__len__ = function_space_length
 dolfinx.fem.Function.subfunctions = property(function_subfunctions)
 dolfinx.fem.Function.__iadd__ = function_iadd_method
 ufl.MixedFunctionSpace.__len__ = mixed_space_length
+
 
 class ListTensor(ufl.tensors.ListTensor):
     """A list tensor that exposes subfunctions for DOLFINx functions"""
@@ -225,6 +238,7 @@ class ListTensor(ufl.tensors.ListTensor):
     def function_space(self):
         return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(self.ufl_shape[0])])
 
+
 class LinearProblem(dolfinx.fem.petsc.LinearProblem):
     """Overloaded linear problem that pack BCs before solving"""
 
@@ -233,6 +247,7 @@ class LinearProblem(dolfinx.fem.petsc.LinearProblem):
             raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
         [bc.pack() for bc in self._bcs]
         super().solve()
+
 
 class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
     """Overloaded nonlinear problem that pack BCs before solving.
@@ -354,12 +369,14 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
     def snes(self) -> PETSc.SNES:  # type: ignore[name-defined]
         return self.solver
 
+
 def get_stage_space(V: ufl.FunctionSpace, num_stages: int) -> ufl.FunctionSpace:
     if num_stages == 1:
         space_list = [V]
     else:
         space_list = [V.clone() for _ in range(num_stages)]
     return ufl.MixedFunctionSpace(*space_list)
+
 
 class DirichletBC(dolfinx.fem.DirichletBC):
     _pack_expression: dolfinx.fem.Expression | None
@@ -368,7 +385,7 @@ class DirichletBC(dolfinx.fem.DirichletBC):
     def __init__(self, g: ufl.core.expr.Expr, dofs: npt.NDArray[np.int32], V: dolfinx.fem.FunctionSpace):
         """
         Create an Irksome compatible DirichletBC from an existing DOLFINx bc.
-        
+
         .. note::
             This is not a user-facing class, but rather an internal class used for BC reconstruction in time-stepping problems.
             Use: :func:`irksome.backends.dolfinx.dirichletbc`.
@@ -502,6 +519,7 @@ class DirichletBC(dolfinx.fem.DirichletBC):
     def reconstruct(self, V, g):
         return DirichletBC(g, self.dof_indices()[0], V=V)
 
+
 def dirichletbc(
     value: ufl.core.expr.Expr,
     dofs: npt.NDArray[np.int32],
@@ -518,8 +536,10 @@ def dirichletbc(
     """
     return DirichletBC(value, dofs, V)
 
+
 def bc2space(bc, V):
     return get_sub(V, bc.function_space.component())
+
 
 def stage2spaces4bc(bc, V, Vbig, i):
     """used to figure out how to apply Dirichlet BC to each stage"""
@@ -527,9 +547,11 @@ def stage2spaces4bc(bc, V, Vbig, i):
     Vbig_i = Vbig.ufl_sub_spaces()[i]
     return get_sub(Vbig_i, comp)
 
+
 def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
     """Extract boundary conditions"""
     return bcs
+
 
 def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
     """Create a variational problem."""
@@ -561,6 +583,7 @@ def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
         )
     else:
         raise RuntimeError(f"Forms of rank {rank} are not supported in create_variational_problem")
+
 
 def create_variational_solver(
     problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
@@ -603,11 +626,13 @@ def create_variational_solver(
         problem.A.setNearNullSpace(near_nullspace)
     return problem
 
+
 def get_function_space(u: ufl.Coefficient | ufl.Argument) -> ufl.FunctionSpace:
     if isinstance(u, (ufl.Coefficient, ufl.Argument)):
         return u.ufl_function_space()
     else:
         raise ValueError(f"Cannot get function space for object of type {type(u)}")
+
 
 def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ListTensor:
     """
@@ -622,6 +647,7 @@ def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ListTensor:
     Vbig = ufl.MixedFunctionSpace(*_Vbig)
     return ListTensor(*[dolfinx.fem.Function(Vi, name=f"stage_{i}") for i, Vi in enumerate(Vbig.ufl_sub_spaces())])
 
+
 class FloatConstantFunction(dolfinx.fem.Function):
     def __float__(self):
         if len(self.x.array) != 1:
@@ -631,6 +657,7 @@ class FloatConstantFunction(dolfinx.fem.Function):
     def assign(self, value):
         self.x.array[0] = self.x.array.dtype.type(value)
         self.x.scatter_forward()
+
 
 class MeshConstant(object):
     def __init__(self, msh):
@@ -656,8 +683,10 @@ class MeshConstant(object):
         v.x.array[:] = val
         return v
 
+
 def get_mesh_constant(MC: MeshConstant | None) -> ufl.core.expr.Expr:
     return MC.Constant if MC is not None else ufl.constantvalue.ComplexValue
+
 
 def norm(
     v: ufl.core.expr.Expr, norm_type: str = "L2", mesh: ufl.Mesh | None = None
@@ -680,6 +709,7 @@ def norm(
     norm_global = form.mesh.comm.allreduce(norm_loc, op=MPI.SUM)
     return norm_global ** (1 / p)
 
+
 def assemble(expr: ufl.core.expr.Expr | float):
     """Assemble a UFL expression in the backend language."""
     if isinstance(expr, float):
@@ -695,13 +725,15 @@ def assemble(expr: ufl.core.expr.Expr | float):
         else:
             raise ValueError(f"Cannot assemble form of rank {form.rank}")
 
+
 def TrialFunction(function_space):
     """Create a trial function in the backend language.
-    
+
     This is required as :func:`ufl.TrialFunctions` returns a tuple of trial functions,
     which we need to convert to a tensor for consistency with the Firedrake backend.
     """
     return ufl.as_tensor(ufl.TrialFunctions(function_space))
+
 
 def Function(V: ufl.FunctionSpace | ufl.MixedFunctionSpace, name=None):
     """Create a function in the backend language."""
@@ -715,6 +747,7 @@ def Function(V: ufl.FunctionSpace | ufl.MixedFunctionSpace, name=None):
     else:
         return dolfinx.fem.Function(V, name=name)
 
+
 def TestFunction(function_space):
     """Create a test function in the backend language.
 
@@ -723,28 +756,33 @@ def TestFunction(function_space):
     """
     return ufl.as_tensor(ufl.TestFunctions(function_space))
 
+
 class Constant(ufl.constantvalue.ScalarValue):
     # NOTE: If dolfinx ever get's meshless constants we should change this
     def assign(self, value):
         self._value = value
 
+
 class EquationBCSplit:
     def __init__(self, *args, **kwargs):
         raise NotImplementedError("DOLFINx does not support EquationBCSplit")
+
 
 class EquationBC:
     def __init__(self, *args, **kwargs):
         raise NotImplementedError("DOLFINx does not support EquationBC")
 
+
 def invalidate_jacobian(solver: dolfinx.fem.petsc.LinearProblem):
     """Invalidate the Jacobian matrix in the backend language."""
     pass
-    # raise RuntimeError("DOLFINx does not support Jacobian invalidation")
+
 
 def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None):
     raise NotImplementedError(
         "Bounds-constrained BCs are not implemented for DOLFINx"
     )
+
 
 def getNullspace(V, Vbig, num_stages, nullspace):
     """
@@ -777,5 +815,6 @@ def getNullspace(V, Vbig, num_stages, nullspace):
             vectors=new_vecs, comm=nullspace.getComm()
         )
     return nspnew
+
 
 derivative = ufl.derivative
