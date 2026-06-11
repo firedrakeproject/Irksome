@@ -62,7 +62,7 @@ jobs:
 
   dolfinx:
     runs-on: [ubuntu-latest]
-    container: ghcr.io/fenics/dolfinx/dolfinx:nightly
+    container: ghcr.io/fenics/dolfinx/dolfinx:stable
     steps:
     - uses: actions/checkout@v6
       with:
