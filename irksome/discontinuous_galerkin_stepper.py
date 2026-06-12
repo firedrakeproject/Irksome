@@ -136,9 +136,9 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possibly time-dependent) boundary conditions imposed
-         on the system.
+    :kwarg bcs: optionally, a  :class:`~irksome.backend.Backend.DirichletBC`
+         object (or iterable thereof) containing (possibly time-dependent)
+         boundary conditions imposed on the system.
     :kwarg deriv_type: A string indicating how to integrate terms with time derivatives.
         Valid values are:
         - `"weak"`: Time derivatives act on the test function (integrating by parts once).
@@ -150,7 +150,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     On output, we return a tuple consisting of two parts:
 
        - Fnew, the :class:`Form` corresponding to the DG-in-Time discretized problem
-       - `bcnew`, a list of :class:`DirichletBC` objects to be posed
+       - `bcnew`, a list of :class:`~irksome.backend.Backend.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
     """
     num_stages = L.space_dimension()
@@ -209,7 +209,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         a variable referring to the current time step size.
     :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :arg bcs: An iterable of :class:`.DirichletBC` containing
+    :arg bcs: An iterable of :class:`~irksome.backend.Backend.DirichletBC` containing
         the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the method.
