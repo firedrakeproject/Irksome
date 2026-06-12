@@ -2,11 +2,11 @@ import pytest
 import gc
 
 from mpi4py import MPI
-from petsc4py import PETSc
 
 dolfinx = pytest.importorskip("dolfinx")
 
 import basix.ufl
+import numpy as np
 
 from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunctions
 
@@ -32,17 +32,10 @@ def test_stokes(num_stages):
 
     MC = MeshConstant(msh, backend="dolfinx")
     t = MC.Constant(0.0)
+    t.name = "t"
     dt = MC.Constant(1.0 / N)
+    dt.name = "dt"
     (x, y) = SpatialCoordinate(msh)
-
-    _, Q_to_W = W.sub(1).collapse()
-    nsp = dolfinx.fem.Function(W)
-    nsp.x.array[Q_to_W] = 1
-    nullspace = [nsp.x]
-    dolfinx.la.orthonormalize(nullspace)
-    nsp = PETSc.NullSpace().create(
-        vectors=[n.petsc_vec for n in nullspace], comm=msh.comm
-    )
 
     uexact = as_vector([x * t + y**2, -y * t + t * (x**2)])
     pexact = x + y * t ** (2 * num_stages)
@@ -66,18 +59,20 @@ def test_stokes(num_stages):
         W.sub(0), msh.topology.dim - 1, boundary_facets
     )
 
+    msh.topology.create_connectivity(0, msh.topology.dim)
+    corner_vertex = dolfinx.mesh.locate_entities(msh, 0, lambda x: np.isclose(x[0], 0) & np.isclose(x[1], 0))
+    corner_dof = dolfinx.fem.locate_dofs_topological(W.sub(1), 0, corner_vertex)
+
     # Dirichlet BCs (irksome style with UFL expression)
     bc = dirichletbc(uexact, boundary_dofs, W.sub(0))
-    bcs = [bc]
+    bc_p = dirichletbc(pexact, corner_dof, W.sub(1))
+    bcs = [bc, bc_p]
 
     # Initial conditions
     bc_expr = dolfinx.fem.Expression(uexact, W.sub(0).element.interpolation_points)
     z.sub(0).interpolate(bc_expr)
-    p_avg = msh.comm.allreduce(
-        dolfinx.fem.assemble_scalar(dolfinx.fem.form(pexact * dx)), op=MPI.SUM
-    )
     z.sub(1).interpolate(
-        dolfinx.fem.Expression(pexact - p_avg, W.sub(1).element.interpolation_points)
+        dolfinx.fem.Expression(pexact, W.sub(1).element.interpolation_points)
     )
 
     solver_parameters = {
@@ -106,7 +101,6 @@ def test_stokes(num_stages):
         bc_type="DAE",
         splitting=AI,
         solver_parameters=solver_parameters,
-        nullspace=nsp,  # Nullspace doesn't do anything for this solver setup, but we include it to check the code path
         backend="dolfinx",
     )
     z0 = z.sub(0).collapse()
