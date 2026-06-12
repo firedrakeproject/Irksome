@@ -1,5 +1,6 @@
 """DOLFINx backend for Irksome"""
 
+from __future__ import annotations
 from collections.abc import Sequence
 from irksome.tools import get_sub
 
