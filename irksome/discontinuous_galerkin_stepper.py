@@ -7,7 +7,7 @@ from .labeling import split_quadrature, as_form
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
-from .scheme import create_time_quadrature, ufc_line
+from .scheme import DiscontinuousGalerkinScheme, create_time_quadrature, ufc_line
 from .tools import IA, dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
 from .tableaux.ButcherTableaux import CollocationButcherTableau
@@ -37,6 +37,22 @@ def getElement(basis_type, order):
         # Let recursivenodes handle the general case
         variant = None if basis_type == "lagrange" else basis_type
         return DiscontinuousLagrange(ufc_line, order, variant=variant)
+
+
+def get_element_and_quadrature(scheme):
+    element = getElement(scheme.basis_type, scheme.order)
+    quad_degree = scheme.quadrature_degree
+    if quad_degree is None:
+        quad_degree = 2*element.degree()
+    quad_scheme = scheme.quadrature_scheme
+    if quad_scheme is None and isinstance(element, GaussRadau):
+        quad_scheme = "radau"
+
+    if quad_degree == "auto":
+        quadrature = quad_scheme
+    else:
+        quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
+    return element, quadrature
 
 
 def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", backend="firedrake"):
@@ -227,30 +243,16 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         order = self.order = scheme.order
         assert order >= 0, "DG must be order >= 0"
 
-        self.basis_type = basis_type = scheme.basis_type
+        self.basis_type = scheme.basis_type
         self.deriv_type = scheme.deriv_type
 
         backend_cls = get_backend(backend)
         V = backend_cls.get_function_space(u0)
         self.num_fields = len(V)
 
-        self.el = getElement(basis_type, order)
-        num_stages = self.el.space_dimension()
-
-        quad_degree = scheme.quadrature_degree
-        if quad_degree is None:
-            quad_degree = 2*self.el.degree()
-        quad_scheme = scheme.quadrature_scheme
-        if quad_scheme is None and isinstance(self.el, GaussRadau):
-            quad_scheme = "radau"
-
-        if quad_degree == "auto":
-            quadrature = quad_scheme
-        else:
-            quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
-
-        self.quadrature = quadrature
+        self.el, self.quadrature = get_element_and_quadrature(scheme)
         self.max_quadrature_degree = scheme.max_quadrature_degree
+        num_stages = self.el.space_dimension()
 
         self.update_b = vecconst(self.el.tabulate(0, (1.0,))[(0,)])
 
@@ -259,17 +261,22 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         except TypeError:
             self.butcher_tableau = None
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, scheme_F=scheme, **kwargs)
 
     def get_form_and_bcs(self, stages, F=None, bcs=None,
                          tableau=None, basis_type=None, order=None,
                          quadrature=None, deriv_type=None):
+        F = F or self.F
         if bcs is None:
             bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
+        if order is None:
+            order = self.order
+        if deriv_type is None:
+            deriv_type = self.deriv_type
 
-        if tableau is not None:
+        if isinstance(tableau, CollocationButcherTableau):
             # Galerkin collocation is equivalent to an IRK up to row scaling
             row_scale = tableau.b
 
@@ -280,18 +287,26 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
                 np.multiply(1/row_scale, A2, out=A2)
                 return A1, A2
 
+            F = as_form(F)
             return getFormStage(F, tableau, self.t, self.dt, self.u0, stages,
                                 bcs=bcs, splitting=scaledIA)
 
-        if order is None:
-            order = self.order
-        if basis_type == self.basis_type and order == self.order:
-            el = self.el
+        elif isinstance(tableau, DiscontinuousGalerkinScheme):
+            el, quadrature = get_element_and_quadrature(tableau)
+            max_quadrature_degree = tableau.max_quadrature_degree or self.max_quadrature_degree
+            deriv_type = tableau.deriv_type
+
+        elif tableau is None:
+            if basis_type == self.basis_type and order == self.order:
+                el = self.el
+            else:
+                el = getElement(basis_type, order)
+            quadrature = quadrature or self.quadrature
+            max_quadrature_degree = self.max_quadrature_degree
         else:
-            el = getElement(basis_type, order)
-        deriv_type = deriv_type or self.deriv_type
-        max_quadrature_degree = self.max_quadrature_degree
-        return getFormDiscGalerkin(F or self.F,
+            raise TypeError("Expecting CollocationButcherTableau or DiscontinuousGalerkinScheme")
+
+        return getFormDiscGalerkin(F,
                                    el,
                                    quadrature or self.quadrature,
                                    self.t, self.dt, self.u0, stages,
