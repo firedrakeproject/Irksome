@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>irksome.backends.dolfinx &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/fenics.css?v=c6f455f8" />
+    <script src="../../../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../../../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../../../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../../../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../../../index.html"><img src="../../../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="_modules/irksome/backends/dolfinx">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for irksome.backends.dolfinx</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;DOLFINx backend for Irksome&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">irksome.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_sub</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">mpi4py</span><span class="w"> </span><span class="kn">import</span> <span class="n">MPI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">petsc4py</span><span class="w"> </span><span class="kn">import</span> <span class="n">PETSc</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">dolfinx.fem.petsc</span>
+<span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+        <span class="s2">&quot;DOLFINx is not installed. Please install DOLFINx to use the DOLFINx backend of Irksome.&quot;</span>
+    <span class="p">)</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">ufl</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">typing</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy.typing</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">npt</span>
+
+
+<div class="viewcode-block" id="extract_dtype">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.extract_dtype">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_dtype</span><span class="p">(</span><span class="n">expr</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">Expr</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">DTypeLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract the dtype from an expression.</span>
+
+<span class="sd">    Looks for any constants or coefficients and returning their dtype.</span>
+<span class="sd">    This is necessary for determining which DOLFINx DirichletBC constructor</span>
+<span class="sd">    to use when packing UFL expressions into DOLFINx Expressions for use in</span>
+<span class="sd">    BC reconstruction.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">consts</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">algorithms</span><span class="o">.</span><span class="n">analysis</span><span class="o">.</span><span class="n">extract_constants</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">consts</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">&quot;dtype&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">dtype</span>
+    <span class="n">coeffs</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">algorithms</span><span class="o">.</span><span class="n">extract_coefficients</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">coeffs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">&quot;dtype&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">dtype</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Could not extract dtype from expression, please ensure that all constants and coefficients have a dtype attribute&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="extract_scalar_value">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.extract_scalar_value">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_scalar_value</span><span class="p">(</span><span class="n">scalar_expr</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract float from a scalar UFL expression.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scalar_expr</span><span class="p">,</span> <span class="p">(</span><span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">IntValue</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">FloatValue</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">scalar_expr</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scalar_expr</span><span class="p">,</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+        <span class="c1"># Check if it&#39;s a RealElement (constant stored as Function)</span>
+        <span class="k">if</span> <span class="n">scalar_expr</span><span class="o">.</span><span class="n">function_space</span><span class="o">.</span><span class="n">ufl_element</span><span class="p">()</span><span class="o">.</span><span class="n">is_real</span> <span class="ow">and</span> <span class="n">scalar_expr</span><span class="o">.</span><span class="n">ufl_shape</span> <span class="o">==</span> <span class="p">():</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">scalar_expr</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cannot extract scalar from spatial Function: </span><span class="si">{</span><span class="n">scalar_expr</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scalar_expr</span><span class="p">,</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Constant</span><span class="p">)</span> <span class="ow">and</span> <span class="n">scalar_expr</span><span class="o">.</span><span class="n">ufl_shape</span> <span class="o">==</span> <span class="p">():</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">scalar_expr</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="s2">&quot;__float__&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scalar_expr</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">ScalarValue</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">scalar_expr</span><span class="o">.</span><span class="n">_value</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scalar_expr</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">Product</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">scalar_expr</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">*=</span> <span class="n">extract_scalar_value</span><span class="p">(</span><span class="n">op</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scalar_expr</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">Division</span><span class="p">):</span>
+        <span class="n">num</span><span class="p">,</span> <span class="n">den</span> <span class="o">=</span> <span class="n">scalar_expr</span><span class="o">.</span><span class="n">ufl_operands</span>
+        <span class="k">return</span> <span class="n">extract_scalar_value</span><span class="p">(</span><span class="n">num</span><span class="p">)</span> <span class="o">/</span> <span class="n">extract_scalar_value</span><span class="p">(</span><span class="n">den</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cannot extract scalar from </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">scalar_expr</span><span class="p">)</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">scalar_expr</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="extract_function">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.extract_function">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_function</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Recursively extract a Function from nested UFL expressions.</span>
+
+<span class="sd">    :returns: A tuple (is_real, func) where is_real=True means func is on RealElement (a constant)</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        Returns (False, None) for RealElement functions so they get handled</span>
+<span class="sd">        as scalars by extract_scalar_value, preserving any multipliers.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+        <span class="n">is_real</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">function_space</span><span class="o">.</span><span class="n">ufl_element</span><span class="p">()</span><span class="o">.</span><span class="n">is_real</span>
+        <span class="k">if</span> <span class="n">is_real</span><span class="p">:</span>
+            <span class="c1"># Don&#39;t return RealElement functions - let them be handled as scalars</span>
+            <span class="k">return</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">Indexed</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">ComponentTensor</span><span class="p">)):</span>
+        <span class="c1"># Indexed or ComponentTensor wraps the actual function</span>
+        <span class="c1"># Get the operand and recurse</span>
+        <span class="k">return</span> <span class="n">extract_function</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s2">&quot;ufl_operands&quot;</span><span class="p">):</span>
+        <span class="c1"># Try each operand</span>
+        <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">:</span>
+            <span class="n">is_real</span><span class="p">,</span> <span class="n">func</span> <span class="o">=</span> <span class="n">extract_function</span><span class="p">(</span><span class="n">op</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">func</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">is_real</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="extract_term">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.extract_term">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_term</span><span class="p">(</span><span class="n">term</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract (weight, function) from a single term.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+        <span class="n">is_real</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">ufl_element</span><span class="p">()</span><span class="o">.</span><span class="n">is_real</span>
+        <span class="k">if</span> <span class="n">is_real</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>  <span class="c1"># RealElement is a constant, not a spatial function</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">term</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">ComponentTensor</span><span class="p">):</span>
+        <span class="c1"># ComponentTensor(Product(Indexed(func), scalar), index)</span>
+        <span class="c1"># Extract from the inner product</span>
+        <span class="n">inner_expr</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">extract_term</span><span class="p">(</span><span class="n">inner_expr</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">Indexed</span><span class="p">):</span>
+        <span class="c1"># Indexed(func, index) - just extract the function</span>
+        <span class="n">is_real</span><span class="p">,</span> <span class="n">func</span> <span class="o">=</span> <span class="n">extract_function</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">func</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">Product</span><span class="p">):</span>
+        <span class="n">weight</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="n">func</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">term</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">:</span>
+            <span class="n">is_real</span><span class="p">,</span> <span class="n">extracted_func</span> <span class="o">=</span> <span class="n">extract_function</span><span class="p">(</span><span class="n">op</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">extracted_func</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># It&#39;s a spatial function (RealElement functions return None)</span>
+                <span class="n">func</span> <span class="o">=</span> <span class="n">extracted_func</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Not a function, or is a RealElement - extract as scalar</span>
+                <span class="n">weight</span> <span class="o">*=</span> <span class="n">extract_scalar_value</span><span class="p">(</span><span class="n">op</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span> <span class="k">if</span> <span class="n">func</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">Division</span><span class="p">):</span>
+        <span class="n">num</span><span class="p">,</span> <span class="n">den</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">ufl_operands</span>
+        <span class="n">denom_val</span> <span class="o">=</span> <span class="n">extract_scalar_value</span><span class="p">(</span><span class="n">den</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+            <span class="n">is_real</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">function_space</span><span class="o">.</span><span class="n">ufl_element</span><span class="p">()</span><span class="o">.</span><span class="n">family</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;Real&quot;</span>
+            <span class="k">if</span> <span class="n">is_real</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">denom_val</span><span class="p">,</span> <span class="n">num</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">Product</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">extract_term</span><span class="p">(</span><span class="n">num</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">denom_val</span><span class="p">,</span> <span class="n">result</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="n">result</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="extract_linear_combination">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.extract_linear_combination">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_linear_combination</span><span class="p">(</span><span class="n">expr</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">Expr</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="s2">&quot;dolfinx.fem.Function&quot;</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract (weight, function) pairs from a UFL linear combination.</span>
+
+<span class="sd">    Analyzes expressions like: 0.5*u + 0.3*v + 0.2*w</span>
+<span class="sd">    Returns: [(0.5, u), (0.3, v), (0.2, w)]</span>
+
+<span class="sd">    :param expr: UFL expression (Sum, Product, or single Function)</span>
+<span class="sd">    :returns: List of (weight, function) tuples</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Parse the expression, flattening nested Sums recursively</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">Sum</span><span class="p">):</span>
+        <span class="n">summands</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">ufl_operands</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">summands</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="p">]</span>
+    <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">summand</span> <span class="ow">in</span> <span class="n">summands</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">summand</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">classes</span><span class="o">.</span><span class="n">Sum</span><span class="p">):</span>
+            <span class="c1"># Recursively flatten nested Sum structures</span>
+            <span class="n">terms</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">extract_linear_combination</span><span class="p">(</span><span class="n">summand</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">extract_term</span><span class="p">(</span><span class="n">summand</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">terms</span></div>
+
+
+
+<div class="viewcode-block" id="function_iadd">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.function_iadd">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">function_iadd</span><span class="p">(</span><span class="n">func</span><span class="p">:</span> <span class="s2">&quot;dolfinx.fem.Function&quot;</span><span class="p">,</span> <span class="n">expr</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">Expr</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Add a UFL expression to a DOLFINx Function in-place (func += expr).</span>
+
+<span class="sd">    Extracts the linear combination structure and adds terms directly using</span>
+<span class="sd">    PETSc vector operations. Works with mixed spaces and subfunction views.</span>
+
+<span class="sd">    :param func: DOLFINx Function or subfunction view to update in-place</span>
+<span class="sd">    :param expr: UFL expression (linear combination of Functions)</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        function_iadd(u, 0.5 * v + 0.3 * w)  # equivalent to u += 0.5*v + 0.3*w</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Extract the linear combination: [(weight1, func1), (weight2, func2), ...]</span>
+    <span class="n">terms</span> <span class="o">=</span> <span class="n">extract_linear_combination</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+    <span class="c1"># Add each term using array operations (works with mixed spaces when dofmaps match)</span>
+    <span class="k">for</span> <span class="n">weight</span><span class="p">,</span> <span class="n">term_func</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">:</span>
+        <span class="n">func</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">array</span><span class="p">[:]</span> <span class="o">+=</span> <span class="n">weight</span> <span class="o">*</span> <span class="n">term_func</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">array</span><span class="p">[:]</span></div>
+
+
+<span class="c1"># Patching of DOLFINx objects to mimick firedrake naming and properties.</span>
+
+
+<div class="viewcode-block" id="function_space_length">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.function_space_length">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">function_space_length</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mi">1</span></div>
+
+
+
+<div class="viewcode-block" id="mixed_space_length">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.mixed_space_length">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">mixed_space_length</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ufl_sub_spaces</span><span class="p">())</span></div>
+
+
+
+<div class="viewcode-block" id="function_subfunctions">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.function_subfunctions">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">function_subfunctions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get subfunctions for a DOLFINx function, which may be in a mixed space.</span>
+
+<span class="sd">    This function is called when updating `u0` in time-stepping problems.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="function_iadd_method">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.function_iadd_method">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">function_iadd_method</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;In-place addition for DOLFINx functions (self += other).</span>
+
+<span class="sd">    This method is monkey-patched onto :py:class:`dolfinx.fem.Function` to enable</span>
+<span class="sd">    Firedrake-style arithmetic operations.</span>
+
+<span class="sd">    :param self: The function to be modified</span>
+<span class="sd">    :param other: The expression to add. Can be a UFL expression, Function, Constant, or scalar.</span>
+
+<span class="sd">    :returns: self (for chaining)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Delegate to the standalone function_iadd which handles all the complexity</span>
+    <span class="n">function_iadd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">self</span></div>
+
+
+
+<span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="o">.</span><span class="fm">__len__</span> <span class="o">=</span> <span class="n">function_space_length</span>
+<span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="o">.</span><span class="n">subfunctions</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">function_subfunctions</span><span class="p">)</span>
+<span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="o">.</span><span class="fm">__iadd__</span> <span class="o">=</span> <span class="n">function_iadd_method</span>
+<span class="n">ufl</span><span class="o">.</span><span class="n">MixedFunctionSpace</span><span class="o">.</span><span class="fm">__len__</span> <span class="o">=</span> <span class="n">mixed_space_length</span>
+
+
+<div class="viewcode-block" id="ListTensor">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.ListTensor">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ListTensor</span><span class="p">(</span><span class="n">ufl</span><span class="o">.</span><span class="n">tensors</span><span class="o">.</span><span class="n">ListTensor</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A list tensor that exposes subfunctions for DOLFINx functions&quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">subfunctions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">sub_funcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">sub_funcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sub_funcs</span>
+
+<div class="viewcode-block" id="ListTensor.function_space">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.ListTensor.function_space">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">function_space</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ufl</span><span class="o">.</span><span class="n">MixedFunctionSpace</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ufl_operands</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ufl_function_space</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ufl_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])])</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="LinearProblem">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.LinearProblem">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LinearProblem</span><span class="p">(</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">petsc</span><span class="o">.</span><span class="n">LinearProblem</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Overloaded linear problem that pack BCs before solving&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="LinearProblem.solve">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.LinearProblem.solve">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">solve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Bounds-constrained solves are not implemented for DOLFINx&quot;</span><span class="p">)</span>
+        <span class="p">[</span><span class="n">bc</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span> <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bcs</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="NonlinearProblem">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.NonlinearProblem">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NonlinearProblem</span><span class="p">(</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">petsc</span><span class="o">.</span><span class="n">NonlinearProblem</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Overloaded nonlinear problem that pack BCs before solving.</span>
+
+<span class="sd">    Does each  Newton iteration or line search step by overriding the</span>
+<span class="sd">    SNES function and Jacobian assembly routines to pack BCs before assembly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">F</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">Form</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">ufl</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">Form</span><span class="p">],</span>
+        <span class="n">u</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">],</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">petsc_options_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">bcs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">DirichletBC</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">J</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">Form</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">ufl</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">Form</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">P</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">Form</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">ufl</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">Form</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">petsc_options</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">form_compiler_options</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">jit_options</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">entity_maps</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">mesh</span><span class="o">.</span><span class="n">EntityMap</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">F</span><span class="p">,</span>
+            <span class="n">u</span><span class="p">,</span>
+            <span class="n">petsc_options_prefix</span><span class="o">=</span><span class="n">petsc_options_prefix</span><span class="p">,</span>
+            <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span>
+            <span class="n">J</span><span class="o">=</span><span class="n">J</span><span class="p">,</span>
+            <span class="n">P</span><span class="o">=</span><span class="n">P</span><span class="p">,</span>
+            <span class="n">kind</span><span class="o">=</span><span class="n">kind</span><span class="p">,</span>
+            <span class="n">petsc_options</span><span class="o">=</span><span class="n">petsc_options</span><span class="p">,</span>
+            <span class="n">form_compiler_options</span><span class="o">=</span><span class="n">form_compiler_options</span><span class="p">,</span>
+            <span class="n">jit_options</span><span class="o">=</span><span class="n">jit_options</span><span class="p">,</span>
+            <span class="n">entity_maps</span><span class="o">=</span><span class="n">entity_maps</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bcs</span> <span class="o">=</span> <span class="n">bcs</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">assemble_residual</span><span class="p">(</span>
+            <span class="n">_snes</span><span class="p">:</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">SNES</span><span class="p">,</span>  <span class="c1"># type: ignore[name-defined]</span>
+            <span class="n">x</span><span class="p">:</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">Vec</span><span class="p">,</span>  <span class="c1"># type: ignore[name-defined]</span>
+            <span class="n">b</span><span class="p">:</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">Vec</span><span class="p">,</span>  <span class="c1"># type: ignore[name-defined]</span>
+            <span class="n">u</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">],</span>
+            <span class="n">residual</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Form</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Form</span><span class="p">],</span>
+            <span class="n">jacobian</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Form</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Form</span><span class="p">]],</span>
+            <span class="n">bcs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">DirichletBC</span><span class="p">],</span>
+            <span class="n">_blocks</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">):</span>
+
+            <span class="p">[</span><span class="n">bc</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span> <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="n">bcs</span><span class="p">]</span>
+            <span class="c1"># Cover single stage problems where _blocks is None</span>
+            <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">petsc</span><span class="o">.</span><span class="n">assemble_residual</span><span class="p">(</span>
+                <span class="n">_snes</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">residual</span><span class="p">,</span> <span class="n">jacobian</span><span class="p">,</span> <span class="n">bcs</span><span class="p">,</span> <span class="n">_blocks</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">F</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">J</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">J</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="n">kargs</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;u&quot;</span><span class="p">:</span> <span class="n">u</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="s2">&quot;residual&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">F</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="s2">&quot;jacobian&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">J</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span>
+                <span class="s2">&quot;bcs&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bcs</span><span class="p">,</span>
+                <span class="s2">&quot;_blocks&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="o">.</span><span class="n">getAttr</span><span class="p">(</span><span class="s2">&quot;_blocks&quot;</span><span class="p">),</span>
+            <span class="p">}</span>
+            <span class="n">jac_kargs</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;u&quot;</span><span class="p">:</span> <span class="n">u</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="s2">&quot;jacobian&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">J</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span>
+                <span class="s2">&quot;bcs&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bcs</span><span class="p">,</span>
+                <span class="s2">&quot;preconditioner&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_preconditioner</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P_mat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="p">(</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_preconditioner</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+                    <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_preconditioner</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">kargs</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;u&quot;</span><span class="p">:</span> <span class="n">u</span><span class="p">,</span>
+                <span class="s2">&quot;residual&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">F</span><span class="p">,</span>
+                <span class="s2">&quot;jacobian&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">J</span><span class="p">,</span>
+                <span class="s2">&quot;bcs&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bcs</span><span class="p">,</span>
+                <span class="s2">&quot;_blocks&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="o">.</span><span class="n">getAttr</span><span class="p">(</span><span class="s2">&quot;_blocks&quot;</span><span class="p">),</span>
+            <span class="p">}</span>
+            <span class="n">jac_kargs</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;u&quot;</span><span class="p">:</span> <span class="n">u</span><span class="p">,</span>
+                <span class="s2">&quot;jacobian&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">J</span><span class="p">,</span>
+                <span class="s2">&quot;bcs&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bcs</span><span class="p">,</span>
+                <span class="s2">&quot;preconditioner&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_preconditioner</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">setFunction</span><span class="p">(</span><span class="n">assemble_residual</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="n">kargs</span><span class="o">=</span><span class="n">kargs</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">assemble_jacobian</span><span class="p">(</span>
+            <span class="n">_snes</span><span class="p">:</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">SNES</span><span class="p">,</span>  <span class="c1"># type: ignore[name-defined]</span>
+            <span class="n">x</span><span class="p">:</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">Vec</span><span class="p">,</span>  <span class="c1"># type: ignore[name-defined]</span>
+            <span class="n">J</span><span class="p">:</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">Mat</span><span class="p">,</span>  <span class="c1"># type: ignore[name-defined]</span>
+            <span class="n">P_mat</span><span class="p">:</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">Mat</span><span class="p">,</span>  <span class="c1"># type: ignore[name-defined]</span>
+            <span class="n">u</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">]</span> <span class="o">|</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">,</span>
+            <span class="n">jacobian</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Form</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Form</span><span class="p">]],</span>
+            <span class="n">preconditioner</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Form</span>
+            <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Form</span><span class="p">]]</span>
+            <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">bcs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">DirichletBC</span><span class="p">],</span>
+        <span class="p">):</span>
+            <span class="p">[</span><span class="n">bc</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span> <span class="k">for</span> <span class="n">bc</span> <span class="ow">in</span> <span class="n">bcs</span><span class="p">]</span>
+            <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">petsc</span><span class="o">.</span><span class="n">assemble_jacobian</span><span class="p">(</span>
+                <span class="n">_snes</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">J</span><span class="p">,</span> <span class="n">P_mat</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">jacobian</span><span class="p">,</span> <span class="n">preconditioner</span><span class="p">,</span> <span class="n">bcs</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">setJacobian</span><span class="p">(</span>
+            <span class="n">assemble_jacobian</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">P_mat</span><span class="p">,</span> <span class="n">kargs</span><span class="o">=</span><span class="n">jac_kargs</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="NonlinearProblem.solve">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.NonlinearProblem.solve">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">solve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">bounds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Bounds-constrained solves are not implemented for DOLFINx&quot;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">snes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">SNES</span><span class="p">:</span>  <span class="c1"># type: ignore[name-defined]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span></div>
+
+
+
+<div class="viewcode-block" id="get_stage_space">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.get_stage_space">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_stage_space</span><span class="p">(</span><span class="n">V</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ufl</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">num_stages</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">space_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">V</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">space_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">V</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">ufl</span><span class="o">.</span><span class="n">MixedFunctionSpace</span><span class="p">(</span><span class="o">*</span><span class="n">space_list</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="DirichletBC">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.DirichletBC">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DirichletBC</span><span class="p">(</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">DirichletBC</span><span class="p">):</span>
+    <span class="n">_pack_expression</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Expression</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">_ufl_expr</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">Expr</span> <span class="o">|</span> <span class="kc">None</span>  <span class="c1"># Store original UFL expression</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">g</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">Expr</span><span class="p">,</span> <span class="n">dofs</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">],</span> <span class="n">V</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create an Irksome compatible DirichletBC from an existing DOLFINx bc.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            This is not a user-facing class, but rather an internal class used for BC reconstruction in time-stepping problems.</span>
+<span class="sd">            Use: :func:`irksome.backends.dolfinx.dirichletbc`.</span>
+
+<span class="sd">        :param g: The boundary condition expression</span>
+<span class="sd">        :param dofs: An array of degree-of-freedom indices in V</span>
+<span class="sd">        :param V: The space to construct the BC on.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Attach UFL function space (to be able to reconstruct functions and constants on the same UFL domain)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ufl_space</span> <span class="o">=</span> <span class="n">V</span><span class="o">.</span><span class="n">ufl_function_space</span><span class="p">()</span>
+
+        <span class="c1"># Store original UFL expression for time-varying BCs</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="p">(</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">,</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Constant</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">complex</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ufl_expr</span> <span class="o">=</span> <span class="n">g</span>  <span class="c1"># Save the symbolic expression</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ufl_expr</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ufl_space</span> <span class="o">=</span> <span class="n">V</span><span class="o">.</span><span class="n">ufl_function_space</span><span class="p">()</span>
+
+        <span class="c1"># If reconstructing with a sub space, we need to get the subspace dof indices</span>
+        <span class="c1"># If working with a subspace of a single stage, we need to create the (parent_dof, sub_dof) mapping</span>
+        <span class="k">if</span> <span class="n">V</span><span class="o">.</span><span class="n">component</span><span class="p">()</span> <span class="o">!=</span> <span class="p">[]:</span>
+            <span class="n">V_sub</span><span class="p">,</span> <span class="n">sub_to_parent</span> <span class="o">=</span> <span class="n">V</span><span class="o">.</span><span class="n">collapse</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sub_to_parent</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+                    <span class="s2">&quot;Mixed topology is not supported for reconstructing BCs with UFL expressions&quot;</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sub_to_parent</span> <span class="o">=</span> <span class="n">sub_to_parent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">parent_to_sub</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+                    <span class="p">(</span><span class="n">V</span><span class="o">.</span><span class="n">dofmap</span><span class="o">.</span><span class="n">index_map</span><span class="o">.</span><span class="n">size_local</span> <span class="o">+</span> <span class="n">V</span><span class="o">.</span><span class="n">dofmap</span><span class="o">.</span><span class="n">index_map</span><span class="o">.</span><span class="n">num_ghosts</span><span class="p">)</span>
+                    <span class="o">*</span> <span class="n">V</span><span class="o">.</span><span class="n">dofmap</span><span class="o">.</span><span class="n">index_map_bs</span><span class="p">,</span>
+                    <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">parent_to_sub</span><span class="p">[</span><span class="n">sub_to_parent</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sub_to_parent</span><span class="p">))</span>
+                <span class="n">sub_dofs</span> <span class="o">=</span> <span class="n">parent_to_sub</span><span class="p">[</span><span class="n">dofs</span><span class="p">]</span>
+                <span class="n">dofs</span> <span class="o">=</span> <span class="p">(</span><span class="n">dofs</span><span class="p">,</span> <span class="n">sub_dofs</span><span class="p">)</span>
+
+        <span class="c1"># If we are not reconstructing the BC with a new value, we can reuse existing C++ objects</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pack_expression</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># If we are reconstructing the BC with a new value, we need to check if the new value is a DOLFINx function or Constant.</span>
+        <span class="c1"># If True, we do not need to do anything for reconstruction.</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="p">(</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">,</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Constant</span><span class="p">)):</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">g</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pack_expression</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># If not, we need to take the ufl.core.expr.Expr and pack it into a DOLFINx Expression</span>
+            <span class="k">if</span> <span class="n">V</span><span class="o">.</span><span class="n">component</span><span class="p">()</span> <span class="o">!=</span> <span class="p">[]:</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="n">V_sub</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;bc_</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">g</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">_cpp_object</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;bc_</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">g</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">_cpp_object</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pack_expression</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Expression</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">V</span><span class="o">.</span><span class="n">element</span><span class="o">.</span><span class="n">interpolation_points</span><span class="p">)</span>
+
+        <span class="c1"># Get correct C++ implementation based on dtype of expression</span>
+        <span class="n">dtype</span> <span class="o">=</span> <span class="n">extract_dtype</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">issubdtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">):</span>
+            <span class="n">bctype</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">DirichletBC_float32</span>
+        <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">issubdtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">):</span>
+            <span class="n">bctype</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">DirichletBC_float64</span>
+        <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">issubdtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">complex64</span><span class="p">):</span>
+            <span class="n">bctype</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">DirichletBC_complex64</span>
+        <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">issubdtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">complex128</span><span class="p">):</span>
+            <span class="n">bctype</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">DirichletBC_complex128</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Type </span><span class="si">{</span><span class="n">dtype</span><span class="si">}</span><span class="s2"> not supported.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="nb">isinstance</span><span class="p">(</span>
+                <span class="n">val</span><span class="p">,</span>
+                <span class="p">(</span>
+                    <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function_complex128</span><span class="p">,</span>
+                    <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function_complex64</span><span class="p">,</span>
+                    <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function_float32</span><span class="p">,</span>
+                    <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function_float64</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="ow">and</span> <span class="n">val</span><span class="o">.</span><span class="n">function_space</span> <span class="o">==</span> <span class="n">V</span><span class="o">.</span><span class="n">_cpp_object</span>
+        <span class="p">):</span>
+            <span class="n">new_cpp_object</span> <span class="o">=</span> <span class="n">bctype</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">dofs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Depending on your FEniCSx version, the C++ constructor might strictly</span>
+            <span class="c1"># expect the C++ FunctionSpace instead of the Python FunctionSpace wrapper.</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">new_cpp_object</span> <span class="o">=</span> <span class="n">bctype</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">dofs</span><span class="p">,</span> <span class="n">V</span><span class="o">.</span><span class="n">_cpp_object</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="n">new_cpp_object</span> <span class="o">=</span> <span class="n">bctype</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">_cpp_object</span><span class="p">,</span> <span class="n">dofs</span><span class="p">,</span> <span class="n">V</span><span class="o">.</span><span class="n">_cpp_object</span><span class="p">)</span>
+
+        <span class="c1"># 4. Initialize the parent dolfinx.fem.DirichletBC wrapper with the newly minted C++ object</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">new_cpp_object</span><span class="p">)</span>
+
+        <span class="c1"># 5. Store your custom properties</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_g</span> <span class="o">=</span> <span class="n">val</span>
+
+<div class="viewcode-block" id="DirichletBC.pack">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.DirichletBC.pack">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pack</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pack_expression</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">g</span><span class="o">.</span><span class="n">interpolate_expr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_pack_expression</span><span class="o">.</span><span class="n">_cpp_object</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_original_arg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># If we stored the original UFL expression, return it for time substitution</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_ufl_expr&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ufl_expr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ufl_expr</span>
+
+        <span class="c1"># Otherwise return the wrapped Function/Constant</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_orig_g</span><span class="p">,</span>
+            <span class="p">(</span>
+                <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function_complex128</span><span class="p">,</span>
+                <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function_complex64</span><span class="p">,</span>
+                <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function_float32</span><span class="p">,</span>
+                <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function_float64</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">):</span>
+            <span class="k">return</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ufl_space</span><span class="p">,</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">la</span><span class="o">.</span><span class="n">Vector</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_orig_g</span><span class="o">.</span><span class="n">x</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;orig_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_orig_g</span><span class="o">.</span><span class="n">name</span><span class="si">:</span><span class="s2">s</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_orig_g</span><span class="p">,</span>
+            <span class="p">(</span>
+                <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Constant_complex64</span><span class="p">,</span>
+                <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Constant_complex128</span><span class="p">,</span>
+                <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Constant_float32</span><span class="p">,</span>
+                <span class="n">dolfinx</span><span class="o">.</span><span class="n">cpp</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Constant_float64</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">):</span>
+            <span class="k">return</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_ufl_space</span><span class="o">.</span><span class="n">ufl_domain</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_g</span><span class="o">.</span><span class="n">value</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_g</span>
+
+<div class="viewcode-block" id="DirichletBC.reconstruct">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.DirichletBC.reconstruct">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reconstruct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="n">g</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dof_indices</span><span class="p">()[</span><span class="mi">0</span><span class="p">],</span> <span class="n">V</span><span class="o">=</span><span class="n">V</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="dirichletbc">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.dirichletbc">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">dirichletbc</span><span class="p">(</span>
+    <span class="n">value</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">Expr</span><span class="p">,</span>
+    <span class="n">dofs</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">],</span>
+    <span class="n">V</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">FunctionSpace</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DirichletBC</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Overloaded DirichletBC so that we can reconstruct BCs with UFL expressions.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This class is user-facing.</span>
+
+<span class="sd">    :param value: A UFL expression representing the boundary condition.</span>
+<span class="sd">    :param dofs: An array of degree-of-freedom indices in `V` where the BC should be applied.</span>
+<span class="sd">    :param V: The function space on which the BC applies. It can be a subspace of a mixed/blocked space.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">dofs</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="bc2space">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.bc2space">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">bc2space</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">V</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">get_sub</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">bc</span><span class="o">.</span><span class="n">function_space</span><span class="o">.</span><span class="n">component</span><span class="p">())</span></div>
+
+
+
+<div class="viewcode-block" id="stage2spaces4bc">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.stage2spaces4bc">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">stage2spaces4bc</span><span class="p">(</span><span class="n">bc</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="n">Vbig</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;used to figure out how to apply Dirichlet BC to each stage&quot;&quot;&quot;</span>
+    <span class="n">comp</span> <span class="o">=</span> <span class="n">bc</span><span class="o">.</span><span class="n">function_space</span><span class="o">.</span><span class="n">component</span><span class="p">()</span>
+    <span class="n">Vbig_i</span> <span class="o">=</span> <span class="n">Vbig</span><span class="o">.</span><span class="n">ufl_sub_spaces</span><span class="p">()[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">get_sub</span><span class="p">(</span><span class="n">Vbig_i</span><span class="p">,</span> <span class="n">comp</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="extract_bcs">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.extract_bcs">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_bcs</span><span class="p">(</span><span class="n">bcs</span><span class="p">:</span> <span class="n">typing</span><span class="o">.</span><span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">typing</span><span class="o">.</span><span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract boundary conditions&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">bcs</span></div>
+
+
+
+<div class="viewcode-block" id="create_variational_problem">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.create_variational_problem">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_variational_problem</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">aP</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a variational problem.&quot;&quot;&quot;</span>
+    <span class="n">rank</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">([</span><span class="n">arg</span><span class="o">.</span><span class="n">number</span><span class="p">()</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">F</span><span class="o">.</span><span class="n">arguments</span><span class="p">()]))</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;petsc_options_prefix&quot;</span><span class="p">,</span> <span class="s2">&quot;IrkSomeSolver&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">ListTensor</span><span class="p">):</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">subfunctions</span>
+    <span class="k">if</span> <span class="n">rank</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">L</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">extract_blocks</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">extract_blocks</span><span class="p">(</span><span class="n">L</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">LinearProblem</span><span class="p">(</span>
+            <span class="n">a</span><span class="p">,</span>
+            <span class="n">L</span><span class="p">,</span>
+            <span class="n">u</span><span class="p">,</span>
+            <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span>
+            <span class="n">petsc_options_prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span>
+            <span class="n">P</span><span class="o">=</span><span class="n">aP</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">rank</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">F</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">extract_blocks</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">NonlinearProblem</span><span class="p">(</span>
+            <span class="n">F</span><span class="p">,</span>
+            <span class="n">u</span><span class="p">,</span>
+            <span class="n">petsc_options_prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span>
+            <span class="n">bcs</span><span class="o">=</span><span class="n">bcs</span><span class="p">,</span>
+            <span class="n">petsc_options</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;solver_parameters&quot;</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Forms of rank </span><span class="si">{</span><span class="n">rank</span><span class="si">}</span><span class="s2"> are not supported in create_variational_problem&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="create_variational_solver">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.create_variational_solver">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_variational_solver</span><span class="p">(</span>
+    <span class="n">problem</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">petsc</span><span class="o">.</span><span class="n">LinearProblem</span> <span class="o">|</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">petsc</span><span class="o">.</span><span class="n">NonlinearProblem</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a variational solver that uses PETSc SNES or KSP.&quot;&quot;&quot;</span>
+    <span class="n">solver_parameters</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;solver_parameters&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">solver</span> <span class="o">=</span> <span class="n">problem</span><span class="o">.</span><span class="n">solver</span>
+
+    <span class="c1"># Update solver prefix</span>
+    <span class="n">solver_prefix</span> <span class="o">=</span> <span class="n">solver_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+        <span class="s2">&quot;petsc_options_prefix&quot;</span><span class="p">,</span> <span class="n">problem</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">getOptionsPrefix</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="n">problem</span><span class="o">.</span><span class="n">_petsc_options_prefix</span> <span class="o">=</span> <span class="n">solver_prefix</span>
+    <span class="n">problem</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">setOptionsPrefix</span><span class="p">(</span><span class="n">solver_prefix</span><span class="p">)</span>
+    <span class="n">problem</span><span class="o">.</span><span class="n">A</span><span class="o">.</span><span class="n">setOptionsPrefix</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">solver_prefix</span><span class="si">}</span><span class="s2">A_&quot;</span><span class="p">)</span>
+    <span class="n">problem</span><span class="o">.</span><span class="n">b</span><span class="o">.</span><span class="n">setOptionsPrefix</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">solver_prefix</span><span class="si">}</span><span class="s2">b_&quot;</span><span class="p">)</span>
+    <span class="n">problem</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">setOptionsPrefix</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">solver_prefix</span><span class="si">}</span><span class="s2">x_&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">problem</span><span class="o">.</span><span class="n">P_mat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">problem</span><span class="o">.</span><span class="n">P_mat</span><span class="o">.</span><span class="n">setOptionsPrefix</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">solver_prefix</span><span class="si">}</span><span class="s2">P_mat_&quot;</span><span class="p">)</span>
+    <span class="c1"># Push new options with prefix, filtering out irksome-internal keys</span>
+    <span class="n">petsc_opts</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">solver_parameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s2">&quot;petsc_options_prefix&quot;</span>
+    <span class="p">}</span>
+    <span class="n">opts</span> <span class="o">=</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">Options</span><span class="p">()</span>
+    <span class="n">opts</span><span class="o">.</span><span class="n">prefixPush</span><span class="p">(</span><span class="n">solver_prefix</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">petsc_opts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">opts</span><span class="o">.</span><span class="n">setValue</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+    <span class="n">solver</span><span class="o">.</span><span class="n">setFromOptions</span><span class="p">()</span>
+    <span class="n">opts</span><span class="o">.</span><span class="n">prefixPop</span><span class="p">()</span>
+    <span class="c1"># For some strange reason delValue doesn&#39;t respect prefixes</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">petsc_opts</span><span class="p">:</span>
+        <span class="n">opts</span><span class="o">.</span><span class="n">delValue</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">solver_prefix</span><span class="si">}{</span><span class="n">k</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">nullspace</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nullspace&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">near_nullspace</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;near_nullspace&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">nullspace</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">problem</span><span class="o">.</span><span class="n">A</span><span class="o">.</span><span class="n">setNullSpace</span><span class="p">(</span><span class="n">nullspace</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">near_nullspace</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">problem</span><span class="o">.</span><span class="n">A</span><span class="o">.</span><span class="n">setNearNullSpace</span><span class="p">(</span><span class="n">near_nullspace</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">problem</span></div>
+
+
+
+<div class="viewcode-block" id="get_function_space">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.get_function_space">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_function_space</span><span class="p">(</span><span class="n">u</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">Coefficient</span> <span class="o">|</span> <span class="n">ufl</span><span class="o">.</span><span class="n">Argument</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ufl</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="p">(</span><span class="n">ufl</span><span class="o">.</span><span class="n">Coefficient</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">Argument</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="n">u</span><span class="o">.</span><span class="n">ufl_function_space</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cannot get function space for object of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">u</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="get_stages">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.get_stages">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_stages</span><span class="p">(</span><span class="n">V</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ListTensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a function space for a single time-step, get a duplicate of this space,</span>
+<span class="sd">    repeated `num_stages` times.</span>
+
+<span class="sd">    :param V: Space for single step</span>
+<span class="sd">    :param num_stages: Number of stages</span>
+<span class="sd">    :returns: A coefficient in the new function space</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_Vbig</span> <span class="o">=</span> <span class="p">[</span><span class="n">V</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)]</span>
+    <span class="n">Vbig</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">MixedFunctionSpace</span><span class="p">(</span><span class="o">*</span><span class="n">_Vbig</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ListTensor</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="n">Vi</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;stage_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">Vi</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">Vbig</span><span class="o">.</span><span class="n">ufl_sub_spaces</span><span class="p">())])</span></div>
+
+
+
+<div class="viewcode-block" id="FloatConstantFunction">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.FloatConstantFunction">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FloatConstantFunction</span><span class="p">(</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__float__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">array</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can only convert a FloatConstantFunction to float if it has exactly one degree of freedom&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+<div class="viewcode-block" id="FloatConstantFunction.assign">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.FloatConstantFunction.assign">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">assign</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">scatter_forward</span><span class="p">()</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="MeshConstant">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.MeshConstant">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshConstant</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msh</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">msh</span> <span class="o">=</span> <span class="n">msh</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">basix.ufl</span>
+
+            <span class="n">r_el</span> <span class="o">=</span> <span class="n">basix</span><span class="o">.</span><span class="n">ufl</span><span class="o">.</span><span class="n">real_element</span><span class="p">(</span>
+                <span class="n">msh</span><span class="o">.</span><span class="n">basix_cell</span><span class="p">(),</span> <span class="n">value_shape</span><span class="o">=</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dolfinx</span><span class="o">.</span><span class="n">default_scalar_type</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">V</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">functionspace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="n">r_el</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">scifem</span>
+            <span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s2">&quot;DOLFINx with real element support or Scifem is required to make mesh-constants&quot;</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">V</span> <span class="o">=</span> <span class="n">scifem</span><span class="o">.</span><span class="n">create_real_functionspace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="p">())</span>
+
+<div class="viewcode-block" id="MeshConstant.Constant">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.MeshConstant.Constant">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">Constant</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ufl</span><span class="o">.</span><span class="n">Coefficient</span><span class="p">:</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">FloatConstantFunction</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">V</span><span class="p">)</span>
+        <span class="n">v</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">array</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="k">return</span> <span class="n">v</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="get_mesh_constant">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.get_mesh_constant">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_mesh_constant</span><span class="p">(</span><span class="n">MC</span><span class="p">:</span> <span class="n">MeshConstant</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ufl</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">Expr</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span> <span class="k">if</span> <span class="n">MC</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">ufl</span><span class="o">.</span><span class="n">constantvalue</span><span class="o">.</span><span class="n">ComplexValue</span></div>
+
+
+
+<div class="viewcode-block" id="norm">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.norm">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">norm</span><span class="p">(</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">Expr</span><span class="p">,</span> <span class="n">norm_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;L2&quot;</span><span class="p">,</span> <span class="n">mesh</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">Mesh</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the norm of a function in the backend language.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">mesh</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">dx</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">Measure</span><span class="p">(</span><span class="s2">&quot;dx&quot;</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">mesh</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">dx</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">dx</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="k">if</span> <span class="n">norm_type</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;L&quot;</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">norm_type</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="k">if</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid norm type </span><span class="si">{</span><span class="n">norm_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">inner</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="n">p</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">form</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">form</span><span class="p">(</span><span class="n">expr</span> <span class="o">*</span> <span class="n">dx</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Norm type </span><span class="si">{</span><span class="n">norm_type</span><span class="si">}</span><span class="s2"> not implemented&quot;</span><span class="p">)</span>
+    <span class="n">norm_loc</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">assemble_scalar</span><span class="p">(</span><span class="n">form</span><span class="p">)</span>
+    <span class="n">norm_global</span> <span class="o">=</span> <span class="n">form</span><span class="o">.</span><span class="n">mesh</span><span class="o">.</span><span class="n">comm</span><span class="o">.</span><span class="n">allreduce</span><span class="p">(</span><span class="n">norm_loc</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">MPI</span><span class="o">.</span><span class="n">SUM</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">norm_global</span> <span class="o">**</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">p</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="assemble">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.assemble">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">assemble</span><span class="p">(</span><span class="n">expr</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">Expr</span> <span class="o">|</span> <span class="nb">float</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Assemble a UFL expression in the backend language.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">float</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">form</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">form</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">form</span><span class="o">.</span><span class="n">rank</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">assemble_scalar</span><span class="p">(</span><span class="n">form</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">form</span><span class="o">.</span><span class="n">rank</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">assemble_vector</span><span class="p">(</span><span class="n">form</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">form</span><span class="o">.</span><span class="n">rank</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">assemble_matrix</span><span class="p">(</span><span class="n">form</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cannot assemble form of rank </span><span class="si">{</span><span class="n">form</span><span class="o">.</span><span class="n">rank</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="TrialFunction">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.TrialFunction">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">TrialFunction</span><span class="p">(</span><span class="n">function_space</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a trial function in the backend language.</span>
+
+<span class="sd">    This is required as :func:`ufl.TrialFunctions` returns a tuple of trial functions,</span>
+<span class="sd">    which we need to convert to a tensor for consistency with the Firedrake backend.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">ufl</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">ufl</span><span class="o">.</span><span class="n">TrialFunctions</span><span class="p">(</span><span class="n">function_space</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="Function">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.Function">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">Function</span><span class="p">(</span><span class="n">V</span><span class="p">:</span> <span class="n">ufl</span><span class="o">.</span><span class="n">FunctionSpace</span> <span class="o">|</span> <span class="n">ufl</span><span class="o">.</span><span class="n">MixedFunctionSpace</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a function in the backend language.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">ufl</span><span class="o">.</span><span class="n">MixedFunctionSpace</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ListTensor</span><span class="p">(</span>
+            <span class="o">*</span><span class="p">[</span>
+                <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="n">Vi</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">Vi</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">V</span><span class="o">.</span><span class="n">ufl_sub_spaces</span><span class="p">())</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="TestFunction">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.TestFunction">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">TestFunction</span><span class="p">(</span><span class="n">function_space</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a test function in the backend language.</span>
+
+<span class="sd">    This is required as :func:`ufl.TestFunctions` returns a tuple of test functions,</span>
+<span class="sd">    which we need to convert to a tensor for consistency with the Firedrake backend.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">ufl</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">ufl</span><span class="o">.</span><span class="n">TestFunctions</span><span class="p">(</span><span class="n">function_space</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="Constant">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.Constant">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Constant</span><span class="p">(</span><span class="n">ufl</span><span class="o">.</span><span class="n">constantvalue</span><span class="o">.</span><span class="n">ScalarValue</span><span class="p">):</span>
+    <span class="c1"># NOTE: If dolfinx ever get&#39;s meshless constants we should change this</span>
+<div class="viewcode-block" id="Constant.assign">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.Constant.assign">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">assign</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="EquationBCSplit">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.EquationBCSplit">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EquationBCSplit</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;DOLFINx does not support EquationBCSplit&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="EquationBC">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.EquationBC">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EquationBC</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;DOLFINx does not support EquationBC&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="invalidate_jacobian">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.invalidate_jacobian">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">invalidate_jacobian</span><span class="p">(</span><span class="n">solver</span><span class="p">:</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">petsc</span><span class="o">.</span><span class="n">LinearProblem</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Invalidate the Jacobian matrix in the backend language.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+
+
+<div class="viewcode-block" id="create_bounds_constrained_bc">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.create_bounds_constrained_bc">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_bounds_constrained_bc</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">sub_domain</span><span class="p">,</span> <span class="n">bounds</span><span class="p">,</span> <span class="n">solver_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+        <span class="s2">&quot;Bounds-constrained BCs are not implemented for DOLFINx&quot;</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="getNullspace">
+<a class="viewcode-back" href="../../../irksome.backends.html#irksome.backends.dolfinx.getNullspace">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">getNullspace</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">Vbig</span><span class="p">,</span> <span class="n">num_stages</span><span class="p">,</span> <span class="n">nullspace</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes the nullspace for a multi-stage method.</span>
+
+<span class="sd">    :param V: The :class:`ufl.FunctionSpace` on which the original time-dependent PDE is posed.</span>
+<span class="sd">    :param Vbig: The multi-stage :class:`ufl.MixedFunctionSpace` for the stage problem</span>
+<span class="sd">    :param num_stages: The number of stages in the RK method</span>
+<span class="sd">    :param nullspace: The nullspace for the original problem.</span>
+
+<span class="sd">    On output, we produce a PETSc nullspace defining the nullspace for the multistage problem.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">nullspace</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">nspnew</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">old_vecs</span> <span class="o">=</span> <span class="n">nullspace</span><span class="o">.</span><span class="n">getVecs</span><span class="p">()</span>
+        <span class="n">tmp_func</span> <span class="o">=</span> <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+        <span class="n">new_vecs</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">petsc</span><span class="o">.</span><span class="n">create_vector</span><span class="p">(</span><span class="n">Vbig</span><span class="o">.</span><span class="n">ufl_sub_spaces</span><span class="p">())</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">old_vecs</span><span class="p">))</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">old_vecs</span><span class="p">)):</span>
+            <span class="c1"># Copy the old nullspace vector into all stages of the new nullspace vector</span>
+            <span class="n">old_vecs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">tmp_func</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">petsc_vec</span><span class="p">)</span>
+            <span class="n">tmp_func</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">scatter_forward</span><span class="p">()</span>
+            <span class="n">dolfinx</span><span class="o">.</span><span class="n">fem</span><span class="o">.</span><span class="n">petsc</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">tmp_func</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_stages</span><span class="p">)],</span> <span class="n">new_vecs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="p">)</span>
+        <span class="n">nspnew</span> <span class="o">=</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">NullSpace</span><span class="p">()</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">vectors</span><span class="o">=</span><span class="n">new_vecs</span><span class="p">,</span> <span class="n">comm</span><span class="o">=</span><span class="n">nullspace</span><span class="o">.</span><span class="n">getComm</span><span class="p">()</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">nspnew</span></div>
+
+
+
+<span class="n">derivative</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">derivative</span>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
