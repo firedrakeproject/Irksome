@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 from petsc4py import PETSc
-from .tools import AI, getNullspace, flatten_dats, split_stages
+from .tools import AI, flatten_dats, split_stages
 try:
     from .labeling import as_form
 except ImportError:
@@ -128,7 +128,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         stages = self.get_stages()
         self.stages = stages
 
-        V = u0.function_space()
+        V = self._backend.get_function_space(u0)
         Vbig = stages.function_space()
 
         F_bilinear = len(as_form(F).arguments()) == 2
@@ -144,9 +144,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         Jbig = self.get_bilinear_form(J, stages, tableau=scheme_J)
         Jpbig = self.get_bilinear_form(Jp, stages, tableau=scheme_Jp)
 
-        nullspace = getNullspace(V, Vbig, num_stages, nullspace)
-        transpose_nullspace = getNullspace(V, Vbig, num_stages, transpose_nullspace)
-        near_nullspace = getNullspace(V, Vbig, num_stages, near_nullspace)
+        nullspace = self._backend.getNullspace(V, Vbig, num_stages, nullspace)
+        transpose_nullspace = self._backend.getNullspace(V, Vbig, num_stages, transpose_nullspace)
+        near_nullspace = self._backend.getNullspace(V, Vbig, num_stages, near_nullspace)
 
         self.bigBCs = bigBCs
 
@@ -226,7 +226,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                 sub = self._backend.Function(Vbig, val=flatten_dats(dats))
 
         elif bounds_type == "last_stage":
-            V = self.u0.function_space()
+            V = self._backend.get_function_space(self.u0)
             if lower is not None:
                 ninfty = self._backend.Function(V).assign(PETSc.NINFINITY)
                 dats = [ninfty.dat] * (self.num_stages-1)

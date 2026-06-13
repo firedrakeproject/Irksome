@@ -22,12 +22,9 @@ class Backend(Protocol):
         Given a function space for a single time-step, get a duplicate of this space,
         repeated `num_stages` times.
 
-        Args:
-            V: Space for single step
-            num_stages: Number of stages
-
-        Returns:
-            A coefficient in the new function space
+        :param V: Space for single step
+        :param num_stages: Number of stages
+        :returns: A coefficient in the new function space
         """
 
     class Constant:
@@ -105,15 +102,15 @@ class Backend(Protocol):
     def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None) -> DirichletBC:
         ...
 
+    def getNullspace(V, Vbig, num_stages, nullspace):
+        ...
+
 
 def get_backend(backend: str | types.ModuleType) -> Backend:
     """Get backend class from backend name.
 
-    Args:
-        backend: Name of the backend to get
-
-    Returns:
-        Backend class
+    :param backend: Name of the backend to get
+    :returns: Backend class
     """
     if isinstance(backend, types.ModuleType):
         return backend

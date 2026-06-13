@@ -5,7 +5,7 @@ import ufl
 import typing
 from functools import reduce
 from operator import mul
-
+from irksome.tools import get_sub
 
 assemble = firedrake.assemble
 derivative = firedrake.derivative
@@ -38,12 +38,10 @@ def get_stages(V: firedrake.FunctionSpace, num_stages: int) -> firedrake.Functio
     Given a function space for a single time-step, get a duplicate of this space,
     repeated `num_stages` times.
 
-    Args:
-        V: Space for single step
-        num_stages: Number of stages
+    :param V: Space for single step
+    :param num_stages: Number of stages
 
-    Returns:
-        A coefficient in the new function space
+    :returns: A coefficient in the new function space
     """
     Vbig = get_stage_space(V, num_stages)
     return firedrake.Function(Vbig)
@@ -135,5 +133,58 @@ class BoundsConstrainedDirichletBC(firedrake.DirichletBC):
         return type(self)(V, g, sub_domain, self.bounds, self.solver_parameters)
 
 
+def bc2space(bc, V):
+    return get_sub(V, bc._indices)
+
+
+def stage2spaces4bc(bc, V, Vbig, i):
+    """used to figure out how to apply Dirichlet BC to each stage"""
+    field = 0 if len(V) == 1 else bc.function_space_index()
+    comp = (bc.function_space().component,)
+    return get_sub(Vbig[field + len(V) * i], comp)
+
+
 def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None):
     return BoundsConstrainedDirichletBC(V, g, sub_domain, bounds, solver_parameters=solver_parameters)
+
+
+def getNullspace(V, Vbig, num_stages, nullspace):
+    """
+    Computes the nullspace for a multi-stage method.
+
+    :param V: The :class:`firedrake.FunctionSpace` on which the original time-dependent PDE is posed.
+    :param Vbig: The multi-stage :class:`firedrake.FunctionSpace` for the stage problem
+    :param num_stages: The number of stages in the RK method
+    :param nullspace: The nullspace for the original problem.
+
+    On output, we produce a :class:`firedrake.MixedVectorSpaceBasis` defining the nullspace
+    for the multistage problem.
+    """
+    from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
+
+    num_fields = len(V)
+    if nullspace is None:
+        nspnew = None
+    else:
+        if isinstance(nullspace, (MixedVectorSpaceBasis, VectorSpaceBasis)):
+            nullspace = [(field, basis) for field, basis in enumerate(nullspace)
+                         if isinstance(basis, VectorSpaceBasis)]
+        try:
+            nullspace.sort()
+        except AttributeError:
+            raise AttributeError("Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer")
+        if (nullspace[-1][0] > num_fields) or (nullspace[0][0] < 0):
+            raise ValueError("At least one index for nullspaces is out of range")
+        nspnew = []
+        nsp_comp = len(nullspace)
+        for i in range(num_stages):
+            count = 0
+            for j in range(num_fields):
+                if count < nsp_comp and j == nullspace[count][0]:
+                    nspnew.append(nullspace[count][1])
+                    count += 1
+                else:
+                    nspnew.append(Vbig.sub(j + num_fields * i))
+        nspnew = MixedVectorSpaceBasis(Vbig, nspnew)
+
+    return nspnew

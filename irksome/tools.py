@@ -1,5 +1,6 @@
 from .backend import get_backend
 import numpy
+import ufl
 from ufl.algorithms.analysis import extract_type
 from ufl.classes import Variable
 from ufl import as_tensor, replace as ufl_replace
@@ -79,48 +80,6 @@ def fields_to_components(V, fields):
     return components
 
 
-def getNullspace(V, Vbig, num_stages, nullspace):
-    """
-    Computes the nullspace for a multi-stage method.
-
-    :arg V: The :class:`FunctionSpace` on which the original time-dependent PDE is posed.
-    :arg Vbig: The multi-stage :class:`FunctionSpace` for the stage problem
-    :arg num_stages: The number of stages in the RK method
-    :arg nullspace: The nullspace for the original problem.
-
-    On output, we produce a :class:`MixedVectorSpaceBasis` defining the nullspace
-    for the multistage problem.
-    """
-    from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
-
-    num_fields = len(V)
-    if nullspace is None:
-        nspnew = None
-    else:
-        if isinstance(nullspace, (MixedVectorSpaceBasis, VectorSpaceBasis)):
-            nullspace = [(field, basis) for field, basis in enumerate(nullspace)
-                         if isinstance(basis, VectorSpaceBasis)]
-        try:
-            nullspace.sort()
-        except AttributeError:
-            raise AttributeError("Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer")
-        if (nullspace[-1][0] > num_fields) or (nullspace[0][0] < 0):
-            raise ValueError("At least one index for nullspaces is out of range")
-        nspnew = []
-        nsp_comp = len(nullspace)
-        for i in range(num_stages):
-            count = 0
-            for j in range(num_fields):
-                if count < nsp_comp and j == nullspace[count][0]:
-                    nspnew.append(nullspace[count][1])
-                    count += 1
-                else:
-                    nspnew.append(Vbig.sub(j + num_fields * i))
-        nspnew = MixedVectorSpaceBasis(Vbig, nspnew)
-
-    return nspnew
-
-
 def replace(e, mapping):
     """A wrapper for ufl.replace that allows numpy arrays and skips
     substitution into sub-expressions wrapped by :func:`~irksome.lag`."""
@@ -169,3 +128,18 @@ def get_lagrange_permutation(L):
     perm = numpy.argsort(c)
 
     return c[perm], perm
+
+
+def get_sub(u: ufl.FunctionSpace | ufl.Coefficient, indices: tuple[int, ...]) -> ufl.FunctionSpace | ufl.Coefficient:
+    """Recursively access the subfunction of a mixed function space or the space itself, given the indices of the subspace.
+
+    Args:
+        u: A coefficient in a mixed function space
+        indices: A tuple of integers giving the indices of the subspace to access. For example
+            if u is in a mixed space (V1, V2, V3), then get_sub(u, (0, 2)) will return the third subfunction of u in V1,
+            i.e. `u.sub(0).sub(2)`.
+    """
+    for i in indices:
+        if i is not None:
+            u = u.sub(i)
+    return u

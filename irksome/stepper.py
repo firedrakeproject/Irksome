@@ -237,3 +237,8 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         return DIRKIMEXMethod(
             Fimp, Fexp, method, t, dt, u0, bcs,
             solver_parameters, mass_parameters, appctx, nullspace, **base_kwargs)
+    else:
+        raise ValueError(
+            f"Unknown stage_type: {stage_type}. "
+            f"Valid stage types are: {list(valid_kwargs_per_stage_type.keys())}."
+        )

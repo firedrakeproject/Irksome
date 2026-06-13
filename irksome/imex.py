@@ -3,11 +3,10 @@ import numpy as np
 from ufl import Form, as_ufl, dx, inner
 
 from .backend import get_backend
-from .bcs import bc2space
 from .constant import MeshConstant, vecconst
 from .stage_value import getFormStage
 from .tools import (AI, IA, extract_timedep_arguments, reshape, replace,
-                    getNullspace, get_stage_space)
+                    get_stage_space)
 from .tableaux.ButcherTableaux import RadauIIA
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 
@@ -43,7 +42,7 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
     v, u = extract_timedep_arguments(Fexp, u0)
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
-    Vbig = backend_cls.get_function_space(UU)
+    Vbig = UU.function_space()
     VV = backend_cls.TestFunction(Vbig)
 
     num_stages = butch.num_stages
@@ -203,12 +202,12 @@ class RadauIIAIMEXMethod:
             F, butcher_tableau, t, dt, u0, UU, bcs,
             splitting=splitting, backend=backend)
 
-        nsp = getNullspace(backend_cls.get_function_space(u0),
-                           backend_cls.get_function_space(UU),
-                           self.num_stages, nullspace)
+        nsp = backend_cls.getNullspace(backend_cls.get_function_space(u0),
+                                       UU.function_space(),
+                                       self.num_stages, nullspace)
 
         self.UU = UU
-        self.UU_old = UU_old = backend_cls.Function(backend_cls.get_function_space(UU))
+        self.UU_old = UU_old = backend_cls.Function(UU.function_space())
         self.UU_old_split = UU_old.subfunctions
         self.bigBCs = bigBCs
 
@@ -246,7 +245,7 @@ class RadauIIAIMEXMethod:
             solver_parameters=prop_solver_parameters,
             nullspace=nsp, **kwargs)
 
-        num_fields = len(self.u0.function_space())
+        num_fields = len(backend_cls.get_function_space(u0))
         u0split = u0.subfunctions
         for i, u0bit in enumerate(u0split):
             for s in range(self.num_stages):
@@ -380,9 +379,9 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None, backend="fi
             bcnew.append(bc.reconstruct(g=0))
             continue
 
-        gdat = bcarg_stage - bc2space(bc, u0)
+        gdat = bcarg_stage - backend_cls.bc2space(bc, u0)
         for i in range(num_stages):
-            gdat -= dt*(a_vals[i]*bc2space(bc, ks[i]) + ahat_vals[i]*bc2space(bc, khats[i]))
+            gdat -= dt*(a_vals[i]*backend_cls.bc2space(bc, ks[i]) + ahat_vals[i]*backend_cls.bc2space(bc, khats[i]))
 
         gdat /= dt*d_val
         bcnew.append(bc.reconstruct(g=gdat))
@@ -414,11 +413,11 @@ class DIRKIMEXMethod:
         self.butcher_tableau = butcher_tableau
         self.num_stages = butcher_tableau.num_stages
 
-        self.V = V = u0.function_space()
+        self.V = V = backend_cls.get_function_space(u0)
         self.u0 = u0
         self.t = t
         self.dt = dt
-        self.num_fields = len(u0.function_space())
+        self.num_fields = len(V)
         self.ks = [backend_cls.Function(V) for _ in range(self.num_stages)]
         self.k_hat_s = [backend_cls.Function(V) for _ in range(self.num_stages)]
 

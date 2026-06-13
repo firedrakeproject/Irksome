@@ -5,7 +5,6 @@ from ufl.classes import Zero
 from ufl import as_ufl, as_tensor
 
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import bc2space, stage2spaces4bc
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
@@ -173,7 +172,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     assert L_test.get_reference_element() == L_trial.get_reference_element()
     assert L_trial.space_dimension() == L_test.space_dimension() + 1
     backend_cls = get_backend(backend)
-    Vbig = backend_cls.get_function_space(stages)
+    Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
     Constant = backend_cls.Constant
 
@@ -186,7 +185,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
-    V = u0.function_space()
+    V = backend_cls.get_function_space(u0)
     if bcs is None:
         bcs = []
     bcs = backend_cls.extract_bcs(bcs)
@@ -246,7 +245,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
             g = as_ufl(bc._original_arg)
             if isinstance(g, Zero):
                 return [g]*len(test_dicts)
-            ucur = bc2space(bc, u0)
+            ucur = backend_cls.bc2space(bc, u0)
             gq = np.array([replace(g, {t: t + q * dt}) - phi0 * ucur
                            for phi0, q in zip(trial_vals0, qpts)])
             return dot(trial_proj, gq)
@@ -262,7 +261,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
         else:
             g_np = bc_data(bc)
         for i in range(num_stages):
-            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
@@ -309,8 +308,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                  bc_type=None, aux_indices=None, backend: str = "firedrake", **kwargs):
         self.order = scheme.order
         self.basis_type = scheme.basis_type
-        self.backend = backend
-        backend_cls = get_backend(backend)
+        self._backend = backend_cls = get_backend(backend)
         V = backend_cls.get_function_space(u0)
 
         self.num_fields = len(V)

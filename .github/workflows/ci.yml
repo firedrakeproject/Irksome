@@ -58,3 +58,27 @@ jobs:
         run: |
           find . -delete
           firedrake-clean
+
+
+  dolfinx:
+    runs-on: [ubuntu-latest]
+    container: ghcr.io/fenics/dolfinx/dolfinx:stable
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        # Download Irksome into a subdirectory not called 'irksome' to make sure
+        # that the package installs correctly. Otherwise 'import irksome' may
+        # work even if the installation failed because it is a subdirectory.
+        path: irksome-repo
+
+    - name: Install irksome
+      working-directory: irksome-repo
+      run: |
+        python3 -m pip install .[dolfinx]
+
+    - name: Install pyadjoint as it is used in conftest.py
+      run: python3 -m pip install pyadjoint-ad
+
+    - name: Run dolfinx tests
+      working-directory: irksome-repo/tests
+      run: python3 -m pytest -xvs test_dolfinx.py

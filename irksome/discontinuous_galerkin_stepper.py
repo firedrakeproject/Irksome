@@ -3,7 +3,6 @@ from FIAT import (Bernstein,
                   GaussLobattoLegendre, GaussRadau)
 from ufl import as_ufl, as_tensor
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import stage2spaces4bc
 from .labeling import split_quadrature, as_form
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
@@ -153,9 +152,9 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possibly time-dependent) boundary conditions imposed
-         on the system.
+    :kwarg bcs: optionally, a  :class:`~irksome.backend.Backend.DirichletBC`
+         object (or iterable thereof) containing (possibly time-dependent)
+         boundary conditions imposed on the system.
     :kwarg deriv_type: A string indicating how to integrate terms with time derivatives.
         Valid values are:
         - `"weak"`: Time derivatives act on the test function (integrating by parts once).
@@ -167,13 +166,13 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     On output, we return a tuple consisting of two parts:
 
        - Fnew, the :class:`Form` corresponding to the DG-in-Time discretized problem
-       - `bcnew`, a list of :class:`DirichletBC` objects to be posed
+       - `bcnew`, a list of :class:`~irksome.backend.Backend.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
     """
     num_stages = L.space_dimension()
     backend_cls = get_backend(backend)
     V = backend_cls.get_function_space(u0)
-    Vbig = backend_cls.get_function_space(stages)
+    Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
 
     degree_mapping = get_degree_mapping(as_form(F), L.degree(), L.degree(), t=t, timedep_coeffs=(u0,))
@@ -206,7 +205,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
             gq = np.array([replace(g0, {t: t + c*dt}) for c in qpts])
             g_np = proj @ gq
             for i in range(num_stages):
-                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
                 bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
@@ -226,7 +225,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         a variable referring to the current time step size.
     :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :arg bcs: An iterable of :class:`.DirichletBC` containing
+    :arg bcs: An iterable of :class:`~irksome.backend.Backend.DirichletBC` containing
         the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the method.
@@ -240,14 +239,15 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
     :arg nullspace: An optional nullspace object.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None, **kwargs):
+                 quadrature=None, backend="firedrake", **kwargs):
         order = self.order = scheme.order
         assert order >= 0, "DG must be order >= 0"
 
         self.basis_type = scheme.basis_type
         self.deriv_type = scheme.deriv_type
 
-        V = u0.function_space()
+        backend_cls = get_backend(backend)
+        V = backend_cls.get_function_space(u0)
         self.num_fields = len(V)
 
         self.el, self.quadrature = get_element_and_quadrature(scheme)
