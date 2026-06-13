@@ -1,0 +1,324 @@
+# -----------------------------
+# Imports
+# -----------------------------
+from firedrake.preconditioners.base import PCBase
+from firedrake.petsc import PETSc
+from firedrake import *
+import numpy as np
+from firedrake.dmhooks import get_appctx, get_function_space
+
+
+__all__ = ("KronPC", "MassKronPC", "StiffnessKronPC", "SIPGStiffnessKronPC")
+
+# -----------------------------
+# KronPC definition
+# -----------------------------
+
+
+class KronPC(PCBase):
+    r"""
+    Preconditioner applying: y =  (L \otimes K^{-1}) x
+      - L is the stage matrix, provided by the user. If A is provided, we set L = A^{-1}. If neither provided, L = I_s.
+      - K is assembled on the single-stage space by subclasses via "form(trial, test)"
+      - K^{-1} is approximated by a PETSc PC with prefix
+    """
+    needs_python_pmat = False
+
+    def form(self, trial, test):
+        """Return (a, bcs) for the single-stage operator K."""
+        raise NotImplementedError("KronPC.form() is abstract. Use MassKronPC or StiffnessKronPC (or a custom subclass).\
+                                  Subclass must implement 'form(trial, test)'.")
+
+    def initialize(self, pc):
+        if pc.getType() != "python":
+            raise ValueError("Expecting PC type 'python' for KronPC.")
+
+        self._prefix = (pc.getOptionsPrefix() or "") + "kron_"
+        opts = PETSc.Options()
+
+        mat_type = opts.getString(self._prefix + "mat_type", "aij")
+
+        dm = pc.getDM()
+        context = get_appctx(dm)
+
+        Vbig = get_function_space(dm)
+
+        self.work_in = Cofunction(Vbig.dual(), name="kron_work_in")
+        self.work_mid = Function(Vbig, name="kron_work_mid")
+        self.work_out = Function(Vbig, name="kron_work_out")
+
+        Vstage = Vbig.sub(0)
+        trial = TrialFunction(Vstage)
+        test = TestFunction(Vstage)
+        a, bcs = self.form(trial, test)
+
+        fc_params = getattr(context, "fc_params", None)
+        K = assemble(a, bcs=bcs, mat_type=mat_type, form_compiler_parameters=fc_params)
+        self.K = K
+
+        # NEW: create a sub-KSP (instead of a raw PC) so we can use python PCs with DM/appctx
+        sub_ksp = PETSc.KSP().create(comm=pc.comm)
+        sub_ksp.setOptionsPrefix(self._prefix + "sub_")
+        sub_ksp.incrementTabLevel(1, parent=pc)
+
+        # Propagate DM and its python context to the sub-KSP
+        dmK = K.M.handle.getDM() or pc.getDM()
+        if dmK is not None:
+            sub_ksp.setDM(dmK)
+
+            # Do not let the DM generate operators/RHS/initial guess,
+            # because we already set the assembled operator below.
+            try:
+                sub_ksp.setDMActive(PETSc.KSP.DMActive.ALL, False)
+            except TypeError:
+                sub_ksp.setDMActive(False)
+
+        # Operators and options
+        sub_ksp.setOperators(K.M.handle)
+        sub_ksp.setFromOptions()
+
+        # defaults if the user didn't set anything:
+        if sub_ksp.getType() is None:
+            sub_ksp.setType("preonly")
+        if sub_ksp.getPC().getType() is None:
+            sub_ksp.getPC().setType("lu")
+
+        sub_ksp.setUp()
+
+        self.sub_ksp = sub_ksp
+        self.sub_pc = sub_ksp.getPC()
+        A, _ = self.sub_ksp.getOperators()
+        self._tmp_stage = A.createVecRight()
+        try:
+            s = len(self.work_in.subfunctions)
+        except Exception:
+            s = 1
+        self._s = s
+        self.L = self._build_stage_L(self._s, context, pc)
+
+# --- discover A from user-provided context (prefer appctx) ---
+    def _build_stage_L(self, s, context, pc):
+        """
+        Build the stage coupling matrix L.
+            - If appctx/context supplies A, set L = A^{-1}.
+            - If appctx/context supplies butcher_tableau with .A, use that.
+            - Else default to I_s.
+        """
+        # Look in appctx first
+        appctx = getattr(context, "appctx", None) or {}
+        A = appctx.get("A", None)
+        if A is None:
+            bt = appctx.get("butcher_tableau", None)
+            if bt is not None and hasattr(bt, "A"):
+                A = bt.A
+
+        # Fall back to direct attributes
+        if A is None:
+            if hasattr(context, "A"):
+                A = context.A
+            else:
+                bt = getattr(context, "butcher_tableau", None)
+                if bt is not None and hasattr(bt, "A"):
+                    A = bt.A
+
+        if A is not None:
+            A = np.asarray(A, dtype=float)
+            if A.shape != (s, s):
+                raise ValueError(f"KronPC: A has shape {A.shape}, expected {(s, s)}.")
+            return np.linalg.inv(A)
+
+        # Default: identity
+        return np.eye(s)
+
+    def update(self, pc):
+        pass
+
+    def apply(self, pc, x, y):
+        s = self._s
+        y.set(0.0)
+
+        with self.work_in.dat.vec_wo as vin:
+            x.copy(vin)
+
+        # Stagewise K^{-1}
+        for i in range(s):
+            with self.work_in.subfunctions[i].dat.vec_ro as rhs_i, \
+                    self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
+                mid_i.set(0.0)
+                self.sub_ksp.solve(rhs_i, mid_i)
+
+        # Zero outputs
+        self.work_out.zero()
+
+        # y_stage[j] += sum_i L[j,i] * mid[i]
+        for j in range(s):
+            row = self.L[j, :]
+            with self.work_out.subfunctions[j].dat.vec_wo as yj:
+                for i in range(s):
+                    lij = row[i]
+                    if lij == 0.0:
+                        continue
+                    with self.work_mid.subfunctions[i].dat.vec_ro as ui:
+                        yj.axpy(lij, ui)
+
+        with self.work_out.dat.vec_ro as vout:
+            vout.copy(y)
+
+    def applyTranspose(self, pc, x, y):
+        s = self._s
+        y.set(0.0)
+
+        with self.work_in.dat.vec_wo as vin:
+            x.copy(vin)
+
+        # Stagewise K^{-T}
+        for i in range(s):
+            with self.work_in.subfunctions[i].dat.vec_ro as rhs_i, \
+                    self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
+                mid_i.set(0.0)
+                # requires the sub-KSP (PC) to support transpose solves
+                self.sub_ksp.solveTranspose(rhs_i, mid_i)
+
+        # Zero outputs
+        for j in range(s):
+            self.work_out.subfunctions[j].assign(0.0)
+
+        # y_stage[j] = sum_i L^T[j,i] * mid[i]
+        LT = self.L.T
+        for j in range(s):
+            row = LT[j, :]
+            with self.work_out.subfunctions[j].dat.vec_wo as yj:
+                for i in range(s):
+                    lij = float(row[i])
+                    if lij != 0.0:
+                        with self.work_mid.subfunctions[i].dat.vec_ro as ui:
+                            yj.axpy(lij, ui)
+
+        with self.work_out.dat.vec_ro as vout:
+            vout.copy(y)
+
+    def view(self, pc, viewer=None):
+        if viewer is None:
+            viewer = PETSc.Viewer.STDOUT(pc.comm)
+        viewer.printfASCII("KronPC:\n")
+        viewer.printfASCII(f"  stages        : {self._s}\n")
+        viewer.printfASCII("  sub-KSP for K^{-1} options:\n")
+        if hasattr(self, "sub_ksp") and self.sub_ksp is not None:
+            self.sub_ksp.view(viewer)
+
+    def destroy(self, pc):
+        if hasattr(self, "sub_ksp") and self.sub_ksp is not None:
+            self.sub_ksp.destroy()
+            self.sub_ksp = None
+        self.sub_pc = None
+
+
+class MassKronPC(KronPC):
+    """K built from the mass form."""
+
+    def form(self, trial, test):
+        a = inner(trial, test) * dx
+        bcs = None
+        return a, bcs
+
+
+class StiffnessKronPC(KronPC):
+    """K built from the regularized stiffness form."""
+
+    def form(self, trial, test):
+        shift = PETSc.Options().getReal(self._prefix + "stiffness_shift", 1.0e-12)
+        a = (
+            inner(grad(trial), grad(test)) * dx
+            + shift * inner(trial, test) * dx
+        )
+        bcs = None
+        return a, bcs
+
+
+class SIPGStiffnessKronPC(KronPC):
+    r"""
+    Discontinuous Galerkin (SIPG) pressure "stiffness" for DG spaces (e.g., P_{k}^{\mathrm{disc}}).
+    Implementation details:
+    - The trial/test must belong to a scalar DG space (e.g., DG(k)).
+    - The sub-solve for \(K^{-1}\) is handled by a PETSc PC with options prefix ``kron_sub_*``.
+    """
+
+    def form(self, trial, test):
+        mesh = trial.ufl_domain()
+        n = FacetNormal(mesh)
+        h = CellVolume(mesh)
+
+        # Polynomial degree k of the DG space
+        k = trial.ufl_function_space().ufl_element().degree()
+
+        # Read base penalty C from PETSc options; default C=10
+        C = PETSc.Options().getReal(self._prefix + "sipg_C", 10.0)
+
+        # penal = C * (k+1)(k+2)
+        penal = Constant(C * (k + 1) * (k + 2))
+        a = (inner(grad(test), grad(trial)) * dx
+             - inner(avg(grad(trial)), jump(test, n)) * dS
+             - inner(avg(grad(test)), jump(trial, n)) * dS
+             + (penal / avg(h)) * inner(jump(trial), jump(test)) * dS
+             - inner(grad(test), trial * n) * ds
+             - inner(grad(trial), test * n) * ds
+             + (penal / h) * inner(trial, test) * ds)
+
+        bcs = None
+        return a, bcs
+
+    def initialize(self, pc):
+        # Assemble K and build the sub-KSP using the base class logic
+        super().initialize(pc)
+
+        S = get_function_space(pc.getDM())   # what the sub-KSP actually solves on
+        Q = S.sub(1)
+
+        self._ns_vec = Function(Q, name="sipg_const")
+        self._ns_vec.assign(1.0)
+
+        with self._ns_vec.dat.vec_ro as v:
+            self._ns = PETSc.NullSpace().create(constant=True, vectors=[v])
+
+        A, P = self.sub_ksp.getOperators()
+        A.setNullSpace(self._ns)
+        P.setNullSpace(self._ns)
+
+    def apply(self, pc, x, y):
+        s = self._s
+        y.set(0.0)
+
+        # copy input into work_in
+        with self.work_in.dat.vec_wo as vin:
+            x.copy(vin)
+
+        # stagewise K^{-1} with per-stage projections
+        for i in range(s):
+            with self.work_in.subfunctions[i].dat.vec_ro as rhs_i_ro, \
+                    self.work_mid.subfunctions[i].dat.vec_wo as mid_i:
+
+                # tmp = self._tmp_stage
+                # tmp.copy(rhs_i_ro)
+                self._ns.remove(rhs_i_ro)          # project RHS off constant mode
+
+                mid_i.set(0.0)
+                self.sub_ksp.solve(rhs_i_ro, mid_i)
+
+                # self._ns.remove(mid_i)        # keep solution in mean-free subspace
+
+        # zero outputs
+        for j in range(s):
+            self.work_out.subfunctions[j].assign(0.0)
+
+        # y_j = sum_i L[j,i] * mid_i (with projection)
+        for j in range(s):
+            row = self.L[j, :]
+            with self.work_out.subfunctions[j].dat.vec_wo as yj:
+                for i in range(s):
+                    lij = row[i]
+                    if lij != 0.0:
+                        with self.work_mid.subfunctions[i].dat.vec_ro as ui:
+                            yj.axpy(lij, ui)
+
+        with self.work_out.dat.vec_ro as vout:
+            vout.copy(y)

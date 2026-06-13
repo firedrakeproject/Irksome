@@ -103,6 +103,7 @@ try:
         IRKAuxiliaryOperatorPC,
     )
     from .stepper import TimeStepper
+    from .kronpc import KronPC, MassKronPC, StiffnessKronPC, SIPGStiffnessKronPC
 
     __all__ += [
         "TimeQuadratureLabel",
@@ -116,6 +117,10 @@ try:
         "RanaLD",
         "IRKAuxiliaryOperatorPC",
         "TimeStepper",
+        "KronPC",
+        "MassKronPC",
+        "StiffnessKronPC",
+        "SIPGStiffnessKronPC",
     ]
 
 except ModuleNotFoundError:
