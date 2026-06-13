@@ -7,7 +7,7 @@ from .tools import AI, dot, extract_timedep_arguments, fields_to_components, rep
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 
-from .bcs import EmbeddedBCData, BCStageData, stage2spaces4bc, bc2space
+from .bcs import EmbeddedBCData, BCStageData
 
 from .base_time_stepper import StageCoupledTimeStepper
 from .tableaux.ButcherTableaux import CollocationButcherTableau
@@ -75,7 +75,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     # s-way product space for the stage variables
     num_stages = butch.num_stages
-    Vbig = backend_cls.get_function_space(stages)
+    Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
 
     # set up the pieces we need to work with to do our substitutions
@@ -127,7 +127,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
             if isinstance(bc, backend_cls.EquationBCSplit):
                 F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u,))
                 F_bc_new = replace(F_bc_orig, repl[i])
-                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
                 return backend_cls.EquationBC(
                     F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
                     bcs=[bc2stagebc(innerbc, i) for innerbc in backend_cls.extract_bcs(bc.bcs)])
@@ -135,10 +135,10 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
                 gcur = bc._original_arg
                 if gcur != 0:
                     gorig = as_ufl(gcur)
-                    ucur = bc2space(bc, u0)
+                    ucur = backend_cls.bc2space(bc, u0)
                     gcur = (1/dt) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur) * A1inv[i, j]
                                         for j in range(num_stages))
-                return BCStageData(bc, gcur, u0, stages, i)
+                return BCStageData(bc, gcur, u0, stages, i, backend=backend)
     else:
         raise ValueError(f"Unrecognised bc_type: {bc_type}")
 
@@ -157,8 +157,8 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg butcher_tableau: A :class:`ButcherTableau` instance giving
         the Runge-Kutta method to be used for time marching.
-    :arg t: a :class:`Constant` or :class:`Function`
-        on the Real space over the same mesh as ``u0``.  This serves as
+    :arg t: a :class:`Constant` or :class:`Function` on the Real space
+        over the same mesh as ``u0``.  This serves as
         a variable referring to the current time.
     :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as ``u0``.  This serves as
@@ -196,7 +196,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         self.butcher_tableau = butcher_tableau
         A1, A2 = splitting(butcher_tableau.A)
         try:
-            self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b))
+            self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b), backend=backend)
         except numpy.linalg.LinAlgError:
             raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
 
@@ -221,7 +221,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         nf = self.num_fields
 
         # Note: this now catches the optimized/stiffly accurate case as b[s] == Zero() will get dropped
-
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 
@@ -233,7 +232,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                        self.t, self.dt, self.u0,
                        stages, bcs, self.bc_type,
                        splitting=self.splitting,
-                       aux_indices=self.aux_indices)
+                       aux_indices=self.aux_indices, backend=self._backend)
 
     def tabulate_poly(self, sample_points):
         if not isinstance(self.butcher_tableau, CollocationButcherTableau):
@@ -329,7 +328,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         self.onscale_factor = onscale_factor
         self.safety_factor = safety_factor
 
-        self.error_func = self._backend.Function(u0.function_space())
+        self.error_func = self._backend.Function(self._backend.get_function_space(u0))
         self.tol = tol
         self.err_old = 0.0
         self.contreject = 0
@@ -360,10 +359,11 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         u0 = self.u0
 
         # Initialize e to be gamma*h*f(old value of u)
-        error_func = backend_cls.Function(u0.function_space())
+        V = backend_cls.get_function_space(u0)
+        error_func = backend_cls.Function(V)
         # Only do the hard stuff if gamma0 is not zero
         if self.gamma0 != 0.0:
-            error_test = backend_cls.TestFunction(u0.function_space())
+            error_test = backend_cls.TestFunction(V)
             f_form = inner(error_func, error_test)*dx-self.gamma0*dtc*self.dtless_form
             f_problem = backend_cls.create_variational_problem(f_form, error_func, bcs=self.embbc)
             f_solver = backend_cls.create_variational_solver(f_problem, solver_parameters=self.gamma0_params)

@@ -2,7 +2,6 @@ import numpy
 from ufl import as_ufl, lhs
 
 from .constant import vecconst, MeshConstant
-from .bcs import bc2space
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .tools import extract_timedep_arguments, replace
 from .backend import get_backend
@@ -57,8 +56,8 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
             bcnew.append(bc)
         else:
             bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
-            gdat = bcarg_stage - bc2space(bc, u0)
-            gdat -= sum(bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
+            gdat = bcarg_stage - backend_cls.bc2space(bc, u0)
+            gdat -= sum(backend_cls.bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
             gdat /= d_val * dt
             bcnew.append(bc.reconstruct(g=gdat))
 
@@ -104,15 +103,15 @@ class DIRKTimeStepper:
         if butcher_tableau.is_explicit:
             self.AAb = self.AAb[1:]
             self.CCone = self.CCone[1:]
-        self.AA = vecconst(butcher_tableau.A)
-        self.BB = vecconst(butcher_tableau.b)
+        self.AA = vecconst(butcher_tableau.A, backend=backend)
+        self.BB = vecconst(butcher_tableau.b, backend=backend)
 
-        self.V = V = u0.function_space()
+        self.V = V = self._backend.get_function_space(u0)
         self.u0 = u0
         self.t = t
         self.dt = dt
         self.orig_bcs = bcs
-        self.num_fields = len(u0.function_space())
+        self.num_fields = len(V)
         self.ks = [backend_cls.Function(V) for _ in range(num_stages)]
 
         # "k" is a generic function for which we will solve the
