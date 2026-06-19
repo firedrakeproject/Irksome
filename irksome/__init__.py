@@ -101,6 +101,7 @@ try:
         RanaDU,
         RanaLD,
         IRKAuxiliaryOperatorPC,
+        IRKAuxiliaryOperatorSNES,
     )
     from .stepper import TimeStepper
 
@@ -115,6 +116,7 @@ try:
         "RanaDU",
         "RanaLD",
         "IRKAuxiliaryOperatorPC",
+        "IRKAuxiliaryOperatorSNES",
         "TimeStepper",
     ]
 

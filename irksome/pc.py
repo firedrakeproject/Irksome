@@ -2,7 +2,7 @@ import copy
 
 import numpy
 from .labeling import as_form
-from firedrake import AuxiliaryOperatorPC, derivative
+from firedrake import AuxiliaryOperatorPC, AuxiliaryOperatorSNES, derivative
 from firedrake.dmhooks import get_appctx
 
 
@@ -79,6 +79,65 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         Jnew = derivative(Fnew, w, du=trial)
 
         return Jnew, bcnew
+
+
+class IRKAuxiliaryOperatorSNES(AuxiliaryOperatorSNES):
+    """Base class that inherits from Firedrake's :class:`AuxiliaryOperatorSNES`
+    and provides the nonlinear form associated with an auxiliary Form and/or
+    approximate Butcher matrix (which are provided by subclasses). This is the
+    nonlinear analogue of :class:`IRKAuxiliaryOperatorPC`.
+
+    Options for the inner solve are specified using the ``"aux_"`` prefix, as
+    for :class:`AuxiliaryOperatorSNES`.
+    """
+
+    def getNewForm(self, snes, u0, test):
+        """Derived classes can optionally provide an auxiliary semidiscrete
+        Form, expressed in terms of the current state ``u0`` and a ``test``
+        function over the same (single-stage) function space."""
+        raise NotImplementedError
+
+    def getAtilde(self, A):
+        """Derived classes produce a typically structured
+        approximation to A."""
+        raise NotImplementedError
+
+    def form(self, snes, w0, w, test):
+        """Implements the interface for AuxiliaryOperatorSNES.
+
+        :arg snes: the PETSc SNES object.
+        :arg w0: the current iterate of the stages (unused by default, but
+            available to subclasses that wish to lag terms).
+        :arg w: the stages to be solved for at the next iterate; the auxiliary
+            residual is built in terms of this Function.
+        :arg test: the test function over the stage space (unused; the time
+            stepper builds its own test function).
+        """
+        appctx = self.get_appctx(snes)
+        stepper = appctx["stepper"]
+        butcher = stepper.butcher_tableau
+        F = as_form(stepper.F)
+        u0 = stepper.u0
+        bcs = stepper.orig_bcs
+        v0, = F.arguments()
+
+        try:
+            # use new Form if provided
+            F, bcs = self.getNewForm(snes, u0, v0)
+        except NotImplementedError:
+            pass
+
+        try:
+            # use new ButcherTableau if provided
+            Atilde = self.getAtilde(butcher.A)
+            butcher = copy.deepcopy(butcher)
+            butcher.A = Atilde
+        except NotImplementedError:
+            pass
+
+        Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F, bcs=bcs)
+
+        return Fnew, bcnew
 
 
 class RanaBase(IRKAuxiliaryOperatorPC):
