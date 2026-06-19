@@ -17,7 +17,7 @@ jobs:
   test:
     runs-on: [self-hosted, Linux]
     container:
-      image: firedrakeproject/firedrake-vanilla-default:latest
+      image: firedrakeproject/firedrake-vanilla-default:dev-release
     steps:
       - name: Fix HOME
         # For unknown reasons GitHub actions overwrite HOME to /github/home
