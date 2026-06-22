@@ -68,7 +68,7 @@ class DIRKTimeStepper:
     """Front-end class for advancing a time-dependent PDE via a diagonally-implicit
     Runge-Kutta method formulated in terms of stage derivatives."""
 
-    def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None, Fp=None,
+    def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None, J=None, Jp=None,
                  solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
@@ -126,11 +126,8 @@ class DIRKTimeStepper:
         self.bcnew = bcnew
         self.bc_constants = a_vals, d_val
 
-        stage_Jp = None
-        if Fp is not None:
-            Fp_linear = len(Fp.arguments()) == 2
-            stage_Fp, *_ = self.get_form_and_bcs(self.ks, F=Fp, bcs=())
-            stage_Jp = lhs(stage_Fp) if Fp_linear else backend_cls.derivative(stage_Fp, k)
+        stage_J = self.get_bilinear_form(J, u0, k, tableau=butcher_tableau)
+        stage_Jp = self.get_bilinear_form(Jp, u0, k, tableau=butcher_tableau)
 
         appctx_irksome = {"stepper": self}
         if appctx is None:
@@ -140,7 +137,7 @@ class DIRKTimeStepper:
         self.appctx = appctx
 
         self.problem = backend_cls.create_variational_problem(
-            stage_F, k, bcs=bcnew, Jp=stage_Jp,
+            stage_F, k, bcs=bcnew, J=stage_J, Jp=stage_Jp,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
@@ -158,6 +155,13 @@ class DIRKTimeStepper:
             solver_parameters=solver_parameters,
             **kwargs,
         )
+
+    def get_bilinear_form(self, form, u0, stages, tableau=None):
+        if form is None:
+            return form
+        Fbig, *_ = self.get_form_and_bcs(u0, stages, F=form, bcs=(), tableau=tableau)
+        is_bilinear = len(Fbig.arguments()) == 2
+        return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, stages)
 
     def update_bc_constants(self, i, c):
         AAb = self.AAb

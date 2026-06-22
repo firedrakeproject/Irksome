@@ -8,7 +8,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
-from .scheme import create_time_quadrature, ufc_line
+from .scheme import ContinuousPetrovGalerkinScheme, create_time_quadrature, ufc_line
 from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components, reshape, replace
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
@@ -59,6 +59,21 @@ def getElements(basis_type, order):
     else:
         L_trial = getTrialElement(trial_type, order)
     return L_trial, L_test
+
+
+def get_elements_and_quadrature(scheme):
+    trial_el, test_el = getElements(scheme.basis_type, scheme.order)
+    quad_degree = scheme.quadrature_degree
+    if quad_degree is None:
+        quad_degree = trial_el.degree() + test_el.degree()
+    quad_scheme = scheme.quadrature_scheme
+    if quad_scheme is None and isinstance(test_el, GaussRadau):
+        quad_scheme = "radau"
+    if quad_degree == "auto":
+        quadrature = quad_scheme
+    else:
+        quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
+    return trial_el, test_el, quadrature
 
 
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend="firedrake"):
@@ -297,30 +312,16 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         V = backend_cls.get_function_space(u0)
 
         self.num_fields = len(V)
-
-        self.trial_el, self.test_el = getElements(self.basis_type, self.order)
-        num_stages = self.test_el.space_dimension()
-
-        quad_degree = scheme.quadrature_degree
-        if quad_degree is None:
-            quad_degree = self.trial_el.degree() + self.test_el.degree()
-        quad_scheme = scheme.quadrature_scheme
-        if quad_scheme is None and isinstance(self.test_el, GaussRadau):
-            quad_scheme = "radau"
-
-        if quad_degree == "auto":
-            quadrature = quad_scheme
-        else:
-            quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
-        self.quadrature = quadrature
+        self.trial_el, self.test_el, self.quadrature = get_elements_and_quadrature(scheme)
         self.max_quadrature_degree = scheme.max_quadrature_degree
         self.aux_indices = aux_indices
+        num_stages = self.test_el.space_dimension()
         try:
             self.butcher_tableau = CollocationButcherTableau(self.test_el, None)
         except TypeError:
             self.butcher_tableau = None
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, **kwargs)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, scheme_F=scheme, **kwargs)
         self.set_initial_guess()
         self.set_update_expressions()
 
@@ -332,9 +333,11 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
+        if order is None:
+            order = self.order
         aux_indices = aux_indices or self.aux_indices
 
-        if tableau is not None:
+        if isinstance(tableau, CollocationButcherTableau):
             # Galerkin collocation is equivalent to an IRK up to row scaling
             row_scale = tableau.b
 
@@ -356,28 +359,35 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             else:
                 raise ValueError("Expecting a GalerkinCollocationScheme")
 
+            F = as_form(F)
             Fnew, bcnew = get_irk_form(F, tableau, self.t, self.dt, self.u0, stages,
                                        bcs=bcs, splitting=splitting, aux_indices=aux_indices)
 
-            if splitting != scaledIA:
-                v0, = F.arguments()
-                test, = Fnew.arguments()
+            if trial_type == "deriv":
+                v0 = F.arguments()[0]
+                test = Fnew.arguments()[0]
                 test_np = reshape(test, (-1, *v0.ufl_shape))
-                test_np = np.multiply(vecconst(row_scale).reshape(-1, *(1,)*len(v0.ufl_shape)), test_np)
+                test_np = np.multiply(self.dt*vecconst(row_scale).reshape(-1, *(1,)*len(v0.ufl_shape)), test_np)
                 test_np = test_np.reshape(test.ufl_shape)
-                Fnew = replace(Fnew, {test: test_np})
+                Fnew = replace(Fnew, {test: test_np, stages: stages/self.dt})
 
             return Fnew, bcnew
 
-        if order is None:
-            order = self.order
-        if basis_type == self.basis_type and order == self.order:
-            trial_el = self.trial_el
-            test_el = self.test_el
+        elif isinstance(tableau, ContinuousPetrovGalerkinScheme):
+            trial_el, test_el, quadrature = get_elements_and_quadrature(tableau)
+            max_quadrature_degree = tableau.max_quadrature_degree or self.max_quadrature_degree
+
+        elif tableau is None:
+            if basis_type == self.basis_type and order == self.order:
+                trial_el = self.trial_el
+                test_el = self.test_el
+            else:
+                trial_el, test_el = getElements(basis_type, order)
+            quadrature = quadrature or self.quadrature
+            max_quadrature_degree = self.max_quadrature_degree
         else:
-            trial_el, test_el = getElements(basis_type, order)
-        quadrature = quadrature or self.quadrature
-        max_quadrature_degree = self.max_quadrature_degree
+            raise TypeError("Expecting CollocationButcherTableau or ContinuousPetrovGalerkinScheme")
+
         return getFormGalerkin(F, trial_el, test_el, quadrature,
                                self.t, self.dt, self.u0, stages,
                                bcs=bcs, bc_type=self.bc_type,
