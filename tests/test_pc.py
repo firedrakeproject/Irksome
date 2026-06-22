@@ -198,7 +198,6 @@ def test_git_irk_equivalence(scheme):
     sparams = {
         "mat_type": "matfree",
         "ksp_type": "gmres",
-        "ksp_pc_side": "right",
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
         "snes_converged_reason": None,
