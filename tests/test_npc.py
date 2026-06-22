@@ -1,4 +1,5 @@
 import pytest
+from petsc4py import PETSc
 import firedrake
 from firedrake import (
     Constant, Function, FunctionSpace, SpatialCoordinate,
@@ -99,9 +100,15 @@ def test_npc_stefan():
     method = BackwardEuler()
     stepper = TimeStepper(F, method, t, dt, T, **params)
 
+    reasons = [
+        PETSc.SNES.ConvergedReason.CONVERGED_FNORM_ABS,
+        PETSc.SNES.ConvergedReason.CONVERGED_FNORM_RELATIVE,
+        PETSc.SNES.ConvergedReason.CONVERGED_SNORM_RELATIVE,
+    ]
+
     final_time = 20.0
     num_steps = int(final_time / float(dt))
     for _ in range(num_steps):
         stepper.advance()
         t.assign(t + dt)
-        assert stepper.solver.snes.getConvergedReason() > 0
+        assert stepper.solver.snes.getConvergedReason() in reasons
