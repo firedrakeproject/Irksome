@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Solving the Heat Equation with a DIRK in Irksome &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/fenics.css?v=c6f455f8" />
+    <script src="../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Solving the Mixed Wave Equation: Energy conservation, Multigrid, Galerkin-in-Time" href="demo_RTwave_galerkin.py.html" />
+    <link rel="prev" title="Accessing DIRK methods" href="demo_dirk_parameters.py.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../index.html"><img src="../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="demos/demo_heat_dirk.py">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="solving-the-heat-equation-with-a-dirk-in-irksome">
+<h1>Solving the Heat Equation with a DIRK in Irksome<a class="headerlink" href="#solving-the-heat-equation-with-a-dirk-in-irksome" title="Link to this heading">¶</a></h1>
+<p>Let’s start with the simple heat equation on <span class="math notranslate nohighlight">\(\Omega = [0,10]
+\times [0,10]\)</span>, with boundary <span class="math notranslate nohighlight">\(\Gamma\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}u_t - \Delta u &amp;= f\\u &amp; = 0 \quad \textrm{on}\ \Gamma\end{aligned}\end{align} \]</div>
+<p>for some known function <span class="math notranslate nohighlight">\(f\)</span>.  At each time <span class="math notranslate nohighlight">\(t\)</span>, the solution
+to this equation will be some function <span class="math notranslate nohighlight">\(u\in V\)</span>, for a suitable function
+space <span class="math notranslate nohighlight">\(V\)</span>.</p>
+<p>We transform this into weak form by multiplying by an arbitrary test function
+<span class="math notranslate nohighlight">\(v\in V\)</span> and integrating over <span class="math notranslate nohighlight">\(\Omega\)</span>.  We know have the
+variational problem of finding <span class="math notranslate nohighlight">\(u:[0,T]\rightarrow V\)</span> such
+that</p>
+<div class="math notranslate nohighlight">
+\[(u_t, v) + (\nabla u, \nabla v) = (f, v)\]</div>
+<p>This demo implements an example used by Solin with a particular choice
+of <span class="math notranslate nohighlight">\(f\)</span> given below</p>
+<p>As usual, we need to import firedrake:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+</pre></div>
+</div>
+<p>We will also need to import certain items from irksome:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">irksome</span><span class="w"> </span><span class="kn">import</span> <span class="n">Alexander</span><span class="p">,</span> <span class="n">Dt</span><span class="p">,</span> <span class="n">MeshConstant</span><span class="p">,</span> <span class="n">TimeStepper</span>
+</pre></div>
+</div>
+<p>We will create the Butcher tableau for a three-stage L-stable DIRK
+due to Alexander (SINUM 14(6): 1006-1021, 1977).:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">butcher_tableau</span> <span class="o">=</span> <span class="n">Alexander</span><span class="p">()</span>
+<span class="n">ns</span> <span class="o">=</span> <span class="n">butcher_tableau</span><span class="o">.</span><span class="n">num_stages</span>
+</pre></div>
+</div>
+<p>Now we define the mesh and piecewise linear approximating space in
+standard Firedrake fashion:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">N</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">x0</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="n">x1</span> <span class="o">=</span> <span class="mf">10.0</span>
+<span class="n">y0</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="n">y1</span> <span class="o">=</span> <span class="mf">10.0</span>
+
+<span class="n">msh</span> <span class="o">=</span> <span class="n">RectangleMesh</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span><span class="p">)</span>
+<span class="n">V</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We define variables to store the time step and current time value:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">MC</span> <span class="o">=</span> <span class="n">MeshConstant</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+<span class="n">dt</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">10.0</span> <span class="o">/</span> <span class="n">N</span><span class="p">)</span>
+<span class="n">t</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This defines the right-hand side using the method of manufactured solutions:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">SpatialCoordinate</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+<span class="n">S</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span>
+<span class="n">C</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">1000.0</span><span class="p">)</span>
+<span class="n">B</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">Constant</span><span class="p">(</span><span class="n">x0</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">Constant</span><span class="p">(</span><span class="n">x1</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="n">y</span><span class="o">-</span><span class="n">Constant</span><span class="p">(</span><span class="n">y0</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="n">y</span><span class="o">-</span><span class="n">Constant</span><span class="p">(</span><span class="n">y1</span><span class="p">))</span><span class="o">/</span><span class="n">C</span>
+<span class="n">R</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">*</span> <span class="n">y</span><span class="p">)</span> <span class="o">**</span> <span class="mf">0.5</span>
+<span class="n">uexact</span> <span class="o">=</span> <span class="n">B</span> <span class="o">*</span> <span class="n">atan</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">-</span> <span class="n">atan</span><span class="p">(</span><span class="n">S</span> <span class="o">*</span> <span class="p">(</span><span class="n">R</span> <span class="o">-</span> <span class="n">t</span><span class="p">)))</span>
+<span class="n">rhs</span> <span class="o">=</span> <span class="n">Dt</span><span class="p">(</span><span class="n">uexact</span><span class="p">)</span> <span class="o">-</span> <span class="n">div</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">uexact</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>We define the initial condition for the fully discrete problem, which
+will get overwritten at each time step:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">u</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+<span class="n">u</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">uexact</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now, we will define the semidiscrete variational problem using
+standard UFL notation, augmented by the <code class="docutils literal notranslate"><span class="pre">Dt</span></code> operator from Irksome:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">v</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+<span class="n">F</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">grad</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="o">*</span><span class="n">dx</span> <span class="o">-</span> <span class="n">inner</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span>
+<span class="n">bc</span> <span class="o">=</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;on_boundary&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We’ll just solve each stage with gamg + gmres:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;mat_type&quot;</span><span class="p">:</span> <span class="s2">&quot;aij&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;gmres&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;gamg&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>Most of Irksome’s magic happens in the <code class="xref py py-class docutils literal notranslate"><span class="pre">TimeStepper</span></code>.  It
+transforms our semidiscrete form <cite>F</cite> into a fully discrete form for
+the stage unknowns and sets up a variational problem to solve for the
+stages at each time step.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">stepper</span> <span class="o">=</span> <span class="n">TimeStepper</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bc</span><span class="p">,</span>
+                      <span class="n">solver_parameters</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+                      <span class="n">stage_type</span><span class="o">=</span><span class="s2">&quot;dirk&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This logic is pretty self-explanatory.  We use the
+<code class="xref py py-class docutils literal notranslate"><span class="pre">TimeStepper</span></code>’s <code class="xref py py-meth docutils literal notranslate"><span class="pre">advance</span></code> method, which solves the variational
+problem to compute the Runge-Kutta stage values and then updates the solution.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">while</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">):</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">1.0</span><span class="p">):</span>
+        <span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+    <span class="n">stepper</span><span class="o">.</span><span class="n">advance</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+    <span class="n">t</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Now, check the relative <span class="math notranslate nohighlight">\(L^2\)</span> error:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">norm</span><span class="p">(</span><span class="n">u</span><span class="o">-</span><span class="n">uexact</span><span class="p">)</span><span class="o">/</span><span class="n">norm</span><span class="p">(</span><span class="n">uexact</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>And report the solver statistics:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">num_steps</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">num_lin_its</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">solver_stats</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">num_steps</span><span class="si">}</span><span class="s2"> steps taken&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">num_lin_its</span><span class="si">}</span><span class="s2"> linear iterations taken&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;That&#39;s </span><span class="si">{</span><span class="n">num_lin_its</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">num_steps</span><span class="si">}</span><span class="s2"> per time step&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;And </span><span class="si">{</span><span class="n">num_lin_its</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">num_steps</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">3</span><span class="si">}</span><span class="s2"> average per stage&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
