@@ -206,8 +206,7 @@ def test_git_irk_equivalence(scheme):
         "pc_type": "python",
         "pc_python_type": "irksome.IRKAuxiliaryOperatorPC",
         "aux": {
-            "mat_type": "nest",
-            "sub_mat_type": "aij",
+            "mat_type": "aij",
             "pc_type": "lu",
             "pc_factor_mat_solver_type": "mumps",
         }
