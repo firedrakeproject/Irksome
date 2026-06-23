@@ -262,6 +262,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             self.butcher_tableau = None
 
         super().__init__(F, t, dt, u0, num_stages, bcs=bcs, scheme_F=scheme, **kwargs)
+        self.set_initial_guess()
 
     def get_form_and_bcs(self, stages, F=None, bcs=None,
                          tableau=None, basis_type=None, order=None,
@@ -317,6 +318,26 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         stages_np = np.array(self.stages.subfunctions, dtype=object)
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(stages_np[i::self.num_fields] @ self.update_b)
+
+    def set_initial_guess(self):
+        """Set a constant-in-time initial guess."""
+        ref_el = self.el.get_reference_element()
+        P0 = DiscontinuousLagrange(ref_el, 0)
+        P0 = P0.get_nodal_basis()
+        B = P0.get_coeffs()
+
+        trial_dual = self.el.get_dual_set()
+        trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
+
+        dof = self._backend.Constant(0)
+        for k in range(self.num_stages):
+            for i, u0bit in enumerate(self.u0.subfunctions):
+                sbit = self.stages.subfunctions[self.num_fields*k+i]
+                dof.assign(trial_dofs[k])
+                if abs(float(dof)) < 1E-12:
+                    sbit.zero()
+                else:
+                    sbit.assign(u0bit * dof)
 
     def tabulate_poly(self, sample_points):
         vander = vecconst(np.zeros((self.num_stages+1, len(sample_points))))

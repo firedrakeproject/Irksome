@@ -190,6 +190,8 @@ def test_git_irk_equivalence(scheme):
 
     bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
     nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=msh.comm)])
+    pconst = Function(Q).interpolate(Constant(1))
+    vol = assemble(pconst*dx)
 
     u, p = z.subfunctions
     u.interpolate(uexact)
@@ -197,16 +199,14 @@ def test_git_irk_equivalence(scheme):
 
     sparams = {
         "mat_type": "matfree",
-        "snes_type": "ksponly",
         "ksp_type": "gmres",
-        "ksp_pc_side": "right",
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
+        "snes_converged_reason": None,
         "pc_type": "python",
         "pc_python_type": "irksome.IRKAuxiliaryOperatorPC",
         "aux": {
-            "mat_type": "nest",
-            "sub_mat_type": "aij",
+            "mat_type": "aij",
             "pc_type": "lu",
             "pc_factor_mat_solver_type": "mumps",
         }
@@ -223,6 +223,8 @@ def test_git_irk_equivalence(scheme):
 
     for step in range(N):
         stepper.advance()
+        pavg = (1/vol) * assemble(p*dx)
+        p.assign(p - pavg * pconst)
         assert numpy.allclose(stepper.solver.snes.ksp.computeEigenvalues(), 1.0)
         t.assign(t + dt)
 
