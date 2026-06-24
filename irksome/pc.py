@@ -82,13 +82,13 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
 
 
 class IRKAuxiliaryOperatorSNES(AuxiliaryOperatorSNES):
-    """Base class that inherits from Firedrake's :class:`AuxiliaryOperatorSNES`
+    """Base class that inherits from Firedrake's auxiliary operator SNES
     and provides the nonlinear form associated with an auxiliary Form and/or
     approximate Butcher matrix (which are provided by subclasses). This is the
     nonlinear analogue of :class:`IRKAuxiliaryOperatorPC`.
 
     Options for the inner solve are specified using the ``"aux_"`` prefix, as
-    for :class:`AuxiliaryOperatorSNES`.
+    for the base auxiliary operator SNES.
     """
 
     def getNewForm(self, snes, u0, test):
