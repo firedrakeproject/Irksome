@@ -87,7 +87,6 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
-    # assert qpts.size >= L_test.space_dimension()
     tabulate_trials = L_trial.tabulate(1, qpts)
     trial_vals = tabulate_trials[(0,)]
     trial_dvals = tabulate_trials[(1,)]

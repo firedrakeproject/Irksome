@@ -63,8 +63,6 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
-    assert qpts.size >= L.space_dimension()-1
-
     tabulate_basis = L.tabulate(1, qpts)
     basis_vals = tabulate_basis[(0,)]
     basis_dvals = tabulate_basis[(1,)]
