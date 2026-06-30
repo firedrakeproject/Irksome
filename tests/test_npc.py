@@ -3,8 +3,8 @@ from petsc4py import PETSc
 import firedrake
 from firedrake import (
     Constant, Function, FunctionSpace, SpatialCoordinate,
-    TestFunction, UnitIntervalMesh, conditional, cos, ds,
-    dx, grad, inner
+    TestFunction, UnitIntervalMesh, conditional, exp, cos,
+    ds, dx, grad, inner
 )
 from irksome import BackwardEuler, Dt, IRKAuxiliaryOperatorSNES, TimeStepper, lag
 
@@ -23,10 +23,13 @@ k_solid = Constant(2.0)
 k_liquid = Constant(1.0)
 h = Constant(0.01)            # Robin penalty length scale
 dT = Constant(0.25)           # amplitude of the boundary oscillation
+T_scale = Constant(5e-4)      # scale for transition between solid and liquid
 
 
 def stefan_conductivity(T):
-    return conditional(T <= T_m, k_solid, k_liquid)
+    r = exp(-T / T_scale)
+    s = 1 / (1 + r)
+    return k_solid * (1 - s) + s * k_liquid
 
 
 def stefan_form(T, q, t, k):
@@ -69,10 +72,18 @@ def test_npc_stefan_newton_fails():
     isn't differentiable."""
     F, t, dt, T = stefan_setup()
     method = BackwardEuler()
-    params = {"solver_parameters": {"snes_type": "newtonls"}}
+    params = {
+        "solver_parameters": {
+            "snes_type": "newtonls",
+            "snes_linesearch_type": "bt",
+            "snes_monitor": None,
+        },
+    }
     stepper = TimeStepper(F, method, t, dt, T, **params)
     with pytest.raises(firedrake.ConvergenceError):
-        for _ in range(20):
+        final_time = 20.0
+        num_steps = int(final_time / float(dt))
+        for step in range(num_steps):
             stepper.advance()
             t.assign(float(t) + float(dt))
 
@@ -83,14 +94,14 @@ def test_npc_stefan():
     F, t, dt, T = stefan_setup()
     params = {
         "solver_parameters": {
-            "snes_type": "anderson",
-            "snes_rtol": 1e-8,
+            "snes_type": "ngmres",
+            "snes_monitor": None,
             "snes_max_it": 100,
             "npc": {
                 "snes_type": "python",
                 "snes_python_type": "test_npc.StefanLagAuxSNES",
                 "aux": {
-                    "snes_type": "newtonls",
+                    "snes_type": "ksponly",
                     "ksp_type": "cg",
                     "pc_type": "lu",
                 },
@@ -103,12 +114,11 @@ def test_npc_stefan():
     reasons = [
         PETSc.SNES.ConvergedReason.CONVERGED_FNORM_ABS,
         PETSc.SNES.ConvergedReason.CONVERGED_FNORM_RELATIVE,
-        PETSc.SNES.ConvergedReason.CONVERGED_SNORM_RELATIVE,
     ]
 
     final_time = 20.0
     num_steps = int(final_time / float(dt))
-    for _ in range(num_steps):
+    for step in range(num_steps):
         stepper.advance()
         t.assign(t + dt)
         assert stepper.solver.snes.getConvergedReason() in reasons
