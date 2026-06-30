@@ -16,8 +16,10 @@ class BaseTimeStepper:
     objects that are common to all the time steppers.  It's a developer-level class.
     """
     def __init__(self, F, t, dt, u0,
-                 bcs=None, appctx=None, nullspace=None, backend: str = "firedrake"):
+                 bcs=None, J=None, Jp=None, appctx=None, nullspace=None, backend: str = "firedrake"):
         self.F = F
+        self.J = J
+        self.Jp = Jp
         self.t = t
         self.dt = dt
         self.u0 = u0
@@ -105,7 +107,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                  backend="firedrake", **kwargs):
 
         super().__init__(F, t, dt, u0,
-                         bcs=bcs, appctx=appctx, nullspace=nullspace, backend=backend)
+                         bcs=bcs, J=J, Jp=Jp, appctx=appctx, nullspace=nullspace, backend=backend)
 
         self.num_stages = num_stages
         if scheme_F:
