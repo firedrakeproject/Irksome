@@ -99,7 +99,9 @@ try:
         NystromAuxiliaryOperatorPC,
         RanaBase,
         RanaDU,
+        RanaDUScheme,
         RanaLD,
+        RanaLDScheme,
         IRKAuxiliaryOperatorPC,
     )
     from .stepper import TimeStepper

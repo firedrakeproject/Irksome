@@ -10,7 +10,7 @@ from .ufl.manipulation import split_time_derivative_terms, remove_time_derivativ
 from .scheme import DiscontinuousGalerkinScheme, create_time_quadrature, ufc_line
 from .tools import IA, dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
-from .tableaux.ButcherTableaux import CollocationButcherTableau
+from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau
 from .stage_value import getFormStage
 
 import numpy as np
@@ -63,8 +63,6 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
-    assert qpts.size >= L.space_dimension()-1
-
     tabulate_basis = L.tabulate(1, qpts)
     basis_vals = tabulate_basis[(0,)]
     basis_dvals = tabulate_basis[(1,)]

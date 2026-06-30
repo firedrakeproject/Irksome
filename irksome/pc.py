@@ -52,9 +52,12 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         appctx = self.get_appctx(pc)
         stepper = appctx["stepper"]
         butcher = stepper.butcher_tableau
-        F = as_form(stepper.F)
+
         u0 = stepper.u0
         bcs = stepper.orig_bcs
+
+        F = stepper.Jp or stepper.F
+        F = as_form(F)
         v0, = F.arguments()
 
         try:
@@ -66,8 +69,7 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         try:
             # use new ButcherTableau if provided
             Atilde = self.getAtilde(butcher.A)
-            butcher = copy.deepcopy(butcher)
-            butcher.A = Atilde
+            butcher = butcher.reconstruct(A=Atilde)
         except NotImplementedError:
             pass
 
@@ -98,6 +100,18 @@ class RanaDU(RanaBase):
     def getAtilde(self, A):
         L, D, U = ldu(A)
         return D @ U
+
+
+def RanaLDScheme(butcher):
+    """ButcherTableau for preconditioning with Atilde = LD where A=LDU."""
+    L, D, U = ldu(butcher.A)
+    return butcher.reconstruct(A=L @ D)
+
+
+def RanaDUScheme(butcher):
+    """ButcherTableau for preconditioning with Atilde = DU where A=LDU."""
+    L, D, U = ldu(butcher.A)
+    return butcher.reconstruct(A=D @ U)
 
 
 class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):

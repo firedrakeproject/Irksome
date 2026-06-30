@@ -5,7 +5,8 @@ from ufl.corealg.dag_traverser import DAGTraverser
 from ufl import as_ufl
 from ufl.constantvalue import IntValue
 from ufl.classes import (
-    Argument, ConstantValue, Coefficient, SpatialCoordinate,
+    Argument, ConstantValue, Coefficient, FacetNormal, SpatialCoordinate,
+    PositiveRestricted, NegativeRestricted,
     Abs, Conj, Curl, Derivative, Div, Grad, Indexed, ReferenceGrad,
     ReferenceValue, Variable, ComponentTensor, IndexSum, Skew, Sym, Trace,
     Transposed, Determinant, Inverse, Division, Product, Inner, Dot, Outer,
@@ -56,6 +57,7 @@ class TimeDegreeEstimator(DAGTraverser):
     @process.register(Coefficient)
     @process.register(ConstantValue)
     @process.register(SpatialCoordinate)
+    @process.register(FacetNormal)
     def terminal(self, o):
         return self.degree_mapping.get(o, 0)
 
@@ -76,6 +78,8 @@ class TimeDegreeEstimator(DAGTraverser):
     @process.register(Variable)
     @process.register(ComponentTensor)
     @process.register(IndexSum)
+    @process.register(NegativeRestricted)
+    @process.register(PositiveRestricted)
     @DAGTraverser.postorder
     def terminal_modifier(self, o, degree, *ops):
         return degree

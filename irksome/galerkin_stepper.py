@@ -13,7 +13,7 @@ from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components,
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
-from .tableaux.ButcherTableaux import CollocationButcherTableau
+from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau
 from .stage_derivative import getForm
 from .stage_value import getFormStage
 from .backend import get_backend
@@ -87,7 +87,6 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
-    assert qpts.size >= L_test.space_dimension()
     tabulate_trials = L_trial.tabulate(1, qpts)
     trial_vals = tabulate_trials[(0,)]
     trial_dvals = tabulate_trials[(1,)]
@@ -337,7 +336,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             order = self.order
         aux_indices = aux_indices or self.aux_indices
 
-        if isinstance(tableau, CollocationButcherTableau):
+        if isinstance(tableau, ButcherTableau):
             # Galerkin collocation is equivalent to an IRK up to row scaling
             row_scale = tableau.b
 
