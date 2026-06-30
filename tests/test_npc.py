@@ -3,8 +3,8 @@ from petsc4py import PETSc
 import firedrake
 from firedrake import (
     Constant, Function, FunctionSpace, SpatialCoordinate,
-    TestFunction, UnitIntervalMesh, conditional, exp, cos,
-    ds, dx, grad, inner
+    TestFunction, UnitIntervalMesh, exp, cos, ds, dx,
+    grad, inner
 )
 from irksome import BackwardEuler, Dt, IRKAuxiliaryOperatorSNES, TimeStepper, lag
 
