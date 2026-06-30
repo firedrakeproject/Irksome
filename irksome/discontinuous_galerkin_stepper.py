@@ -10,7 +10,7 @@ from .ufl.manipulation import split_time_derivative_terms, remove_time_derivativ
 from .scheme import DiscontinuousGalerkinScheme, create_time_quadrature, ufc_line
 from .tools import IA, dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
-from .tableaux.ButcherTableaux import CollocationButcherTableau
+from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau
 from .stage_value import getFormStage
 
 import numpy as np
