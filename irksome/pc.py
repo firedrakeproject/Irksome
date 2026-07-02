@@ -2,7 +2,9 @@ import copy
 
 import numpy
 from .labeling import as_form
-from firedrake import AuxiliaryOperatorPC, derivative
+from .tools import dot, reshape
+from .nystrom_stepper import StageDerivativeNystromTimeStepper, getFormNystrom, butcher_to_nystrom
+from firedrake import AuxiliaryOperatorPC, Function, derivative
 from firedrake.dmhooks import get_appctx
 
 
@@ -133,12 +135,21 @@ class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         """Implements the interface for AuxiliaryOperatorPC."""
         appctx = self.get_appctx(pc)
         stepper = appctx["stepper"]
-        tableau = stepper.tableau
         F = stepper.F
         bcs = stepper.orig_bcs
         u0 = stepper.u0
-        ut0 = stepper.ut0
         v0, = F.arguments()
+        # get stages
+        ctx = get_appctx(pc.getDM())
+        w = ctx._x
+
+        if isinstance(stepper, StageDerivativeNystromTimeStepper):
+            tableau = stepper.tableau
+            ut0 = stepper.ut0
+        else:
+            tableau = butcher_to_nystrom(stepper.butcher_tableau)
+            Ainvb = numpy.linalg.solve(tableau.A, tableau.b)
+            ut0 = u0
 
         try:
             # use new Form if provided
@@ -155,13 +166,8 @@ class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         except NotImplementedError:
             pass
 
-        # get stages
-        ctx = get_appctx(pc.getDM())
-        w = ctx._x
-
-        Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=tableau, F=F)
+        Fnew, bcnew = getFormNystrom(F, tableau, stepper.t, stepper.dt, u0, ut0, w)
         Jnew = derivative(Fnew, w, du=trial)
-
         return Jnew, bcnew
 
 
