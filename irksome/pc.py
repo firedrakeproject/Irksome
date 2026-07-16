@@ -2,8 +2,15 @@ import copy
 
 import numpy
 from .labeling import as_form
-from firedrake import AuxiliaryOperatorPC, AuxiliaryOperatorSNES, derivative
+from firedrake import AuxiliaryOperatorPC, derivative
 from firedrake.dmhooks import get_appctx
+
+try:
+    from firedrake import AuxiliaryOperatorSNES
+    _has_auxopsnes = True
+except ImportError:
+    AuxiliaryOperatorSNES = object
+    _has_auxopsnes = False
 
 
 # Oddly, we can't turn pivoting off in scipy?
