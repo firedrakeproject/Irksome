@@ -7,10 +7,16 @@ from firedrake.dmhooks import get_appctx
 
 try:
     from firedrake import AuxiliaryOperatorSNES
-    _has_auxopsnes = True
+    has_auxiliary_operator_snes = True
 except ImportError:
-    AuxiliaryOperatorSNES = object
-    _has_auxopsnes = False
+    has_auxiliary_operator_snes = False
+
+    class AuxiliaryOperatorSNES:
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError(
+                "IRKAuxiliaryOperatorSNES requires firedrake.AuxiliaryOperatorSNES,"
+                " which this version of Firedrake does not provide; please upgrade."
+            )
 
 
 # Oddly, we can't turn pivoting off in scipy?

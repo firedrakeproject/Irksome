@@ -6,7 +6,7 @@ from firedrake import (
     TestFunction, UnitIntervalMesh, exp, cos, ds, dx,
     grad, inner
 )
-from irksome import BackwardEuler, Dt, TimeStepper, lag, pc
+from irksome import BackwardEuler, Dt, IRKAuxiliaryOperatorSNES, TimeStepper, lag
 
 # Stefan problem: a two-phase heat equation with a discontinuous conductivity
 #
@@ -39,6 +39,15 @@ def stefan_form(T, q, t, k):
     F_cells = (Dt(T) * q + k * inner(grad(T), grad(q))) * dx
     F_boundaries = k / h * (T - T_1) * q * ds(1) + k / h * (T - T_2) * q * ds(2)
     return F_cells + F_boundaries
+
+
+class StefanLagAuxSNES(IRKAuxiliaryOperatorSNES):
+    """Precondition the fully implicit Stefan problem with the residual whose
+    conductivity is lagged to the start of the timestep."""
+    def getNewForm(self, snes, T, q):
+        t = self.get_appctx(snes)["stepper"].t
+        k = lag(stefan_conductivity(T))
+        return stefan_form(T, q, t, k), None
 
 
 def stefan_setup():
@@ -79,16 +88,10 @@ def test_npc_stefan_newton_fails():
             t.assign(float(t) + float(dt))
 
 
-class StefanLagAuxSNES(pc.IRKAuxiliaryOperatorSNES):
-    """Precondition the fully implicit Stefan problem with the residual whose
-    conductivity is lagged to the start of the timestep."""
-    def getNewForm(self, snes, T, q):
-        t = self.get_appctx(snes)["stepper"].t
-        k = lag(stefan_conductivity(T))
-        return stefan_form(T, q, t, k), None
-
-
-@pytest.mark.xfail(not pc._has_auxopsnes, reason="Old Firedrake")
+@pytest.mark.skipif(
+    not hasattr(firedrake, "AuxiliaryOperatorSNES"),
+    reason="Firedrake does not provide AuxiliaryOperatorSNES",
+)
 def test_npc_stefan():
     """The lagged residual, used as a nonlinear preconditioner, drives the
     fully implicit Stefan problem to convergence where Newton fails."""
