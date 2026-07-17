@@ -17,7 +17,7 @@ jobs:
   test:
     strategy:
       matrix:
-        version: [2026.4.0, dev-release]
+        version: [latest, dev-release]
     runs-on: [self-hosted, Linux]
     container:
       image: firedrakeproject/firedrake-vanilla-default:${{ matrix.version }}
