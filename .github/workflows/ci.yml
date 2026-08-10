@@ -62,9 +62,17 @@ jobs:
 
   dolfinx:
     runs-on: [ubuntu-latest]
-    container: ghcr.io/fenics/dolfinx/dolfinx:stable
+    container: ghcr.io/fenics/dolfinx/dolfinx:${{ matrix.label }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [
+          "stable",
+          "nightly"
+        ]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         # Download Irksome into a subdirectory not called 'irksome' to make sure
         # that the package installs correctly. Otherwise 'import irksome' may
