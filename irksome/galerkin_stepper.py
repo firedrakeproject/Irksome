@@ -385,7 +385,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             quadrature = quadrature or self.quadrature
             max_quadrature_degree = self.max_quadrature_degree
         else:
-            raise TypeError("Expecting CollocationButcherTableau or ContinuousPetrovGalerkinScheme")
+            raise TypeError("Expecting ButcherTableau or ContinuousPetrovGalerkinScheme")
 
         return getFormGalerkin(F, trial_el, test_el, quadrature,
                                self.t, self.dt, self.u0, stages,
