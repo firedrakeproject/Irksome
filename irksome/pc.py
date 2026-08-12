@@ -57,15 +57,14 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         u0 = stepper.u0
         bcs = stepper.orig_bcs
 
-        F = stepper.Jp or stepper.F
-        F = as_form(F)
-        v0, = F.arguments()
-
         try:
             # use new Form if provided
+            F = as_form(stepper.F)
+            v0, = F.arguments()
             F, bcs = self.getNewForm(pc, u0, v0)
         except NotImplementedError:
-            pass
+            F = stepper.Jp or stepper.J or stepper.F
+            F = as_form(F)
 
         try:
             # use new ButcherTableau if provided
