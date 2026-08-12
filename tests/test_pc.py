@@ -79,6 +79,8 @@ def rd(scheme, **kwargs):
     }
 
     def to_butcher(scheme):
+        if isinstance(scheme, ButcherTableau):
+            return scheme 
         basis_type = scheme.basis_type
         if isinstance(basis_type, tuple):
             basis_type = basis_type[1]
@@ -87,8 +89,7 @@ def rd(scheme, **kwargs):
         else:
             raise ValueError(f"Unexpected basis_type {basis_type}")
 
-    butcher = scheme if isinstance(scheme, ButcherTableau) else to_butcher(scheme)
-    schemeDU = RanaDUScheme(butcher)
+    schemeDU = RanaDUScheme(to_butcher(scheme))
     ranaDU = {
         "ksp_type": "gmres",
         "ksp_converged_reason": None,
