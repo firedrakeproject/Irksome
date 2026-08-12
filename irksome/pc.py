@@ -1,8 +1,11 @@
 import copy
-
 import numpy
+
 from .labeling import as_form
 from .nystrom_stepper import StageDerivativeNystromTimeStepper
+from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau, RadauIIA
+from .galerkin_stepper import getTrialElement
+
 from firedrake import AuxiliaryOperatorPC, derivative
 from firedrake.dmhooks import get_appctx
 
@@ -101,14 +104,30 @@ class RanaDU(RanaBase):
         return D @ U
 
 
-def RanaLDScheme(butcher):
+def to_butcher(scheme):
+    if isinstance(scheme, ButcherTableau):
+        return scheme
+
+    basis_type = scheme.basis_type
+    order = scheme.num_stages
+    if isinstance(basis_type, tuple):
+        basis_type = basis_type[1]
+    if basis_type == "radau":
+        return RadauIIA(order)
+    else:
+        return CollocationButcherTableau(getTrialElement(basis_type, order), order)
+
+
+def RanaLDScheme(scheme):
     """ButcherTableau for preconditioning with Atilde = LD where A=LDU."""
+    butcher = to_butcher(scheme)
     L, D, U = ldu(butcher.A)
     return butcher.reconstruct(A=L @ D)
 
 
-def RanaDUScheme(butcher):
+def RanaDUScheme(scheme):
     """ButcherTableau for preconditioning with Atilde = DU where A=LDU."""
+    butcher = to_butcher(scheme)
     L, D, U = ldu(butcher.A)
     return butcher.reconstruct(A=D @ U)
 

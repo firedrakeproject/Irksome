@@ -14,7 +14,6 @@ from irksome import (
 )
 from irksome.tools import AI, IA
 from irksome.labeling import as_form
-from irksome.tableaux.ButcherTableaux import ButcherTableau
 
 # Tests that various PCs are actually getting the right answer.
 
@@ -78,18 +77,7 @@ def rd(scheme, **kwargs):
         }
     }
 
-    def to_butcher(scheme):
-        if isinstance(scheme, ButcherTableau):
-            return scheme
-        basis_type = scheme.basis_type
-        if isinstance(basis_type, tuple):
-            basis_type = basis_type[1]
-        if basis_type == "radau":
-            return RadauIIA(scheme.num_stages)
-        else:
-            raise ValueError(f"Unexpected basis_type {basis_type}")
-
-    schemeDU = RanaDUScheme(to_butcher(scheme))
+    schemeDU = RanaDUScheme(scheme)
     ranaDU = {
         "ksp_type": "gmres",
         "ksp_converged_reason": None,
