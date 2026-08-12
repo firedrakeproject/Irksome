@@ -226,6 +226,8 @@ class RadauIIAIMEXMethod:
         )
 
         self.F = F
+        self.J = None
+        self.Jp = None
         self.orig_bcs = bcs
         self.splitting = splitting
 
