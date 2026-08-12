@@ -2,9 +2,8 @@ import copy
 
 import numpy
 from .labeling import as_form
-from .tools import dot, reshape
-from .nystrom_stepper import StageDerivativeNystromTimeStepper, getFormNystrom, butcher_to_nystrom
-from firedrake import AuxiliaryOperatorPC, Function, derivative
+from .nystrom_stepper import StageDerivativeNystromTimeStepper, getFormNystrom
+from firedrake import AuxiliaryOperatorPC, derivative
 from firedrake.dmhooks import get_appctx
 
 
@@ -143,13 +142,11 @@ class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         ctx = get_appctx(pc.getDM())
         w = ctx._x
 
-        if isinstance(stepper, StageDerivativeNystromTimeStepper):
-            tableau = stepper.tableau
-            ut0 = stepper.ut0
-        else:
-            tableau = butcher_to_nystrom(stepper.butcher_tableau)
-            Ainvb = numpy.linalg.solve(tableau.A, tableau.b)
-            ut0 = u0
+        if not isinstance(stepper, StageDerivativeNystromTimeStepper):
+            raise TypeError("Expecting a Nystrom stepper")
+
+        tableau = stepper.tableau
+        ut0 = stepper.ut0
 
         try:
             # use new Form if provided

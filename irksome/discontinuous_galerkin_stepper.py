@@ -275,7 +275,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         if deriv_type is None:
             deriv_type = self.deriv_type
 
-        if isinstance(tableau, CollocationButcherTableau):
+        if isinstance(tableau, ButcherTableau):
             # Galerkin collocation is equivalent to an IRK up to row scaling
             row_scale = tableau.b
 
@@ -303,7 +303,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
             quadrature = quadrature or self.quadrature
             max_quadrature_degree = self.max_quadrature_degree
         else:
-            raise TypeError("Expecting CollocationButcherTableau or DiscontinuousGalerkinScheme")
+            raise TypeError("Expecting ButcherTableau or DiscontinuousGalerkinScheme")
 
         return getFormDiscGalerkin(F,
                                    el,

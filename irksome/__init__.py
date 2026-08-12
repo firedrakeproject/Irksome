@@ -82,6 +82,8 @@ __all__ = [
     "ContinuousPetrovGalerkinTimeStepper",
     "DiscontinuousGalerkinTimeStepper",
     "MultistepTimeStepper",
+    "RanaDUScheme",
+    "RanaLDScheme",
 ]
 
 
