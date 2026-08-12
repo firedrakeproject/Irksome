@@ -80,7 +80,7 @@ def rd(scheme, **kwargs):
 
     def to_butcher(scheme):
         if isinstance(scheme, ButcherTableau):
-            return scheme 
+            return scheme
         basis_type = scheme.basis_type
         if isinstance(basis_type, tuple):
             basis_type = basis_type[1]
