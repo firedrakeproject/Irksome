@@ -1,6 +1,7 @@
 import pytest
 from irksome import (WSODIRK, GaussLegendre, LobattoIIIA, LobattoIIIC,
-                     QinZhang, RadauIIA)
+                     PEPRK, QinZhang, RadauIIA)
+from irksome.tableaux.pep_explicit_rk import pepdict
 from irksome.tableaux.wso_dirk_tableaux import wsodict
 from numpy import allclose, array, sqrt
 
@@ -62,3 +63,23 @@ def test_is_stiffly_accurate(bt):
                                      + [LobattoIIIA(k) for k in (2, 3)]))
 def test_is_not_stiffly_accurate(bt):
     assert not bt.is_stiffly_accurate
+
+
+@pytest.mark.parametrize('key', sorted(pepdict))
+def test_PEPRK_order_conditions(key):
+    ns, order, peporder = key
+    bt = PEPRK(ns, order, peporder)
+    A, b, c = bt.A, bt.b, bt.c
+
+    assert allclose(A.sum(axis=1), c)
+    assert allclose(b.sum(), 1)
+    if order >= 2:
+        assert allclose(b @ c, 1/2)
+    if order >= 3:
+        assert allclose(b @ c**2, 1/3)
+        assert allclose(b @ (A @ c), 1/6)
+    if order >= 4:
+        assert allclose(b @ c**3, 1/4)
+        assert allclose(b @ (c * (A @ c)), 1/8)
+        assert allclose(b @ (A @ c**2), 1/12)
+        assert allclose(b @ (A @ (A @ c)), 1/24)
