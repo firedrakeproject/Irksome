@@ -21,10 +21,10 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
 
     num_stages = butch.num_stages
 
-    # Note: the Constant c is used for substitution in both the
-    # variational form and BC's, and we update it for each stage in
-    # the loop over stages in the advance method.  The Constant a is
-    # used similarly in the variational form
+    # Note: the Constant c is used for substitution in the variational
+    # form and the Constant c_bc in the BC's, and we update both for
+    # each stage in the loop over stages in the advance method.  The
+    # Constant a is used similarly in the variational form
     MC = MeshConstant(V.mesh(), backend=backend)
     if kgac is None:
         k0 = backend_cls.Function(V)
@@ -49,19 +49,20 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
     a_vals = numpy.array([MC.Constant(0.0) for i in range(num_stages)],
                          dtype=object)
     d_val = MC.Constant(1.0)
+    c_bc = MC.Constant(1.0)
     for bc in bcs:
         bcarg = bc._original_arg
         if bcarg == 0:
             # Homogeneous BC, just zero out stage dofs
             bcnew.append(bc)
         else:
-            bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
+            bcarg_stage = replace(as_ufl(bcarg), {t: t+c_bc*dt})
             gdat = bcarg_stage - backend_cls.bc2space(bc, u0)
             gdat -= sum(backend_cls.bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
             gdat /= d_val * dt
             bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k0, g, a, c), bcnew, (a_vals, d_val)
+    return stage_F, (k0, g, a, c), bcnew, (a_vals, d_val, c_bc)
 
 
 class DIRKTimeStepper:
@@ -119,12 +120,12 @@ class DIRKTimeStepper:
         # "ks" is a list of functions for the stage values
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
-        stage_F, kgac, bcnew, (a_vals, d_val) = getFormDIRK(
+        stage_F, kgac, bcnew, (a_vals, d_val, c_bc) = getFormDIRK(
             F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs, backend=backend)
         k, g, a, c = kgac
         self.kgac = kgac
         self.bcnew = bcnew
-        self.bc_constants = a_vals, d_val
+        self.bc_constants = a_vals, d_val, c_bc
 
         stage_J = self.get_bilinear_form(J, k, tableau=butcher_tableau)
         stage_Jp = self.get_bilinear_form(Jp, k, tableau=butcher_tableau)
@@ -166,14 +167,15 @@ class DIRKTimeStepper:
     def update_bc_constants(self, i, c):
         AAb = self.AAb
         CCone = self.CCone
-        a_vals, d_val = self.bc_constants
+        a_vals, d_val, c_bc = self.bc_constants
         ns = AAb.shape[1]
         for j in range(i):
             a_vals[j].assign(AAb[i, j])
         for j in range(i, ns):
             a_vals[j].zero()
         d_val.assign(AAb[i, i])
-        c.assign(CCone[i])
+        c_bc.assign(CCone[i])
+        c.assign(self.butcher_tableau.c[i])
 
     def advance(self):
         k, g, a, c = self.kgac
