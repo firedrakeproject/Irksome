@@ -126,8 +126,8 @@ class DIRKTimeStepper:
         self.bcnew = bcnew
         self.bc_constants = a_vals, d_val
 
-        stage_J = self.get_bilinear_form(J, u0, k, tableau=butcher_tableau)
-        stage_Jp = self.get_bilinear_form(Jp, u0, k, tableau=butcher_tableau)
+        stage_J = self.get_bilinear_form(J, k, tableau=butcher_tableau)
+        stage_Jp = self.get_bilinear_form(Jp, k, tableau=butcher_tableau)
 
         appctx_irksome = {"stepper": self}
         if appctx is None:
@@ -136,16 +136,16 @@ class DIRKTimeStepper:
             appctx = {**appctx, **appctx_irksome}
         self.appctx = appctx
 
+        constant_jacobian = kwargs.pop("constant_jacobian", False)
+        if constant_jacobian:
+            raise ValueError("Cannot set constant_jacobian=True on a DIRK")
+
         self.problem = backend_cls.create_variational_problem(
             stage_F, k, bcs=bcnew, J=stage_J, Jp=stage_Jp,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
-            constant_jacobian=kwargs.pop("constant_jacobian", False),
         )
-        constant_jacobian = kwargs.pop("constant_jacobian", False)
-        if constant_jacobian:
-            raise ValueError("Cannot set constant_jacobian=True on a DIRK")
 
         self.solver = backend_cls.create_variational_solver(
             self.problem, appctx=appctx,
@@ -156,10 +156,10 @@ class DIRKTimeStepper:
             **kwargs,
         )
 
-    def get_bilinear_form(self, form, u0, stages, tableau=None):
+    def get_bilinear_form(self, form, stages, tableau=None):
         if form is None:
             return form
-        Fbig, *_ = self.get_form_and_bcs(u0, stages, F=form, bcs=(), tableau=tableau)
+        Fbig, *_ = self.get_form_and_bcs(stages, F=form, bcs=(), tableau=tableau)
         is_bilinear = len(Fbig.arguments()) == 2
         return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, stages)
 

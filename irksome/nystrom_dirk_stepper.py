@@ -157,8 +157,8 @@ class DIRKNystromTimeStepper:
         k = self.kgac[0]
         self.bcnew = bcnew
 
-        stage_J = self.get_bilinear_form(J, u0, self.ks)
-        stage_Jp = self.get_bilinear_form(Jp, u0, self.ks)
+        stage_J = self.get_bilinear_form(J, self.ks)
+        stage_Jp = self.get_bilinear_form(Jp, self.ks)
 
         appctx_irksome = {"stepper": self}
         if appctx is None:
@@ -188,10 +188,10 @@ class DIRKNystromTimeStepper:
 
         self.bc_constants = abar_vals, d_val
 
-    def get_bilinear_form(self, form, u0, stages, tableau=None):
+    def get_bilinear_form(self, form, stages, tableau=None):
         if form is None:
             return form
-        Fbig, *_ = self.get_form_and_bcs(u0, stages, F=form, bcs=(), tableau=tableau)
+        Fbig, *_ = self.get_form_and_bcs(stages, F=form, bcs=(), tableau=tableau)
         is_bilinear = len(Fbig.arguments()) == 2
         return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, stages)
 
