@@ -51,7 +51,7 @@ def as_butcher_tableau(scheme):
     elif isinstance(scheme, DiscontinuousGalerkinCollocationScheme):
         element = getElement(scheme.basis_type, scheme.order)
     else:
-        raise ValueError("Expecting a collocation scheme.")
+        raise TypeError(f"Cannot convert a {type(scheme).__name__} into a ButcherTableau.")
 
     return CollocationButcherTableau(element, scheme.order)
 
