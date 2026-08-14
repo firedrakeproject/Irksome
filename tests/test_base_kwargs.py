@@ -33,6 +33,34 @@ def test_base_kwargs(heat_problem, stage_type, tableau):
     assert stepper.solver.snes.getOptionsPrefix() == "test_prefix_"
 
 
+@pytest.mark.parametrize("stage_type,tableau", [
+    ("deriv", GaussLegendre(1)),
+    ("value", GaussLegendre(1)),
+    ("dirk", GaussLegendre(1)),
+])
+@pytest.mark.parametrize("nonlinear", [False, True], ids=["linear", "nonlinear"])
+def test_derivative_jacobian(heat_problem, stage_type, tableau, nonlinear):
+    """A Jacobian built by derivative() must step the same as the default one."""
+    F, t, dt, u = heat_problem
+    V = u.function_space()
+    x, y = SpatialCoordinate(V.mesh())
+    ic = sin(pi * x) * sin(pi * y)
+    if nonlinear:
+        F += inner(u ** 3, TestFunction(V)) * dx
+
+    def step(**kwargs):
+        t.assign(0.0)
+        u.interpolate(ic)
+        stepper = TimeStepper(F, tableau, t, dt, u,
+                              stage_type=stage_type, **kwargs)
+        stepper.advance()
+        return u.copy(deepcopy=True)
+
+    expect = step()
+    got = step(J=derivative(F, u))
+    assert errornorm(expect, got) < 1e-8
+
+
 def test_base_kwargs_adaptive(heat_problem):
     """Test that valid_base_kwargs are passed through for adaptive stepper."""
     F, t, dt, u = heat_problem

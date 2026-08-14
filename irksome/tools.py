@@ -46,6 +46,23 @@ def split_stages(V, stages):
     return ks
 
 
+def strip_gateaux_derivative(F):
+    """Return the form that :func:`derivative` was applied to, or ``None``.
+
+    Irksome discretizes in time before differentiating, since UFL cannot
+    differentiate through :class:`TimeDerivative`.  A Jacobian supplied as
+    ``derivative(G, u)`` is therefore handled by recovering ``G``, applying
+    the stage substitutions to it, and differentiating the result.
+    """
+    integrals = []
+    for integral in F.integrals():
+        integrand = integral.integrand()
+        if not isinstance(integrand, ufl.classes.CoefficientDerivative):
+            return None
+        integrals.append(integral.reconstruct(integrand=integrand.ufl_operands[0]))
+    return ufl.Form(integrals)
+
+
 def extract_timedep_arguments(F, u0):
     """Return both arguments if ``F`` is a bilinear form, otherwise
     return the unique argument and ``u0``.

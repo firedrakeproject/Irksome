@@ -3,7 +3,7 @@ from ufl import as_ufl, lhs
 
 from .constant import vecconst, MeshConstant
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
-from .tools import extract_timedep_arguments, replace
+from .tools import extract_timedep_arguments, replace, strip_gateaux_derivative
 from .backend import get_backend
 
 
@@ -159,6 +159,9 @@ class DIRKTimeStepper:
     def get_bilinear_form(self, form, stages, tableau=None):
         if form is None:
             return form
+        # Discretize in time first, then differentiate, since UFL cannot take
+        # a Gateaux derivative through a TimeDerivative.
+        form = strip_gateaux_derivative(form) or form
         Fbig, *_ = self.get_form_and_bcs(stages, F=form, bcs=(), tableau=tableau)
         is_bilinear = len(Fbig.arguments()) == 2
         return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, stages)

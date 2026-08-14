@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 from petsc4py import PETSc
-from .tools import AI, flatten_dats, split_stages
+from .tools import AI, flatten_dats, split_stages, strip_gateaux_derivative
 try:
     from .labeling import as_form
 except ImportError:
@@ -197,6 +197,12 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     def get_bilinear_form(self, form, stages, tableau=None):
         if form is None:
             return form
+        base = strip_gateaux_derivative(as_form(form))
+        if base is not None:
+            # Discretize in time first, then differentiate, since UFL cannot
+            # take a Gateaux derivative through a TimeDerivative.
+            Fbig, _ = self.get_form_and_bcs(stages, F=base, bcs=(), tableau=tableau)
+            return self._backend.derivative(Fbig, stages)
         is_bilinear = len(as_form(form).arguments()) == 2
         ks = self._backend.TrialFunction(stages.function_space()) if is_bilinear else stages
         Fbig, _ = self.get_form_and_bcs(ks, F=form, bcs=(), tableau=tableau)
