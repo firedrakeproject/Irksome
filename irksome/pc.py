@@ -38,6 +38,38 @@ def ldu(A):
     return L, D, U
 
 
+def as_butcher_tableau(scheme):
+    """Convert a scheme to its ButcherTableau equivalent."""
+    if isinstance(scheme, ButcherTableau):
+        return scheme
+
+    if isinstance(scheme, GalerkinCollocationScheme):
+        basis_type = scheme.basis_type
+        if isinstance(basis_type, tuple):
+            basis_type = basis_type[1]
+        element = getTestElement(basis_type, scheme.order-1)
+    elif isinstance(scheme, DiscontinuousGalerkinCollocationScheme):
+        element = getElement(scheme.basis_type, scheme.order)
+    else:
+        raise ValueError("Expecting a collocation scheme.")
+
+    return CollocationButcherTableau(element, scheme.order)
+
+
+def RanaLDScheme(scheme):
+    """ButcherTableau for preconditioning with Atilde = LD where A=LDU."""
+    butcher = as_butcher_tableau(scheme)
+    L, D, U = ldu(butcher.A)
+    return butcher.reconstruct(A=L @ D)
+
+
+def RanaDUScheme(scheme):
+    """ButcherTableau for preconditioning with Atilde = DU where A=LDU."""
+    butcher = as_butcher_tableau(scheme)
+    L, D, U = ldu(butcher.A)
+    return butcher.reconstruct(A=D @ U)
+
+
 class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
     """Base class that inherits from Firedrake's AuxiliaryOperatorPC class and
     provides the preconditioning bilinear form associated with an auxiliary
@@ -104,38 +136,6 @@ class RanaDU(RanaBase):
     def getAtilde(self, A):
         L, D, U = ldu(A)
         return D @ U
-
-
-def as_butcher_tableau(scheme):
-    """Convert a scheme to its ButcherTableau equivalent."""
-    if isinstance(scheme, ButcherTableau):
-        return scheme
-
-    if isinstance(scheme, GalerkinCollocationScheme):
-        basis_type = scheme.basis_type
-        if isinstance(basis_type, tuple):
-            basis_type = basis_type[1]
-        element = getTestElement(basis_type, scheme.order-1)
-    elif isinstance(scheme, DiscontinuousGalerkinCollocationScheme):
-        element = getElement(scheme.basis_type, scheme.order)
-    else:
-        raise ValueError("Expecting a collocation scheme.")
-
-    return CollocationButcherTableau(element, scheme.order)
-
-
-def RanaLDScheme(scheme):
-    """ButcherTableau for preconditioning with Atilde = LD where A=LDU."""
-    butcher = as_butcher_tableau(scheme)
-    L, D, U = ldu(butcher.A)
-    return butcher.reconstruct(A=L @ D)
-
-
-def RanaDUScheme(scheme):
-    """ButcherTableau for preconditioning with Atilde = DU where A=LDU."""
-    butcher = as_butcher_tableau(scheme)
-    L, D, U = ldu(butcher.A)
-    return butcher.reconstruct(A=D @ U)
 
 
 class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
