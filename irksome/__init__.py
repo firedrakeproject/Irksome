@@ -82,8 +82,6 @@ __all__ = [
     "ContinuousPetrovGalerkinTimeStepper",
     "DiscontinuousGalerkinTimeStepper",
     "MultistepTimeStepper",
-    "RanaDUScheme",
-    "RanaLDScheme",
 ]
 
 
@@ -105,6 +103,7 @@ try:
         RanaLD,
         RanaLDScheme,
         IRKAuxiliaryOperatorPC,
+        as_butcher_tableau,
     )
     from .stepper import TimeStepper
 
@@ -120,6 +119,9 @@ try:
         "RanaLD",
         "IRKAuxiliaryOperatorPC",
         "TimeStepper",
+        "RanaDUScheme",
+        "RanaLDScheme",
+        "as_butcher_tableau",
     ]
 
 except ModuleNotFoundError:

@@ -3,8 +3,10 @@ import numpy
 
 from .labeling import as_form
 from .nystrom_stepper import StageDerivativeNystromTimeStepper
-from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau, RadauIIA
-from .galerkin_stepper import getTrialElement
+from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau
+from .scheme import GalerkinCollocationScheme, DiscontinuousGalerkinCollocationScheme
+from .discontinuous_galerkin_stepper import getElement
+from .galerkin_stepper import getTestElement
 
 from firedrake import AuxiliaryOperatorPC, derivative
 from firedrake.dmhooks import get_appctx
@@ -104,30 +106,34 @@ class RanaDU(RanaBase):
         return D @ U
 
 
-def to_butcher(scheme):
+def as_butcher_tableau(scheme):
+    """Convert a scheme to its ButcherTableau equivalent."""
     if isinstance(scheme, ButcherTableau):
         return scheme
 
-    basis_type = scheme.basis_type
-    order = scheme.num_stages
-    if isinstance(basis_type, tuple):
-        basis_type = basis_type[1]
-    if basis_type == "radau":
-        return RadauIIA(order)
+    if isinstance(scheme, GalerkinCollocationScheme):
+        basis_type = scheme.basis_type
+        if isinstance(basis_type, tuple):
+            basis_type = basis_type[1]
+        element = getTestElement(basis_type, scheme.order-1)
+    elif isinstance(scheme, DiscontinuousGalerkinCollocationScheme):
+        element = getElement(scheme.basis_type, scheme.order)
     else:
-        return CollocationButcherTableau(getTrialElement(basis_type, order), order)
+        raise ValueError("Expecting a collocation scheme.")
+
+    return CollocationButcherTableau(element, scheme.order)
 
 
 def RanaLDScheme(scheme):
     """ButcherTableau for preconditioning with Atilde = LD where A=LDU."""
-    butcher = to_butcher(scheme)
+    butcher = as_butcher_tableau(scheme)
     L, D, U = ldu(butcher.A)
     return butcher.reconstruct(A=L @ D)
 
 
 def RanaDUScheme(scheme):
     """ButcherTableau for preconditioning with Atilde = DU where A=LDU."""
-    butcher = to_butcher(scheme)
+    butcher = as_butcher_tableau(scheme)
     L, D, U = ldu(butcher.A)
     return butcher.reconstruct(A=D @ U)
 
