@@ -2,10 +2,6 @@ from abc import abstractmethod
 
 from petsc4py import PETSc
 from .tools import AI, flatten_dats, split_stages, get_stage_function
-try:
-    from .labeling import as_form
-except ImportError:
-    as_form = lambda x: x
 from .backend import get_backend
 import ufl
 import numpy
@@ -139,9 +135,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         V = self._backend.get_function_space(u0)
         Vbig = stages.function_space()
 
-        F_bilinear = len(as_form(F).arguments()) == 2
-        stages_F = self._backend.TrialFunction(Vbig) if F_bilinear else stages
-        Fbig, bigBCs = self.get_form_and_bcs(stages_F)
+        Fbig, bigBCs = self.get_form_and_bcs(stages)
 
         if J is None and scheme_J is not None:
             J = F
@@ -203,10 +197,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     def get_bilinear_form(self, form, stages, tableau=None):
         if form is None:
             return form
-        is_bilinear = len(as_form(form).arguments()) == 2
-        ks = self._backend.TrialFunction(stages.function_space()) if is_bilinear else stages
-        Fbig, _ = self.get_form_and_bcs(ks, F=form, bcs=(), tableau=tableau)
-        return ufl.lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, ks)
+        Fbig, _ = self.get_form_and_bcs(stages, F=form, bcs=(), tableau=tableau)
+        is_bilinear = len(Fbig.arguments()) == 2
+        return ufl.lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, stages)
 
     def solver_stats(self):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)

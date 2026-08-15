@@ -8,7 +8,7 @@ from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .scheme import DiscontinuousGalerkinScheme, create_time_quadrature, ufc_line
-from .tools import IA, dot, extract_timedep_arguments, reshape, replace
+from .tools import IA, dot, reshape, replace
 from .constant import vecconst
 from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau
 from .stage_value import getFormStage
@@ -56,10 +56,16 @@ def get_element_and_quadrature(scheme):
 
 
 def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", backend="firedrake"):
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     backend_cls = get_backend(backend)
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
+
+    stage_funcs = {u0: stages}
+    if trial is not None:
+        stage_funcs[trial] = backend_cls.TrialFunction(stages.function_space())
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -76,13 +82,14 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (-1, *u0.ufl_shape))
-    u_np = reshape(stages, (-1, *u0.ufl_shape))
+    dofs = {w: reshape(W, (-1, *u0.ufl_shape)) for w, W in stage_funcs.items()}
     vsub = dot(test_vals_w.T, v_np)
-    usub = dot(trial_vals.T, u_np)
-    dtusub = dot(trial_dvals.T, u_np)
+    usub = {w: dot(trial_vals.T, w_np) for w, w_np in dofs.items()}
+    dtusub = {w: dot(trial_dvals.T, w_np) for w, w_np in dofs.items()}
+    timedep_coeffs = tuple(stage_funcs)
 
     # preprocess time derivatives
-    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=timedep_coeffs)
     F_dtless = remove_time_derivatives(split_form.time)
     if F_dtless.empty():
         Fnew = F_dtless
@@ -92,11 +99,16 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         # Jump terms: [(g(u), v)](t+) - [(g(u), v)](t-)
         ref_el = L.get_reference_element()
         L_at_0 = vecconst(L.tabulate(0, ref_el.vertices[0])[(0,)])
-        u_at_0 = dot(L_at_0.T, u_np)
+        u_at_0 = {w: dot(L_at_0.T, w_np) for w, w_np in dofs.items()}
         v_at_0 = dot(L_at_0.T, v_np)
 
-        repl_tminus = {v: v_at_0, u: u0}
-        repl_tplus = {v: v_at_0, u: u_at_0}
+        # at t- the state is still u0, so only the trial function stands in for it
+        repl_tminus = {v: v_at_0}
+        repl_tplus = {v: v_at_0}
+        for w in stage_funcs:
+            repl_tplus[w] = u_at_0[w]
+            if w is trial:
+                repl_tminus[w] = u0
         Fnew = replace(F_dtless, repl_tplus) - replace(F_dtless, repl_tminus)
         F_remainder = F
     elif deriv_type == "weak":
@@ -104,11 +116,15 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         # Jump terms: [(g(u), v)](t+dt) - [(g(u), v)](t-)
         ref_el = L.get_reference_element()
         L_at_01 = vecconst(L.tabulate(0, ref_el.vertices)[(0,)])
-        u_at_01 = dot(L_at_01.T, u_np)
+        u_at_01 = {w: dot(L_at_01.T, w_np) for w, w_np in dofs.items()}
         v_at_01 = dot(L_at_01.T, v_np)
 
-        repl_tminus = {v: v_at_01[0], u: u0}
-        repl_tnew = {v: v_at_01[1], u: u_at_01[1], t: t + dt}
+        repl_tminus = {v: v_at_01[0]}
+        repl_tnew = {v: v_at_01[1], t: t + dt}
+        for w in stage_funcs:
+            repl_tnew[w] = u_at_01[w][1]
+            if w is trial:
+                repl_tminus[w] = u0
         Fnew = replace(F_dtless, repl_tnew) - replace(F_dtless, repl_tminus)
 
         # Terms with time derivatives: -(g(u), Dt(v))
@@ -117,20 +133,21 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         for q in range(len(qpts)):
             repl = {t: t + qpts[q] * dt,
                     v: dtvsub[q],
-                    u: usub[q]}
+                    **{w: usub[w][q] for w in stage_funcs}}
             Fnew -= replace(F_dtless, repl)
         F_remainder = split_form.remainder
     else:
         raise ValueError(f"Unrecongnized deriv_type {deriv_type}")
 
     # Handle the rest of the terms
-    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u,))
-    dtu = TimeDerivative(u)
+    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=timedep_coeffs)
     for q in range(len(qpts)):
         repl = {t: t + qpts[q] * dt,
-                v: vsub[q] * dt,
-                u: usub[q],
-                dtu: dtusub[q] / dt}
+                v: vsub[q] * dt}
+        for w in stage_funcs:
+            repl[w] = usub[w][q]
+            if w in timedep_coeffs:
+                repl[TimeDerivative(w)] = dtusub[w][q] / dt
         Fnew += replace(F_remainder, repl)
     return Fnew
 

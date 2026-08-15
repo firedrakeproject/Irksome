@@ -9,7 +9,7 @@ from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import ContinuousPetrovGalerkinScheme, create_time_quadrature, ufc_line
-from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components, reshape, replace
+from .tools import AI, IA, dot, fields_to_components, reshape, replace
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
@@ -77,13 +77,20 @@ def get_elements_and_quadrature(scheme):
 
 
 def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend="firedrake"):
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     backend_cls = get_backend(backend)
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
 
+    stage_funcs = {u0: stages}
+    if trial is not None:
+        stage_funcs[trial] = backend_cls.TrialFunction(stages.function_space())
+    timedep_coeffs = tuple(stage_funcs)
+
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=timedep_coeffs)
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -102,26 +109,26 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
     # set up the pieces we need to work with to do our substitutions
     i0, = L_trial.entity_dofs()[0][0]
     v_np = reshape(test, (-1, *v.ufl_shape))
-    w_np = reshape(stages, (-1, *u.ufl_shape))
-    u_np = np.insert(w_np, i0, reshape(u0, (1, *u0.ufl_shape)), axis=0)
-
     vsub = dot(test_vals_w.T, v_np)
-    usub = dot(trial_vals.T, u_np)
-    dtusub = dot(trial_dvals.T, u_np)
-    dtu = TimeDerivative(u)
-
-    # discretize the auxiliary fields in the DG test space
-    if aux_indices is not None:
-        aux_components = fields_to_components(V, aux_indices)
-        usub[:, aux_components] = dot(test_vals.T, w_np[:, aux_components])
 
     # now loop over quadrature points
-    repl = {}
-    for q in range(len(qpts)):
-        repl[q] = {t: t + qpts[q] * dt,
-                   v: vsub[q] * dt,
-                   u: usub[q],
-                   dtu: dtusub[q] / dt}
+    repl = {q: {t: t + qpts[q] * dt, v: vsub[q] * dt} for q in range(len(qpts))}
+    for w, W in stage_funcs.items():
+        w_np = reshape(W, (-1, *u0.ufl_shape))
+        # the trial space is continuous in time, so u0 is the initial node of each row
+        u_np = np.insert(w_np, i0, reshape(u0, (1, *u0.ufl_shape)), axis=0)
+        usub = dot(trial_vals.T, u_np)
+        dtusub = dot(trial_dvals.T, u_np)
+
+        # discretize the auxiliary fields in the DG test space
+        if aux_indices is not None:
+            aux_components = fields_to_components(V, aux_indices)
+            usub[:, aux_components] = dot(test_vals.T, w_np[:, aux_components])
+
+        for q in range(len(qpts)):
+            repl[q][w] = usub[q]
+            if w in timedep_coeffs:
+                repl[q][TimeDerivative(w)] = dtusub[q] / dt
     Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
@@ -368,7 +375,10 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                 test_np = reshape(test, (-1, *v0.ufl_shape))
                 test_np = np.multiply(self.dt*vecconst(row_scale).reshape(-1, *(1,)*len(v0.ufl_shape)), test_np)
                 test_np = test_np.reshape(test.ufl_shape)
-                Fnew = replace(Fnew, {test: test_np, stages: stages/self.dt})
+                repl = {test: test_np, stages: stages/self.dt}
+                for arg in Fnew.arguments()[1:]:
+                    repl[arg] = arg/self.dt
+                Fnew = replace(Fnew, repl)
 
             return Fnew, bcnew
 

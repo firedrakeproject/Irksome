@@ -61,7 +61,9 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         :class:`Function` and ``v`` is the
         :class:`TestFunction`. To specify a linear problem,
         ``F`` must be of the form ``a(t; w, v) - L(t; v)``, where
-        ``w`` is a :class:`TrialFunction`.
+        ``w`` is a :class:`TrialFunction`.  Within such an ``F``, and within a
+        bilinear ``J`` or ``Jp``, ``u0`` denotes the stage state rather than
+        the value at ``t_n``; wrap it in :func:`~irksome.lag` to hold it there.
     :arg method: A :class:`ButcherTableau` instance (for RK methods) or
         a :class:`GalerkinScheme` instance (for CPG or DG) methods
         to be used in time marching.

@@ -3,7 +3,7 @@ import numpy
 from petsc4py import PETSc
 from ufl import as_ufl, as_tensor, dx, inner
 from .constant import vecconst
-from .tools import AI, dot, extract_timedep_arguments, fields_to_components, replace, reshape
+from .tools import AI, dot, fields_to_components, replace, reshape
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 
@@ -58,12 +58,16 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     backend_cls = get_backend(backend)
     if bc_type is None:
         bc_type = "DAE"
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
 
-    stage_funcs = {u: stages, **(stage_functions or {})}
-    old_values = {w: u0 if w is u else w for w in stage_funcs}
+    stage_funcs = {u0: stages, **(stage_functions or {})}
+    if trial is not None:
+        stage_funcs[trial] = backend_cls.TrialFunction(stages.function_space())
+    old_values = {w: u0 if w is trial else w for w in stage_funcs}
     timedep_coeffs = tuple(stage_funcs)
 
     # preprocess time derivatives
@@ -99,13 +103,14 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
         for w, base in old_values.items():
             usub = base + as_tensor(A1w[w][i]) * dt
             dtusub = A2invw[w][i]
-            if aux_components and w is u:
+            if aux_components and (w is u0 or w is trial):
                 # Apply TimeDerivative substitution to auxiliary fields
                 usub = reshape(usub, base.ufl_shape)
                 usub[aux_components] = dtusub[aux_components] * dt
 
             repl[i][w] = usub
-            repl[i][TimeDerivative(w)] = dtusub
+            if w in timedep_coeffs:
+                repl[i][TimeDerivative(w)] = dtusub
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 

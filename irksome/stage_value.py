@@ -12,7 +12,7 @@ from .ufl.manipulation import (has_nonlinear_time_derivative,
                                split_time_derivative_terms,
                                remove_time_derivatives)
 
-from .tools import AI, extract_timedep_arguments, dot, reshape, replace
+from .tools import AI, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 from .backend import get_backend
@@ -78,13 +78,18 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
        - `bcnew`, a list of :class:`DirichletBC` objects to be posed
          on the stages
     """
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     backend_cls = get_backend(backend)
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
 
-    stage_funcs = {u: stages, **(stage_functions or {})}
-    old_values = {w: u0 if w is u else w for w in stage_funcs}
+    stage_funcs = {u0: stages, **(stage_functions or {})}
+    if trial is not None:
+        stage_funcs[trial] = backend_cls.TrialFunction(stages.function_space())
+    old_values = {w: u0 if w is trial else w for w in stage_funcs}
+    timedep_coeffs = tuple(stage_funcs)
 
     c = vecconst(butch.c, backend=backend)
     bA1, bA2 = splitting(butch.A)
@@ -111,7 +116,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=tuple(stage_funcs))
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=timedep_coeffs)
     F_dtless = remove_time_derivatives(split_form.time)
     F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
@@ -280,19 +285,27 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         t = self.t
         dt = self.dt
         u0 = self.u0
-        v, u = extract_timedep_arguments(F, u0)
-        unew = backend_cls.Function(backend_cls.get_function_space(u))
+        args = F.arguments()
+        trial = args[1] if len(args) == 2 else None
+        unew = backend_cls.Function(backend_cls.get_function_space(u0))
 
-        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0 if trial is None else trial,))
         F_dtless = remove_time_derivatives(split_form.time)
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
-        Fupdate = replace(F_dtless, {u: unew}) - replace(F_dtless, {u: u0})
+        repl_new = {u0: unew}
+        repl_old = {}
+        if trial is not None:
+            repl_new[trial] = unew
+            repl_old[trial] = u0
+        Fupdate = replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
         u_np = to_value(u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
-                    u: u_np[i]}
+                    u0: u_np[i]}
+            if trial is not None:
+                repl[trial] = u_np[i]
             Fupdate += dt * B[i] * replace(F_remainder, repl)
 
         # And the BC's for the update -- just the original BC at t+dt
