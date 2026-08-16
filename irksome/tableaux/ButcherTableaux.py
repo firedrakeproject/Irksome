@@ -1,6 +1,6 @@
 import FIAT
 import numpy
-from numpy import vander, zeros
+from numpy import vander
 from numpy.linalg import solve
 from FIAT.quadrature_schemes import create_quadrature
 from ..tools import get_lagrange_permutation
@@ -42,12 +42,7 @@ class ButcherTableau(object):
     @property
     def is_stiffly_accurate(self):
         """Determines whether the method is stiffly accurate."""
-        res = zeros(self.num_stages)
-        res[-1] = 1.0
-        try:
-            return numpy.allclose(res, solve(self.A.T, self.b))
-        except numpy.linalg.LinAlgError:
-            return False
+        return numpy.allclose(self.A[-1, :], self.b)
 
     @property
     def is_explicit(self):
