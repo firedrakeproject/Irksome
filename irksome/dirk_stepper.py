@@ -48,7 +48,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
     # stage.
     a_vals = numpy.array([MC.Constant(0.0) for i in range(num_stages)],
                          dtype=object)
-    d_val = MC.Constant(1.0)
+    dinv_val = MC.Constant(1.0)
     for bc in bcs:
         bcarg = bc._original_arg
         if bcarg == 0:
@@ -58,10 +58,10 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
             bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
             gdat = bcarg_stage - backend_cls.bc2space(bc, u0)
             gdat -= sum(backend_cls.bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
-            gdat /= d_val * dt
+            gdat *= dinv_val / dt
             bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k0, g, a, c), bcnew, (a_vals, d_val)
+    return stage_F, (k0, g, a, c), bcnew, (a_vals, dinv_val)
 
 
 class DIRKTimeStepper:
@@ -85,6 +85,19 @@ class DIRKTimeStepper:
         self.num_stages = num_stages = butcher_tableau.num_stages
         self.AAb = numpy.vstack((butcher_tableau.A, butcher_tableau.b))
         self.CCone = numpy.append(butcher_tableau.c, 1.0)
+
+        # A stage with a zero diagonal cannot move its own stage value, so it
+        # carries no boundary constraint and a later stage has to impose the
+        # data.  That holds when the last stage is implicit and its value is
+        # the solution, and not otherwise.
+        explicit_stages = [i for i in range(num_stages)
+                           if self.AAb[i, i] == 0]
+        if bcs and explicit_stages:
+            stiffly_accurate = numpy.allclose(self.AAb[-1], self.AAb[-2])
+            if not stiffly_accurate or explicit_stages[-1] == num_stages - 1:
+                raise NotImplementedError(
+                    "Cannot impose boundary conditions on an explicit stage "
+                    "unless a later implicit stage carries the data")
 
         # Need to be able to set BCs for either the DIRK or explicit cases.
 
@@ -119,12 +132,12 @@ class DIRKTimeStepper:
         # "ks" is a list of functions for the stage values
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
-        stage_F, kgac, bcnew, (a_vals, d_val) = getFormDIRK(
+        stage_F, kgac, bcnew, (a_vals, dinv_val) = getFormDIRK(
             F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs, backend=backend)
         k, g, a, c = kgac
         self.kgac = kgac
         self.bcnew = bcnew
-        self.bc_constants = a_vals, d_val
+        self.bc_constants = a_vals, dinv_val
 
         stage_J = self.get_bilinear_form(J, k, tableau=butcher_tableau)
         stage_Jp = self.get_bilinear_form(Jp, k, tableau=butcher_tableau)
@@ -166,13 +179,15 @@ class DIRKTimeStepper:
     def update_bc_constants(self, i, c):
         AAb = self.AAb
         CCone = self.CCone
-        a_vals, d_val = self.bc_constants
+        a_vals, dinv_val = self.bc_constants
         ns = AAb.shape[1]
         for j in range(i):
             a_vals[j].assign(AAb[i, j])
         for j in range(i, ns):
             a_vals[j].zero()
-        d_val.assign(AAb[i, i])
+        # A stage with a zero diagonal cannot move its own stage value, so it
+        # takes no boundary constraint.
+        dinv_val.assign(0.0 if AAb[i, i] == 0 else 1.0 / AAb[i, i])
         c.assign(CCone[i])
 
     def advance(self):
