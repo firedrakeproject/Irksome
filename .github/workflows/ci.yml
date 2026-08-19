@@ -82,7 +82,7 @@ jobs:
     - name: Install irksome
       working-directory: irksome-repo
       run: |
-        python3 -m pip install .[dolfinx]
+        python3 -m pip install .[dolfinx]  --no-build-isolation
 
     - name: Install pyadjoint as it is used in conftest.py
       run: python3 -m pip install pyadjoint-ad
