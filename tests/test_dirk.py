@@ -1,6 +1,7 @@
 import pytest
 from firedrake import *
-from irksome import WSODIRK, Alexander, Dt, MeshConstant, TimeStepper
+import numpy as np
+from irksome import WSODIRK, Alexander, Dt, LobattoIIIA, MeshConstant, TimeStepper
 from ufl import replace
 
 wsodirks = [WSODIRK(*x) for x in ((4, 3, 2), (4, 3, 3))]
@@ -315,3 +316,39 @@ def test_dirk_rejects_constant_jacobian():
     with pytest.raises(ValueError):
         TimeStepper(F, Alexander(), t, dt, u, stage_type="dirk",
                     constant_jacobian=True)
+
+
+def test_explicit_first_stage_dirichletbc():
+    """A zero diagonal entry leaves its stage value unconstrained.
+
+    LobattoIIIA is diagonally implicit with A[0, 0] == 0, so stage 0 cannot
+    move its own stage value and takes no boundary constraint.  The method is
+    stiffly accurate, so the boundary data is imposed by the last stage.
+    """
+    msh = UnitIntervalMesh(8)
+    V = FunctionSpace(msh, "CG", 1)
+    (x,) = SpatialCoordinate(msh)
+    t_end = 1.0
+
+    def error(nsteps):
+        MC = MeshConstant(msh)
+        t = MC.Constant(0.0)
+        dt = MC.Constant(t_end / nsteps)
+        # linear in x, so CG1 is exact in space and the error is temporal
+        uexact = 2.0 + x * (1.0 + atan(t))
+        rhs = Dt(uexact) - div(grad(uexact))
+        u = Function(V).interpolate(uexact)
+        v = TestFunction(V)
+        F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+             - inner(rhs, v) * dx)
+        stepper = TimeStepper(F, LobattoIIIA(2), t, dt, u,
+                              bcs=DirichletBC(V, uexact, "on_boundary"),
+                              stage_type="dirk")
+        for _ in range(nsteps):
+            stepper.advance()
+            t.assign(float(t) + float(dt))
+        return errornorm(uexact, u)
+
+    errors = np.array([error(10 * 2**r) for r in range(3)])
+    rates = np.diff(-np.log2(errors))
+    assert (rates > LobattoIIIA(2).order - 0.25).all()
