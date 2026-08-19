@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Solving the heat equation with monolithic multigrid &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/fenics.css?v=c6f455f8" />
+    <script src="../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Solving the heat equation with monolithic multigrid and Discontinuous Galerkin-in-Time" href="demo_heat_mg_dg.py.html" />
+    <link rel="prev" title="Block diagonal preconditioners for the heat equation" href="demo_heat_pc.py.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../index.html"><img src="../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="demos/demo_heat_mg.py">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="solving-the-heat-equation-with-monolithic-multigrid">
+<h1>Solving the heat equation with monolithic multigrid<a class="headerlink" href="#solving-the-heat-equation-with-monolithic-multigrid" title="Link to this heading">¶</a></h1>
+<p>This reprise of the heat equation demo uses a monolithic multigrid
+algorithm suggested by Patrick Farrell to perform time advancement.</p>
+<p>We consider the heat equation on <span class="math notranslate nohighlight">\(\Omega = [0,10]
+\times [0,10]\)</span>, with boundary <span class="math notranslate nohighlight">\(\Gamma\)</span>: giving rise to the weak form</p>
+<div class="math notranslate nohighlight">
+\[(u_t, v) + (\nabla u, \nabla v) = (f, v)\]</div>
+<p>This demo implements an example used by Solin with a particular choice
+of <span class="math notranslate nohighlight">\(f\)</span> given below</p>
+<p>We perform similar imports and setup as before:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">irksome</span><span class="w"> </span><span class="kn">import</span> <span class="n">GaussLegendre</span><span class="p">,</span> <span class="n">Dt</span><span class="p">,</span> <span class="n">MeshConstant</span><span class="p">,</span> <span class="n">TimeStepper</span>
+<span class="n">butcher_tableau</span> <span class="o">=</span> <span class="n">GaussLegendre</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>However, we need to set up a mesh hierarchy to enable geometric multigrid
+within Firedrake:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">N</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="n">x0</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="n">x1</span> <span class="o">=</span> <span class="mf">10.0</span>
+<span class="n">y0</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="n">y1</span> <span class="o">=</span> <span class="mf">10.0</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">log</span>
+<span class="n">coarseN</span> <span class="o">=</span> <span class="mi">8</span>  <span class="c1"># size of coarse grid</span>
+<span class="n">nrefs</span> <span class="o">=</span> <span class="n">log</span><span class="p">(</span><span class="n">N</span><span class="o">/</span><span class="n">coarseN</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">nrefs</span> <span class="o">==</span> <span class="nb">int</span><span class="p">(</span><span class="n">nrefs</span><span class="p">)</span>
+<span class="n">nrefs</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">nrefs</span><span class="p">)</span>
+<span class="n">base</span> <span class="o">=</span> <span class="n">RectangleMesh</span><span class="p">(</span><span class="n">coarseN</span><span class="p">,</span> <span class="n">coarseN</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span><span class="p">)</span>
+<span class="n">mh</span> <span class="o">=</span> <span class="n">MeshHierarchy</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">nrefs</span><span class="p">)</span>
+<span class="n">msh</span> <span class="o">=</span> <span class="n">mh</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>From here, setting up the function space, manufactured solution, etc,
+are just as for the regular heat equation demo:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">V</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="n">MC</span> <span class="o">=</span> <span class="n">MeshConstant</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+<span class="n">dt</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">10.0</span> <span class="o">/</span> <span class="n">N</span><span class="p">)</span>
+<span class="n">t</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">SpatialCoordinate</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+<span class="n">S</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span>
+<span class="n">C</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">1000.0</span><span class="p">)</span>
+<span class="n">B</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">Constant</span><span class="p">(</span><span class="n">x0</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">Constant</span><span class="p">(</span><span class="n">x1</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="n">y</span><span class="o">-</span><span class="n">Constant</span><span class="p">(</span><span class="n">y0</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="n">y</span><span class="o">-</span><span class="n">Constant</span><span class="p">(</span><span class="n">y1</span><span class="p">))</span><span class="o">/</span><span class="n">C</span>
+<span class="n">R</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">*</span> <span class="n">y</span><span class="p">)</span> <span class="o">**</span> <span class="mf">0.5</span>
+<span class="n">uexact</span> <span class="o">=</span> <span class="n">B</span> <span class="o">*</span> <span class="n">atan</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">-</span> <span class="n">atan</span><span class="p">(</span><span class="n">S</span> <span class="o">*</span> <span class="p">(</span><span class="n">R</span> <span class="o">-</span> <span class="n">t</span><span class="p">)))</span>
+<span class="n">rhs</span> <span class="o">=</span> <span class="n">Dt</span><span class="p">(</span><span class="n">uexact</span><span class="p">)</span> <span class="o">-</span> <span class="n">div</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">uexact</span><span class="p">))</span>
+
+<span class="n">u</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+<span class="n">u</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">uexact</span><span class="p">)</span>
+<span class="n">v</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+<span class="n">F</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">grad</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="o">*</span><span class="n">dx</span> <span class="o">-</span> <span class="n">inner</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span>
+<span class="n">bc</span> <span class="o">=</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;on_boundary&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And now for the solver parameters.  Note that we are solving a
+block-wise system with all stages coupled together.  This performs a
+monolithic multigrid with pointwise block Jacobi preconditioning:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mgparams</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;mat_type&quot;</span><span class="p">:</span> <span class="s2">&quot;aij&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;snes_type&quot;</span><span class="p">:</span> <span class="s2">&quot;ksponly&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;gmres&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;ksp_monitor_true_residual&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;mg&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;mg_levels&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;chebyshev&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;ksp_max_it&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="s2">&quot;ksp_convergence_test&quot;</span><span class="p">:</span> <span class="s2">&quot;skip&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;python&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;pc_python_type&quot;</span><span class="p">:</span> <span class="s2">&quot;firedrake.PatchPC&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;patch&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;pc_patch&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;save_operators&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                        <span class="s2">&quot;partition_of_unity&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                        <span class="s2">&quot;construct_type&quot;</span><span class="p">:</span> <span class="s2">&quot;star&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;construct_dim&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                        <span class="s2">&quot;sub_mat_type&quot;</span><span class="p">:</span> <span class="s2">&quot;seqdense&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;dense_inverse&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                        <span class="s2">&quot;precompute_element_tensors&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
+                    <span class="s2">&quot;sub&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;preonly&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;lu&quot;</span><span class="p">}}},</span>
+            <span class="s2">&quot;mg_coarse&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;lu&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;pc_factor_mat_solver_type&quot;</span><span class="p">:</span> <span class="s2">&quot;mumps&quot;</span><span class="p">}</span>
+            <span class="p">}</span>
+</pre></div>
+</div>
+<p>These solver parameters work just fine in the <code class="xref py py-class docutils literal notranslate"><span class="pre">TimeStepper</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">stepper</span> <span class="o">=</span> <span class="n">TimeStepper</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">butcher_tableau</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">bcs</span><span class="o">=</span><span class="n">bc</span><span class="p">,</span>
+                      <span class="n">solver_parameters</span><span class="o">=</span><span class="n">mgparams</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And we can advance the solution in time in typical fashion:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">while</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">):</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">1.0</span><span class="p">):</span>
+        <span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+    <span class="n">stepper</span><span class="o">.</span><span class="n">advance</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">),</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">t</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>After the solve, we can retrieve some statistics about the solver:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">steps</span><span class="p">,</span> <span class="n">nonlinear_its</span><span class="p">,</span> <span class="n">linear_its</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">solver_stats</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Total number of timesteps was </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">steps</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Average number of nonlinear iterations per timestep was </span><span class="si">%.2f</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">nonlinear_its</span><span class="o">/</span><span class="n">steps</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Average number of linear iterations per timestep was </span><span class="si">%.2f</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">linear_its</span><span class="o">/</span><span class="n">steps</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Finally, we print out the relative <span class="math notranslate nohighlight">\(L^2\)</span> error:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">norm</span><span class="p">(</span><span class="n">u</span><span class="o">-</span><span class="n">uexact</span><span class="p">)</span><span class="o">/</span><span class="n">norm</span><span class="p">(</span><span class="n">uexact</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>

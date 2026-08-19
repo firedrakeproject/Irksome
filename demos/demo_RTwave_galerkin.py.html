@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Solving the Mixed Wave Equation: Energy conservation, Multigrid, Galerkin-in-Time &#8212; Irksome 20202.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/fenics.css?v=c6f455f8" />
+    <script src="../_static/documentation_options.js?v=41c113e4"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Solving the Mixed Wave Equation: Energy conservation and explicit RK" href="demo_RTwave_PEP.py.html" />
+    <link rel="prev" title="Solving the Heat Equation with a DIRK in Irksome" href="demo_heat_dirk.py.html" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
+<link rel="stylesheet" href="../_static/featured.css">
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-45089752-1', 'https://github.com/firedrakeproject/Irksome');
+  ga('send', 'pageview');
+</script>
+
+
+<link rel="shortcut icon" href="../_static/icon.ico" />
+
+
+  </head><body>
+<div class="wrapper">
+  
+  <center><a href="../index.html"><img src="../_static/fence.svg" width="450px" alt="Irksome Project Banner" /></a></center>
+  
+  <div id="access">
+    <div class="menu">
+      <ul>
+          <li class="page_item"><a href="https://github.com/firedrakeproject/Irksome" title="GitHub">GitHub</a></li>
+      </ul>
+    </div><!-- .menu -->
+  </div><!-- #access -->
+</div><!-- #wrapper -->
+
+
+    <div class="document">
+    <div class="demos/demo_RTwave_galerkin.py">
+      
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="solving-the-mixed-wave-equation-energy-conservation-multigrid-galerkin-in-time">
+<h1>Solving the Mixed Wave Equation: Energy conservation, Multigrid, Galerkin-in-Time<a class="headerlink" href="#solving-the-mixed-wave-equation-energy-conservation-multigrid-galerkin-in-time" title="Link to this heading">¶</a></h1>
+<p>Let <span class="math notranslate nohighlight">\(\Omega\)</span> be the unit square with boundary <span class="math notranslate nohighlight">\(\Gamma\)</span>.  We write
+the wave equation as a first-order system of PDE:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}u_t + \nabla p &amp; = 0\\p_t + \nabla \cdot u &amp; = 0\end{aligned}\end{align} \]</div>
+<p>together with homogeneous Dirichlet boundary conditions</p>
+<div class="math notranslate nohighlight">
+\[p = 0 \quad \textrm{on}\ \Gamma\]</div>
+<p>In this form, at each time, <span class="math notranslate nohighlight">\(u\)</span> is a vector-valued function in the Soboleve space <span class="math notranslate nohighlight">\(H(\mathrm{div})\)</span> and <cite>p</cite> is a scalar-valued function.  If we select appropriate test functions <span class="math notranslate nohighlight">\(v\)</span> and <span class="math notranslate nohighlight">\(w\)</span>, then we can arrive at the weak form</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}(u_t, v) - (p, \nabla \cdot v) &amp; = 0\\(p_t, w) + (\nabla \cdot u, w) &amp; = 0\end{aligned}\end{align} \]</div>
+<p>Note that in mixed formulations, the Dirichlet boundary condition is weakly
+enforced via integration by parts rather than strongly in the definition of
+the approximating space.</p>
+<p>In this example, we will use the next-to-lowest order Raviart-Thomas elements
+for the velocity variable <span class="math notranslate nohighlight">\(u\)</span> and discontinuous piecewise linear
+polynomials for the scalar variable <span class="math notranslate nohighlight">\(p\)</span>.</p>
+<p>Here is some typical Firedrake boilerplate and the construction of a simple
+mesh and the approximating spaces.  We are going to use a multigrid preconditioner for each timestep, so we create a MeshHierarchy as well:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">firedrake</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">irksome</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dt</span><span class="p">,</span> <span class="n">MeshConstant</span><span class="p">,</span> <span class="n">TimeStepper</span><span class="p">,</span> <span class="n">ContinuousPetrovGalerkinScheme</span>
+
+<span class="n">N</span> <span class="o">=</span> <span class="mi">10</span>
+
+<span class="n">base</span> <span class="o">=</span> <span class="n">UnitSquareMesh</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">)</span>
+<span class="n">mh</span> <span class="o">=</span> <span class="n">MeshHierarchy</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">msh</span> <span class="o">=</span> <span class="n">mh</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">V</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;RT&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">W</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">msh</span><span class="p">,</span> <span class="s2">&quot;DG&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">Z</span> <span class="o">=</span> <span class="n">V</span><span class="o">*</span><span class="n">W</span>
+</pre></div>
+</div>
+<p>Now we can build the initial condition, which has zero velocity and a sinusoidal displacement:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">SpatialCoordinate</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+<span class="n">up0</span> <span class="o">=</span> <span class="n">project</span><span class="p">(</span><span class="n">as_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">sin</span><span class="p">(</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">*</span><span class="n">sin</span><span class="p">(</span><span class="n">pi</span><span class="o">*</span><span class="n">y</span><span class="p">)]),</span> <span class="n">Z</span><span class="p">)</span>
+<span class="n">u0</span><span class="p">,</span> <span class="n">p0</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="n">up0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We build the variational form in UFL:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">v</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">TestFunctions</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+<span class="n">F</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">u0</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">div</span><span class="p">(</span><span class="n">u0</span><span class="p">),</span> <span class="n">w</span><span class="p">)</span> <span class="o">*</span> <span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">Dt</span><span class="p">(</span><span class="n">p0</span><span class="p">),</span> <span class="n">w</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">-</span> <span class="n">inner</span><span class="p">(</span><span class="n">p0</span><span class="p">,</span> <span class="n">div</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="o">*</span> <span class="n">dx</span>
+</pre></div>
+</div>
+<p>Energy conservation is an important principle of the wave equation, and we can
+test how well the spatial discretization conserves energy by creating a
+UFL expression and evaluating it at each time step:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">E</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">inner</span><span class="p">(</span><span class="n">u0</span><span class="p">,</span> <span class="n">u0</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span> <span class="o">+</span> <span class="n">inner</span><span class="p">(</span><span class="n">p0</span><span class="p">,</span> <span class="n">p0</span><span class="p">)</span><span class="o">*</span><span class="n">dx</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The time and time step variables:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">MC</span> <span class="o">=</span> <span class="n">MeshConstant</span><span class="p">(</span><span class="n">msh</span><span class="p">)</span>
+<span class="n">t</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">dt</span> <span class="o">=</span> <span class="n">MC</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="o">/</span><span class="n">N</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Here, we experiment with a multigrid preconditioner for the CG(2)-in-time discretization:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mgparams</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;mat_type&quot;</span><span class="p">:</span> <span class="s2">&quot;aij&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;snes_type&quot;</span><span class="p">:</span> <span class="s2">&quot;ksponly&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;fgmres&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;ksp_rtol&quot;</span><span class="p">:</span> <span class="mf">1e-8</span><span class="p">,</span>
+            <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;mg&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;mg_levels&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;chebyshev&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;ksp_max_it&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+                <span class="s2">&quot;ksp_convergence_test&quot;</span><span class="p">:</span> <span class="s2">&quot;skip&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;python&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;pc_python_type&quot;</span><span class="p">:</span> <span class="s2">&quot;firedrake.PatchPC&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;patch&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;pc_patch&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;save_operators&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                        <span class="s2">&quot;partition_of_unity&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                        <span class="s2">&quot;construct_type&quot;</span><span class="p">:</span> <span class="s2">&quot;star&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;construct_dim&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                        <span class="s2">&quot;sub_mat_type&quot;</span><span class="p">:</span> <span class="s2">&quot;seqdense&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;dense_inverse&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                        <span class="s2">&quot;precompute_element_tensors&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
+                    <span class="s2">&quot;sub&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;ksp_type&quot;</span><span class="p">:</span> <span class="s2">&quot;preonly&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;lu&quot;</span><span class="p">}}},</span>
+            <span class="s2">&quot;mg_coarse&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;pc_type&quot;</span><span class="p">:</span> <span class="s2">&quot;lu&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;pc_factor_mat_solver_type&quot;</span><span class="p">:</span> <span class="s2">&quot;mumps&quot;</span><span class="p">}</span>
+            <span class="p">}</span>
+
+<span class="n">scheme</span> <span class="o">=</span> <span class="n">ContinuousPetrovGalerkinScheme</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">stepper</span> <span class="o">=</span> <span class="n">TimeStepper</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">scheme</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">up0</span><span class="p">,</span> <span class="n">solver_parameters</span><span class="o">=</span><span class="n">mgparams</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And, as with the heat equation, our time-stepping logic is quite simple.  At easch time step, we print out the energy in the system:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Time    Energy&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;==============&quot;</span><span class="p">)</span>
+
+<span class="k">while</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">1.0</span><span class="p">:</span>
+        <span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+
+    <span class="n">stepper</span><span class="o">.</span><span class="n">advance</span><span class="p">()</span>
+
+    <span class="n">t</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0:1.1e}</span><span class="s2"> </span><span class="si">{1:5e}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="p">),</span> <span class="n">assemble</span><span class="p">(</span><span class="n">E</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p>If all is well with the world, the energy will be nearly identical (up
+to roundoff error) at each time step because the Galerkin-in-time methods
+are symplectic and applied to a linear Hamiltonian system.</p>
+<p>We can also confirm that the multigrid preconditioner is effective, by computing the average number of linear iterations per time-step:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">steps</span><span class="p">,</span> <span class="n">nl_its</span><span class="p">,</span> <span class="n">linear_its</span><span class="p">)</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">solver_stats</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The average number of multigrid iterations per time-step is </span><span class="si">{</span><span class="n">linear_its</span><span class="o">/</span><span class="n">steps</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2020-, Robert C Kirby and others.
+    </div>
+  </body>
+</html>
