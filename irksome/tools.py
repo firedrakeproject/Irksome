@@ -35,6 +35,12 @@ def get_stage_space(V, num_stages, backend="firedrake"):
     return backend_cls.get_stage_space(V, num_stages)
 
 
+def get_stage_function(w, num_stages, backend="firedrake"):
+    backend_cls = get_backend(backend)
+    W = backend_cls.get_function_space(w)
+    return backend_cls.get_stages(W, num_stages)
+
+
 def split_stages(V, stages):
     """Reconstruct the stages as a list of Function(V)"""
     num_fields = len(V)
@@ -44,18 +50,6 @@ def split_stages(V, stages):
     stages_np = reshape(stages, (-1, *V.value_shape))
     ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
     return ks
-
-
-def extract_timedep_arguments(F, u0):
-    """Return both arguments if ``F`` is a bilinear form, otherwise
-    return the unique argument and ``u0``.
-    """
-    try:
-        v, u = F.arguments()
-    except ValueError:
-        v, = F.arguments()
-        u = u0
-    return v, u
 
 
 def fields_to_components(V, fields):
