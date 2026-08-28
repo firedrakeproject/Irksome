@@ -37,6 +37,9 @@ class GalerkinScheme:
         self.quadrature_scheme = quadrature_scheme
         self.max_quadrature_degree = max_quadrature_degree
 
+    def __repr__(self):
+        return f"{type(self).__name__}({self.order}, {self.basis_type})"
+
 
 class DiscontinuousGalerkinScheme(GalerkinScheme):
     """Class for describing DG-in-time methods
@@ -120,10 +123,15 @@ class GalerkinCollocationScheme(ContinuousPetrovGalerkinScheme):
 
         trial_type = stage_type
         basis_type = (trial_type, test_type)
+        self.stage_type = stage_type
         super().__init__(order, basis_type=basis_type,
                          quadrature_degree=quadrature_degree,
                          quadrature_scheme=quadrature_scheme,
                          max_quadrature_degree=max_quadrature_degree)
+
+    def as_collocation_scheme(self):
+        """Return a true collocation scheme with collocated quadrature"""
+        return type(self)(self.order, stage_type=self.stage_type)
 
 
 class DiscontinuousGalerkinCollocationScheme(DiscontinuousGalerkinScheme):
@@ -151,6 +159,10 @@ class DiscontinuousGalerkinCollocationScheme(DiscontinuousGalerkinScheme):
                          quadrature_degree=quadrature_degree,
                          quadrature_scheme=quadrature_scheme,
                          max_quadrature_degree=max_quadrature_degree)
+
+    def as_collocation_scheme(self):
+        """Return a true collocation scheme with collocated quadrature"""
+        return type(self)(self.order, deriv_type=self.deriv_type)
 
 
 def create_time_quadrature(degree, scheme=None):

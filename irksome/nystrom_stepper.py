@@ -186,7 +186,7 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0,
                          tableau.num_stages, bcs=bcs,
-                         bc_type=bc_type, backend=backend, **kwargs)
+                         bc_type=bc_type, scheme_F=tableau, backend=backend, **kwargs)
 
         self.updateb = vecconst(tableau.b, backend=backend)
         self.updatebbar = vecconst(tableau.bbar, backend=backend)

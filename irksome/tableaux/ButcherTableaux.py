@@ -68,6 +68,17 @@ class ButcherTableau(object):
     def __repr__(self):
         return type(self).__name__ + "()"
 
+    def reconstruct(self, A=None, b=None, btilde=None, c=None):
+        if A is None:
+            A = self.A
+        if b is None:
+            b = self.b
+        if btilde is None:
+            btilde = self.btilde
+        if c is None:
+            c = self.c
+        return ButcherTableau(A, b, btilde, c, self.order, self.embedded_order, self.gamma0)
+
 
 class CollocationButcherTableau(ButcherTableau):
     """When an RK method is based on collocation with point sets present

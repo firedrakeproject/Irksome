@@ -1,7 +1,13 @@
 import copy
-
 import numpy
+
 from .labeling import as_form
+from .nystrom_stepper import StageDerivativeNystromTimeStepper
+from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau
+from .scheme import GalerkinCollocationScheme, DiscontinuousGalerkinCollocationScheme
+from .discontinuous_galerkin_stepper import getElement
+from .galerkin_stepper import getTestElement
+
 from firedrake import AuxiliaryOperatorPC, derivative
 from firedrake.dmhooks import get_appctx
 
@@ -45,6 +51,38 @@ def ldu(A):
     return L, D, U
 
 
+def as_butcher_tableau(scheme):
+    """Convert a scheme to its ButcherTableau equivalent."""
+    if isinstance(scheme, ButcherTableau):
+        return scheme
+
+    if isinstance(scheme, GalerkinCollocationScheme):
+        basis_type = scheme.basis_type
+        if isinstance(basis_type, tuple):
+            basis_type = basis_type[1]
+        element = getTestElement(basis_type, scheme.order-1)
+    elif isinstance(scheme, DiscontinuousGalerkinCollocationScheme):
+        element = getElement(scheme.basis_type, scheme.order)
+    else:
+        raise TypeError(f"Cannot convert a {type(scheme).__name__} into a ButcherTableau.")
+
+    return CollocationButcherTableau(element, scheme.order)
+
+
+def RanaLDScheme(scheme):
+    """ButcherTableau for preconditioning with Atilde = LD where A=LDU."""
+    butcher = as_butcher_tableau(scheme)
+    L, D, U = ldu(butcher.A)
+    return butcher.reconstruct(A=L @ D)
+
+
+def RanaDUScheme(scheme):
+    """ButcherTableau for preconditioning with Atilde = DU where A=LDU."""
+    butcher = as_butcher_tableau(scheme)
+    L, D, U = ldu(butcher.A)
+    return butcher.reconstruct(A=D @ U)
+
+
 class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
     """Base class that inherits from Firedrake's AuxiliaryOperatorPC class and
     provides the preconditioning bilinear form associated with an auxiliary
@@ -65,22 +103,23 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         appctx = self.get_appctx(pc)
         stepper = appctx["stepper"]
         butcher = stepper.butcher_tableau
-        F = as_form(stepper.F)
+
         u0 = stepper.u0
         bcs = stepper.orig_bcs
-        v0, = F.arguments()
 
         try:
             # use new Form if provided
+            F = as_form(stepper.F)
+            v0, = F.arguments()
             F, bcs = self.getNewForm(pc, u0, v0)
         except NotImplementedError:
-            pass
+            F = stepper.Jp or stepper.J or stepper.F
+            F = as_form(F)
 
         try:
             # use new ButcherTableau if provided
             Atilde = self.getAtilde(butcher.A)
-            butcher = copy.deepcopy(butcher)
-            butcher.A = Atilde
+            butcher = butcher.reconstruct(A=Atilde)
         except NotImplementedError:
             pass
 
@@ -90,7 +129,6 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
 
         Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F)
         Jnew = derivative(Fnew, w, du=trial)
-
         return Jnew, bcnew
 
 
@@ -191,18 +229,22 @@ class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         """Implements the interface for AuxiliaryOperatorPC."""
         appctx = self.get_appctx(pc)
         stepper = appctx["stepper"]
-        tableau = stepper.tableau
-        F = stepper.F
         bcs = stepper.orig_bcs
         u0 = stepper.u0
+
+        if not isinstance(stepper, StageDerivativeNystromTimeStepper):
+            raise TypeError("Expecting a Nystrom stepper")
+
+        tableau = stepper.tableau
         ut0 = stepper.ut0
-        v0, = F.arguments()
 
         try:
             # use new Form if provided
+            F = stepper.F
+            v0, = F.arguments()
             F, bcs = self.getNewForm(pc, u0, ut0, v0)
         except NotImplementedError:
-            pass
+            F = stepper.Jp or stepper.J or stepper.F
 
         try:
             # use new ButcherTableau if provided
@@ -219,7 +261,6 @@ class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
 
         Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=tableau, F=F)
         Jnew = derivative(Fnew, w, du=trial)
-
         return Jnew, bcnew
 
 

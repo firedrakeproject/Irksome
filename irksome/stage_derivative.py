@@ -206,7 +206,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, bc_type=bc_type,
-                         butcher_tableau=butcher_tableau,
+                         scheme_F=butcher_tableau,
                          sample_points=sample_points,
                          backend=backend, **kwargs)
         self.num_fields = len(self._backend.get_function_space(u0))
@@ -308,10 +308,10 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
                  max_reject=10, onscale_factor=1.2, safety_factor=0.9,
                  gamma0_params=None, backend: str = "firedrake", **kwargs):
         assert butcher_tableau.btilde is not None
-        super(AdaptiveTimeStepper, self).__init__(F, butcher_tableau,
-                                                  t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
-                                                  bc_type=bc_type, splitting=splitting, nullspace=nullspace,
-                                                  backend=backend, **kwargs)
+        super().__init__(F, butcher_tableau,
+                         t, dt, u0, bcs=bcs, appctx=appctx, solver_parameters=solver_parameters,
+                         bc_type=bc_type, splitting=splitting, nullspace=nullspace,
+                         backend=backend, **kwargs)
 
         self.print = PETSc.Sys.Print
 

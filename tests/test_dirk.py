@@ -287,3 +287,31 @@ def test_stokes_bcs(butcher_tableau, bctype):
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
         assert errornorm(u_dirk, u) < 2.e-7
+
+
+def dirk_heat_problem():
+    msh = UnitIntervalMesh(4)
+    V = FunctionSpace(msh, "CG", 1)
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.05)
+    (x,) = SpatialCoordinate(msh)
+    u = Function(V).interpolate(x * (1 - x))
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    return F, t, dt, u
+
+
+@pytest.mark.parametrize("kwarg", ["J", "Jp"])
+def test_dirk_accepts_jacobian_forms(kwarg):
+    F, t, dt, u = dirk_heat_problem()
+    stepper = TimeStepper(F, Alexander(), t, dt, u, stage_type="dirk",
+                          **{kwarg: derivative(F, u)})
+    assert len(stepper.problem.J.arguments()) == 2
+
+
+def test_dirk_rejects_constant_jacobian():
+    F, t, dt, u = dirk_heat_problem()
+    with pytest.raises(ValueError):
+        TimeStepper(F, Alexander(), t, dt, u, stage_type="dirk",
+                    constant_jacobian=True)

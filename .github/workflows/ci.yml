@@ -65,9 +65,17 @@ jobs:
 
   dolfinx:
     runs-on: [ubuntu-latest]
-    container: ghcr.io/fenics/dolfinx/dolfinx:stable
+    container: ghcr.io/fenics/dolfinx/dolfinx:${{ matrix.label }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [
+          "stable",
+          "nightly"
+        ]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         # Download Irksome into a subdirectory not called 'irksome' to make sure
         # that the package installs correctly. Otherwise 'import irksome' may
@@ -77,7 +85,7 @@ jobs:
     - name: Install irksome
       working-directory: irksome-repo
       run: |
-        python3 -m pip install .[dolfinx]
+        python3 -m pip install .[dolfinx]  --no-build-isolation
 
     - name: Install pyadjoint as it is used in conftest.py
       run: python3 -m pip install pyadjoint-ad

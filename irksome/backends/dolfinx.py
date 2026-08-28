@@ -396,15 +396,11 @@ class DirichletBC(dolfinx.fem.DirichletBC):
         :param V: The space to construct the BC on.
         """
 
-        # Attach UFL function space (to be able to reconstruct functions and constants on the same UFL domain)
-        self._ufl_space = V.ufl_function_space()
-
         # Store original UFL expression for time-varying BCs
         if not isinstance(g, (dolfinx.fem.Function, dolfinx.fem.Constant, int, float, complex)):
             self._ufl_expr = g  # Save the symbolic expression
         else:
             self._ufl_expr = None
-        self._ufl_space = V.ufl_function_space()
 
         # If reconstructing with a sub space, we need to get the subspace dof indices
         # If working with a subspace of a single stage, we need to create the (parent_dof, sub_dof) mapping
@@ -477,10 +473,19 @@ class DirichletBC(dolfinx.fem.DirichletBC):
                 new_cpp_object = bctype(val._cpp_object, dofs, V._cpp_object)
 
         # 4. Initialize the parent dolfinx.fem.DirichletBC wrapper with the newly minted C++ object
-        super().__init__(new_cpp_object)
-
-        # 5. Store your custom properties
-        self._orig_g = val
+        try:
+            super().__init__(new_cpp_object)
+            # Attach UFL function space (to be able to reconstruct functions and constants on the same UFL domain)
+            self._ufl_space = V.ufl_function_space()
+            self._orig_g = val
+        except TypeError:
+            # In newer versions of DOLFINx, both the V and the original expression is
+            # required to construct the DirichletBC
+            # Long-term we can remove _orig_g and _ufl_space and _ufl_space and use
+            # bc.function_space and bc.g
+            super().__init__(new_cpp_object, V=V, g=val)
+            self._ufl_space = self.function_space
+            self._orig_g = self.g
 
     def pack(self):
         if self._pack_expression is not None:
