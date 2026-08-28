@@ -12,7 +12,7 @@ from .ufl.manipulation import (has_nonlinear_time_derivative,
                                split_time_derivative_terms,
                                remove_time_derivatives)
 
-from .tools import AI, extract_timedep_arguments, dot, reshape, replace
+from .tools import AI, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 from .backend import get_backend
@@ -34,7 +34,7 @@ def to_value(u0, stages, vandermonde):
     return dot(vandermonde[1:], u_np)
 
 
-def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None, backend: str = "firedrake"):
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None, stage_functions=None, backend: str = "firedrake"):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -78,10 +78,18 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
        - `bcnew`, a list of :class:`DirichletBC` objects to be posed
          on the stages
     """
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     backend_cls = get_backend(backend)
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
+
+    stage_funcs = {u0: stages, **(stage_functions or {})}
+    if trial is not None:
+        stage_funcs[trial] = backend_cls.TrialFunction(stages.function_space())
+    old_values = {w: u0 if w is trial else w for w in stage_funcs}
+    timedep_coeffs = tuple(stage_funcs)
 
     c = vecconst(butch.c, backend=backend)
     bA1, bA2 = splitting(butch.A)
@@ -99,7 +107,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))
-    w_np = to_value(u0, stages, vandermonde)
+    w_np = {w: to_value(old_values[w], W, vandermonde)
+            for w, W in stage_funcs.items()}
     A1Tv = dot(A1.T, v_np)
     A2invTv = dot(A2inv.T, v_np)
 
@@ -107,7 +116,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # assuming we have something of the form inner(Dt(g(u0)), v)*dx
     # For each stage i, this gets replaced with
     # inner((g(stages[i]) - g(u0))/dt, v)*dx
-    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=timedep_coeffs)
     F_dtless = remove_time_derivatives(split_form.time)
     F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
@@ -118,19 +127,22 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # and the two-evaluation form is what gives mass conservation.
     for i in range(num_stages):
         repl_new = {t: t + c[i] * dt,
-                    v: A2invTv[i],
-                    u: w_np[i]}
+                    v: A2invTv[i]}
         # Evaluate g at the old solution u0 (not substituted) and
         # old time t (not substituted).
-        repl_old = {v: A2invTv[i], u: u0}
+        repl_old = {v: A2invTv[i]}
+        for w in stage_funcs:
+            repl_new[w] = w_np[w][i]
+            repl_old[w] = old_values[w]
         Fnew += replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
 
     # Handle the rest of the terms
     for i in range(num_stages):
         # replace the solution with stage values
         repl = {t: t + c[i] * dt,
-                v: A1Tv[i] * dt,
-                u: w_np[i]}
+                v: A1Tv[i] * dt}
+        for w in stage_funcs:
+            repl[w] = w_np[w][i]
         Fnew += replace(F_remainder, repl)
 
     if bcs is None:
@@ -165,11 +177,14 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                  appctx=None, bounds=None,
                  use_collocation_update=False,
                  sample_points=None,
+                 stage_functions=None,
                  backend: str = "firedrake",
                  **kwargs):
 
         self.butcher_tableau = butcher_tableau
         self.basis_type = basis_type
+
+        num_stages = butcher_tableau.num_stages
 
         if basis_type is None or basis_type == 'Lagrange':
             vandermonde = None
@@ -179,11 +194,12 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             vandermonde = self.tabulate_poly(pts).T
         self.vandermonde = vandermonde
 
-        super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, scheme_F=butcher_tableau, bounds=bounds,
                          sample_points=sample_points, backend=backend,
+                         stage_functions=stage_functions,
                          **kwargs)
         self.num_fields = len(self._backend.get_function_space(u0))
 
@@ -269,19 +285,27 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         t = self.t
         dt = self.dt
         u0 = self.u0
-        v, u = extract_timedep_arguments(F, u0)
-        unew = backend_cls.Function(backend_cls.get_function_space(u))
+        args = F.arguments()
+        trial = args[1] if len(args) == 2 else None
+        unew = backend_cls.Function(backend_cls.get_function_space(u0))
 
-        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0 if trial is None else trial,))
         F_dtless = remove_time_derivatives(split_form.time)
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
 
-        Fupdate = replace(F_dtless, {u: unew}) - replace(F_dtless, {u: u0})
+        repl_new = {u0: unew}
+        repl_old = {}
+        if trial is not None:
+            repl_new[trial] = unew
+            repl_old[trial] = u0
+        Fupdate = replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
         u_np = to_value(u0, self.stages, self.vandermonde)
 
         for i in range(self.num_stages):
             repl = {t: t + C[i] * dt,
-                    u: u_np[i]}
+                    u0: u_np[i]}
+            if trial is not None:
+                repl[trial] = u_np[i]
             Fupdate += dt * B[i] * replace(F_remainder, repl)
 
         # And the BC's for the update -- just the original BC at t+dt
@@ -315,6 +339,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                             self.t, self.dt, self.u0,
                             stages, bcs=bcs,
                             splitting=self.splitting,
+                            stage_functions=self.stage_functions,
                             vandermonde=self.vandermonde)
 
     def set_initial_guess(self):
