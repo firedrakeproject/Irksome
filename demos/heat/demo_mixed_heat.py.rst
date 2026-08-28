@@ -30,7 +30,6 @@ Standard imports, although we're using a different RK scheme this time::
 
   from firedrake import *
   from irksome import LobattoIIIC, Dt, MeshConstant, TimeStepper
-  from ufl.algorithms.ad import expand_derivatives
 
   butcher_tableau = LobattoIIIC(2)
 
@@ -67,7 +66,7 @@ manufactured solutions::
   uexact = B * atan(t)*(pi / 2.0 - atan(S * (R - t)))
   sigexact = -grad(uexact)
 
-  rhs = expand_derivatives(diff(uexact, t) + div(sigexact))
+  rhs = Dt(uexact) + div(sigexact)
 
 
 Set up the initial condition::

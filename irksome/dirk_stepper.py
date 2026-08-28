@@ -1,40 +1,49 @@
 import numpy
-from firedrake import (Function,
-                       NonlinearVariationalProblem,
-                       NonlinearVariationalSolver)
-from ufl.constantvalue import as_ufl
+from ufl import as_ufl, lhs
 
-from .deriv import TimeDerivative, expand_time_derivatives
-from .tools import replace, vecconst, MeshConstant
-from .bcs import bc2space
+from .constant import vecconst, MeshConstant
+from .ufl.deriv import TimeDerivative, expand_time_derivatives
+from .tools import replace
+from .backend import get_backend
 
 
-def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
+def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake"):
+    backend_cls = get_backend(backend)
     if bcs is None:
         bcs = []
 
-    v, = F.arguments()
-    V = v.function_space()
-    assert V == u0.function_space()
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
+
+    # preprocess time derivatives
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0 if trial is None else trial,))
 
     num_stages = butch.num_stages
-    k = Function(V)
-    g = Function(V)
 
     # Note: the Constant c is used for substitution in both the
     # variational form and BC's, and we update it for each stage in
     # the loop over stages in the advance method.  The Constant a is
     # used similarly in the variational form
-    MC = MeshConstant(V.mesh())
-    c = MC.Constant(1.0)
-    a = MC.Constant(1.0)
-
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
+    MC = MeshConstant(V.mesh(), backend=backend)
+    if kgac is None:
+        k0 = backend_cls.Function(V)
+        g = backend_cls.Function(V)
+        a = MC.Constant(1.0)
+        c = MC.Constant(1.0)
+    else:
+        k0, g, a, c = kgac
 
     repl = {t: t + c * dt,
-            u0: g + k * (a * dt),
-            TimeDerivative(u0): k}
+            u0: g + k0 * (a * dt)}
+    if trial is None:
+        repl[TimeDerivative(u0)] = k0
+    else:
+        # lhs sends the g offset to the right-hand side, where a bilinear F needs it
+        repl[trial] = g + trial * (a * dt)
+        repl[TimeDerivative(trial)] = trial
     stage_F = replace(F, repl)
 
     bcnew = []
@@ -53,23 +62,25 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None):
             bcnew.append(bc)
         else:
             bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
-            gdat = bcarg_stage - bc2space(bc, u0)
-            gdat -= sum(bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
+            gdat = bcarg_stage - backend_cls.bc2space(bc, u0)
+            gdat -= sum(backend_cls.bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
             gdat /= d_val * dt
             bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k, g, a, c), bcnew, (a_vals, d_val)
+    return stage_F, (k0, g, a, c), bcnew, (a_vals, d_val)
 
 
 class DIRKTimeStepper:
     """Front-end class for advancing a time-dependent PDE via a diagonally-implicit
     Runge-Kutta method formulated in terms of stage derivatives."""
 
-    def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
+    def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None, J=None, Jp=None,
                  solver_parameters=None,
                  appctx=None, nullspace=None,
                  transpose_nullspace=None, near_nullspace=None,
+                 backend="firedrake",
                  **kwargs):
+        self._backend = backend_cls = get_backend(backend)
         assert butcher_tableau.is_diagonally_implicit
 
         self.num_steps = 0
@@ -98,26 +109,31 @@ class DIRKTimeStepper:
         if butcher_tableau.is_explicit:
             self.AAb = self.AAb[1:]
             self.CCone = self.CCone[1:]
-        self.AA = vecconst(butcher_tableau.A)
-        self.BB = vecconst(butcher_tableau.b)
+        self.AA = vecconst(butcher_tableau.A, backend=backend)
+        self.BB = vecconst(butcher_tableau.b, backend=backend)
 
-        self.V = V = u0.function_space()
+        self.V = V = self._backend.get_function_space(u0)
         self.u0 = u0
         self.t = t
         self.dt = dt
-        self.num_fields = len(u0.function_space())
-        self.ks = [Function(V) for _ in range(num_stages)]
+        self.orig_bcs = bcs
+        self.num_fields = len(V)
+        self.ks = [backend_cls.Function(V) for _ in range(num_stages)]
 
         # "k" is a generic function for which we will solve the
         # NVLP for the next stage value
         # "ks" is a list of functions for the stage values
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
-
-        stage_F, (k, g, a, c), bcnew, (a_vals, d_val) = getFormDIRK(
-            F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs)
-
+        stage_F, kgac, bcnew, (a_vals, d_val) = getFormDIRK(
+            F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs, backend=backend)
+        k, g, a, c = kgac
+        self.kgac = kgac
         self.bcnew = bcnew
+        self.bc_constants = a_vals, d_val
+
+        stage_J = self.get_bilinear_form(J, k, tableau=butcher_tableau)
+        stage_Jp = self.get_bilinear_form(Jp, k, tableau=butcher_tableau)
 
         appctx_irksome = {"stepper": self}
         if appctx is None:
@@ -126,13 +142,18 @@ class DIRKTimeStepper:
             appctx = {**appctx, **appctx_irksome}
         self.appctx = appctx
 
-        self.problem = NonlinearVariationalProblem(
-            stage_F, k, bcs=bcnew,
+        constant_jacobian = kwargs.pop("constant_jacobian", False)
+        if constant_jacobian:
+            raise ValueError("Cannot set constant_jacobian=True on a DIRK")
+
+        self.problem = backend_cls.create_variational_problem(
+            stage_F, k, bcs=bcnew, J=stage_J, Jp=stage_Jp,
             form_compiler_parameters=kwargs.pop("form_compiler_parameters", None),
             is_linear=kwargs.pop("is_linear", False),
             restrict=kwargs.pop("restrict", False),
         )
-        self.solver = NonlinearVariationalSolver(
+
+        self.solver = backend_cls.create_variational_solver(
             self.problem, appctx=appctx,
             nullspace=nullspace,
             transpose_nullspace=transpose_nullspace,
@@ -141,8 +162,12 @@ class DIRKTimeStepper:
             **kwargs,
         )
 
-        self.kgac = k, g, a, c
-        self.bc_constants = a_vals, d_val
+    def get_bilinear_form(self, form, stages, tableau=None):
+        if form is None:
+            return form
+        Fbig, *_ = self.get_form_and_bcs(stages, F=form, bcs=(), tableau=tableau)
+        is_bilinear = len(Fbig.arguments()) == 2
+        return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, stages)
 
     def update_bc_constants(self, i, c):
         AAb = self.AAb
@@ -191,9 +216,18 @@ class DIRKTimeStepper:
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations
 
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         return getFormDIRK(F or self.F,
                            stages,
                            tableau or self.butcher_tableau,
                            self.t, self.dt,
-                           self.u0, bcs=self.orig_bcs)
+                           self.u0,
+                           bcs=bcs, kgac=self.kgac)
+
+    def invalidate_jacobian(self):
+        """
+        Forces the matrix to be reassembled next time it is required.
+        """
+        self._backend.invalidate_jacobian(self.solver)

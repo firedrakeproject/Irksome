@@ -1,6 +1,5 @@
 import pytest
 from firedrake import *
-from firedrake.__future__ import interpolate
 from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
 from irksome.tools import AI, IA
 

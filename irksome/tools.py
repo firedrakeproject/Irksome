@@ -1,16 +1,26 @@
-from operator import mul
-from functools import reduce
+from .backend import get_backend
 import numpy
-from firedrake import Function, FunctionSpace, MixedVectorSpaceBasis, Constant
+import ufl
 from ufl.algorithms.analysis import extract_type
-from ufl import as_tensor, zero
-from ufl import replace as ufl_replace
-from pyop2.types import MixedDat
+from ufl.classes import Variable
+from ufl import as_tensor, replace as ufl_replace
 
-from irksome.deriv import TimeDerivative
+import FIAT
+
+from .ufl.deriv import TimeDerivative
+from .ufl.lag import lag_label
+
+
+def dot(A, B):
+    return numpy.tensordot(A, B, (-1, 0))
+
+
+def reshape(expr, shape):
+    return numpy.reshape([expr[i] for i in numpy.ndindex(expr.ufl_shape)], shape)
 
 
 def flatten_dats(dats):
+    from pyop2.types import MixedDat
     flat_dat = []
     for dat in dats:
         if isinstance(dat, (tuple, list, MixedDat)):
@@ -20,56 +30,57 @@ def flatten_dats(dats):
     return MixedDat(flat_dat)
 
 
-def get_stage_space(V, num_stages):
-    return reduce(mul, (V for _ in range(num_stages)))
+def get_stage_space(V, num_stages, backend="firedrake"):
+    backend_cls = get_backend(backend)
+    return backend_cls.get_stage_space(V, num_stages)
 
 
-def get_stage_function(w, num_stages):
-    Wbig = get_stage_space(w.function_space(), num_stages)
-    return Function(Wbig)
+def get_stage_function(w, num_stages, backend="firedrake"):
+    backend_cls = get_backend(backend)
+    W = backend_cls.get_function_space(w)
+    return backend_cls.get_stages(W, num_stages)
 
 
-def getNullspace(V, Vbig, num_stages, nullspace):
-    """
-    Computes the nullspace for a multi-stage method.
-
-    :arg V: The :class:`FunctionSpace` on which the original time-dependent PDE is posed.
-    :arg Vbig: The multi-stage :class:`FunctionSpace` for the stage problem
-    :arg num_stages: The number of stages in the RK method
-    :arg nullspace: The nullspace for the original problem.
-
-    On output, we produce a :class:`MixedVectorSpaceBasis` defining the nullspace
-    for the multistage problem.
-    """
-
+def split_stages(V, stages):
+    """Reconstruct the stages as a list of Function(V)"""
     num_fields = len(V)
-    if nullspace is None:
-        nspnew = None
-    else:
-        try:
-            nullspace.sort()
-        except AttributeError:
-            raise AttributeError("Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer")
-        if (nullspace[-1][0] > num_fields) or (nullspace[0][0] < 0):
-            raise ValueError("At least one index for nullspaces is out of range")
-        nspnew = []
-        nsp_comp = len(nullspace)
-        for i in range(num_stages):
-            count = 0
-            for j in range(num_fields):
-                if count < nsp_comp and j == nullspace[count][0]:
-                    nspnew.append(nullspace[count][1])
-                    count += 1
-                else:
-                    nspnew.append(Vbig.sub(j + num_fields * i))
-        nspnew = MixedVectorSpaceBasis(Vbig, nspnew)
+    if num_fields == 1:
+        return stages.subfunctions
 
-    return nspnew
+    stages_np = reshape(stages, (-1, *V.value_shape))
+    ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
+    return ks
+
+
+def fields_to_components(V, fields):
+    """
+    Returns the scalar component indices corresponding to the possibly
+    tensor-valued subspaces of a mixed function space.
+
+    :arg V: a :class:`FunctionSpace`.
+    :arg fields: a list of integers defining subspaces of V.
+
+    :returns: a list of integers with the scalar components corresponding to
+    the subfields.
+    """
+    cur = 0
+    components = []
+    if len(fields) == 0:
+        return components
+    for i, Vi in enumerate(V):
+        if i in fields:
+            components.extend(range(cur, cur+Vi.value_size))
+        cur += Vi.value_size
+    return components
 
 
 def replace(e, mapping):
-    """A wrapper for ufl.replace that allows numpy arrays."""
+    """A wrapper for ufl.replace that allows numpy arrays and skips
+    substitution into sub-expressions wrapped by :func:`~irksome.lag`."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
+    for var in extract_type(e, Variable):
+        if var.ufl_operands[1] is lag_label:
+            cmapping.setdefault(var, var)
     return ufl_replace(e, cmapping)
 
 
@@ -91,22 +102,38 @@ def is_ode(f, u):
         op, = k.ufl_operands
         Dtbits.extend(op[i] for i in numpy.ndindex(op.ufl_shape))
     ubits = [u[i] for i in numpy.ndindex(u.ufl_shape)]
-    return set(Dtbits) == set(ubits)
+    return set(ubits) <= set(Dtbits)
 
 
-# Utility class for constants on a mesh
-class MeshConstant(object):
-    def __init__(self, msh):
-        self.msh = msh
-        self.V = FunctionSpace(msh, 'R', 0)
+def get_lagrange_permutation(L):
+    """Given a univariate Lagrange element, return the
+    points ordered from left to right and the permutation of the
+    dofs required to obtain this re-ordering."""
+    assert L.ref_el.get_spatial_dimension() == 1
 
-    def Constant(self, val=0.0):
-        return Function(self.V).assign(val)
+    points = []
+    for ell in L.dual.nodes:
+        if not isinstance(ell, FIAT.functional.PointEvaluation):
+            raise TypeError("Expecting a Lagrange element")
+        pt, = ell.get_point_dict().keys()
+        points.append(pt[0])
+
+    c = numpy.asarray(points)
+    perm = numpy.argsort(c)
+
+    return c[perm], perm
 
 
-def ConstantOrZero(x, MC=None):
-    const = MC.Constant if MC else Constant
-    return zero() if abs(complex(x)) < 1.e-10 else const(x)
+def get_sub(u: ufl.FunctionSpace | ufl.Coefficient, indices: tuple[int, ...]) -> ufl.FunctionSpace | ufl.Coefficient:
+    """Recursively access the subfunction of a mixed function space or the space itself, given the indices of the subspace.
 
-
-vecconst = numpy.vectorize(ConstantOrZero)
+    Args:
+        u: A coefficient in a mixed function space
+        indices: A tuple of integers giving the indices of the subspace to access. For example
+            if u is in a mixed space (V1, V2, V3), then get_sub(u, (0, 2)) will return the third subfunction of u in V1,
+            i.e. `u.sub(0).sub(2)`.
+    """
+    for i in indices:
+        if i is not None:
+            u = u.sub(i)
+    return u

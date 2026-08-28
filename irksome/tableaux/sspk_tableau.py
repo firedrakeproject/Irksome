@@ -65,8 +65,12 @@ class SSPButcherTableau(ButcherTableau):
         # Zero pad to match expectations of ExplicitTimeStepper
         A_ = np.zeros((A.shape[0]+1, A.shape[1]+1), dtype=A.dtype)
         A_[1:, :-1] = A
+        self.ns = ns
 
         super(SSPButcherTableau, self).__init__(A_, b, None, c, order, None, None)
+
+    def __repr__(self):
+        return f"{type(self).__name__}{self.order, self.ns}"
 
 
 class SSPK_DIRK_IMEX(DIRK_IMEX):
@@ -82,4 +86,12 @@ class SSPK_DIRK_IMEX(DIRK_IMEX):
         except KeyError:
             raise NotImplementedError("No SSPk DIRK-IMEX method for that combination of SSP order, implicit and explicit stages, and IMEX order")
 
+        self.ssp_order = ssp_order
+        self.ns_imp = ns_imp
+        self.ns_exp = ns_exp
+
         super(SSPK_DIRK_IMEX, self).__init__(A, b, c, A_hat, b_hat, c_hat, order)
+
+    def __repr__(self):
+        return f"{type(self).__name__}"\
+            f"{self.ssp_order, self.ns_imp, self.ns_exp, self.order}"

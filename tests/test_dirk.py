@@ -1,4 +1,3 @@
-from math import isclose
 import pytest
 from firedrake import *
 from irksome import WSODIRK, Alexander, Dt, MeshConstant, TimeStepper
@@ -9,6 +8,7 @@ wsodirks = [WSODIRK(*x) for x in ((4, 3, 2), (4, 3, 3))]
 
 @pytest.mark.parametrize("butcher_tableau", [Alexander()] + wsodirks)
 def test_1d_heat_dirichletbc(butcher_tableau):
+
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -56,6 +56,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         stage_type="dirk"
     )
 
+    bnd_error = inner(u-uexact, u-uexact) * ds
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -63,9 +64,8 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         stepper.advance()
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
-        assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert errornorm(uexact, u) / norm(uexact) < 1e-3
+        assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
 
 
 @pytest.mark.parametrize("butcher_tableau", [Alexander()] + wsodirks)
@@ -247,7 +247,6 @@ def test_stokes_bcs(butcher_tableau, bctype):
     z_dirk = Function(Z)
     test_z = TestFunction(Z)
     (u, p) = split(z)
-    (u_dirk, p_dirk) = split(z_dirk)
     (v, q) = split(test_z)
     F = (inner(Dt(u), v)*dx
          + inner(grad(u), grad(v))*dx
@@ -255,10 +254,8 @@ def test_stokes_bcs(butcher_tableau, bctype):
          - inner(q, div(u))*dx
          - inner(u_rhs, v)*dx
          - inner(p_rhs, q)*dx)
-    Fdirk = replace(F, {z: z_dirk})
 
-    nsp = [(1, VectorSpaceBasis(constant=True))]
-    nsp_dirk = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True)])
+    nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=mesh.comm)])
 
     u, p = z.subfunctions
     u.interpolate(uexact)
@@ -277,9 +274,12 @@ def test_stokes_bcs(butcher_tableau, bctype):
     stepper = TimeStepper(F, butcher_tableau, t, dt, z,
                           bcs=bcs, solver_parameters=lu, nullspace=nsp)
 
+    # Test LinearVariationalSolver interface
+    trial_z = TrialFunction(Z)
+    Fdirk = replace(F, {z: trial_z})
     stepperdirk = TimeStepper(
         Fdirk, butcher_tableau, t, dt, z_dirk,
-        bcs=bcs, solver_parameters=lu, nullspace=nsp_dirk,
+        bcs=bcs, solver_parameters=lu, nullspace=nsp,
         stage_type="dirk")
 
     for i in range(10):
@@ -287,3 +287,31 @@ def test_stokes_bcs(butcher_tableau, bctype):
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
         assert errornorm(u_dirk, u) < 2.e-7
+
+
+def dirk_heat_problem():
+    msh = UnitIntervalMesh(4)
+    V = FunctionSpace(msh, "CG", 1)
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.05)
+    (x,) = SpatialCoordinate(msh)
+    u = Function(V).interpolate(x * (1 - x))
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    return F, t, dt, u
+
+
+@pytest.mark.parametrize("kwarg", ["J", "Jp"])
+def test_dirk_accepts_jacobian_forms(kwarg):
+    F, t, dt, u = dirk_heat_problem()
+    stepper = TimeStepper(F, Alexander(), t, dt, u, stage_type="dirk",
+                          **{kwarg: derivative(F, u)})
+    assert len(stepper.problem.J.arguments()) == 2
+
+
+def test_dirk_rejects_constant_jacobian():
+    F, t, dt, u = dirk_heat_problem()
+    with pytest.raises(ValueError):
+        TimeStepper(F, Alexander(), t, dt, u, stage_type="dirk",
+                    constant_jacobian=True)

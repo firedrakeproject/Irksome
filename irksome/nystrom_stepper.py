@@ -1,10 +1,11 @@
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import BCStageData, bc2space
-from .deriv import Dt, TimeDerivative, expand_time_derivatives
-from .tools import replace, vecconst
-from firedrake import TestFunction, as_ufl
+from .bcs import BCStageData
+from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
+from .backend import get_backend
+from .tools import dot, reshape, replace
+from .constant import vecconst
 import numpy
-from ufl import zero
+from ufl import Form, as_ufl
 
 
 class NystromTableau:
@@ -60,7 +61,7 @@ class ClassicNystrom4Tableau(NystromTableau):
 
         Abar[1, 0] = 1./8
         Abar[2, 0] = 1./8
-        Abar[3, 2] = 1.0
+        Abar[3, 2] = 1./2
 
         b = numpy.array([1, 2, 2, 1]) / 6.
         bbar = numpy.array([1, 1, 1, 0]) / 6.
@@ -71,15 +72,16 @@ class ClassicNystrom4Tableau(NystromTableau):
 
 
 def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
-                   bcs=None, bc_type=None):
+                   bcs=None, bc_type=None, backend="firedrake"):
+    backend_cls = get_backend(backend)
     if bc_type is None:
         bc_type = "DAE"
 
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v = F.arguments()[0]
-    V = v.function_space()
-    assert V == u0.function_space()
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     A = vecconst(tableau.A)
     Abar = vecconst(tableau.Abar)
@@ -87,26 +89,33 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
     num_stages = tableau.num_stages
     Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    test = backend_cls.TestFunction(Vbig)
 
-    v_np = numpy.reshape(test, (num_stages, *u0.ufl_shape))
-    k_np = numpy.reshape(stages, (num_stages, *u0.ufl_shape))
+    stage_funcs = {u0: stages}
+    if trial is not None:
+        stage_funcs[trial] = backend_cls.TrialFunction(Vbig)
+    timedep_coeffs = tuple(stage_funcs)
 
-    Ak = A @ k_np
-    Abark = Abar @ k_np
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=timedep_coeffs)
 
-    dtu = TimeDerivative(u0)
-    dt2u = TimeDerivative(dtu)
+    v_np = reshape(test, (num_stages, *u0.ufl_shape))
 
-    Fnew = zero()
+    Fnew = Form([])
+
+    repl = {i: {t: t + c[i] * dt, v: v_np[i]} for i in range(num_stages)}
+    for w, W in stage_funcs.items():
+        k_np = reshape(W, (num_stages, *u0.ufl_shape))
+        Ak = dot(A, k_np)
+        Abark = dot(Abar, k_np)
+        for i in range(num_stages):
+            repl[i][w] = u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2
+            if w in timedep_coeffs:
+                dtw = TimeDerivative(w)
+                repl[i][dtw] = ut0 + Ak[i] * dt
+                repl[i][TimeDerivative(dtw)] = k_np[i]
 
     for i in range(num_stages):
-        repl = {t: t + c[i] * dt,
-                v: v_np[i],
-                u0: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
-                dtu: ut0 + Ak[i] * dt,
-                dt2u: k_np[i]}
-        Fnew += replace(F, repl)
+        Fnew += replace(F, repl[i])
 
     if bcs is None:
         bcs = []
@@ -127,8 +136,8 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
-            ucur = bc2space(bc, u0)
-            utcur = bc2space(bc, ut0)
+            ucur = backend_cls.bc2space(bc, u0)
+            utcur = backend_cls.bc2space(bc, ut0)
             gcur = (1/dt**2) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur - utcur * (dt * c[j])) * A1inv[i, j]
                                    for j in range(num_stages))
             return gcur
@@ -155,7 +164,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig, 1), t=t, timedep_coeffs=(u0,))
-            utcur = bc2space(bc, ut0)
+            utcur = backend_cls.bc2space(bc, ut0)
             gcur = (1/dt) * sum((replace(gfoo, {t: t + c_ddae[j]*dt}) - utcur) * A1inv[i, j]
                                 for j in range(num_stages))
             return gcur
@@ -174,7 +183,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
 class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, tableau, t, dt, u0, ut0,
-                 bcs=None, bc_type="DAE", **kwargs):
+                 bcs=None, bc_type="DAE", backend="firedrake", **kwargs):
         self.ut0 = ut0
         if not isinstance(tableau, NystromTableau):
             tableau = butcher_to_nystrom(tableau)
@@ -183,11 +192,11 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0,
                          tableau.num_stages, bcs=bcs,
-                         bc_type=bc_type, **kwargs)
+                         bc_type=bc_type, scheme_F=tableau, backend=backend, **kwargs)
 
-        self.updateb = vecconst(tableau.b)
-        self.updatebbar = vecconst(tableau.bbar)
-        self.num_fields = len(u0.function_space())
+        self.updateb = vecconst(tableau.b, backend=backend)
+        self.updatebbar = vecconst(tableau.bbar, backend=backend)
+        self.num_fields = len(self._backend.get_function_space(u0))
 
     def _update(self):
         b = self.updateb
@@ -206,10 +215,14 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                             for s in range(ns)))
             ut0bit += sum(kp[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         return getFormNystrom(F or self.F,
-                              tableau or self.tableau, self.t,
-                              self.dt, self.u0, self.ut0,
+                              tableau or self.tableau,
+                              self.t, self.dt, self.u0, self.ut0,
                               stages,
-                              bcs=self.orig_bcs,
-                              bc_type=self.bc_type)
+                              bcs=bcs, bc_type=self.bc_type)
+
+    def tabulate_poly(self, sample_points):
+        raise NotImplementedError("tabulate_poly not implemented")

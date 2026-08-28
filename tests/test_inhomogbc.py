@@ -1,6 +1,5 @@
 import pytest
 from firedrake import *
-from ufl.algorithms.ad import expand_derivatives
 from irksome import Dt, MeshConstant, TimeStepper, RadauIIA, GaussLegendre
 from irksome.tools import AI, IA
 
@@ -16,7 +15,7 @@ def heat_inhomog(N, deg, butcher_tableau, stage_type, splitting):
     x, y = SpatialCoordinate(msh)
 
     uexact = t*(x+y)
-    rhs = expand_derivatives(diff(uexact, t)) - div(grad(uexact))
+    rhs = Dt(uexact) - div(grad(uexact))
 
     u = Function(V)
     u.interpolate(uexact)

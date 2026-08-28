@@ -27,7 +27,7 @@ We start with standard Firedrake/Irksome imports::
 
   import copy
 
-  from firedrake import (And, Constant, File, Function, FunctionSpace,
+  from firedrake import (And, Constant, VTKFile, Function, FunctionSpace,
                          RectangleMesh, SpatialCoordinate, TestFunctions,
                          as_matrix, conditional, dx, grad, inner, split)
   from irksome import Dt, MeshConstant, RadauIIA, TimeStepper
@@ -140,8 +140,8 @@ Now, we access the IMEX method via the `TimeStepper` as with other methods.  Not
 		        num_its_per_step=3)
 
   uFinal, cFinal = uu.subfunctions
-  outfile1 = File("FHN_results/FHN_2d_u.pvd")
-  outfile2 = File("FHN_results/FHN_2d_c.pvd")
+  outfile1 = VTKFile("FHN_results/FHN_2d_u.pvd")
+  outfile2 = VTKFile("FHN_results/FHN_2d_c.pvd")
   outfile1.write(uFinal, time=0)
   outfile2.write(cFinal, time=0)
 

@@ -1,28 +1,39 @@
+from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
 from .dirk_stepper import DIRKTimeStepper
 from .explicit_stepper import ExplicitTimeStepper
+from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
+from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
 from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
 from .labeling import split_explicit
 from .stage_derivative import StageDerivativeTimeStepper, AdaptiveTimeStepper
 from .stage_value import StageValueTimeStepper
 from .tools import AI
+from .multistep import MultistepTimeStepper
+from .tableaux.multistep_tableaux import MultistepTableau
 
-valid_base_kwargs = ("form_compiler_parameters", "is_linear", "restrict", "solver_parameters",
+valid_base_kwargs = ("bcs", "J", "Jp", "form_compiler_parameters",
+                     "is_linear", "constant_jacobian",
+                     "restrict", "solver_parameters",
                      "nullspace", "transpose_nullspace", "near_nullspace",
                      "appctx", "options_prefix", "pre_apply_bcs")
 
 valid_kwargs_per_stage_type = {
-    "deriv": ["stage_type", "bc_type", "splitting", "adaptive_parameters", "stage_functions"],
-    "value": ["stage_type", "basis_type", "stage_functions",
-              "update_solver_parameters", "splitting", "bounds", "use_collocation_update"],
-    "dirk": ["stage_type", "bcs", "nullspace", "solver_parameters", "appctx"],
-    "explicit": ["stage_type", "bcs", "solver_parameters", "appctx"],
+    "deriv": ["stage_type", "scheme_J", "scheme_Jp", "bc_type", "splitting", "adaptive_parameters", "aux_indices", "sample_points", "stage_functions"],
+    "value": ["stage_type", "scheme_J", "scheme_Jp", "basis_type", "stage_functions",
+              "update_solver_parameters", "splitting", "bounds", "use_collocation_update", "sample_points"],
+    "dirk": ["stage_type"],
+    "explicit": ["stage_type"],
     "imex": ["Fexp", "stage_type", "it_solver_parameters", "prop_solver_parameters",
              "splitting", "num_its_initial", "num_its_per_step"],
-    "dirkimex": ["Fexp", "stage_type", "mass_parameters"]}
+    "dirkimex": ["Fexp", "stage_type", "mass_parameters"],
+    "dg": ["scheme_J", "scheme_Jp", "sample_points"],
+    "cpg": ["scheme_J", "scheme_Jp", "bc_type", "aux_indices", "sample_points"]}
 
 valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "max_reject", "onscale_factor",
                           "safety_factor", "gamma0_params"]
+
+valid_multistep_kwargs = ("bounds", "startup_parameters")
 
 
 def imex_separation(F, Fexp_kwarg, label):
@@ -40,58 +51,102 @@ def imex_separation(F, Fexp_kwarg, label):
     return Fimp, Fexp
 
 
-def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
+def TimeStepper(F, method, t, dt, u0, **kwargs):
     """Helper function to dispatch between various back-end classes
        for doing time stepping.  Returns an instance of the
        appropriate class.
 
     :arg F: A :class:`ufl.Form` instance describing the semi-discrete problem
-            F(t, u; v) == 0, where `u` is the unknown
-            :class:`firedrake.Function and `v` iss the
-            :class:firedrake.TestFunction`.
-    :arg butcher_tableau: A :class:`ButcherTableau` instance giving
-            the Runge-Kutta method to be used for time marching.
-    :arg t: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time.
-    :arg dt: a :class:`Function` on the Real space over the same mesh as
-         `u0`.  This serves as a variable referring to the current time step.
-         The user may adjust this value between time steps.
-    :arg u0: A :class:`firedrake.Function` containing the current
-            state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` or
-            :class: `firedrake.EquationBC` containing
-            the strongly-enforced boundary conditions.  Irksome will
-            manipulate these to obtain boundary conditions for each
-            stage of the RK method.
-    :arg nullspace: A list of tuples of the form (index, VSB) where
-            index is an index into the function space associated with
-            `u` and VSB is a :class: `firedrake.VectorSpaceBasis`
-            instance to be passed to a
-            `firedrake.MixedVectorSpaceBasis` over the larger space
-            associated with the Runge-Kutta method
-    :arg stage_type: Whether to formulate in terms of a stage
-            derivatives or stage values. Support for `firedrake.EquationBC`
-            in `bcs` is limited to the stage derivative formulation.
-    :arg splitting: An callable used to factor the Butcher matrix
-    :arg bc_type: For stage derivative formulation, how to manipulate
-            the strongly-enforced boundary conditions.
-            Support for `firedrake.EquationBC` in `bcs` is limited
-            to DAE style BCs.
-    :arg solver_parameters: A :class:`dict` of solver parameters that
-            will be used in solving the algebraic problem associated
-            with each time step.
-    :arg update_solver_parameters: A :class:`dict` of parameters for
-            inverting the mass matrix at each step (only used if
-            stage_type is "value")
-    :arg adaptive_parameters: A :class:`dict` of parameters for use with
-            adaptive time stepping (only used if stage_type is "deriv")
-    :arg use_collocation_update: An optional kwarg indicating whether to use
+        ``F(t, u; v) == 0``, where ``u`` is the unknown
+        :class:`Function` and ``v`` is the
+        :class:`TestFunction`. To specify a linear problem,
+        ``F`` must be of the form ``a(t; w, v) - L(t; v)``, where
+        ``w`` is a :class:`TrialFunction`.  Within such an ``F``, and within a
+        bilinear ``J`` or ``Jp``, ``u0`` denotes the stage state rather than
+        the value at ``t_n``; wrap it in :func:`~irksome.lag` to hold it there.
+    :arg method: A :class:`ButcherTableau` instance (for RK methods) or
+        a :class:`GalerkinScheme` instance (for CPG or DG) methods
+        to be used in time marching.
+    :arg t: a :class:`Constant` or :class:`Function`
+        on the Real space over the same mesh as ``u0``.  This serves as
+        a variable referring to the current time.
+    :arg dt: a :class:`Constant` or :class:`Function`
+        on the Real space over the same mesh as ``u0``.  This serves as
+        a variable referring to the current time step size.
+        The user may adjust this value between time steps.
+    :arg u0: A :class:`Function` containing the current
+        state of the problem to be solved.
+    :kwarg bcs: An iterable of :class:`DirichletBC` or
+        :class: `EquationBC` containing
+        the strongly-enforced boundary conditions.  Irksome will
+        manipulate these to obtain boundary conditions for each
+        stage of the RK method.
+    :kwarg J: A :class:`ufl.Form` instance with the Jacobian of the semi-discrete problem.
+    :kwarg Jp: A :class:`ufl.Form` instance to precondition the semi-discrete linearization.
+    :kwarg scheme_J: A :class:`ButcherTableau` or :class:`GalerkinScheme` to discretize the Jacobian.
+    :kwarg scheme_Jp: A :class:`ButcherTableau` or :class:`GalerkinScheme` to discretize the preconditioner.
+    :kwarg constant_jacobian: A boolean flag indicating whether the Jacobian
+        does not change between time steps. If ``dt`` is updated, the Jacobian
+        may be flagged for an update via :func:`invalidate_jacobian`.
+    :kwarg nullspace: A :class:`VectorSpaceBasis`
+        or :class:`MixedVectorSpaceBasis` specifying a nullspace
+        over the space of ``u0``.
+    :kwarg stage_type: Whether to formulate in terms of a stage
+        derivatives or stage values. Support for :class:`EquationBC`
+        in ``bcs`` is limited to the stage derivative formulation.
+    :kwarg splitting: A callable used to factor the Butcher matrix
+    :kwarg bc_type: For stage derivative formulation, how to manipulate
+        the strongly-enforced boundary conditions.
+        Support for :class:`EquationBC` in ``bcs`` is limited
+        to DAE style BCs.
+    :kwarg solver_parameters: A :class:`dict` of solver parameters that
+        will be used in solving the algebraic problem associated
+        with each time step.
+    :kwarg update_solver_parameters: A :class:`dict` of parameters for
+        inverting the mass matrix at each step (only used if
+        stage_type is "value")
+    :kwarg adaptive_parameters: A :class:`dict` of parameters for use with
+        adaptive time stepping (only used if stage_type is "deriv")
+    :kwarg use_collocation_update: An optional kwarg indicating whether to use
         the terminal value of the collocation polynomial as the solution
         update. This is needed to bypass the mass matrix inversion when
         enforcing bounds constraints with an RK method that is not stiffly
         accurate. Currently, only constant-in-time boundary conditions are
         supported.
+    :kwarg aux_indices: Only valid for continuous Petrov Galerkin time scheme.  It
+        specifies that some of the variables in `u0` are to be treated as
+        auxiliary, that is, discretized in the lower-order DG test space.
+    :startup_parameters: An optional :class:`dict` containing parameters used to automatically
+        find starting values for multistep methods.
+    :kwarg sample_points: An optional kwarg used to evaluate collocation methods
+        at additional points in time.
     """
+    # first pluck out the cases for Galerkin in time...
+
+    if isinstance(method, DiscontinuousGalerkinScheme):
+        assert set(kwargs.keys()).issubset(list(valid_base_kwargs) + valid_kwargs_per_stage_type["dg"])
+        return DiscontinuousGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
+    elif isinstance(method, ContinuousPetrovGalerkinScheme):
+        assert set(kwargs.keys()).issubset(list(valid_base_kwargs) + valid_kwargs_per_stage_type["cpg"])
+        return ContinuousPetrovGalerkinTimeStepper(F, method, t, dt, u0, **kwargs)
+
+    # then, pluck out the case for multistep methods...
+
+    if isinstance(method, MultistepTableau):
+        base_kwargs = {}
+        for k in valid_base_kwargs:
+            if k in kwargs:
+                base_kwargs[k] = kwargs.pop(k)
+
+        bcs = base_kwargs.pop("bcs", None)
+        for cur_kwarg in kwargs.keys():
+            if cur_kwarg not in valid_multistep_kwargs:
+                raise ValueError(f"kwarg {cur_kwarg} is not allowable for MultistepTimeStepper")
+
+        bounds = kwargs.pop('bounds', None)
+        startup_parameters = kwargs.pop('startup_parameters', None)
+        return MultistepTimeStepper(F, method, t, dt, u0, bcs=bcs, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
+
     stage_type = kwargs.pop("stage_type", "deriv")
     adapt_params = kwargs.pop("adaptive_parameters", None)
     if adapt_params is not None:
@@ -101,21 +156,27 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
     for k in valid_base_kwargs:
         if k in kwargs:
             base_kwargs[k] = kwargs.pop(k)
-    bcs = kwargs.pop("bcs", None)
+    bcs = base_kwargs.pop("bcs", None)
+    scheme_J = kwargs.get("scheme_J", None)
+    scheme_Jp = kwargs.get("scheme_Jp", None)
 
     for cur_kwarg in kwargs.keys():
-        assert cur_kwarg in valid_kwargs_per_stage_type[stage_type]
+        if cur_kwarg not in valid_kwargs_per_stage_type[stage_type]:
+            raise ValueError(f"kwarg {cur_kwarg} is not allowable for stage_type {stage_type}")
 
     if stage_type == "deriv":
         bc_type = kwargs.get("bc_type", "DAE")
         splitting = kwargs.get("splitting", AI)
+        aux_indices = kwargs.get("aux_indices", None)
+        sample_points = kwargs.get("sample_points", None)
         stage_functions = kwargs.get("stage_functions")
+
         if adapt_params is None:
             return StageDerivativeTimeStepper(
-                F, butcher_tableau, t, dt, u0, bcs,
-                bc_type=bc_type, splitting=splitting,
-                stage_functions=stage_functions,
-                **base_kwargs)
+                F, method, t, dt, u0, bcs,
+                scheme_J=scheme_J, scheme_Jp=scheme_Jp,
+                bc_type=bc_type, splitting=splitting, aux_indices=aux_indices,
+                sample_points=sample_points, stage_functions=stage_functions, **base_kwargs)
         else:
             for param in adapt_params:
                 assert param in valid_adapt_parameters
@@ -129,7 +190,7 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
             safety_factor = adapt_params.get("safety_factor", 0.9)
             gamma0_params = adapt_params.get("gamma0_params")
         return AdaptiveTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs,
+            F, method, t, dt, u0, bcs,
             bc_type=bc_type, splitting=splitting,
             tol=tol, dtmin=dtmin, dtmax=dtmax, KI=KI, KP=KP,
             max_reject=max_reject, onscale_factor=onscale_factor,
@@ -141,24 +202,27 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         update_solver_parameters = kwargs.get("update_solver_parameters")
         bounds = kwargs.get("bounds")
         use_collocation_update = kwargs.get("use_collocation_update", False)
+        sample_points = kwargs.get("sample_points", None)
         stage_functions = kwargs.get("stage_functions")
         return StageValueTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs=bcs,
+            F, method, t, dt, u0, bcs=bcs,
             splitting=splitting, basis_type=basis_type,
+            scheme_J=scheme_J, scheme_Jp=scheme_Jp,
+            stage_functions=stage_functions,
             update_solver_parameters=update_solver_parameters,
             bounds=bounds, use_collocation_update=use_collocation_update,
-            stage_functions=stage_functions,
+            sample_points=sample_points,
             **base_kwargs)
     elif stage_type == "dirk":
         return DIRKTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs, **base_kwargs)
+            F, method, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "explicit":
         return ExplicitTimeStepper(
-            F, butcher_tableau, t, dt, u0, bcs, **base_kwargs)
+            F, method, t, dt, u0, bcs, **base_kwargs)
     elif stage_type == "imex":
         Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
-        appctx = base_kwargs.get("appctx")
-        nullspace = base_kwargs.get("nullspace")
+        appctx = base_kwargs.pop("appctx", None)
+        nullspace = base_kwargs.pop("nullspace", None)
         splitting = kwargs.get("splitting", AI)
         it_solver_parameters = kwargs.get("it_solver_parameters")
         prop_solver_parameters = kwargs.get("prop_solver_parameters")
@@ -166,16 +230,21 @@ def TimeStepper(F, butcher_tableau, t, dt, u0, **kwargs):
         num_its_per_step = kwargs.get("num_its_per_step", 0)
 
         return RadauIIAIMEXMethod(
-            Fimp, Fexp, butcher_tableau, t, dt, u0, bcs,
+            Fimp, Fexp, method, t, dt, u0, bcs,
             it_solver_parameters, prop_solver_parameters,
             splitting, appctx, nullspace,
-            num_its_initial, num_its_per_step)
+            num_its_initial, num_its_per_step, **base_kwargs)
     elif stage_type == "dirkimex":
         Fimp, Fexp = imex_separation(F, kwargs.get("Fexp"), stage_type)
-        appctx = base_kwargs.get("appctx")
-        nullspace = base_kwargs.get("nullspace")
-        solver_parameters = base_kwargs.get("solver_parameters")
+        appctx = base_kwargs.pop("appctx", None)
+        nullspace = base_kwargs.pop("nullspace", None)
+        solver_parameters = base_kwargs.pop("solver_parameters", None)
         mass_parameters = kwargs.get("mass_parameters")
         return DIRKIMEXMethod(
-            Fimp, Fexp, butcher_tableau, t, dt, u0, bcs,
-            solver_parameters, mass_parameters, appctx, nullspace)
+            Fimp, Fexp, method, t, dt, u0, bcs,
+            solver_parameters, mass_parameters, appctx, nullspace, **base_kwargs)
+    else:
+        raise ValueError(
+            f"Unknown stage_type: {stage_type}. "
+            f"Valid stage types are: {list(valid_kwargs_per_stage_type.keys())}."
+        )

@@ -2,6 +2,8 @@ import FIAT
 import numpy
 from numpy import vander, zeros
 from numpy.linalg import solve
+from FIAT.quadrature_schemes import create_quadrature
+from ..tools import get_lagrange_permutation
 
 
 class ButcherTableau(object):
@@ -63,8 +65,19 @@ class ButcherTableau(object):
     def is_fully_implicit(self):
         return self.is_implicit and not self.is_diagonally_implicit
 
-    def __str__(self):
-        return str(self.__class__).split(".")[-1][:-2]+"()"
+    def __repr__(self):
+        return type(self).__name__ + "()"
+
+    def reconstruct(self, A=None, b=None, btilde=None, c=None):
+        if A is None:
+            A = self.A
+        if b is None:
+            b = self.b
+        if btilde is None:
+            btilde = self.btilde
+        if c is None:
+            c = self.c
+        return ButcherTableau(A, b, btilde, c, self.order, self.embedded_order, self.gamma0)
 
 
 class CollocationButcherTableau(ButcherTableau):
@@ -77,23 +90,11 @@ class CollocationButcherTableau(ButcherTableau):
     :arg order: the order of the resulting RK method.
     """
     def __init__(self, L, order):
-        assert L.ref_el == FIAT.ufc_simplex(1)
-
-        points = []
-        for ell in L.dual.nodes:
-            assert isinstance(ell, FIAT.functional.PointEvaluation)
-            # Assert singleton point for each node.
-            pt, = ell.get_point_dict().keys()
-            points.append(pt[0])
-
-        c = numpy.asarray(points)
-        # GLL DOFs are ordered by increasing entity dimension!
-        perm = numpy.argsort(c)
-        c = c[perm]
+        c, perm = get_lagrange_permutation(L)
 
         num_stages = len(c)
 
-        Q = FIAT.make_quadrature(L.ref_el, 2*num_stages)
+        Q = create_quadrature(L.ref_complex, L.degree())
         qpts = Q.get_points()
         qwts = Q.get_weights()
 
@@ -125,7 +126,11 @@ class CollocationButcherTableau(ButcherTableau):
         gamma0 = 0
         embedded_order = num_stages-1
 
+        self._l_repr = repr(L)
         super(CollocationButcherTableau, self).__init__(A, b, btilde, c, order, embedded_order, gamma0)
+
+    def __repr__(self):
+        return f"{type(self).__name__}({self._l_repr}, {self.order})"
 
 
 class GaussLegendre(CollocationButcherTableau):
@@ -141,8 +146,8 @@ class GaussLegendre(CollocationButcherTableau):
         L = FIAT.GaussLegendre(U, num_stages - 1)
         super(GaussLegendre, self).__init__(L, 2 * num_stages)
 
-    def __str__(self):
-        return "GaussLegendre(%d)" % self.num_stages
+    def __repr__(self):
+        return f"{type(self).__name__}({self.num_stages})"
 
 
 class LobattoIIIA(CollocationButcherTableau):
@@ -158,8 +163,8 @@ class LobattoIIIA(CollocationButcherTableau):
         L = FIAT.GaussLobattoLegendre(U, num_stages - 1)
         super(LobattoIIIA, self).__init__(L, 2 * num_stages - 2)
 
-    def __str__(self):
-        return "LobattoIIIA(%d)" % self.num_stages
+    def __repr__(self):
+        return f"{type(self).__name__}({self.num_stages})"
 
 
 class RadauIIA(CollocationButcherTableau):
@@ -182,8 +187,8 @@ class RadauIIA(CollocationButcherTableau):
             self.btilde = numpy.array([4763/13500-numpy.sqrt(503/3071), 4763/13500+numpy.sqrt(503/3071), 263/13500], dtype='float')
             self.gamma0 = 1237.0/4500
 
-    def __str__(self):
-        return "RadauIIA(%d)" % self.num_stages
+    def __repr__(self):
+        return f"{type(self).__name__}({self.num_stages})"
 
 
 class BackwardEuler(RadauIIA):
@@ -191,8 +196,8 @@ class BackwardEuler(RadauIIA):
     def __init__(self):
         super(BackwardEuler, self).__init__(1)
 
-    def __str__(self):
-        return ButcherTableau.__str__(self)
+    def __repr__(self):
+        return ButcherTableau.__repr__(self)
 
 
 class LobattoIIIC(ButcherTableau):
@@ -226,8 +231,8 @@ class LobattoIIIC(ButcherTableau):
 
         super(LobattoIIIC, self).__init__(A, b, btilde, c, 2 * num_stages - 2, embedded_order, gamma0)
 
-    def __str__(self):
-        return "LobattoIIIC(%d)" % self.num_stages
+    def __repr__(self):
+        return f"{type(self).__name__}({self.num_stages})"
 
 
 class PareschiRusso(ButcherTableau):
@@ -240,8 +245,8 @@ class PareschiRusso(ButcherTableau):
         c = numpy.array([x, 1-x])
         super(PareschiRusso, self).__init__(A, b, None, c, 2, None, None)
 
-    def __str__(self):
-        return "PareschiRusso(%f)" % self.x
+    def __repr__(self):
+        return f"{type(self).__name__}({self.x})"
 
 
 class QinZhang(PareschiRusso):
@@ -249,8 +254,8 @@ class QinZhang(PareschiRusso):
     def __init__(self):
         super(QinZhang, self).__init__(0.25)
 
-    def __str__(self):
-        return "QinZhang()"
+    def __repr__(self):
+        return ButcherTableau.__repr__(self)
 
 
 class Alexander(ButcherTableau):
@@ -267,5 +272,5 @@ class Alexander(ButcherTableau):
         c = numpy.array([x, (1+x)/2.0, 1])
         super(Alexander, self).__init__(A, b, None, c, 3, None, None)
 
-    def __str__(self):
-        return "Alexander()"
+    def __repr__(self):
+        return ButcherTableau.__repr__(self)
