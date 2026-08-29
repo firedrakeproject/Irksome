@@ -3,6 +3,7 @@ import numpy
 from numpy import vander
 from numpy.linalg import solve
 from FIAT.quadrature_schemes import create_quadrature
+from ..constant import STRUCTURAL_ZERO
 from ..tools import get_lagrange_permutation
 
 
@@ -43,6 +44,19 @@ class ButcherTableau(object):
     def is_stiffly_accurate(self):
         """Determines whether the method is stiffly accurate."""
         return numpy.allclose(self.A[-1, :], self.b)
+
+    @property
+    def num_explicit_first_stages(self):
+        """Return the number of leading stages that are explicit.
+
+        Such a stage takes the value the method starts from, so the stage
+        system can be solved for the remaining ones.  The tolerance is the one
+        below which a coefficient is dropped from the generated form, so a row
+        counted here contributes nothing to it.
+        """
+        nonzero = numpy.abs(self.A) >= STRUCTURAL_ZERO
+        explicit = ~nonzero.any(axis=1)
+        return int(numpy.argmin(explicit)) if not explicit.all() else self.num_stages
 
     @property
     def is_explicit(self):
