@@ -15,9 +15,12 @@ concurrency:
 
 jobs:
   test:
+    strategy:
+      matrix:
+        version: [latest, dev-release]
     runs-on: [self-hosted, Linux]
     container:
-      image: firedrakeproject/firedrake-vanilla-default:latest
+      image: firedrakeproject/firedrake-vanilla-default:${{ matrix.version }}
     steps:
       - name: Fix HOME
         # For unknown reasons GitHub actions overwrite HOME to /github/home
