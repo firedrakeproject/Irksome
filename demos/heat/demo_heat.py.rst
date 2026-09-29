@@ -32,7 +32,7 @@ As usual, we need to import firedrake::
 
 We will also need to import certain items from irksome::
 
-  from irksome import GaussLegendre, Dt, MeshConstant, TimeStepper
+  from irksome import GaussLegendre, Dt, TimeStepper
 
 We will create the Butcher tableau for the lowest-order Gauss-Legendre
 Runge-Kutta method, which is more commonly known as the implicit
@@ -55,9 +55,8 @@ standard Firedrake fashion::
 
 We define variables to store the time step and current time value::
 
-  MC = MeshConstant(msh)
-  dt = MC.Constant(10.0 / N)
-  t = MC.Constant(0.0)
+  dt = Constant(10.0 / N)
+  t = Constant(0.0)
 
 This defines the right-hand side using the method of manufactured solutions::
 
@@ -84,10 +83,7 @@ standard UFL notation, augmented by the ``Dt`` operator from Irksome::
 
 Later demos will show how to use Firedrake's sophisticated interface
 to PETSc for efficient block solvers, but for now, we will solve the
-system with a direct method (Note: the matrix type needs to be
-explicitly set to aij if sparse direct factorization were used with a
-multi-stage method, as we wind up with a mixed problem that Firedrake
-will assemble into a PETSc MatNest otherwise)::
+system with a direct method. ::
 
   luparams = {"mat_type": "aij",
               "ksp_type": "preonly",
@@ -96,7 +92,7 @@ will assemble into a PETSc MatNest otherwise)::
 Most of Irksome's magic happens in the :class:`.TimeStepper`.  It
 transforms our semidiscrete form `F` into a fully discrete form for
 the stage unknowns and sets up a variational problem to solve for the
-stages at each time step.::
+stages at each time step. ::
 
   stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
                         solver_parameters=luparams)
@@ -107,12 +103,48 @@ problem to compute the Runge-Kutta stage values and then updates the solution.::
 
   while (float(t) < 1.0):
       if (float(t) + float(dt) > 1.0):
-          dt.assign(1.0 - float(t))
+          dt.assign(1.0 - t)
       stepper.advance()
       print(float(t))
-      t.assign(float(t) + float(dt))
+      t.assign(t + dt)
 
 Finally, we print out the relative :math:`L^2` error::
+
+  print()
+  print(norm(u-uexact)/norm(uexact))
+
+So far we have neglected the fact that the problem is linear, and that the
+Jacobian is time-independent. We can instead formulate the semidiscrete form
+`F` in terms of a :class:`TrialFunction`, and specify the option
+``constant_jacobian``, so that the factorization is not redone at each time
+step. ::
+
+  dt.assign(10.0 / N)
+  t.assign(0)
+
+  u = Function(V)
+  u.interpolate(uexact)
+
+  v = TestFunction(V)
+  w = TrialFunction(V)
+  F = inner(Dt(w), v)*dx + inner(grad(w), grad(v))*dx - inner(rhs, v)*dx
+
+  linear_stepper = TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc,
+                               constant_jacobian=True,
+                               solver_parameters=luparams)
+
+We can flag the Jacobian for an update by calling :meth:`invalidate_jacobian`,
+in case ``dt`` is changed ::
+
+  while (float(t) < 1.0):
+      if (float(t) + float(dt) > 1.0):
+          linear_stepper.invalidate_jacobian()
+          dt.assign(1.0 - t)
+      linear_stepper.advance()
+      print(float(t))
+      t.assign(t + dt)
+
+Finally, we see that we obtain same relative :math:`L^2` error from before::
 
   print()
   print(norm(u-uexact)/norm(uexact))

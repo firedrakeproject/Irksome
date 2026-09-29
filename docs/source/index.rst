@@ -46,7 +46,12 @@ Getting started
 Irksome requires `Firedrake <https://www.firedrakeproject.org/>`__.
 Instructions for installing Firedrake can be found
 `here <https://www.firedrakeproject.org/install.html>`__.
-Once Firedrake is installed you can install Irksome by running::
+
+If you have used pip to install the release version of Firedrake, you can::
+
+   $ pip install IRKsome
+
+in your virtual environment.  If you are running the developer/main branch of Firedrake, you can also get our development branch by::
 
    $ pip install --src . --editable git+https://github.com/firedrakeproject/Irksome.git#egg=Irksome
 
@@ -136,6 +141,12 @@ and for adaptive IRK methods:
 
    demos/demo_heat_adapt.py
 
+and for general multistep methods:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_heat_multistep.py
 
 Or check out two IMEX-type methods for the monodomain equations:
 
@@ -162,6 +173,13 @@ and with a Galerkin-in-Time approach, in standard form or with auxiliary variabl
 
    demos/demo_bbm_galerkin.py
    demos/demo_bbm_aux.py
+
+Other structure-preserving methods have similar demos, such as for the dissipation law for the heat equation:
+
+.. toctree::
+   :maxdepth: 1
+
+   demos/demo_heat_structure.py
 
 Finally, if you feel you must bypass the :py:class:`.TimeStepper`
 abstraction, we have some examples how to interact with Irksome at a

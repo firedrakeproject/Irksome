@@ -16,7 +16,7 @@ Imports::
   from irksome import GaussLegendre, getForm, Dt, MeshConstant
   from irksome.tools import get_stage_space
 
-Note that we imported :func:`.getForm` rather than :class:`.TimeStepper`.  That's the
+Note that we imported :func:`~irksome.getForm` rather than :class:`~irksome.TimeStepper`.  That's the
 lower-level function inside Irksome that manipulates UFL and boundary conditions.
 
 Continuing::

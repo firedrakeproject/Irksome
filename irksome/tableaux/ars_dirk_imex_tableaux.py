@@ -107,5 +107,11 @@ class ARS_DIRK_IMEX(DIRK_IMEX):
         A = self._pad_matrix(A, "lr")
         b = np.append(np.zeros(1), b)
         c = np.append(np.zeros(1), c)
+        self.ns_imp = ns_imp
+        self.ns_exp = ns_exp
 
         super(ARS_DIRK_IMEX, self).__init__(A, b, c, A_hat, b_hat, c_hat, order)
+
+    def __repr__(self):
+        return f"{type(self).__name__}"\
+            f"{self.ns_imp, self.ns_exp, self.order}"

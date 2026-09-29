@@ -1,7 +1,7 @@
 import pytest
 from irksome import (WSODIRK, GaussLegendre, LobattoIIIA, LobattoIIIC,
                      QinZhang, RadauIIA)
-from irksome.wso_dirk_tableaux import wsodict
+from irksome.tableaux.wso_dirk_tableaux import wsodict
 from numpy import allclose, array, sqrt
 
 # Test some generated collocation methods against known

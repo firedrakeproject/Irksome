@@ -1,10 +1,11 @@
 from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData, bc2space
-from .deriv import Dt, TimeDerivative, expand_time_derivatives
-from .tools import dot, reshape, replace, vecconst
-from firedrake import TestFunction, as_ufl
+from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
+from .backend import get_backend
+from .tools import dot, extract_timedep_arguments, reshape, replace
+from .constant import vecconst
 import numpy
-from ufl import zero
+from ufl import Form, as_ufl
 
 
 class NystromTableau:
@@ -71,23 +72,25 @@ class ClassicNystrom4Tableau(NystromTableau):
 
 
 def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
-                   bcs=None, bc_type=None):
+                   bcs=None, bc_type=None, backend="firedrake"):
+    backend_cls = get_backend(backend)
     if bc_type is None:
         bc_type = "DAE"
 
+    v, u = extract_timedep_arguments(F, u0)
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
+
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v = F.arguments()[0]
-    V = v.function_space()
-    assert V == u0.function_space()
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     A = vecconst(tableau.A)
     Abar = vecconst(tableau.Abar)
     c = vecconst(tableau.c)
 
     num_stages = tableau.num_stages
-    Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    Vbig = backend_cls.get_function_space(stages)
+    test = backend_cls.TestFunction(Vbig)
 
     v_np = reshape(test, (num_stages, *u0.ufl_shape))
     k_np = reshape(stages, (num_stages, *u0.ufl_shape))
@@ -95,15 +98,15 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     Ak = dot(A, k_np)
     Abark = dot(Abar, k_np)
 
-    dtu = TimeDerivative(u0)
+    dtu = TimeDerivative(u)
     dt2u = TimeDerivative(dtu)
 
-    Fnew = zero()
+    Fnew = Form([])
 
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: v_np[i],
-                u0: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
+                u: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
                 dtu: ut0 + Ak[i] * dt,
                 dt2u: k_np[i]}
         Fnew += replace(F, repl)
@@ -206,10 +209,14 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                             for s in range(ns)))
             ut0bit += sum(kp[nf * s + i] * (b[s] * dt) for s in range(ns))
 
-    def get_form_and_bcs(self, stages, tableau=None, F=None):
+    def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
+        if bcs is None:
+            bcs = self.orig_bcs
         return getFormNystrom(F or self.F,
-                              tableau or self.tableau, self.t,
-                              self.dt, self.u0, self.ut0,
+                              tableau or self.tableau,
+                              self.t, self.dt, self.u0, self.ut0,
                               stages,
-                              bcs=self.orig_bcs,
-                              bc_type=self.bc_type)
+                              bcs=bcs, bc_type=self.bc_type)
+
+    def tabulate_poly(self, sample_points):
+        raise NotImplementedError("tabulate_poly not implemented")

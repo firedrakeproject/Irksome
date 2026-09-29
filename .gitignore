@@ -1,6 +1,8 @@
 /docs/build/
 /docs/source/demos/
 /docs/source/irksome.rst
+/docs/source/irksome.ufl.rst
+/docs/source/irksome.backends.rst
 __pycache__/
 IRKsome.egg-info/
 /demos/*/*.py

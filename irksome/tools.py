@@ -1,21 +1,13 @@
-from operator import mul
-from functools import reduce
+from .backend import get_backend
 import numpy
-from firedrake import Function, FunctionSpace, VectorSpaceBasis, MixedVectorSpaceBasis, Constant, split
 from ufl.algorithms.analysis import extract_type
-from ufl import as_tensor, zero
-from ufl import replace as ufl_replace
-from pyop2.types import MixedDat
+from ufl.classes import Variable
+from ufl import as_tensor, replace as ufl_replace
 
-from irksome.deriv import TimeDerivative
+import FIAT
 
-
-def unique_mesh(mesh):
-    try:
-        mesh, = set(mesh)
-    except TypeError:
-        pass
-    return mesh
+from .ufl.deriv import TimeDerivative
+from .ufl.lag import lag_label
 
 
 def dot(A, B):
@@ -27,6 +19,7 @@ def reshape(expr, shape):
 
 
 def flatten_dats(dats):
+    from pyop2.types import MixedDat
     flat_dat = []
     for dat in dats:
         if isinstance(dat, (tuple, list, MixedDat)):
@@ -36,8 +29,54 @@ def flatten_dats(dats):
     return MixedDat(flat_dat)
 
 
-def get_stage_space(V, num_stages):
-    return reduce(mul, (V for _ in range(num_stages)))
+def get_stage_space(V, num_stages, backend="firedrake"):
+    backend_cls = get_backend(backend)
+    return backend_cls.get_stage_space(V, num_stages)
+
+
+def split_stages(V, stages):
+    """Reconstruct the stages as a list of Function(V)"""
+    num_fields = len(V)
+    if num_fields == 1:
+        return stages.subfunctions
+
+    stages_np = reshape(stages, (-1, *V.value_shape))
+    ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
+    return ks
+
+
+def extract_timedep_arguments(F, u0):
+    """Return both arguments if ``F`` is a bilinear form, otherwise
+    return the unique argument and ``u0``.
+    """
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
+    return v, u
+
+
+def fields_to_components(V, fields):
+    """
+    Returns the scalar component indices corresponding to the possibly
+    tensor-valued subspaces of a mixed function space.
+
+    :arg V: a :class:`FunctionSpace`.
+    :arg fields: a list of integers defining subspaces of V.
+
+    :returns: a list of integers with the scalar components corresponding to
+    the subfields.
+    """
+    cur = 0
+    components = []
+    if len(fields) == 0:
+        return components
+    for i, Vi in enumerate(V):
+        if i in fields:
+            components.extend(range(cur, cur+Vi.value_size))
+        cur += Vi.value_size
+    return components
 
 
 def getNullspace(V, Vbig, num_stages, nullspace):
@@ -52,6 +91,7 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     On output, we produce a :class:`MixedVectorSpaceBasis` defining the nullspace
     for the multistage problem.
     """
+    from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
 
     num_fields = len(V)
     if nullspace is None:
@@ -82,22 +122,13 @@ def getNullspace(V, Vbig, num_stages, nullspace):
 
 
 def replace(e, mapping):
-    """A wrapper for ufl.replace that allows numpy arrays."""
+    """A wrapper for ufl.replace that allows numpy arrays and skips
+    substitution into sub-expressions wrapped by :func:`~irksome.lag`."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
+    for var in extract_type(e, Variable):
+        if var.ufl_operands[1] is lag_label:
+            cmapping.setdefault(var, var)
     return ufl_replace(e, cmapping)
-
-
-def replace_auxiliary_variables(F, u0, aux_indices):
-    """Discretize the fields corresponding to aux_indices in Dt(V)."""
-    if aux_indices is None:
-        return F
-
-    components = []
-    for i, usub in enumerate(split(u0)):
-        if i in aux_indices:
-            usub = TimeDerivative(usub)
-        components.extend(usub[i] for i in numpy.ndindex(usub.ufl_shape))
-    return replace(F, {u0: numpy.reshape(components, u0.ufl_shape)})
 
 
 # Utility functions that help us refactor
@@ -118,22 +149,23 @@ def is_ode(f, u):
         op, = k.ufl_operands
         Dtbits.extend(op[i] for i in numpy.ndindex(op.ufl_shape))
     ubits = [u[i] for i in numpy.ndindex(u.ufl_shape)]
-    return set(Dtbits) == set(ubits)
+    return set(ubits) <= set(Dtbits)
 
 
-# Utility class for constants on a mesh
-class MeshConstant(object):
-    def __init__(self, msh):
-        self.msh = unique_mesh(msh)
-        self.V = FunctionSpace(self.msh, 'R', 0)
+def get_lagrange_permutation(L):
+    """Given a univariate Lagrange element, return the
+    points ordered from left to right and the permutation of the
+    dofs required to obtain this re-ordering."""
+    assert L.ref_el.get_spatial_dimension() == 1
 
-    def Constant(self, val=0.0):
-        return Function(self.V).assign(val)
+    points = []
+    for ell in L.dual.nodes:
+        if not isinstance(ell, FIAT.functional.PointEvaluation):
+            raise TypeError("Expecting a Lagrange element")
+        pt, = ell.get_point_dict().keys()
+        points.append(pt[0])
 
+    c = numpy.asarray(points)
+    perm = numpy.argsort(c)
 
-def ConstantOrZero(x, MC=None):
-    const = MC.Constant if MC else Constant
-    return zero() if abs(complex(x)) < 1.e-10 else const(x)
-
-
-vecconst = numpy.vectorize(ConstantOrZero)
+    return c[perm], perm

@@ -1,5 +1,3 @@
-from math import isclose
-
 import pytest
 from firedrake import *
 from irksome import PEPRK, Dt, MeshConstant, TimeStepper, SSPButcherTableau
@@ -18,6 +16,7 @@ id_list = ["PEP(4,2,5)", "PEP(5,2,6)", "SSP(2,2)", "SSP(2,3)", "SSP(3,3)"]
 # actually sensible!
 @pytest.mark.parametrize("butcher_tableau", bt_list, ids=id_list)
 def test_1d_heat_dirichletbc(butcher_tableau):
+
     # Boundary values
     u_0 = Constant(2.0)
     u_1 = Constant(3.0)
@@ -65,6 +64,7 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         stage_type="explicit"
     )
 
+    bnd_error = inner(u-uexact, u-uexact) * ds
     t_end = 2.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
@@ -72,6 +72,5 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         stepper.advance()
         t.assign(float(t) + float(dt))
         # Check solution and boundary values
-        assert errornorm(uexact, u) / norm(uexact) < 10.0 ** -3
-        assert isclose(u.at(x0), u_0)
-        assert isclose(u.at(x1), u_1)
+        assert errornorm(uexact, u) / norm(uexact) < 1e-3
+        assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
