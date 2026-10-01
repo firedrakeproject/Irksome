@@ -2,7 +2,7 @@ import numpy
 from ufl import as_ufl, lhs
 
 from .ufl.deriv import Dt, expand_time_derivatives
-from .tools import extract_timedep_arguments, replace
+from .tools import replace
 from .constant import MeshConstant, vecconst
 from .nystrom_stepper import butcher_to_nystrom, NystromTableau
 from .backend import get_backend
@@ -15,12 +15,14 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, k
     if bc_type is None:
         bc_type = "DAE"
 
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0 if trial is None else trial,))
 
     num_stages = tableau.num_stages
 
@@ -38,12 +40,17 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, k
         c = MC.Constant(1.0)
     else:
         k0, g1, g2, a, abar, c = kgac
-    k = k0 if u0 == u else u
 
     repl = {t: t + c * dt,
-            u: g1 + k * (abar * dt**2),
-            Dt(u): g2 + k * (a * dt),
-            Dt(u, 2): k}
+            u0: g1 + k0 * (abar * dt**2)}
+    if trial is None:
+        repl[Dt(u0)] = g2 + k0 * (a * dt)
+        repl[Dt(u0, 2)] = k0
+    else:
+        # lhs sends the g1 and g2 offsets to the right-hand side, where a bilinear F needs them
+        repl[trial] = g1 + trial * (abar * dt**2)
+        repl[Dt(trial)] = g2 + trial * (a * dt)
+        repl[Dt(trial, 2)] = trial
     stage_F = replace(F, repl)
 
     bcnew = []

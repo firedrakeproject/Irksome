@@ -3,7 +3,7 @@ from ufl import as_ufl, lhs
 
 from .constant import vecconst, MeshConstant
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
-from .tools import extract_timedep_arguments, replace
+from .tools import replace
 from .backend import get_backend
 
 
@@ -12,12 +12,14 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
     if bcs is None:
         bcs = []
 
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0 if trial is None else trial,))
 
     num_stages = butch.num_stages
 
@@ -33,11 +35,15 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
         c = MC.Constant(1.0)
     else:
         k0, g, a, c = kgac
-    k = k0 if u0 == u else u
 
     repl = {t: t + c * dt,
-            u: g + k * (a * dt),
-            TimeDerivative(u): k}
+            u0: g + k0 * (a * dt)}
+    if trial is None:
+        repl[TimeDerivative(u0)] = k0
+    else:
+        # lhs sends the g offset to the right-hand side, where a bilinear F needs it
+        repl[trial] = g + trial * (a * dt)
+        repl[TimeDerivative(trial)] = trial
     stage_F = replace(F, repl)
 
     bcnew = []

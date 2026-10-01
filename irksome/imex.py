@@ -5,8 +5,7 @@ from ufl import Form, as_ufl, dx, inner
 from .backend import get_backend
 from .constant import MeshConstant, vecconst
 from .stage_value import getFormStage
-from .tools import (AI, IA, extract_timedep_arguments, reshape, replace,
-                    get_stage_space)
+from .tools import AI, IA, reshape, replace, get_stage_space
 from .tableaux.ButcherTableaux import RadauIIA
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 
@@ -39,11 +38,15 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
     which really just differ by which constants are in them."""
     backend_cls = get_backend(backend)
 
-    v, u = extract_timedep_arguments(Fexp, u0)
+    args = Fexp.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
     Vbig = UU.function_space()
     VV = backend_cls.TestFunction(Vbig)
+
+    collapse = {} if trial is None else {trial: u0}
 
     num_stages = butch.num_stages
 
@@ -59,18 +62,18 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
     Fprop = Form([])
 
     # preprocess time derivatives
-    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u,))
+    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u0 if trial is None else trial,))
 
     if splitting == AI:
         for i in range(num_stages):
             # replace test function
-            repl = {v: v_np[i], u: u0}
+            repl = {v: v_np[i], **collapse}
             Ftmp = replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt,
-                        u: u_np[j]}
+                        u0: u_np[j]}
 
                 # and sum the contribution
                 replF = replace(Ftmp, repl)
@@ -80,8 +83,10 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
         # diagonal contribution to iterator
         for i in range(num_stages):
             repl = {t: t+C[i]*dt,
-                    u: u_np[i],
+                    u0: u_np[i],
                     v: v_np[i]}
+            if trial is not None:
+                repl[trial] = u_np[i]
 
             Fit += dt * replace(Fexp, repl)
 
@@ -90,13 +95,13 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
 
         for i in range(num_stages):
             # replace test function
-            repl = {v: v_np[i], u: u0}
+            repl = {v: v_np[i], **collapse}
             Ftmp = replace(Fexp, repl)
 
             # replace the solution with stage values
             for j in range(num_stages):
                 repl = {t: t + C[j] * dt,
-                        u: u_np[j]}
+                        u0: u_np[j]}
 
                 # and sum the contribution
                 Fprop += AinvAexp[i, j] * dt * replace(Ftmp, repl)
@@ -316,13 +321,16 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None, backend="fi
     backend_cls = get_backend(backend)
     if bcs is None:
         bcs = []
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
 
+    unknown = u0 if trial is None else trial
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
-    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(u,))
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(unknown,))
+    Fexp = expand_time_derivatives(Fexp, t=t, timedep_coeffs=(unknown,))
 
     num_stages = butch.num_stages
     k0 = backend_cls.Function(V)
@@ -331,12 +339,6 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None, backend="fi
     khat0 = backend_cls.Function(V)
     ghat = backend_cls.Function(V)
     vhat = backend_cls.TestFunction(V)
-    if u == u0:
-        k = k0
-        khat = khat0
-    else:
-        k = u
-        khat = u
 
     # Note: the Constant c is used for substitution in both the
     # implicit variational form and BC's, and we update it for each stage in
@@ -350,15 +352,22 @@ def getFormsDIRKIMEX(F, Fexp, ks, khats, butch, t, dt, u0, bcs=None, backend="fi
 
     # Implicit replacement, solve at time t + c * dt, for k
     repl = {t: t + c * dt,
-            u: g + dt * a * k,
-            TimeDerivative(u): k}
+            u0: g + dt * a * k0}
+    if trial is None:
+        repl[TimeDerivative(u0)] = k0
+    else:
+        # lhs sends the g offset to the right-hand side, where a bilinear F needs it
+        repl[trial] = g + dt * a * trial
+        repl[TimeDerivative(trial)] = trial
     stage_F = replace(F, repl)
 
     # Explicit replacement, solve at time t + chat * dt, for khat
     replhat = {t: t + chat * dt,
-               u: ghat}
+               u0: ghat}
+    if trial is not None:
+        replhat[trial] = ghat
 
-    Fhat = inner(khat, vhat)*dx + replace(Fexp, replhat)
+    Fhat = inner(khat0, vhat)*dx + replace(Fexp, replhat)
 
     bcnew = []
 
