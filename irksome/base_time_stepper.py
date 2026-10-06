@@ -92,6 +92,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
             at additional points in time.
+    :arg marking_callback: An optional Firedrake callback for marking cells
+            during PETSc-driven mesh adaptation.
     """
 
     def __init__(self, F, t, dt, u0, num_stages,
@@ -104,10 +106,13 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                  splitting=None, bc_type=None,
                  scheme_F=None, scheme_J=None, scheme_Jp=None,
                  bounds=None, sample_points=None,
-                 backend="firedrake", **kwargs):
+                 backend="firedrake", marking_callback=None, **kwargs):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, J=J, Jp=Jp, appctx=appctx, nullspace=nullspace, backend=backend)
+
+        self.marking_callback = marking_callback
+        self._initial_u0 = u0
 
         self.num_stages = num_stages
         if scheme_F:
@@ -165,6 +170,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             transpose_nullspace=transpose_nullspace,
             near_nullspace=near_nullspace,
             solver_parameters=solver_parameters,
+            marking_callback=marking_callback,
             **kwargs,
         )
 
@@ -179,6 +185,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         Note: overwrites the value `u0`."""
         self.solver.solve(bounds=self.stage_bounds)
 
+        self._update_adapted_state()
+
         self.num_steps += 1
         self.num_nonlinear_iterations += self.solver.snes.getIterationNumber()
         self.num_linear_iterations += self.solver.snes.getLinearSolveIterations()
@@ -187,6 +195,11 @@ class StageCoupledTimeStepper(BaseTimeStepper):
             self.u_old.assign(self.u0)
 
         self._update()
+
+    def _update_adapted_state(self):
+        if self.marking_callback is not None:
+            self.stages = self._backend.get_solver_solution(self.solver)
+            self.u0 = self._backend.get_solver_coefficient(self.solver, self._initial_u0)
 
     # allow butcher tableau as input for preconditioners to create
     # an alternate operator

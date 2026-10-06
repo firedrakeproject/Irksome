@@ -80,6 +80,14 @@ def create_variational_solver(problem, **kwargs):
         return firedrake.NonlinearVariationalSolver(problem, **kwargs)
 
 
+def get_solver_solution(solver):
+    return solver.get_solution()
+
+
+def get_solver_coefficient(solver, coefficient):
+    return solver.get_coefficient(coefficient)
+
+
 def invalidate_jacobian(solver):
     return firedrake.LinearVariationalSolver.invalidate_jacobian(solver)
 

@@ -593,9 +593,12 @@ def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
 
 def create_variational_solver(
     problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
+    marking_callback=None,
     **kwargs,
 ):
     """Create a variational solver that uses PETSc SNES or KSP."""
+    if marking_callback is not None:
+        raise NotImplementedError("Marking callbacks are not supported by the DOLFINx backend")
     solver_parameters = kwargs.get("solver_parameters", {})
     solver = problem.solver
 

@@ -176,17 +176,56 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
 
 class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
+    """Advance a second-order problem with a Runge-Kutta-Nystrom method.
+
+    Parameters
+    ----------
+    marking_callback
+        Optional Firedrake callback with signature ``callback(ctx, u)``. It
+        receives the predicted displacement at the end of the current step
+        and must return a DG0 Function or Cofunction on the current mesh.
+        Positive marker values refine cells; negative values coarsen them.
+        PETSc-driven adaptation must also be enabled in ``solver_parameters``.
+    """
+
     def __init__(self, F, tableau, t, dt, u0, ut0,
-                 bcs=None, bc_type="DAE", backend="firedrake", **kwargs):
+                 bcs=None, bc_type="DAE", backend="firedrake",
+                 marking_callback=None, **kwargs):
         self.ut0 = ut0
+        self._initial_ut0 = ut0
         if not isinstance(tableau, NystromTableau):
             tableau = butcher_to_nystrom(tableau)
 
         self.tableau = tableau
 
+        if marking_callback is not None:
+            user_marking_callback = marking_callback
+
+            def marking_callback(ctx, stages):
+                u0 = ctx._adapted_coefficients[self._initial_u0]
+                ut0 = ctx._adapted_coefficients[self._initial_ut0]
+                V = u0.function_space().reconstruct(
+                    mesh=stages.subfunctions[0].function_space().mesh()
+                )
+                current_u = self._backend.Function(V)
+                nf = self.num_fields
+                for i, (u0bit, ut0bit, current_bit) in enumerate(
+                    zip(u0.subfunctions, ut0.subfunctions, current_u.subfunctions)
+                ):
+                    current_bit.assign(
+                        u0bit + ut0bit * self.dt
+                        + sum(
+                            stages.subfunctions[nf * s + i]
+                            * (self.tableau.bbar[s] * self.dt**2)
+                            for s in range(self.tableau.num_stages)
+                        )
+                    )
+                return user_marking_callback(ctx, current_u)
+
         super().__init__(F, t, dt, u0,
                          tableau.num_stages, bcs=bcs,
-                         bc_type=bc_type, scheme_F=tableau, backend=backend, **kwargs)
+                         bc_type=bc_type, scheme_F=tableau, backend=backend,
+                         marking_callback=marking_callback, **kwargs)
 
         self.updateb = vecconst(tableau.b, backend=backend)
         self.updatebbar = vecconst(tableau.bbar, backend=backend)
@@ -208,6 +247,11 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                       + sum(kp[nf * s + i] * (bbar[s] * dt**2)
                             for s in range(ns)))
             ut0bit += sum(kp[nf * s + i] * (b[s] * dt) for s in range(ns))
+
+    def _update_adapted_state(self):
+        super()._update_adapted_state()
+        if self.marking_callback is not None:
+            self.ut0 = self._backend.get_solver_coefficient(self.solver, self._initial_ut0)
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
