@@ -1,11 +1,37 @@
-Adaptive wave equation with a Nystrom stepper
-=============================================
+Adaptive mesh refinement for the wave equation
+==============================================
+
+This demo solves the two-dimensional wave equation with a Nystrom stepper
+and adapts the mesh to follow a moving pulse. Firedrake's nonlinear solver
+adaptation uses a gradient-based marking callback: cells with a large
+solution gradient are refined, while cells with a small gradient may be
+coarsened. The initial Gaussian is projected onto the mesh adaptively too,
+so the computation starts with a fine mesh only where the pulse is located.
+
+The movie below shows the displacement and triangular mesh throughout the
+calculation. The title reports the current number of degrees of freedom.
 
 .. image:: demo_wave_adapt.gif
    :alt: A right-moving wave pulse with adaptive mesh refinement and coarsening.
+   :align: center
+   :width: 600 px
 
-An adaptive L2 projection computes the initial Gaussian before the movie
-starts. The Nystrom stepper then adapts the right-moving wave at each step.
+We use a smooth Gaussian pulse, localized near the left side of the unit
+square. Its initial velocity is chosen as the negative horizontal derivative
+of the pulse, which makes it travel to the right. A small initial mesh makes
+the refinement process visible in the movie.
+
+The callback returns one marker per cell: ``1`` requests refinement, ``-1``
+requests coarsening, and ``0`` leaves a cell unchanged. The gradient is
+measured in a piecewise-constant space. We refine cells above 35% of the
+maximum gradient, provided their diameter is at least :math:`2^{-5}`, and
+coarsen cells below 34%. The small gap between thresholds avoids rapid
+refinement and coarsening around one cutoff.
+
+The initial projection adapts fully, and the time stepper continues adapting
+until halfway through the run. It then advances on the mesh produced so far,
+keeping the example short while showing the pulse moving away from its
+refined region.
 
 ::
 
@@ -19,27 +45,16 @@ starts. The Nystrom stepper then adapts the right-moving wave at each step.
 
   from firedrake import *
   from firedrake.pyplot import tripcolor, triplot
-  from irksome import Dt, GaussLegendre, NystromStepper
+  from irksome import Dt, GaussLegendre, StageDerivativeNystromTimeStepper
 
 
-  def gaussian_expression(mesh):
-      x, y = SpatialCoordinate(mesh)
-      return (
-          25 * x * (1 - x) * y * (1 - y)
-          * exp(-180 * (x - 0.32)**2 - 8 * (y - 0.5)**2)
-      )
-
-
-  def gaussian_displacement(mesh, degree=1):
-      V = FunctionSpace(mesh, "CG", degree)
-      displacement = Function(V)
-      displacement.interpolate(gaussian_expression(mesh))
-      return displacement
-
-
-  def gradient_markers(displacement):
+  def mark_by_gradient(ctx, displacement):
       mesh = displacement.function_space().mesh().unique()
       Q = FunctionSpace(mesh, "DG", 0)
+      stepper = getattr(ctx, "appctx", {}).get("stepper")
+      if stepper is not None and float(stepper.t) >= end_time / 2:
+          return Function(Q)
+
       gradient = Function(Q).interpolate(sqrt(inner(grad(displacement), grad(displacement))))
       with gradient.dat.vec_ro as values:
           _, maximum = values.max()
@@ -51,12 +66,7 @@ starts. The Nystrom stepper then adapts the right-moving wave at each step.
           0,
       )
       coarsen = conditional(lt(gradient, 0.34 * maximum), -1, 0)
-      markers = Function(Q).interpolate(conditional(gt(refine, 0), 1, coarsen))
-      return markers
-
-
-  def mark_by_gradient(ctx, displacement):
-      return gradient_markers(displacement)
+      return Function(Q).interpolate(conditional(gt(refine, 0), 1, coarsen))
 
 
   def save_frame(displacement, time, frames):
@@ -80,20 +90,33 @@ starts. The Nystrom stepper then adapts the right-moving wave at each step.
 
   N = 6
   end_time = 0.3
-  dt_value = 0.005
+  dt_value = 0.03
   mesh = UnitSquareMesh(N, N)
-  frames = []
+  x, y = SpatialCoordinate(mesh)
+  gaussian = 25 * x * (1 - x) * y * (1 - y) * exp(
+      -180 * (x - 0.32)**2 - 8 * (y - 0.5)**2
+  )
+  source = Function(FunctionSpace(mesh, "CG", 4)).interpolate(gaussian)
+
+To initialize the solution, we interpolate the Gaussian into a higher-order
+space, then project it onto a piecewise-linear space with the same homogeneous
+boundary condition used by the wave solve. This variational solve uses
+``snes_adapt_sequence=4`` to enable mesh adaptation. We save the resulting
+initial condition as the first movie frame.
+
+::
+
   V = FunctionSpace(mesh, "CG", 1)
-  source = gaussian_displacement(mesh, degree=4)
-  u = Function(V).interpolate(source)
+  u = Function(V)
+  u.interpolate(source)
   projection_test = TestFunction(V)
   projection_trial = TrialFunction(V)
   projection_form = inner(u - source, projection_test) * dx
-  boundary_condition = DirichletBC(V, 0, "on_boundary")
+  bc = DirichletBC(V, 0, "on_boundary")
   projection_problem = NonlinearVariationalProblem(
       projection_form,
       u,
-      bcs=boundary_condition,
+      bcs=bc,
       J=inner(projection_trial, projection_test) * dx,
   )
   projection_solver = NonlinearVariationalSolver(
@@ -110,37 +133,63 @@ starts. The Nystrom stepper then adapts the right-moving wave at each step.
   projection_solver.solve()
   u = projection_solver.get_solution()
   print(f"Initial projection DoFs: {u.function_space().dim()}")
+
+  frames = []
   save_frame(u, 0.0, frames)
 
+The semidiscrete weak form is
+
+.. math::
+
+   (u_{tt}, v) + (\nabla u, \nabla v) = 0.
+
+We use the one-stage Gauss-Legendre Nystrom method and the same gradient
+marking callback during the adaptive portion. With zero Dirichlet boundary
+conditions, the wave propagates across the square while the mesh follows its
+sharp features.
+
+::
+
+  mesh = u.function_space().mesh().unique()
   V = u.function_space()
-  mesh = V.mesh().unique()
-  ut = Function(V).interpolate(-gaussian_expression(mesh).dx(0))
+  x, y = SpatialCoordinate(mesh)
+  gaussian = 25 * x * (1 - x) * y * (1 - y) * exp(
+      -180 * (x - 0.32)**2 - 8 * (y - 0.5)**2
+  )
+  ut = Function(V).interpolate(-gaussian.dx(0))
   t = Constant(0.0)
   dt = Constant(dt_value)
 
   v = TestFunction(V)
   F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx
-  bc = DirichletBC(V, 0, "on_boundary")
-  solver_parameters = {
-      "mat_type": "aij",
-      "snes_adapt_sequence": 1,
-      "ksp_type": "preonly",
-      "pc_type": "lu",
-  }
-  stepper = NystromStepper(
+  stepper = StageDerivativeNystromTimeStepper(
       F, GaussLegendre(1), t, dt, u, ut, bcs=bc,
-      solver_parameters=solver_parameters,
+      solver_parameters={
+          "mat_type": "aij",
+          "snes_adapt_sequence": 1,
+          "ksp_type": "preonly",
+          "pc_type": "lu",
+      },
       marking_callback=mark_by_gradient,
   )
+
+At each time step, we advance the solution and record a plot of the new
+displacement and mesh. The frames are combined into the GIF displayed above.
+The output path is based on this script's filename, so running the demo
+regenerates ``demo_wave_adapt.gif`` beside it.
+
+::
 
   step_number = 0
   while float(t) < end_time - 1e-12:
       stepper.advance()
       t.assign(float(t) + float(dt))
-      save_frame(stepper.u0, float(t), frames)
+      u = stepper.u0
+      save_frame(u, float(t), frames)
+
       step_number += 1
       if step_number % 5 == 0:
-          print(f"t = {float(t):.3f}; {stepper.u0.function_space().dim()} DoFs")
+          print(f"t = {float(t):.3f}; {u.function_space().dim()} DoFs")
 
   output = Path(__file__).with_suffix(".gif")
   frames[0].save(

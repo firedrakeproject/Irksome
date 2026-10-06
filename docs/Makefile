@@ -65,7 +65,7 @@ source/demos: copy_demos
 
 copy_demos:
 	install -d source/demos
-	cp ../demos/*/*.rst ../demos/*/*.geo ../demos/*/*.msh source/demos || true
+	cp ../demos/*/*.rst ../demos/*/*.geo ../demos/*/*.msh ../demos/*/*.gif source/demos || true
 
 apidoc: $(GENERATED_FILES) copy_demos
 	sphinx-apidoc ../irksome -o source/ -f -T
