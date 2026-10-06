@@ -28,10 +28,9 @@ maximum gradient, provided their diameter is at least :math:`2^{-5}`, and
 coarsen cells below 34%. The small gap between thresholds avoids rapid
 refinement and coarsening around one cutoff.
 
-The initial projection adapts fully, and the time stepper continues adapting
-until halfway through the run. It then advances on the mesh produced so far,
-keeping the example short while showing the pulse moving away from its
-refined region.
+The same marking rule adapts the initial projection and every time step. As
+the pulse moves, cells around its steep front are refined while low-gradient
+cells behind it are coarsened.
 
 ::
 
@@ -51,10 +50,6 @@ refined region.
   def mark_by_gradient(ctx, displacement):
       mesh = displacement.function_space().mesh().unique()
       Q = FunctionSpace(mesh, "DG", 0)
-      stepper = getattr(ctx, "appctx", {}).get("stepper")
-      if stepper is not None and float(stepper.t) >= end_time / 2:
-          return Function(Q)
-
       gradient = Function(Q).interpolate(sqrt(inner(grad(displacement), grad(displacement))))
       with gradient.dat.vec_ro as values:
           _, maximum = values.max()
