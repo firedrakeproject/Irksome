@@ -15,6 +15,9 @@ class BaseTimeStepper:
     """Base class for various time steppers.  This is mainly to give code reuse stashing
     objects that are common to all the time steppers.  It's a developer-level class.
     """
+    # Attributes holding the state that ``_update`` advances in place
+    _state_names = ("u0",)
+
     def __init__(self, F, t, dt, u0,
                  bcs=None, J=None, Jp=None, appctx=None, nullspace=None, backend: str = "firedrake"):
         self.F = F
@@ -29,6 +32,7 @@ class BaseTimeStepper:
         self.nullspace = nullspace
         self._backend = get_backend(backend)
         self.V = self._backend.get_function_space(u0)
+        self._initial_state = {name: getattr(self, name) for name in self._state_names}
 
         appctx_base = {"stepper": self}
 
@@ -40,6 +44,31 @@ class BaseTimeStepper:
     @abstractmethod
     def advance(self):
         pass
+
+    @staticmethod
+    def _wrap_marking_callback(marking_callback):
+        """Wrap ``marking_callback(ctx, u)`` as a solver callback that
+        receives the solution predicted at the end of the current step."""
+        def wrapped(ctx, stages):
+            stepper = ctx.appctx["stepper"]
+            mesh = stages.subfunctions[0].function_space().mesh()
+            predicted = {}
+            for name, c in stepper._initial_state.items():
+                c = ctx._adapted_coefficients[c]
+                V = c.function_space().reconstruct(mesh=mesh)
+                predicted[name] = stepper._backend.Function(V).assign(c)
+            predicted["stages"] = stages
+
+            saved = {name: getattr(stepper, name) for name in predicted}
+            try:
+                for name, value in predicted.items():
+                    setattr(stepper, name, value)
+                stepper._update()
+            finally:
+                for name, value in saved.items():
+                    setattr(stepper, name, value)
+            return marking_callback(ctx, predicted["u0"])
+        return wrapped
 
     @abstractmethod
     def solver_stats(self):
@@ -92,8 +121,12 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
             at additional points in time.
-    :arg marking_callback: An optional Firedrake callback for marking cells
-            during PETSc-driven mesh adaptation.
+    :arg marking_callback: An optional Firedrake callback ``callback(ctx, u)``
+            for marking cells during PETSc-driven mesh adaptation.  It receives
+            the solution predicted at the end of the current step and must
+            return a DG0 Function or Cofunction on the current mesh.  Positive
+            marker values refine cells; negative values coarsen them.
+            PETSc-driven adaptation must also be enabled in ``solver_parameters``.
     """
 
     def __init__(self, F, t, dt, u0, num_stages,
@@ -111,8 +144,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         super().__init__(F, t, dt, u0,
                          bcs=bcs, J=J, Jp=Jp, appctx=appctx, nullspace=nullspace, backend=backend)
 
+        if marking_callback is not None:
+            marking_callback = self._wrap_marking_callback(marking_callback)
         self.marking_callback = marking_callback
-        self._initial_u0 = u0
 
         self.num_stages = num_stages
         if scheme_F:
@@ -199,7 +233,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     def _update_adapted_state(self):
         if self.marking_callback is not None:
             self.stages = self._backend.get_solver_solution(self.solver)
-            self.u0 = self._backend.get_solver_coefficient(self.solver, self._initial_u0)
+            for name, c in self._initial_state.items():
+                setattr(self, name, self._backend.get_solver_coefficient(self.solver, c))
 
     # allow butcher tableau as input for preconditioners to create
     # an alternate operator
