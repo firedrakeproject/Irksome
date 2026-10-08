@@ -72,6 +72,7 @@ def pytest_configure(config):
         "parallel(nprocs): mark test to run in parallel on nprocs processors")
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_runtest_setup(item):
     if item.get_closest_marker("parallel"):
         if MPI.COMM_WORLD.size > 1:

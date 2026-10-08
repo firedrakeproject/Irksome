@@ -1,8 +1,61 @@
 import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, TrialFunction, UnitIntervalMesh, VectorFunctionSpace,
-                       assemble, cos, div, dx, norm, grad, inner, pi, project, sin, split)
+                       PeriodicUnitSquareMesh,
+                       assemble, conditional, cos, div, dx, exp, gt, lt, norm, grad, inner, pi, project, sin, split)
 from irksome import Dt, ExplicitNystromTimeStepper, GaussLegendre, MeshConstant, DIRKNystromTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
+
+
+@pytest.mark.parametrize("stages", [1, 2])
+def test_adaptive_periodic_wave_mass(stages):
+    mesh = PeriodicUnitSquareMesh(6, 6)
+    V = FunctionSpace(mesh, "CG", 1)
+    x, y = SpatialCoordinate(mesh)
+    u = Function(V).interpolate(
+        1 + exp(-10*(sin(pi*(x - 0.27))**2 + sin(pi*(y - 0.43))**2))
+    )
+    ut = Function(V).project(-u.dx(0), solver_parameters={"ksp_rtol": 1e-12})
+    mass = assemble(u * dx)
+    assert abs(assemble(ut * dx)) < 1e-11
+    v = TestFunction(V)
+    t = Constant(0.0)
+    dt = Constant(0.02)
+    marker = Constant(1)
+
+    def mark_cells(ctx, displacement):
+        mesh = displacement.function_space().mesh().unique()
+        x, y = SpatialCoordinate(mesh)
+        return Function(FunctionSpace(mesh, "DG", 0)).interpolate(
+            conditional(gt(marker, 0), conditional(lt(x, 0.4), 1, 0), -1)
+        )
+
+    F = inner(Dt(u, 2), v)*dx + inner(grad(u), grad(v))*dx
+    stepper = StageDerivativeNystromTimeStepper(
+        F, GaussLegendre(stages), t, dt, u, ut,
+        solver_parameters={
+            "snes_adapt_sequence": 1,
+            "snes_adapt_transfer": "project",
+            "mat_type": "aij",
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+        },
+        marking_callback=mark_cells,
+    )
+    dimensions = [V.dim()]
+    for flag in (1, 1, -1, -1):
+        marker.assign(flag)
+        stepper.advance()
+        t.assign(t + dt)
+        dimensions.append(stepper.u0.function_space().dim())
+        assert abs(assemble(stepper.u0 * dx) - mass) < 1e-10
+        assert abs(assemble(stepper.ut0 * dx)) < 1e-10
+    assert dimensions[0] < dimensions[1] < dimensions[2]
+    assert dimensions[3:] == dimensions[1::-1]
+
+
+@pytest.mark.parallel(nprocs=2)
+def test_adaptive_periodic_wave_mass_parallel():
+    test_adaptive_periodic_wave_mass(2)
 
 
 def wave(n, deg, time_stages, bc_type):
