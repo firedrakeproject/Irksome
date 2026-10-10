@@ -52,6 +52,7 @@ def test_RadauIIA():
 
 
 @pytest.mark.parametrize('bt', tuple([RadauIIA(k) for k in (1, 2, 3)]
+                                     + [LobattoIIIA(k) for k in (2, 3)]
                                      + [LobattoIIIC(k) for k in (2, 3)]
                                      + [WSODIRK(*x) for x in wsodict]))
 def test_is_stiffly_accurate(bt):
@@ -59,8 +60,7 @@ def test_is_stiffly_accurate(bt):
 
 
 @pytest.mark.parametrize('bt', tuple([GaussLegendre(k) for k in (1, 2, 3)]
-                                     + [QinZhang()]
-                                     + [LobattoIIIA(k) for k in (2, 3)]))
+                                     + [QinZhang()]))
 def test_is_not_stiffly_accurate(bt):
     assert not bt.is_stiffly_accurate
 
