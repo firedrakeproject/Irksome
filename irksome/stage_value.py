@@ -84,7 +84,25 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     assert V == backend_cls.get_function_space(u0)
 
     c = vecconst(butch.c, backend=backend)
+    num_stages = butch.num_stages
+    Vbig = stages.function_space()
+    test = backend_cls.TestFunction(Vbig)
+
+    # The stage vector holds only the stages that are solved for.  A leading
+    # explicit stage takes u0, and is spliced back in so that the tableau is
+    # indexed by the stage it belongs to throughout.
+    UU = to_value(u0, stages, vandermonde)
+    num_solved = UU.shape[0]
+    num_explicit = num_stages - num_solved
+    if num_explicit:
+        u0_np = reshape(u0, (1, *u0.ufl_shape))
+        w_np = numpy.concatenate([u0_np] * num_explicit + [UU])
+    else:
+        w_np = UU
+
     bA1, bA2 = splitting(butch.A)
+    bA1 = bA1[num_explicit:, :]
+    bA2 = bA2[num_explicit:, num_explicit:]
     try:
         bA2inv = numpy.linalg.inv(bA2)
     except numpy.linalg.LinAlgError:
@@ -92,14 +110,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     A1 = vecconst(bA1, backend=backend)
     A2inv = vecconst(bA2inv, backend=backend)
 
-    # s-way product space for the stage variables
-    num_stages = butch.num_stages
-    Vbig = stages.function_space()
-    test = backend_cls.TestFunction(Vbig)
-
     # set up the pieces we need to work with to do our substitutions
-    v_np = reshape(test, (num_stages, *v.ufl_shape))
-    w_np = to_value(u0, stages, vandermonde)
+    v_np = reshape(test, (num_solved, *v.ufl_shape))
     A1Tv = dot(A1.T, v_np)
     A2invTv = dot(A2inv.T, v_np)
 
@@ -116,13 +128,14 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # Dt(g(u)) is discretised as g(U_i) - g(u0), not g(U_i - u0).
     # These are identical for linear g but differ for nonlinear g,
     # and the two-evaluation form is what gives mass conservation.
-    for i in range(num_stages):
+    for r in range(num_solved):
+        i = num_explicit + r
         repl_new = {t: t + c[i] * dt,
-                    v: A2invTv[i],
+                    v: A2invTv[r],
                     u: w_np[i]}
         # Evaluate g at the old solution u0 (not substituted) and
         # old time t (not substituted).
-        repl_old = {v: A2invTv[i], u: u0}
+        repl_old = {v: A2invTv[r], u: u0}
         Fnew += replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
 
     # Handle the rest of the terms
@@ -151,9 +164,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
             g_np -= vandermonde[1:, 0] * bcarg
             g_np = Vander_inv[1:, 1:] @ g_np
 
-        for i in range(num_stages):
-            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.extend(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
+        for r in range(num_solved):
+            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, r)
+            bcsnew.extend(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[num_explicit + r])))
     return Fnew, bcsnew
 
 
@@ -178,6 +191,17 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             pts = numpy.reshape(nodes, (-1, 1))
             vandermonde = self.tabulate_poly(pts).T
         self.vandermonde = vandermonde
+
+        # An explicit leading stage takes the value the step starts from, so
+        # it can be spliced into the stage vector rather than solved for.
+        self.num_explicit = 0
+        if (vandermonde is None and splitting is AI
+                and not use_collocation_update
+                and butcher_tableau.is_stiffly_accurate
+                and not butcher_tableau.is_explicit
+                and kwargs.get("nullspace") is None):
+            self.num_explicit = butcher_tableau.num_explicit_first_stages
+        self.num_solved_stages = butcher_tableau.num_stages - self.num_explicit
 
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
@@ -233,7 +257,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
     def _update_stiff_acc(self):
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(self.stages.subfunctions[self.num_fields*(self.num_stages-1)+i])
+            u0bit.assign(self.stages.subfunctions[self.num_fields*(self.num_solved_stages-1)+i])
 
     def get_update_solver(self, update_solver_parameters):
         """Build a conservative variational update solve for u_new.
@@ -317,9 +341,12 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                             splitting=self.splitting,
                             vandermonde=self.vandermonde)
 
+    def get_stages(self):
+        return self._backend.get_stages(self.V, self.num_solved_stages)
+
     def set_initial_guess(self):
         """Set a constant-in-time initial guess"""
-        for k in range(self.num_stages):
+        for k in range(self.num_solved_stages):
             for i, u0bit in enumerate(self.u0.subfunctions):
                 sbit = self.stages.subfunctions[self.num_fields * k + i]
                 sbit.assign(u0bit)

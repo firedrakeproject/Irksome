@@ -52,6 +52,7 @@ def test_RadauIIA():
 
 
 @pytest.mark.parametrize('bt', tuple([RadauIIA(k) for k in (1, 2, 3)]
+                                     + [LobattoIIIA(k) for k in (2, 3)]
                                      + [LobattoIIIC(k) for k in (2, 3)]
                                      + [WSODIRK(*x) for x in wsodict]))
 def test_is_stiffly_accurate(bt):
@@ -59,8 +60,7 @@ def test_is_stiffly_accurate(bt):
 
 
 @pytest.mark.parametrize('bt', tuple([GaussLegendre(k) for k in (1, 2, 3)]
-                                     + [QinZhang()]
-                                     + [LobattoIIIA(k) for k in (2, 3)]))
+                                     + [QinZhang()]))
 def test_is_not_stiffly_accurate(bt):
     assert not bt.is_stiffly_accurate
 
@@ -83,3 +83,13 @@ def test_PEPRK_order_conditions(key):
         assert allclose(b @ (c * (A @ c)), 1/8)
         assert allclose(b @ (A @ c**2), 1/12)
         assert allclose(b @ (A @ (A @ c)), 1/24)
+
+
+@pytest.mark.parametrize('bt,expected', [(LobattoIIIA(2), 1),
+                                         (LobattoIIIA(3), 1),
+                                         (LobattoIIIA(4), 1),
+                                         (RadauIIA(2), 0),
+                                         (GaussLegendre(2), 0),
+                                         (QinZhang(), 0)])
+def test_num_explicit_first_stages(bt, expected):
+    assert bt.num_explicit_first_stages == expected
