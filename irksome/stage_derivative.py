@@ -186,6 +186,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         pass into the nonlinear solver so that, say, user-defined preconditioners
         have access to it.
     :arg nullspace: An optional nullspace object.
+    :kwarg aux_indices: A list of field indices to treat as algebraic
+        variables. These fields use the anchored RK stage-value update instead
+        of being advanced with the RK derivative update.
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
         at additional points in time.
     """
@@ -201,6 +204,16 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
             raise NotImplementedError("A=A1 A2 splitting needs A2 invertible")
 
         self.aux_indices = aux_indices
+        self.aux_updateb = None
+        self.aux_update_scale = None
+        if aux_indices:
+            try:
+                stage_update = numpy.linalg.solve(butcher_tableau.A.T, butcher_tableau.b)
+                self.aux_updateb = vecconst(numpy.linalg.solve(A2.T, stage_update), backend=backend)
+                self.aux_update_scale = 1 - numpy.sum(stage_update)
+            except numpy.linalg.LinAlgError:
+                raise NotImplementedError("aux_indices require an invertible Butcher matrix and A2 splitting factor")
+
         super().__init__(F, t, dt, u0,
                          butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
@@ -222,7 +235,12 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
 
         # Note: this now catches the optimized/stiffly accurate case as b[s] == Zero() will get dropped
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
+            if self.aux_indices and i in self.aux_indices:
+                u0bit *= self.aux_update_scale
+                u0bit += sum(self.stages.subfunctions[nf * s + i] * (self.aux_updateb[s] * dt)
+                             for s in range(ns))
+            else:
+                u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
