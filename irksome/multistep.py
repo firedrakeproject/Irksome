@@ -3,7 +3,7 @@ from .ufl.manipulation import split_time_derivative_terms, remove_time_derivativ
 from .ufl.deriv import expand_time_derivatives
 from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
-from .tools import extract_timedep_arguments, replace
+from .tools import replace
 from ufl import lhs, Form
 from ufl.constantvalue import as_ufl
 
@@ -124,16 +124,24 @@ class MultistepTimeStepper(BaseTimeStepper):
 
     def get_form_and_bcs(self, F, t, dt, u0, a, b, bcs=None):
 
-        v, u = extract_timedep_arguments(F, u0)
+        args = F.arguments()
+        v = args[0]
+        trial = args[1] if len(args) == 2 else None
         V = v.function_space()
         us = list(self.us)
         us[-1] = u0
 
         assert V == u0.function_space()
 
-        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
+        split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0 if trial is None else trial,))
         F_dtless = remove_time_derivatives(split_form.time)
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())
+
+        def step_repl(i):
+            repl = {u0: us[i], t: t + (i - self.num_prev_steps + 1) * dt}
+            if trial is not None and i < len(us) - 1:
+                repl[trial] = self.us[i]
+            return repl
 
         # Terms with time derivatives:
         # I'm assuming we have something of the form inner(Dt(g(u0)), v)*dx.
@@ -141,12 +149,10 @@ class MultistepTimeStepper(BaseTimeStepper):
         # g(a_s * u_{n+s} + ... + a_0 * g(u_0)).
         Fnew = Form([])
         for (i, coeff) in enumerate(a):
-            Fnew += coeff * replace(F_dtless, {u: us[i],
-                                               t: t + (i - self.num_prev_steps + 1) * dt})
+            Fnew += coeff * replace(F_dtless, step_repl(i))
         # form the right hand side
         for (i, coeff) in enumerate(b):
-            Fnew += dt * coeff * replace(F_remainder, {u: us[i],
-                                                       t: t + (i - self.num_prev_steps + 1) * dt})
+            Fnew += dt * coeff * replace(F_remainder, step_repl(i))
         if bcs is None:
             bcs = []
         bcsnew = []
@@ -163,10 +169,9 @@ class MultistepTimeStepper(BaseTimeStepper):
     def get_bilinear_form(self, form, u0):
         if form is None:
             return form
-        _, k = extract_timedep_arguments(form, u0)
-        Fbig, *_ = self.get_form_and_bcs(form, self.t, self.dt, k, self.a, self.b)
+        Fbig, *_ = self.get_form_and_bcs(form, self.t, self.dt, u0, self.a, self.b)
         is_bilinear = len(Fbig.arguments()) == 2
-        return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, k)
+        return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, u0)
 
     def advance(self):
         self.solver.solve(bounds=self.bounds)

@@ -3,7 +3,7 @@ import numpy
 from petsc4py import PETSc
 from ufl import as_ufl, as_tensor, dx, inner
 from .constant import vecconst
-from .tools import AI, dot, extract_timedep_arguments, fields_to_components, replace, reshape
+from .tools import AI, dot, fields_to_components, replace, reshape
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 
@@ -16,7 +16,7 @@ from FIAT.barycentric_interpolation import LagrangePolynomialSet
 from .ufl.manipulation import split_time_derivative_terms
 
 
-def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, aux_indices=None, backend: str = "firedrake"):
+def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, aux_indices=None, stage_functions=None, backend: str = "firedrake"):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -58,11 +58,20 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     backend_cls = get_backend(backend)
     if bc_type is None:
         bc_type = "DAE"
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
+
+    stage_funcs = {u0: stages, **(stage_functions or {})}
+    if trial is not None:
+        stage_funcs[trial] = backend_cls.TrialFunction(stages.function_space())
+    old_values = {w: u0 if w is trial else w for w in stage_funcs}
+    timedep_coeffs = tuple(stage_funcs)
+
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=timedep_coeffs)
 
     c = vecconst(butch.c, backend=backend)
     bA1, bA2 = splitting(butch.A)
@@ -80,26 +89,28 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))
-    w_np = reshape(stages, (num_stages, *u.ufl_shape))
-    A1w = dot(A1, w_np)
-    A2invw = dot(A2inv, w_np)
-    dtu = TimeDerivative(u)
+    w_np = {w: reshape(W, (num_stages, *w.ufl_shape))
+            for w, W in stage_funcs.items()}
+    A1w = {w: dot(A1, ww_np) for w, ww_np in w_np.items()}
+    A2invw = {w: dot(A2inv, ww_np) for w, ww_np in w_np.items()}
 
     aux_components = fields_to_components(V, aux_indices or [])
 
     repl = {}
     for i in range(num_stages):
-        usub = u0 + as_tensor(A1w[i]) * dt
-        dtusub = A2invw[i]
-        if aux_components:
-            # Apply TimeDerivative substitution to auxiliary fields
-            usub = reshape(usub, u0.ufl_shape)
-            usub[aux_components] = dtusub[aux_components] * dt
-
         repl[i] = {t: t + c[i] * dt,
-                   v: v_np[i],
-                   u: usub,
-                   dtu: dtusub}
+                   v: v_np[i]}
+        for w, base in old_values.items():
+            usub = base + as_tensor(A1w[w][i]) * dt
+            dtusub = A2invw[w][i]
+            if aux_components and (w is u0 or w is trial):
+                # Apply TimeDerivative substitution to auxiliary fields
+                usub = reshape(usub, base.ufl_shape)
+                usub[aux_components] = dtusub[aux_components] * dt
+
+            repl[i][w] = usub
+            if w in timedep_coeffs:
+                repl[i][TimeDerivative(w)] = dtusub
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 
@@ -112,7 +123,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
             if isinstance(bc, backend_cls.EquationBCSplit):
                 raise NotImplementedError("EquationBC not implemented for ODE formulation")
             gorig = as_ufl(bc._original_arg)
-            gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u,))
+            gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=timedep_coeffs)
             gcur = replace(gfoo, {t: t + c[i] * dt})
             return BCStageData(bc, gcur, u0, stages, i)
 
@@ -125,7 +136,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
         def bc2stagebc(bc, i):
             if isinstance(bc, backend_cls.EquationBCSplit):
-                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=(u,))
+                F_bc_orig = expand_time_derivatives(bc.f, t=t, timedep_coeffs=timedep_coeffs)
                 F_bc_new = replace(F_bc_orig, repl[i])
                 Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
                 return backend_cls.EquationBC(
@@ -190,10 +201,11 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         at additional points in time.
     """
     def __init__(self, F, butcher_tableau, t, dt, u0, bcs=None,
-                 solver_parameters=None, splitting=AI,
+                 solver_parameters=None, splitting=AI, stage_functions=None,
                  appctx=None, bc_type="DAE", aux_indices=None, sample_points=None,
                  backend: str = "firedrake", **kwargs):
         self.butcher_tableau = butcher_tableau
+
         A1, A2 = splitting(butcher_tableau.A)
         try:
             self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b), backend=backend)
@@ -208,6 +220,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                          splitting=splitting, bc_type=bc_type,
                          scheme_F=butcher_tableau,
                          sample_points=sample_points,
+                         stage_functions=stage_functions,
                          backend=backend, **kwargs)
         self.num_fields = len(self._backend.get_function_space(u0))
 
@@ -232,7 +245,9 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                        self.t, self.dt, self.u0,
                        stages, bcs, self.bc_type,
                        splitting=self.splitting,
-                       aux_indices=self.aux_indices, backend=self._backend)
+                       aux_indices=self.aux_indices,
+                       stage_functions=self.stage_functions,
+                       backend=self._backend)
 
     def tabulate_poly(self, sample_points):
         if not isinstance(self.butcher_tableau, CollocationButcherTableau):
