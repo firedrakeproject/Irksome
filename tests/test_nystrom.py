@@ -22,7 +22,7 @@ def test_adaptive_periodic_wave_mass(stages):
     dt = Constant(0.02)
     marker = Constant(1)
 
-    def mark_cells(ctx, displacement):
+    def mark_cells(ctx, displacement, _velocity):
         mesh = displacement.function_space().mesh().unique()
         x, y = SpatialCoordinate(mesh)
         return Function(FunctionSpace(mesh, "DG", 0)).interpolate(
@@ -34,7 +34,7 @@ def test_adaptive_periodic_wave_mass(stages):
         F, GaussLegendre(stages), t, dt, u, ut,
         solver_parameters={
             "snes_adapt_sequence": 1,
-            "snes_adapt_transfer": "project",
+            "mg_transfer_inject_type": "project",
             "mat_type": "aij",
             "ksp_type": "preonly",
             "pc_type": "lu",

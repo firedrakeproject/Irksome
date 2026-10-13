@@ -47,14 +47,13 @@ class BaseTimeStepper:
 
     @staticmethod
     def _wrap_marking_callback(marking_callback):
-        """Wrap ``marking_callback(ctx, u)`` as a solver callback that
-        receives the solution predicted at the end of the current step."""
+        """Wrap a callback to receive predicted state fields for marking."""
         def wrapped(ctx, stages):
             stepper = ctx.appctx["stepper"]
             mesh = stages.subfunctions[0].function_space().mesh()
             predicted = {}
             for name, c in stepper._initial_state.items():
-                c = ctx._adapted_coefficients[c]
+                c = ctx._coefficient_mapping[c]
                 V = c.function_space().reconstruct(mesh=mesh)
                 predicted[name] = stepper._backend.Function(V).assign(c)
             predicted["stages"] = stages
@@ -67,7 +66,9 @@ class BaseTimeStepper:
             finally:
                 for name, value in saved.items():
                     setattr(stepper, name, value)
-            return marking_callback(ctx, predicted["u0"])
+            return marking_callback(
+                ctx, *(predicted[name] for name in stepper._initial_state)
+            )
         return wrapped
 
     @abstractmethod
@@ -121,9 +122,10 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
             at additional points in time.
-    :arg marking_callback: An optional Firedrake callback ``callback(ctx, u)``
+    :arg marking_callback: An optional Firedrake callback ``callback(ctx, *state)``
             for marking cells during PETSc-driven mesh adaptation.  It receives
-            the solution predicted at the end of the current step and must
+            the state fields predicted at the end of the current step (`u0` for
+            first-order steppers, `u0` and `ut0` for Nystrom steppers) and must
             return a DG0 Function or Cofunction on the current mesh.  Positive
             marker values refine cells; negative values coarsen them.
             PETSc-driven adaptation must also be enabled in ``solver_parameters``.
