@@ -2,29 +2,28 @@ import numpy
 import pytest
 from firedrake import (
     Constant, DirichletBC, Function, FunctionSpace, MixedVectorSpaceBasis,
-    SpatialCoordinate, TestFunction, TrialFunction, PeriodicIntervalMesh,
-    UnitSquareMesh, VectorFunctionSpace, VectorSpaceBasis,
-    assemble, as_vector, derivative, div, dx, errornorm, exp, grad, inner, split, solve
+    PCG64, RandomGenerator, SpatialCoordinate, TestFunction, TrialFunction,
+    PeriodicIntervalMesh, UnitSquareMesh, VectorFunctionSpace, VectorSpaceBasis,
+    assemble, as_vector, derivative, div, dot, dx, errornorm, exp, grad, inner, split, solve
 )
 from irksome import (
-    Dt, ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme,
+    Dt, DiscontinuousGalerkinCollocationScheme,
+    ContinuousPetrovGalerkinScheme, GalerkinCollocationScheme,
     IRKAuxiliaryOperatorPC, LobattoIIIC,
-    MeshConstant, RadauIIA, TimeStepper, TimeQuadratureLabel
+    MeshConstant, RadauIIA, RanaDUScheme, TimeStepper, TimeQuadratureLabel
 )
 from irksome.tools import AI, IA
-from irksome.labeling import as_form, create_time_quadrature
+from irksome.labeling import as_form
 
 # Tests that various PCs are actually getting the right answer.
 
 
-def Fubc(V, t, uexact, Lhigh=None):
-    if Lhigh is None:
-        Lhigh = lambda x: x
+def Fubc(V, t, uexact):
     u = Function(V)
     u.interpolate(uexact)
     v = TestFunction(V)
     rhs = Dt(uexact) - div(grad(uexact)) - uexact * (1-uexact)
-    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx + Lhigh(-inner(u*(1-u), v)*dx - inner(rhs, v)*dx)
+    F = inner(Dt(u), v)*dx + inner(grad(u), grad(v))*dx - inner(u*(1-u), v)*dx - inner(rhs, v)*dx
     bc = DirichletBC(V, uexact, "on_boundary")
     return (F, u, bc)
 
@@ -37,7 +36,7 @@ class myPC(IRKAuxiliaryOperatorPC):
         return F, bcs
 
 
-def rd(scheme, Lhigh=None, **kwargs):
+def rd(scheme, **kwargs):
     """When a GalerkinCollocationScheme is provided, this preconditions the
     Jacobian by applying the Rana triangular approximation to the corresponding
     collocation IRK.
@@ -78,17 +77,13 @@ def rd(scheme, Lhigh=None, **kwargs):
         }
     }
 
+    schemeDU = RanaDUScheme(scheme)
     ranaDU = {
-        "mat_type": "matfree",
         "ksp_type": "gmres",
         "ksp_converged_reason": None,
-        "pc_type": "python",
-        "pc_python_type": "irksome.RanaDU",
-        "aux": {
-            "pc_type": "fieldsplit",
-            "pc_fieldsplit_type": "multiplicative",
-            "fieldsplit": per_field,
-        }
+        "pc_type": "fieldsplit",
+        "pc_fieldsplit_type": "multiplicative",
+        "fieldsplit": per_field,
     }
 
     mypc_params = {
@@ -102,12 +97,13 @@ def rd(scheme, Lhigh=None, **kwargs):
         }
     }
 
-    params = [luparams, ranaLD, ranaDU, mypc_params]
+    params = [(luparams, None), (ranaLD, None), (ranaDU, schemeDU), (mypc_params, None)]
 
-    for solver_parameters in params:
-        F, u, bc = Fubc(V, t, uexact, Lhigh=Lhigh)
+    for solver_parameters, scheme_Jp in params:
+        F, u, bc = Fubc(V, t, uexact)
 
         stepper = TimeStepper(F, scheme, t, dt, u, bcs=bc,
+                              scheme_Jp=scheme_Jp,
                               solver_parameters=solver_parameters, **kwargs)
         stepper.advance()
         sols.append(u)
@@ -134,33 +130,42 @@ def test_pc_acc(butcher_tableau, order, stage_type):
 @pytest.mark.parametrize('quad_scheme,order', [
     ("radau", 2),
 ])
-def test_pc_galerkin(quad_scheme, order, stage_type):
-    scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, stage_type=stage_type)
-    Lhigh = TimeQuadratureLabel(3*order-1)
-    assert rd(scheme, Lhigh=Lhigh) < 1.e-6
+def test_pc_cpg_collocation(quad_scheme, order, stage_type):
+    scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, quadrature_degree="auto", stage_type=stage_type)
+    assert rd(scheme) < 1.e-6
 
 
-@pytest.mark.parametrize("stage_type", ("deriv", "value"))
-@pytest.mark.parametrize('quad_scheme,order', [
-    ("radau", 1),
-    ("radau", 2),
-])
-def test_git_irk_equivalence(quad_scheme, order, stage_type):
+@pytest.mark.parametrize("deriv_type", ("strong", "weak"))
+@pytest.mark.parametrize('order', [2])
+def test_pc_dg_collocation(order, deriv_type):
+    scheme = DiscontinuousGalerkinCollocationScheme(order, quadrature_degree="auto", deriv_type=deriv_type)
+    assert rd(scheme) < 1.e-6
+
+
+@pytest.mark.parametrize('scheme', [
+    DiscontinuousGalerkinCollocationScheme(0, quadrature_scheme="radau"),
+    DiscontinuousGalerkinCollocationScheme(1, quadrature_scheme="radau"),
+    GalerkinCollocationScheme(1, quadrature_scheme="radau", stage_type="deriv"),
+    GalerkinCollocationScheme(1, quadrature_scheme="radau", stage_type="value"),
+    GalerkinCollocationScheme(2, quadrature_scheme="radau", stage_type="deriv"),
+    GalerkinCollocationScheme(2, quadrature_scheme="radau", stage_type="value"),
+], ids=repr)
+def test_git_irk_equivalence(scheme):
     N = 5
     msh = UnitSquareMesh(N, N)
     V = VectorFunctionSpace(msh, "CG", 2)
     Q = FunctionSpace(msh, "CG", 1)
     Z = V * Q
 
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(1.0/N)
+    t = Constant(0.0)
+    dt = Constant(1.0/N)
     (x, y) = SpatialCoordinate(msh)
 
     uexact = as_vector([x*t + y**2, -y*t+t*(x**2)])
     pexact = x + y * t
 
-    u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
+    nu = Constant(0.1)
+    u_rhs = Dt(uexact) - div(nu*grad(uexact)) + dot(grad(uexact), uexact) + grad(pexact)
     p_rhs = -div(uexact)
 
     z = Function(Z)
@@ -169,7 +174,8 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
     v, q = split(ztest)
 
     F = (inner(Dt(u), v)*dx
-         + inner(grad(u), grad(v))*dx
+         + inner(nu*grad(u), grad(v))*dx
+         + inner(dot(grad(u), u), v)*dx
          - inner(p, div(v))*dx
          - inner(div(u), q)*dx
          - inner(u_rhs, v)*dx
@@ -177,6 +183,8 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
 
     bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
     nsp = MixedVectorSpaceBasis(Z, [Z.sub(0), VectorSpaceBasis(constant=True, comm=msh.comm)])
+    pconst = Function(Q).interpolate(Constant(1))
+    vol = assemble(pconst*dx)
 
     u, p = z.subfunctions
     u.interpolate(uexact)
@@ -184,28 +192,34 @@ def test_git_irk_equivalence(quad_scheme, order, stage_type):
 
     sparams = {
         "mat_type": "matfree",
-        "snes_type": "ksponly",
         "ksp_type": "gmres",
-        "ksp_pc_side": "right",
         "ksp_view_eigenvalues": None,
         "ksp_converged_reason": None,
+        "snes_converged_reason": None,
         "pc_type": "python",
         "pc_python_type": "irksome.IRKAuxiliaryOperatorPC",
         "aux": {
-            "pc_type": "cholesky" if order == 1 else "lu",
+            "mat_type": "aij",
+            "pc_type": "lu",
             "pc_factor_mat_solver_type": "mumps",
         }
     }
-    scheme = GalerkinCollocationScheme(order, quadrature_scheme=quad_scheme, stage_type=stage_type)
+
+    kwargs = {}
+    if isinstance(scheme, ContinuousPetrovGalerkinScheme):
+        kwargs["aux_indices"] = [1]
     stepper = TimeStepper(F, scheme, t, dt, z,
                           bcs=bcs, solver_parameters=sparams,
                           nullspace=nsp,
-                          aux_indices=[1])
+                          pre_apply_bcs=False,
+                          **kwargs)
 
     for step in range(N):
         stepper.advance()
+        pavg = (1/vol) * assemble(p*dx)
+        p.assign(p - pavg * pconst)
         assert numpy.allclose(stepper.solver.snes.ksp.computeEigenvalues(), 1.0)
-        t.assign(float(t) + float(dt))
+        t.assign(t + dt)
 
 
 @pytest.mark.parametrize('order', (1, 2, 3))
@@ -239,8 +253,7 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
     scheme = family(order)
     if isinstance(scheme, ContinuousPetrovGalerkinScheme):
         scheme = family(order, stage_type="value")
-        Qlow = create_time_quadrature(2*order-2, scheme="radau")
-        Llow = TimeQuadratureLabel(Qlow.get_points(), Qlow.get_weights())
+        Llow = TimeQuadratureLabel(2*order-2, scheme="radau")
     else:
         Llow = lambda x: x
     F = (
@@ -254,7 +267,7 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
         - inner(p_rhs, q)*dx
     )
     # Augmented Lagrangian preconditioner
-    Fp = inner(grad(u), grad(v))*dx + Llow(inner(Dt(u), v)*dx + inner(div(u), div(v))*dx + inner(p, q)*dx)
+    Jp = inner(grad(u), grad(v))*dx + Llow(inner(Dt(u), v)*dx + inner(div(u), div(v))*dx + inner(p, q)*dx)
 
     bcs = [DirichletBC(Z.sub(0), uexact, "on_boundary")]
 
@@ -277,7 +290,7 @@ def test_stokes_augmented_lagrangian_preconditioner(family, order):
         sparams["pc_type"] = "lu"
 
     stepper = TimeStepper(F, scheme, t, dt, z,
-                          bcs=bcs, Fp=Fp,
+                          bcs=bcs, Jp=Jp,
                           solver_parameters=sparams,
                           constant_jacobian=True)
 
@@ -358,11 +371,13 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
 
     dHdu = derivative(I3(u), u, v)
     F = h1inner(Dt(u), v)*dx + Lhigh(-dHdu(v.dx(0)))
+    scheme = GalerkinCollocationScheme(order, stage_type=stage_type)
 
     # Drop quadrature labels to define an under-integrated preconditioner
-    Fp = as_form(F)
+    Jp = as_form(F)
 
     sparams = {
+        "snes_monitor": None,
         "mat_type": "matfree",
         "pmat_type": "aij",
         "ksp_type": "gmres",
@@ -375,9 +390,9 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
         "pc_factor_mat_solver_type": "mumps",
     }
 
-    scheme = GalerkinCollocationScheme(order, stage_type=stage_type)
     stepper = TimeStepper(F, scheme, t, dt, u,
-                          Fp=Fp, solver_parameters=sparams)
+                          Jp=Jp,
+                          solver_parameters=sparams)
 
     times = [float(t)]
     functionals = (I1(u), I2(u), I3(u))
@@ -396,3 +411,96 @@ def test_bbm_underintegrated_preconditioner(stage_type, order):
         icur = invariants[-1]
         assert numpy.allclose(iprev[0], icur[0], atol=1e-14)
         assert numpy.allclose(iprev[2], icur[2], atol=1e-14)
+
+
+@pytest.mark.parametrize("scheme", [
+    DiscontinuousGalerkinCollocationScheme(1, quadrature_degree="auto"),
+    GalerkinCollocationScheme(2, stage_type="deriv", quadrature_degree="auto"),
+    GalerkinCollocationScheme(2, stage_type="value", quadrature_degree="auto"),
+], ids=repr)
+def test_git_irk_equivalence_scheme_Jp(scheme):
+    # discretization
+    N = 32
+    msh = UnitSquareMesh(N, N)
+    V = FunctionSpace(msh, "CG", 1)
+
+    t = Constant(0.0)
+    dt = Constant(1.e-1)
+    Tfinal = 0.5
+    Nt = int(Tfinal / float(dt))
+
+    # seed IC once
+    rg = RandomGenerator(PCG64(seed=0))
+    uic = rg.uniform(V)
+
+    u = Function(V)
+    v = TestFunction(V)
+    eps = Constant(1.e-2)
+    F = (inner(Dt(u), v) * dx
+         + eps**2 * inner(grad(u), grad(v)) * dx
+         + inner(u**3 - u, v) * dx)
+
+    def run(solver_parameters, **kwargs):
+        t.assign(0)
+        u.assign(uic)
+        stepper = TimeStepper(F, scheme, t, dt, u,
+                              solver_parameters=solver_parameters, **kwargs)
+        for _ in range(Nt):
+            stepper.advance()
+            t.assign(t + dt)
+
+        nsteps, snes_its, ksp_its = stepper.solver_stats()
+        return snes_its, ksp_its
+
+    # Blunt Newton with direct solve, full Jacobian
+    solver_parameters = {
+        "snes_atol": 1e-12,
+        "snes_rtol": 1e-10,
+        "snes_linesearch_type": "bisection",
+        "snes_divergence_tolerance": 1e12,
+        "ksp_type": "preonly",
+        "pc_type": "lu"
+    }
+    base_snes_its, base_ksp_its = run(solver_parameters)
+    ubase = Function(u)
+
+    # Newton-Krylov with the Jacobian preconditioned by an IRK collocation scheme, accessed by IRK Auxiliary Operator
+    solver_parameters = {
+        # Outer (nonlinear) solver
+        "snes_monitor": None,
+        "snes_atol": 1e-12,
+        "snes_rtol": 1e-10,
+        "snes_linesearch_type": "bisection",
+        "snes_divergence_tolerance": 1e12,
+        "ksp_converged_reason": None,
+        "ksp_view_eigenvalues": None,
+        "ksp_type": "gmres",
+        "ksp_rtol": 1.e-12,
+        "ksp_atol": 1.e-14,
+        "pc_type": "python",
+        "pc_python_type": "irksome.IRKAuxiliaryOperatorPC",
+        "aux_pc_type": "lu",
+    }
+    irkaux_snes_its, irkaux_ksp_its = run(solver_parameters)
+    assert errornorm(ubase, u) < 1E-12
+    assert base_snes_its == irkaux_snes_its
+
+    # Newton-Krylov with Jacobian preconditioned by (under-integrated) cPG collocation, through the front door.
+    solver_parameters = {
+        "snes_monitor": None,
+        "snes_atol": 1e-12,
+        "snes_rtol": 1e-10,
+        "snes_linesearch_type": "bisection",
+        "snes_divergence_tolerance": 1e12,
+        "ksp_converged_reason": None,
+        "ksp_view_eigenvalues": None,
+        "ksp_type": "gmres",
+        "ksp_rtol": 1.e-12,
+        "ksp_atol": 1.e-14,
+        "pc_type": "lu",
+    }
+    scheme_Jp = scheme.as_collocation_scheme()
+    aux_snes_its, aux_ksp_its = run(solver_parameters, scheme_Jp=scheme_Jp)
+    assert errornorm(ubase, u) < 1E-12
+    assert base_snes_its == aux_snes_its
+    assert irkaux_ksp_its == aux_ksp_its

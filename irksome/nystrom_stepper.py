@@ -1,11 +1,11 @@
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import BCStageData, bc2space
+from .bcs import BCStageData
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
-from .tools import dot, reshape, replace
+from .backend import get_backend
+from .tools import dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
-from firedrake import TestFunction, as_ufl
 import numpy
-from ufl import zero
+from ufl import Form, as_ufl
 
 
 class NystromTableau:
@@ -72,15 +72,17 @@ class ClassicNystrom4Tableau(NystromTableau):
 
 
 def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
-                   bcs=None, bc_type=None):
+                   bcs=None, bc_type=None, backend="firedrake"):
+    backend_cls = get_backend(backend)
     if bc_type is None:
         bc_type = "DAE"
 
+    v, u = extract_timedep_arguments(F, u0)
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
+
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v, = F.arguments()
-    V = v.function_space()
-    assert V == u0.function_space()
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     A = vecconst(tableau.A)
     Abar = vecconst(tableau.Abar)
@@ -88,7 +90,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
     num_stages = tableau.num_stages
     Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    test = backend_cls.TestFunction(Vbig)
 
     v_np = reshape(test, (num_stages, *u0.ufl_shape))
     k_np = reshape(stages, (num_stages, *u0.ufl_shape))
@@ -96,15 +98,15 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     Ak = dot(A, k_np)
     Abark = dot(Abar, k_np)
 
-    dtu = TimeDerivative(u0)
+    dtu = TimeDerivative(u)
     dt2u = TimeDerivative(dtu)
 
-    Fnew = zero()
+    Fnew = Form([])
 
     for i in range(num_stages):
         repl = {t: t + c[i] * dt,
                 v: v_np[i],
-                u0: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
+                u: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
                 dtu: ut0 + Ak[i] * dt,
                 dt2u: k_np[i]}
         Fnew += replace(F, repl)
@@ -128,8 +130,8 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
-            ucur = bc2space(bc, u0)
-            utcur = bc2space(bc, ut0)
+            ucur = backend_cls.bc2space(bc, u0)
+            utcur = backend_cls.bc2space(bc, ut0)
             gcur = (1/dt**2) * sum((replace(gorig, {t: t + c[j]*dt}) - ucur - utcur * (dt * c[j])) * A1inv[i, j]
                                    for j in range(num_stages))
             return gcur
@@ -156,7 +158,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
         def bc2gcur(bc, i):
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig, 1), t=t, timedep_coeffs=(u0,))
-            utcur = bc2space(bc, ut0)
+            utcur = backend_cls.bc2space(bc, ut0)
             gcur = (1/dt) * sum((replace(gfoo, {t: t + c_ddae[j]*dt}) - utcur) * A1inv[i, j]
                                 for j in range(num_stages))
             return gcur
@@ -175,7 +177,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
 
 class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
     def __init__(self, F, tableau, t, dt, u0, ut0,
-                 bcs=None, bc_type="DAE", **kwargs):
+                 bcs=None, bc_type="DAE", backend="firedrake", **kwargs):
         self.ut0 = ut0
         if not isinstance(tableau, NystromTableau):
             tableau = butcher_to_nystrom(tableau)
@@ -184,11 +186,11 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
 
         super().__init__(F, t, dt, u0,
                          tableau.num_stages, bcs=bcs,
-                         bc_type=bc_type, **kwargs)
+                         bc_type=bc_type, scheme_F=tableau, backend=backend, **kwargs)
 
-        self.updateb = vecconst(tableau.b)
-        self.updatebbar = vecconst(tableau.bbar)
-        self.num_fields = len(u0.function_space())
+        self.updateb = vecconst(tableau.b, backend=backend)
+        self.updatebbar = vecconst(tableau.bbar, backend=backend)
+        self.num_fields = len(self._backend.get_function_space(u0))
 
     def _update(self):
         b = self.updateb

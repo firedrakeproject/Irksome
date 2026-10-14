@@ -1,16 +1,14 @@
-from operator import mul
-from functools import reduce
+from .backend import get_backend
 import numpy
-
-from firedrake.fml import LabelledForm, Term
-from firedrake import VectorSpaceBasis, MixedVectorSpaceBasis
+import ufl
 from ufl.algorithms.analysis import extract_type
-from ufl import as_tensor
-from ufl import replace as ufl_replace
-from pyop2.types import MixedDat
+from ufl.classes import Variable
+from ufl import as_tensor, replace as ufl_replace
+
 import FIAT
 
 from .ufl.deriv import TimeDerivative
+from .ufl.lag import lag_label
 
 
 def dot(A, B):
@@ -22,6 +20,7 @@ def reshape(expr, shape):
 
 
 def flatten_dats(dats):
+    from pyop2.types import MixedDat
     flat_dat = []
     for dat in dats:
         if isinstance(dat, (tuple, list, MixedDat)):
@@ -31,8 +30,9 @@ def flatten_dats(dats):
     return MixedDat(flat_dat)
 
 
-def get_stage_space(V, num_stages):
-    return reduce(mul, (V for _ in range(num_stages)))
+def get_stage_space(V, num_stages, backend="firedrake"):
+    backend_cls = get_backend(backend)
+    return backend_cls.get_stage_space(V, num_stages)
 
 
 def split_stages(V, stages):
@@ -44,6 +44,18 @@ def split_stages(V, stages):
     stages_np = reshape(stages, (-1, *V.value_shape))
     ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
     return ks
+
+
+def extract_timedep_arguments(F, u0):
+    """Return both arguments if ``F`` is a bilinear form, otherwise
+    return the unique argument and ``u0``.
+    """
+    try:
+        v, u = F.arguments()
+    except ValueError:
+        v, = F.arguments()
+        u = u0
+    return v, u
 
 
 def fields_to_components(V, fields):
@@ -59,6 +71,8 @@ def fields_to_components(V, fields):
     """
     cur = 0
     components = []
+    if len(fields) == 0:
+        return components
     for i, Vi in enumerate(V):
         if i in fields:
             components.extend(range(cur, cur+Vi.value_size))
@@ -66,56 +80,14 @@ def fields_to_components(V, fields):
     return components
 
 
-def getNullspace(V, Vbig, num_stages, nullspace):
-    """
-    Computes the nullspace for a multi-stage method.
-
-    :arg V: The :class:`FunctionSpace` on which the original time-dependent PDE is posed.
-    :arg Vbig: The multi-stage :class:`FunctionSpace` for the stage problem
-    :arg num_stages: The number of stages in the RK method
-    :arg nullspace: The nullspace for the original problem.
-
-    On output, we produce a :class:`MixedVectorSpaceBasis` defining the nullspace
-    for the multistage problem.
-    """
-
-    num_fields = len(V)
-    if nullspace is None:
-        nspnew = None
-    else:
-        if isinstance(nullspace, (MixedVectorSpaceBasis, VectorSpaceBasis)):
-            nullspace = [(field, basis) for field, basis in enumerate(nullspace)
-                         if isinstance(basis, VectorSpaceBasis)]
-        try:
-            nullspace.sort()
-        except AttributeError:
-            raise AttributeError("Nullspace entries must be of form (idx, VSP), where idx is a non-negative integer")
-        if (nullspace[-1][0] > num_fields) or (nullspace[0][0] < 0):
-            raise ValueError("At least one index for nullspaces is out of range")
-        nspnew = []
-        nsp_comp = len(nullspace)
-        for i in range(num_stages):
-            count = 0
-            for j in range(num_fields):
-                if count < nsp_comp and j == nullspace[count][0]:
-                    nspnew.append(nullspace[count][1])
-                    count += 1
-                else:
-                    nspnew.append(Vbig.sub(j + num_fields * i))
-        nspnew = MixedVectorSpaceBasis(Vbig, nspnew)
-
-    return nspnew
-
-
 def replace(e, mapping):
-    """A wrapper for ufl.replace that allows numpy arrays."""
+    """A wrapper for ufl.replace that allows numpy arrays and skips
+    substitution into sub-expressions wrapped by :func:`~irksome.lag`."""
     cmapping = {k: as_tensor(v) for k, v in mapping.items()}
-    if isinstance(e, LabelledForm):
-        enew = LabelledForm(*(Term(ufl_replace(term.form, cmapping), term.labels)
-                              for term in e.terms))
-        return enew
-    else:
-        return ufl_replace(e, cmapping)
+    for var in extract_type(e, Variable):
+        if var.ufl_operands[1] is lag_label:
+            cmapping.setdefault(var, var)
+    return ufl_replace(e, cmapping)
 
 
 # Utility functions that help us refactor
@@ -147,7 +119,8 @@ def get_lagrange_permutation(L):
 
     points = []
     for ell in L.dual.nodes:
-        assert isinstance(ell, FIAT.functional.PointEvaluation)
+        if not isinstance(ell, FIAT.functional.PointEvaluation):
+            raise TypeError("Expecting a Lagrange element")
         pt, = ell.get_point_dict().keys()
         points.append(pt[0])
 
@@ -155,3 +128,18 @@ def get_lagrange_permutation(L):
     perm = numpy.argsort(c)
 
     return c[perm], perm
+
+
+def get_sub(u: ufl.FunctionSpace | ufl.Coefficient, indices: tuple[int, ...]) -> ufl.FunctionSpace | ufl.Coefficient:
+    """Recursively access the subfunction of a mixed function space or the space itself, given the indices of the subspace.
+
+    Args:
+        u: A coefficient in a mixed function space
+        indices: A tuple of integers giving the indices of the subspace to access. For example
+            if u is in a mixed space (V1, V2, V3), then get_sub(u, (0, 2)) will return the third subfunction of u in V1,
+            i.e. `u.sub(0).sub(2)`.
+    """
+    for i in indices:
+        if i is not None:
+            u = u.sub(i)
+    return u

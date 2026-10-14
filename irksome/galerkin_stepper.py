@@ -5,23 +5,19 @@ from ufl.classes import Zero
 from ufl import as_ufl, as_tensor
 
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import bc2space, extract_bcs, stage2spaces4bc
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
-from .scheme import GalerkinCollocationScheme, create_time_quadrature, ufc_line
-from .tools import AI, IA, dot, fields_to_components, reshape, replace
+from .scheme import ContinuousPetrovGalerkinScheme, create_time_quadrature, ufc_line
+from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components, reshape, replace
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
-
-from .tableaux.ButcherTableaux import CollocationButcherTableau
+from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau
 from .stage_derivative import getForm
 from .stage_value import getFormStage
-
+from .backend import get_backend
 import numpy as np
-from firedrake import TestFunction, Constant
-from firedrake.bcs import EquationBCSplit
 
 
 def getTrialElement(basis_type, order):
@@ -65,17 +61,32 @@ def getElements(basis_type, order):
     return L_trial, L_test
 
 
-def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices):
+def get_elements_and_quadrature(scheme):
+    trial_el, test_el = getElements(scheme.basis_type, scheme.order)
+    quad_degree = scheme.quadrature_degree
+    if quad_degree is None:
+        quad_degree = trial_el.degree() + test_el.degree()
+    quad_scheme = scheme.quadrature_scheme
+    if quad_scheme is None and isinstance(test_el, GaussRadau):
+        quad_scheme = "radau"
+    if quad_degree == "auto":
+        quadrature = quad_scheme
+    else:
+        quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
+    return trial_el, test_el, quadrature
+
+
+def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend="firedrake"):
+    v, u = extract_timedep_arguments(F, u0)
+    backend_cls = get_backend(backend)
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
+
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    v, = F.arguments()
-    V = v.function_space()
-    assert V == u0.function_space()
-    i0, = L_trial.entity_dofs()[0][0]
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
-    assert qpts.size >= L_test.space_dimension()
     tabulate_trials = L_trial.tabulate(1, qpts)
     trial_vals = tabulate_trials[(0,)]
     trial_dvals = tabulate_trials[(1,)]
@@ -89,14 +100,15 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     qpts = vecconst(np.reshape(qpts, (-1,)))
 
     # set up the pieces we need to work with to do our substitutions
+    i0, = L_trial.entity_dofs()[0][0]
     v_np = reshape(test, (-1, *v.ufl_shape))
-    w_np = reshape(stages, (-1, *u0.ufl_shape))
+    w_np = reshape(stages, (-1, *u.ufl_shape))
     u_np = np.insert(w_np, i0, reshape(u0, (1, *u0.ufl_shape)), axis=0)
 
     vsub = dot(test_vals_w.T, v_np)
     usub = dot(trial_vals.T, u_np)
-    dtu0sub = dot(trial_dvals.T, u_np)
-    dtu0 = TimeDerivative(u0)
+    dtusub = dot(trial_dvals.T, u_np)
+    dtu = TimeDerivative(u)
 
     # discretize the auxiliary fields in the DG test space
     if aux_indices is not None:
@@ -108,13 +120,13 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
     for q in range(len(qpts)):
         repl[q] = {t: t + qpts[q] * dt,
                    v: vsub[q] * dt,
-                   u0: usub[q],
-                   dtu0: dtu0sub[q] / dt}
+                   u: usub[q],
+                   dtu: dtusub[q] / dt}
     Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 
 
-def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None):
+def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, bc_type=None, aux_indices=None, max_quadrature_degree=None, backend: str = "firedrake"):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Galerkin-in-Time method.
 
@@ -133,7 +145,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :kwarg bcs: optionally, a :class:`firedrake.DirichletBC` object (or iterable thereof)
+    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
          containing (possibly time-dependent) boundary conditions imposed
          on the system.
     :kwarg bc_type: How to manipulate the strongly-enforced boundary
@@ -142,7 +154,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
          constraints in the style of a differential-algebraic
          equation, or "ODE", which evaluates the temporal degrees of
          freedom of the boundary data.
-         Currently there is no support for :class:`firedrake.EquationBC`.
+         Currently there is no support for :class:`EquationBC`.
     :kwarg aux_indices: a list of field indices to be discretized in the test space
          rather than trial space.
     :kwarg max_quadrature_degree: An integer indicating the maximum quadrature
@@ -151,16 +163,17 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
 
     :returns: a 2-tuple of
        - `Fnew`, the :class:`Form` corresponding to the Galerkin-in-Time discretized problem
-       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
+       - `bcnew`, a list of :class:`DirichletBC` objects to be posed
          on the Galerkin-in-time solution
     """
     if bc_type is None:
         bc_type = "DAE"
     assert L_test.get_reference_element() == L_trial.get_reference_element()
     assert L_trial.space_dimension() == L_test.space_dimension() + 1
-
+    backend_cls = get_backend(backend)
     Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    test = backend_cls.TestFunction(Vbig)
+    Constant = backend_cls.Constant
 
     degree_mapping = get_degree_mapping(as_form(F), L_test.degree(), L_trial.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
@@ -171,10 +184,10 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
-    V = u0.function_space()
+    V = backend_cls.get_function_space(u0)
     if bcs is None:
         bcs = []
-    bcs = extract_bcs(bcs)
+    bcs = backend_cls.extract_bcs(bcs)
     bcsnew = []
 
     # list of dictionaries mapping time coordinates to weights to evaluate DOFs
@@ -231,7 +244,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
             g = as_ufl(bc._original_arg)
             if isinstance(g, Zero):
                 return [g]*len(test_dicts)
-            ucur = bc2space(bc, u0)
+            ucur = backend_cls.bc2space(bc, u0)
             gq = np.array([replace(g, {t: t + q * dt}) - phi0 * ucur
                            for phi0, q in zip(trial_vals0, qpts)])
             return dot(trial_proj, gq)
@@ -240,14 +253,14 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
 
     num_stages = L_test.space_dimension()
     for bc in bcs:
-        if isinstance(bc, EquationBCSplit):
+        if isinstance(bc, backend_cls.EquationBCSplit):
             raise NotImplementedError("EquationBC not implemented for Galerkin-in-Time")
         if aux_indices and bc.function_space().index in aux_indices:
             g_np = aux_bc_data(bc)
         else:
             g_np = bc_data(bc)
         for i in range(num_stages):
-            Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
             bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
@@ -259,16 +272,16 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg scheme: :class:`ContinuousPetrovGalerkinScheme` encoding the order,
         basis type, and default quadrature rule of the method.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time step size.
         The user may adjust this value between time steps.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :kwarg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+    :kwarg bcs: An iterable of :class:`DirichletBC` containing
         the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the method.
@@ -278,7 +291,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         constraints in the style of a differential-algebraic
         equation, or "ODE", which evaluates the temporal degrees of
         freedom of the boundary data.
-        Currently there is no support for `firedrake.EquationBC`.
+        Currently there is no support for `EquationBC`.
     :kwarg solver_parameters: A :class:`dict` of solver parameters that
         will be used in solving the algebraic problem associated
         with each time step.
@@ -291,36 +304,23 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         rather than trial space.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None,
-                 bc_type=None, aux_indices=None, **kwargs):
+                 bc_type=None, aux_indices=None, backend: str = "firedrake", **kwargs):
         self.order = scheme.order
         self.basis_type = scheme.basis_type
+        self._backend = backend_cls = get_backend(backend)
+        V = backend_cls.get_function_space(u0)
 
-        V = u0.function_space()
         self.num_fields = len(V)
-
-        self.trial_el, self.test_el = getElements(self.basis_type, self.order)
-        num_stages = self.test_el.space_dimension()
-
-        quad_degree = scheme.quadrature_degree
-        if quad_degree is None:
-            quad_degree = self.trial_el.degree() + self.test_el.degree()
-        quad_scheme = scheme.quadrature_scheme
-        if quad_scheme is None and isinstance(self.test_el, GaussRadau):
-            quad_scheme = "radau"
-
-        if quad_degree == "auto":
-            quadrature = quad_scheme
-        else:
-            quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
-        self.quadrature = quadrature
+        self.trial_el, self.test_el, self.quadrature = get_elements_and_quadrature(scheme)
         self.max_quadrature_degree = scheme.max_quadrature_degree
         self.aux_indices = aux_indices
-        if isinstance(scheme, GalerkinCollocationScheme):
+        num_stages = self.test_el.space_dimension()
+        try:
             self.butcher_tableau = CollocationButcherTableau(self.test_el, None)
-        else:
+        except TypeError:
             self.butcher_tableau = None
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, **kwargs)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, scheme_F=scheme, **kwargs)
         self.set_initial_guess()
         self.set_update_expressions()
 
@@ -332,9 +332,11 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
+        if order is None:
+            order = self.order
         aux_indices = aux_indices or self.aux_indices
 
-        if tableau is not None:
+        if isinstance(tableau, ButcherTableau):
             # Galerkin collocation is equivalent to an IRK up to row scaling
             row_scale = tableau.b
 
@@ -356,28 +358,35 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
             else:
                 raise ValueError("Expecting a GalerkinCollocationScheme")
 
+            F = as_form(F)
             Fnew, bcnew = get_irk_form(F, tableau, self.t, self.dt, self.u0, stages,
                                        bcs=bcs, splitting=splitting, aux_indices=aux_indices)
 
-            if splitting != scaledIA:
-                v0, = F.arguments()
-                test, = Fnew.arguments()
+            if trial_type == "deriv":
+                v0 = F.arguments()[0]
+                test = Fnew.arguments()[0]
                 test_np = reshape(test, (-1, *v0.ufl_shape))
-                test_np = np.multiply(vecconst(row_scale).reshape(-1, *(1,)*len(v0.ufl_shape)), test_np)
+                test_np = np.multiply(self.dt*vecconst(row_scale).reshape(-1, *(1,)*len(v0.ufl_shape)), test_np)
                 test_np = test_np.reshape(test.ufl_shape)
-                Fnew = replace(Fnew, {test: test_np})
+                Fnew = replace(Fnew, {test: test_np, stages: stages/self.dt})
 
             return Fnew, bcnew
 
-        if order is None:
-            order = self.order
-        if basis_type == self.basis_type and order == self.order:
-            trial_el = self.trial_el
-            test_el = self.test_el
+        elif isinstance(tableau, ContinuousPetrovGalerkinScheme):
+            trial_el, test_el, quadrature = get_elements_and_quadrature(tableau)
+            max_quadrature_degree = tableau.max_quadrature_degree or self.max_quadrature_degree
+
+        elif tableau is None:
+            if basis_type == self.basis_type and order == self.order:
+                trial_el = self.trial_el
+                test_el = self.test_el
+            else:
+                trial_el, test_el = getElements(basis_type, order)
+            quadrature = quadrature or self.quadrature
+            max_quadrature_degree = self.max_quadrature_degree
         else:
-            trial_el, test_el = getElements(basis_type, order)
-        quadrature = quadrature or self.quadrature
-        max_quadrature_degree = self.max_quadrature_degree
+            raise TypeError("Expecting ButcherTableau or ContinuousPetrovGalerkinScheme")
+
         return getFormGalerkin(F, trial_el, test_el, quadrature,
                                self.t, self.dt, self.u0, stages,
                                bcs=bcs, bc_type=self.bc_type,
@@ -420,7 +429,7 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
         trial_dofs = np.delete(trial_dofs, i0, axis=0)
 
-        dof = Constant(0)
+        dof = self._backend.Constant(0)
         for k in range(self.num_stages):
             for i, u0bit in enumerate(self.u0.subfunctions):
                 sbit = self.stages.subfunctions[self.num_fields*k+i]

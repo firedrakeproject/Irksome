@@ -32,6 +32,9 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.viewcode',
               'sphinxcontrib.bibtex']
 
+# Mock DOLFINx import
+autodoc_mock_imports = ["dolfinx", ]
+
 mathjax_path = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML'
 
 # Both the class’ and the __init__ method’s docstring are concatenated and

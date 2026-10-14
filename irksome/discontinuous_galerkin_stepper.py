@@ -3,16 +3,18 @@ from FIAT import (Bernstein,
                   GaussLobattoLegendre, GaussRadau)
 from ufl import as_ufl, as_tensor
 from .base_time_stepper import StageCoupledTimeStepper
-from .bcs import stage2spaces4bc
 from .labeling import split_quadrature, as_form
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
-from .scheme import create_time_quadrature, ufc_line
-from .tools import dot, reshape, replace
+from .scheme import DiscontinuousGalerkinScheme, create_time_quadrature, ufc_line
+from .tools import IA, dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
+from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau
+from .stage_value import getFormStage
+
 import numpy as np
-from firedrake import TestFunction
+from .backend import get_backend
 
 
 def getElement(basis_type, order):
@@ -37,15 +39,30 @@ def getElement(basis_type, order):
         return DiscontinuousLagrange(ufc_line, order, variant=variant)
 
 
-def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
-    v, = F.arguments()
-    V = v.function_space()
-    assert V == u0.function_space()
+def get_element_and_quadrature(scheme):
+    element = getElement(scheme.basis_type, scheme.order)
+    quad_degree = scheme.quadrature_degree
+    if quad_degree is None:
+        quad_degree = 2*element.degree()
+    quad_scheme = scheme.quadrature_scheme
+    if quad_scheme is None and isinstance(element, GaussRadau):
+        quad_scheme = "radau"
+
+    if quad_degree == "auto":
+        quadrature = quad_scheme
+    else:
+        quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
+    return element, quadrature
+
+
+def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", backend="firedrake"):
+    v, u = extract_timedep_arguments(F, u0)
+    backend_cls = get_backend(backend)
+    V = backend_cls.get_function_space(v)
+    assert V == backend_cls.get_function_space(u0)
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
-    assert qpts.size >= L.space_dimension()-1
-
     tabulate_basis = L.tabulate(1, qpts)
     basis_vals = tabulate_basis[(0,)]
     basis_dvals = tabulate_basis[(1,)]
@@ -65,7 +82,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
     dtusub = dot(trial_dvals.T, u_np)
 
     # preprocess time derivatives
-    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0,))
+    split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u,))
     F_dtless = remove_time_derivatives(split_form.time)
     if F_dtless.empty():
         Fnew = F_dtless
@@ -78,8 +95,8 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
         u_at_0 = dot(L_at_0.T, u_np)
         v_at_0 = dot(L_at_0.T, v_np)
 
-        repl_tminus = {v: v_at_0}
-        repl_tplus = {v: v_at_0, u0: u_at_0}
+        repl_tminus = {v: v_at_0, u: u0}
+        repl_tplus = {v: v_at_0, u: u_at_0}
         Fnew = replace(F_dtless, repl_tplus) - replace(F_dtless, repl_tminus)
         F_remainder = F
     elif deriv_type == "weak":
@@ -90,8 +107,8 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
         u_at_01 = dot(L_at_01.T, u_np)
         v_at_01 = dot(L_at_01.T, v_np)
 
-        repl_tminus = {v: v_at_01[0]}
-        repl_tnew = {v: v_at_01[1], u0: u_at_01[1], t: t + dt}
+        repl_tminus = {v: v_at_01[0], u: u0}
+        repl_tnew = {v: v_at_01[1], u: u_at_01[1], t: t + dt}
         Fnew = replace(F_dtless, repl_tnew) - replace(F_dtless, repl_tminus)
 
         # Terms with time derivatives: -(g(u), Dt(v))
@@ -100,25 +117,25 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong"):
         for q in range(len(qpts)):
             repl = {t: t + qpts[q] * dt,
                     v: dtvsub[q],
-                    u0: usub[q]}
+                    u: usub[q]}
             Fnew -= replace(F_dtless, repl)
         F_remainder = split_form.remainder
     else:
         raise ValueError(f"Unrecongnized deriv_type {deriv_type}")
 
     # Handle the rest of the terms
-    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u0,))
-    dtu0 = TimeDerivative(u0)
+    F_remainder = expand_time_derivatives(F_remainder, t=t, timedep_coeffs=(u,))
+    dtu = TimeDerivative(u)
     for q in range(len(qpts)):
         repl = {t: t + qpts[q] * dt,
                 v: vsub[q] * dt,
-                u0: usub[q],
-                dtu0: dtusub[q] / dt}
+                u: usub[q],
+                dtu: dtusub[q] / dt}
         Fnew += replace(F_remainder, repl)
     return Fnew
 
 
-def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong", max_quadrature_degree=None):
+def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type="strong", max_quadrature_degree=None, backend="firedrake"):
     """Given a time-dependent variational form, trial and test spaces, and
     a quadrature rule, produce UFL for the Discontinuous Galerkin-in-Time method.
 
@@ -133,9 +150,9 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     :arg u0: a :class:`Function` referring to the state of
          the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
-    :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
-         containing (possibly time-dependent) boundary conditions imposed
-         on the system.
+    :kwarg bcs: optionally, a  :class:`~irksome.backend.Backend.DirichletBC`
+         object (or iterable thereof) containing (possibly time-dependent)
+         boundary conditions imposed on the system.
     :kwarg deriv_type: A string indicating how to integrate terms with time derivatives.
         Valid values are:
         - `"weak"`: Time derivatives act on the test function (integrating by parts once).
@@ -147,21 +164,21 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
     On output, we return a tuple consisting of two parts:
 
        - Fnew, the :class:`Form` corresponding to the DG-in-Time discretized problem
-       - `bcnew`, a list of :class:`firedrake.DirichletBC` objects to be posed
+       - `bcnew`, a list of :class:`~irksome.backend.Backend.DirichletBC` objects to be posed
          on the Galerkin-in-time solution,
     """
     num_stages = L.space_dimension()
-
-    V = u0.function_space()
+    backend_cls = get_backend(backend)
+    V = backend_cls.get_function_space(u0)
     Vbig = stages.function_space()
-    test = TestFunction(Vbig)
+    test = backend_cls.TestFunction(Vbig)
 
     degree_mapping = get_degree_mapping(as_form(F), L.degree(), L.degree(), t=t, timedep_coeffs=(u0,))
     degree_estimator = TimeDegreeEstimator(degree_mapping=degree_mapping)
 
     splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
                                  max_quadrature_degree=max_quadrature_degree)
-    Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type)
+    Fnew = sum(getTermDiscGalerkin(Fcur, L, Q, t, dt, u0, stages, test, deriv_type=deriv_type, backend=backend)
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
@@ -186,7 +203,7 @@ def getFormDiscGalerkin(F, L, Qdefault, t, dt, u0, stages, bcs=None, deriv_type=
             gq = np.array([replace(g0, {t: t + c*dt}) for c in qpts])
             g_np = proj @ gq
             for i in range(num_stages):
-                Vbigi = stage2spaces4bc(bc, V, Vbig, i)
+                Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
                 bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
@@ -198,15 +215,15 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
     :arg F: a :class:`ufl.Form` instance describing the semi-discrete problem.
     :arg scheme: a :class:`DiscontinuousGalerkinScheme` instance describing the order,
         basis type, default quadrature scheme, and time derivative integration type.
-    :arg t: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg t: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time.
-    :arg dt: a :class:`firedrake.Constant` or :class:`firedrake.Function`
+    :arg dt: a :class:`Constant` or :class:`Function`
         on the Real space over the same mesh as `u0`.  This serves as
         a variable referring to the current time step size.
-    :arg u0: A :class:`firedrake.Function` containing the current
+    :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :arg bcs: An iterable of :class:`firedrake.DirichletBC` containing
+    :arg bcs: An iterable of :class:`~irksome.backend.Backend.DirichletBC` containing
         the strongly-enforced boundary conditions.  Irksome will
         manipulate these to obtain boundary conditions for each
         stage of the method.
@@ -220,54 +237,75 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
     :arg nullspace: An optional nullspace object.
     """
     def __init__(self, F, scheme, t, dt, u0, bcs=None, basis_type=None,
-                 quadrature=None, **kwargs):
+                 quadrature=None, backend="firedrake", **kwargs):
         order = self.order = scheme.order
         assert order >= 0, "DG must be order >= 0"
 
-        self.basis_type = basis_type = scheme.basis_type
+        self.basis_type = scheme.basis_type
         self.deriv_type = scheme.deriv_type
 
-        V = u0.function_space()
+        backend_cls = get_backend(backend)
+        V = backend_cls.get_function_space(u0)
         self.num_fields = len(V)
 
-        self.el = getElement(basis_type, order)
-
-        quad_degree = scheme.quadrature_degree
-        if quad_degree is None:
-            quad_degree = 2*self.el.degree()
-        quad_scheme = scheme.quadrature_scheme
-        if quad_scheme is None and isinstance(self.el, GaussRadau):
-            quad_scheme = "radau"
-
-        if quad_degree == "auto":
-            quadrature = quad_scheme
-        else:
-            quadrature = create_time_quadrature(quad_degree, scheme=quad_scheme)
-
-        self.quadrature = quadrature
+        self.el, self.quadrature = get_element_and_quadrature(scheme)
         self.max_quadrature_degree = scheme.max_quadrature_degree
-
-        num_stages = order+1
+        num_stages = self.el.space_dimension()
 
         self.update_b = vecconst(self.el.tabulate(0, (1.0,))[(0,)])
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, **kwargs)
+        try:
+            self.butcher_tableau = CollocationButcherTableau(self.el, None)
+        except TypeError:
+            self.butcher_tableau = None
 
-    def get_form_and_bcs(self, stages, F=None, bcs=None, basis_type=None, order=None,
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, scheme_F=scheme, **kwargs)
+        self.set_initial_guess()
+
+    def get_form_and_bcs(self, stages, F=None, bcs=None,
+                         tableau=None, basis_type=None, order=None,
                          quadrature=None, deriv_type=None):
+        F = F or self.F
         if bcs is None:
             bcs = self.orig_bcs
         if basis_type is None:
             basis_type = self.basis_type
         if order is None:
             order = self.order
-        if basis_type == self.basis_type and order == self.order:
-            el = self.el
+        if deriv_type is None:
+            deriv_type = self.deriv_type
+
+        if isinstance(tableau, ButcherTableau):
+            # Galerkin collocation is equivalent to an IRK up to row scaling
+            row_scale = tableau.b
+
+            def scaledIA(A):
+                # For stage-value the splitting exposes row scaling
+                A1, A2 = IA(A)
+                np.multiply(A1, row_scale, out=A1)
+                np.multiply(1/row_scale, A2, out=A2)
+                return A1, A2
+
+            F = as_form(F)
+            return getFormStage(F, tableau, self.t, self.dt, self.u0, stages,
+                                bcs=bcs, splitting=scaledIA)
+
+        elif isinstance(tableau, DiscontinuousGalerkinScheme):
+            el, quadrature = get_element_and_quadrature(tableau)
+            max_quadrature_degree = tableau.max_quadrature_degree or self.max_quadrature_degree
+            deriv_type = tableau.deriv_type
+
+        elif tableau is None:
+            if basis_type == self.basis_type and order == self.order:
+                el = self.el
+            else:
+                el = getElement(basis_type, order)
+            quadrature = quadrature or self.quadrature
+            max_quadrature_degree = self.max_quadrature_degree
         else:
-            el = getElement(basis_type, order)
-        deriv_type = deriv_type or self.deriv_type
-        max_quadrature_degree = self.max_quadrature_degree
-        return getFormDiscGalerkin(F or self.F,
+            raise TypeError("Expecting ButcherTableau or DiscontinuousGalerkinScheme")
+
+        return getFormDiscGalerkin(F,
                                    el,
                                    quadrature or self.quadrature,
                                    self.t, self.dt, self.u0, stages,
@@ -278,6 +316,26 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         stages_np = np.array(self.stages.subfunctions, dtype=object)
         for i, u0bit in enumerate(self.u0.subfunctions):
             u0bit.assign(stages_np[i::self.num_fields] @ self.update_b)
+
+    def set_initial_guess(self):
+        """Set a constant-in-time initial guess."""
+        ref_el = self.el.get_reference_element()
+        P0 = DiscontinuousLagrange(ref_el, 0)
+        P0 = P0.get_nodal_basis()
+        B = P0.get_coeffs()
+
+        trial_dual = self.el.get_dual_set()
+        trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
+
+        dof = self._backend.Constant(0)
+        for k in range(self.num_stages):
+            for i, u0bit in enumerate(self.u0.subfunctions):
+                sbit = self.stages.subfunctions[self.num_fields*k+i]
+                dof.assign(trial_dofs[k])
+                if abs(float(dof)) < 1E-12:
+                    sbit.zero()
+                else:
+                    sbit.assign(u0bit * dof)
 
     def tabulate_poly(self, sample_points):
         vander = vecconst(np.zeros((self.num_stages+1, len(sample_points))))

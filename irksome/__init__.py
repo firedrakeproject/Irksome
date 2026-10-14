@@ -15,6 +15,7 @@ from .tableaux.multistep_tableaux import (
 )
 from .tableaux.pep_explicit_rk import PEPRK
 from .ufl.deriv import Dt, expand_time_derivatives, check_irksome_import_order
+from .ufl.lag import lag
 
 check_irksome_import_order()
 
@@ -27,7 +28,20 @@ from .constant import MeshConstant
 from .tableaux.wso_dirk_tableaux import WSODIRK
 from .scheme import create_time_quadrature
 from .scheme import ContinuousPetrovGalerkinScheme, DiscontinuousGalerkinScheme
-from .scheme import GalerkinCollocationScheme
+from .scheme import GalerkinCollocationScheme, DiscontinuousGalerkinCollocationScheme
+from .bcs import BoundsConstrainedDirichletBC
+from .dirk_stepper import DIRKTimeStepper
+from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
+from .stage_derivative import getForm
+from .nystrom_dirk_stepper import DIRKNystromTimeStepper, ExplicitNystromTimeStepper
+from .nystrom_stepper import (
+    StageDerivativeNystromTimeStepper,
+    ClassicNystrom4Tableau,
+)
+from .stage_value import StageValueTimeStepper
+
+from .multistep import MultistepTimeStepper
+
 
 __all__ = [
     "AdamsBashforth",
@@ -36,14 +50,14 @@ __all__ = [
     "ARS_DIRK_IMEX",
     "BackwardEuler",
     "BDF",
-    "ContinuousPetrovGalerkinScheme",
     "create_time_quadrature",
     "DIRK_IMEX",
-    "DiscontinuousGalerkinScheme",
+    "DiscontinuousGalerkinCollocationScheme",
     "Dt",
     "expand_time_derivatives",
     "GalerkinCollocationScheme",
     "GaussLegendre",
+    "lag",
     "LobattoIIIA",
     "LobattoIIIC",
     "MeshConstant",
@@ -55,6 +69,19 @@ __all__ = [
     "SSPButcherTableau",
     "SSPK_DIRK_IMEX",
     "WSODIRK",
+    "DIRKTimeStepper",
+    "BoundsConstrainedDirichletBC",
+    "getForm",
+    "RadauIIAIMEXMethod",
+    "DIRKIMEXMethod",
+    "DIRKNystromTimeStepper",
+    "ExplicitNystromTimeStepper",
+    "StageDerivativeNystromTimeStepper",
+    "ClassicNystrom4Tableau",
+    "StageValueTimeStepper",
+    "ContinuousPetrovGalerkinTimeStepper",
+    "DiscontinuousGalerkinTimeStepper",
+    "MultistepTimeStepper",
 ]
 
 
@@ -62,16 +89,9 @@ try:
     import importlib
 
     importlib.import_module("firedrake")
-    from .bcs import BoundsConstrainedDirichletBC
-    from .dirk_stepper import DIRKTimeStepper
-    from .imex import RadauIIAIMEXMethod, DIRKIMEXMethod
-    from .stage_derivative import getForm
-    from .nystrom_dirk_stepper import DIRKNystromTimeStepper, ExplicitNystromTimeStepper
-    from .nystrom_stepper import (
-        StageDerivativeNystromTimeStepper,
-        ClassicNystrom4Tableau,
-    )
-    from .stage_value import StageValueTimeStepper
+    from .labeling import TimeQuadratureLabel
+    from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
+    from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
 
     from .pc import (
         ClinesBase,
@@ -79,39 +99,32 @@ try:
         NystromAuxiliaryOperatorPC,
         RanaBase,
         RanaDU,
+        RanaDUScheme,
         RanaLD,
+        RanaLDScheme,
         IRKAuxiliaryOperatorPC,
+        IRKAuxiliaryOperatorSNES,
+        as_butcher_tableau,
     )
-    from .galerkin_stepper import ContinuousPetrovGalerkinTimeStepper
-    from .discontinuous_galerkin_stepper import DiscontinuousGalerkinTimeStepper
-    from .multistep import MultistepTimeStepper
-    from .labeling import TimeQuadratureLabel
     from .stepper import TimeStepper
     from .kronpc import KronPC, MassKronPC, StiffnessKronPC, SIPGStiffnessKronPC
 
     __all__ += [
-        "DIRKTimeStepper",
-        "BoundsConstrainedDirichletBC",
-        "getForm",
-        "RadauIIAIMEXMethod",
-        "DIRKIMEXMethod",
-        "DIRKNystromTimeStepper",
-        "ExplicitNystromTimeStepper",
-        "StageDerivativeNystromTimeStepper",
-        "ClassicNystrom4Tableau",
+        "TimeQuadratureLabel",
+        "DiscontinuousGalerkinScheme",
+        "ContinuousPetrovGalerkinScheme",
         "ClinesBase",
         "ClinesLD",
-        "IRKAuxiliaryOperatorPC",
         "NystromAuxiliaryOperatorPC",
         "RanaBase",
         "RanaDU",
         "RanaLD",
-        "StageValueTimeStepper",
-        "ContinuousPetrovGalerkinTimeStepper",
-        "DiscontinuousGalerkinTimeStepper",
-        "MultistepTimeStepper",
-        "TimeQuadratureLabel",
+        "IRKAuxiliaryOperatorPC",
+        "IRKAuxiliaryOperatorSNES",
         "TimeStepper",
+        "RanaDUScheme",
+        "RanaLDScheme",
+        "as_butcher_tableau",
         "KronPC",
         "MassKronPC",
         "StiffnessKronPC",

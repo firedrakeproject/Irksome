@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "IRKsome"
-version = "0.0.1"
+# TODO RELEASE
+version = "2026.1.0.dev0"
 authors = [
   { name = "Pablo Brubeck" },
   { name = "Patrick E. Farrell" },
