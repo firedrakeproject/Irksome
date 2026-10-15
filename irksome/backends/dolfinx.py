@@ -324,6 +324,7 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
                     len(self._preconditioner) == 1
                     and len(self._preconditioner[0]) == 1
                 )
+                jac_kargs["preconditioner"] = self._preconditioner[0][0]
         else:
             kargs = {
                 "u": u,
@@ -559,8 +560,12 @@ def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
     return bcs
 
 
-def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
-    """Create a variational problem."""
+def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
+    """Create a variational problem.
+
+    :param J: Optional bilinear form for the Jacobian of the stage problem.
+    :param Jp: Optional bilinear form used to assemble the preconditioner.
+    """
     rank = len(np.unique([arg.number() for arg in F.arguments()]))
     prefix = kwargs.get("petsc_options_prefix", "IrkSomeSolver")
     if isinstance(u, ListTensor):
@@ -575,16 +580,20 @@ def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
             u,
             bcs=bcs,
             petsc_options_prefix=prefix,
-            P=aP,
+            P=Jp,
             **kwargs,
         )
     elif rank == 1:
         F = ufl.extract_blocks(F)
+        J = None if J is None else ufl.extract_blocks(J)
+        Jp = None if Jp is None else ufl.extract_blocks(Jp)
         return NonlinearProblem(
             F,
             u,
             petsc_options_prefix=prefix,
             bcs=bcs,
+            J=J,
+            P=Jp,
             petsc_options=kwargs.get("solver_parameters"),
         )
     else:
@@ -738,7 +747,7 @@ def TrialFunction(function_space):
     This is required as :func:`ufl.TrialFunctions` returns a tuple of trial functions,
     which we need to convert to a tensor for consistency with the Firedrake backend.
     """
-    return ufl.as_tensor(ufl.TrialFunctions(function_space))
+    return ListTensor(*ufl.TrialFunctions(function_space))
 
 
 def Function(V: ufl.FunctionSpace | ufl.MixedFunctionSpace, name=None):
