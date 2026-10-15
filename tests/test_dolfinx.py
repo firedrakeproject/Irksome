@@ -22,10 +22,12 @@ from ufl import (
     TestFunction,
     TestFunctions,
     TrialFunction,
+    MixedFunctionSpace,
 )
 
 from irksome import GaussLegendre, Dt, MeshConstant
-from irksome.backends.dolfinx import assemble, dirichletbc, norm
+from irksome.backends.dolfinx import assemble, dirichletbc, norm, MixedFunction
+from irksome.backends.dolfinx import split as mixed_split, TestFunctions as mixed_test_functions
 from irksome.stage_derivative import StageDerivativeTimeStepper
 from irksome.tools import AI
 
@@ -502,6 +504,115 @@ def test_transpose_nullspace():
     assert transpose_nullspace.test(problem.A.transpose())
 
 
+@pytest.mark.parametrize("num_stages", [1, 2, 3])
+def test_stokes_mixed_function_space(num_stages):
+    """A ufl.MixedFunctionSpace gives the same solution as the equivalent mixed element."""
+    N = 8
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, N, N)
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    msh.topology.create_connectivity(0, msh.topology.dim)
+    boundary_facets = dolfinx.mesh.exterior_facet_indices(msh.topology)
+    corner_vertex = dolfinx.mesh.locate_entities(
+        msh, 0, lambda x: np.isclose(x[0], 0) & np.isclose(x[1], 0)
+    )
+
+    el_u = basix.ufl.element("Lagrange", msh.basix_cell(), 3, shape=(msh.geometry.dim,))
+    el_p = basix.ufl.element("Lagrange", msh.basix_cell(), 2)
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(1.0 / N)
+    (x, y) = SpatialCoordinate(msh)
+    uexact = as_vector([x * t + y**2, -y * t + t * (x**2)])
+    pexact = x + y * t ** (2 * num_stages)
+    u_rhs = Dt(uexact) - div(grad(uexact)) + grad(pexact)
+    p_rhs = -div(uexact)
+
+    def residual(u, p, v, q):
+        return (
+            inner(Dt(u), v) * dx
+            + inner(grad(u), grad(v)) * dx
+            - inner(p, div(v)) * dx
+            - inner(div(u), q) * dx
+            - inner(u_rhs, v) * dx
+            - inner(p_rhs, q) * dx
+        )
+
+    def stepper(F, u0, V, Q, name):
+        boundary_dofs = dolfinx.fem.locate_dofs_topological(
+            V, msh.topology.dim - 1, boundary_facets
+        )
+        corner_dof = dolfinx.fem.locate_dofs_topological(Q, 0, corner_vertex)
+        bcs = [
+            dirichletbc(uexact, boundary_dofs, V),
+            dirichletbc(pexact, corner_dof, Q),
+        ]
+        solver_parameters = {
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "pc_factor_mat_solver_type": "mumps",
+            "ksp_error_if_not_converged": True,
+            "snes_error_if_not_converged": True,
+            "snes_linesearch_type": "none",
+            "snes_atol": 1e-10,
+            "snes_rtol": 1e-10,
+            "petsc_options_prefix": f"stokes_{name}_{num_stages}_",
+        }
+        return StageDerivativeTimeStepper(
+            F,
+            GaussLegendre(num_stages),
+            t,
+            dt,
+            u0,
+            bcs=bcs,
+            solver_parameters=solver_parameters,
+            backend="dolfinx",
+        )
+
+    def interpolate(f, expr):
+        f.interpolate(
+            dolfinx.fem.Expression(expr, f.function_space.element.interpolation_points)
+        )
+
+    # Mixed element: one space with a blocked dof layout
+    Z = dolfinx.fem.functionspace(msh, basix.ufl.mixed_element([el_u, el_p]))
+    z = dolfinx.fem.Function(Z)
+    z_u, z_p = z.sub(0), z.sub(1)
+    interpolate(z_u, uexact)
+    interpolate(z_p, pexact)
+    stepper_z = stepper(
+        residual(*split(z), *TestFunctions(Z)), z, Z.sub(0), Z.sub(1), "element"
+    )
+
+    # Mixed function space: independent spaces, one sub-function each
+    V = dolfinx.fem.functionspace(msh, el_u)
+    Q = dolfinx.fem.functionspace(msh, el_p)
+    w = MixedFunction(MixedFunctionSpace(V, Q))
+    w_u, w_p = w.subfunctions
+    interpolate(w_u, uexact)
+    interpolate(w_p, pexact)
+    stepper_w = stepper(
+        residual(*mixed_split(w), *mixed_test_functions(w.ufl_function_space())),
+        w,
+        V,
+        Q,
+        "space",
+    )
+
+    for _ in range(3):
+        stepper_z.advance()
+        stepper_w.advance()
+        t.assign(float(t) + float(dt))
+
+        error = norm(w_u - uexact, norm_type="L2", mesh=msh)
+        assert error < 1e-9, f"Velocity error {error} at t={float(t)}"
+        for a, b in ((z_u, w_u), (z_p, w_p)):
+            difference = norm(a - b, norm_type="L2", mesh=msh)
+            assert difference < 1e-9, (
+                f"Formulations differ by {difference} at t={float(t)}"
+            )
+
+
 @pytest.mark.parametrize("num_stages", [1, 2])
 def test_vector_dirichlet_bc(num_stages):
     """A Dirichlet BC on a vector-valued (blocked) space is reconstructed on its stage spaces."""
@@ -542,3 +653,21 @@ def test_vector_dirichlet_bc(num_stages):
 
     error = norm(u - uexact, norm_type="L2", mesh=msh)
     assert error < 1e-10, f"Error {error} exceeds tolerance"
+
+
+def test_mixed_function_space_ufl_test_functions():
+    """ufl.TestFunctions on a MixedFunctionSpace gives a clear error, not a wrong form."""
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+    Q = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+    W = MixedFunctionSpace(V, Q)
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    w = MixedFunction(W)
+    u, p = mixed_split(w)
+    v, q = TestFunctions(W)
+    F = inner(Dt(u), v) * dx + inner(Dt(p), q) * dx
+    with pytest.raises(ValueError, match="irksome.backends.dolfinx.TestFunctions"):
+        StageDerivativeTimeStepper(F, GaussLegendre(1), t, dt, w, backend="dolfinx")
