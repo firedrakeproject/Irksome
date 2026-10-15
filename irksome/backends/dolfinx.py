@@ -809,14 +809,15 @@ def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
 
 
 class _DeferredProblem:
-    """A stage problem whose DOLFINx problem is built once the matrix kind is known.
+    """A stage problem whose DOLFINx problem is built once the solver parameters are known.
 
-    The kind follows from the solver parameters, which only reach
+    The matrix kind and the entity maps come from the solver parameters, which only reach
     :func:`create_variational_solver`.
 
     :param problem_type: The DOLFINx problem class to build.
     :param args: Positional arguments of ``problem_type``.
-    :param kwargs: Keyword arguments of ``problem_type``, except ``kind``.
+    :param kwargs: Keyword arguments of ``problem_type``, except ``kind`` and
+        ``entity_maps``.
     :param blocked: Whether the problem has more than one block, so that a kind applies.
     """
 
@@ -826,10 +827,15 @@ class _DeferredProblem:
         self._kwargs = kwargs
         self._blocked = blocked
 
-    def build(self, kind: str | None) -> LinearProblem | NonlinearProblem:
+    def build(
+        self, kind: str | None, entity_maps: Sequence[dolfinx.mesh.EntityMap] | None
+    ) -> LinearProblem | NonlinearProblem:
         """Build the DOLFINx problem, with ``kind`` if the problem is blocked."""
         return self._problem_type(
-            *self._args, kind=kind if self._blocked else None, **self._kwargs
+            *self._args,
+            kind=kind if self._blocked else None,
+            entity_maps=entity_maps,
+            **self._kwargs,
         )
 
 
@@ -921,12 +927,18 @@ def create_variational_solver(
 ) -> LinearProblem | NonlinearProblem:
     """Create a variational solver that uses PETSc SNES or KSP.
 
-    The solver parameter ``mat_type`` selects the matrix of a blocked stage problem:
-    ``"aij"`` (default) for a monolithic matrix, ``"nest"`` for a ``MATNEST`` with one block
-    per part.
+    Two solver parameters are used by the backend rather than passed to PETSc:
+
+    - ``mat_type`` selects the matrix of a blocked stage problem: ``"aij"`` (default) for a
+      monolithic matrix, ``"nest"`` for a ``MATNEST`` with one block per part.
+    - ``entity_maps`` is a list of :class:`dolfinx.mesh.EntityMap`, passed to the form
+      compiler for forms coupling functions on different meshes, e.g. on a submesh.
     """
     solver_parameters = kwargs.get("solver_parameters") or {}
-    problem = problem.build(_matrix_kind(solver_parameters.get("mat_type")))
+    problem = problem.build(
+        _matrix_kind(solver_parameters.get("mat_type")),
+        solver_parameters.get("entity_maps"),
+    )
     solver = problem.solver
 
     # Update solver prefix
@@ -944,7 +956,7 @@ def create_variational_solver(
     petsc_opts = {
         k: v
         for k, v in solver_parameters.items()
-        if k not in ("petsc_options_prefix", "mat_type")
+        if k not in ("petsc_options_prefix", "mat_type", "entity_maps")
     }
     opts = PETSc.Options()
     opts.prefixPush(solver_prefix)

@@ -765,3 +765,86 @@ def test_mixed_function_space_nest(num_stages):
             for f, f_ex in ((w_u, u_ex), (w_v, v_ex)):
                 error = norm(f - f_ex, norm_type="L2", mesh=msh)
                 assert error < 1e-9, f"Error {error} at t={float(t)}"
+
+
+@pytest.mark.parametrize("num_stages", [1, 2])
+def test_mixed_function_space_codim1_submesh(num_stages):
+    """A field on a codim-1 submesh, coupled through entity maps in the solver parameters.
+
+    Heat equation in the domain with a Robin coupling to an ODE on its boundary:
+    u_t - div(grad(u)) = f in the domain, grad(u).n = w - u + h and
+    w_t + w - u = g on the boundary.
+    """
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    tdim = msh.topology.dim
+    msh.topology.create_connectivity(tdim - 1, tdim)
+    facets = dolfinx.mesh.exterior_facet_indices(msh.topology)
+    boundary, entity_map, _, _ = dolfinx.mesh.create_submesh(msh, tdim - 1, facets)
+
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 2))
+    Q = dolfinx.fem.functionspace(boundary, ("Lagrange", 2))
+    W = MixedFunctionSpace(V, Q)
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
+    n = ufl.FacetNormal(msh)
+    t_var = ufl.variable(t)
+    u_ex = (1 + t_var) * (x**2 + y)
+    w_ex = (1 + t_var) * (x + y)
+    f = ufl.diff(u_ex, t_var) - div(grad(u_ex))
+    h = ufl.dot(grad(u_ex), n) + u_ex - w_ex
+    g = ufl.diff(w_ex, t_var) + w_ex - u_ex
+
+    def u_exact(x, t):
+        return (1 + t) * (x[0] ** 2 + x[1])
+
+    def w_exact(x, t):
+        return (1 + t) * (x[0] + x[1])
+
+    z = MixedFunction(W)
+    z_u, z_w = z.subfunctions
+    z_u.interpolate(lambda x: u_exact(x, 0.0))
+    z_w.interpolate(lambda x: w_exact(x, 0.0))
+
+    u, w = mixed_split(z)
+    v, q = mixed_test_functions(W)
+    dx_ = ufl.Measure("dx", domain=msh)
+    ds_ = ufl.Measure("ds", domain=msh)
+    F = (
+        inner(Dt(u), v) * dx_
+        + inner(grad(u), grad(v)) * dx_
+        - inner(f, v) * dx_
+        + inner(u - w, v) * ds_
+        - inner(h, v) * ds_
+        + inner(Dt(w), q) * ds_
+        + inner(w - u, q) * ds_
+        - inner(g, q) * ds_
+    )
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        z,
+        solver_parameters={
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "pc_factor_mat_solver_type": "mumps",
+            "ksp_error_if_not_converged": True,
+            "entity_maps": [entity_map],
+            "petsc_options_prefix": f"codim1_{num_stages}_",
+        },
+        backend="dolfinx",
+    )
+
+    exact_u = dolfinx.fem.Function(V)
+    exact_w = dolfinx.fem.Function(Q)
+    for _ in range(2):
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+        exact_u.interpolate(lambda x: u_exact(x, float(t)))
+        exact_w.interpolate(lambda x: w_exact(x, float(t)))
+        assert np.allclose(z_u.x.array, exact_u.x.array, atol=1e-10)
+        assert np.allclose(z_w.x.array, exact_w.x.array, atol=1e-10)
