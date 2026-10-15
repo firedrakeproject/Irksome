@@ -1,5 +1,6 @@
 import pytest
 import gc
+import logging
 
 from mpi4py import MPI
 
@@ -9,7 +10,18 @@ import basix.ufl
 import numpy as np
 import ufl
 
-from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions, TrialFunction
+from ufl import (
+    div,
+    grad,
+    inner,
+    dx,
+    as_vector,
+    split,
+    SpatialCoordinate,
+    TestFunction,
+    TestFunctions,
+    TrialFunction,
+)
 
 from irksome import GaussLegendre, Dt, MeshConstant
 from irksome.backends.dolfinx import dirichletbc, norm
@@ -61,7 +73,9 @@ def test_stokes(num_stages):
     )
 
     msh.topology.create_connectivity(0, msh.topology.dim)
-    corner_vertex = dolfinx.mesh.locate_entities(msh, 0, lambda x: np.isclose(x[0], 0) & np.isclose(x[1], 0))
+    corner_vertex = dolfinx.mesh.locate_entities(
+        msh, 0, lambda x: np.isclose(x[0], 0) & np.isclose(x[1], 0)
+    )
     corner_dof = dolfinx.fem.locate_dofs_topological(W.sub(1), 0, corner_vertex)
 
     # Dirichlet BCs (irksome style with UFL expression)
@@ -246,3 +260,63 @@ def test_user_preconditioner(num_stages):
     t.assign(float(t) + float(dt))
     error = norm(u - u_ex, norm_type="L2", mesh=msh)
     assert error < 1e-10, f"Error {error} exceeds tolerance"
+
+
+@pytest.mark.parametrize("num_stages", [1, 2])
+@pytest.mark.parametrize("use_Jp", [False, True])
+def test_bilinear_form(num_stages, use_Jp):
+    """A bilinear F is solved as a linear stage problem."""
+    msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
+    F = ufl.replace(F, {u: TrialFunction(u.function_space)})
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        u,
+        Jp=2 * J if use_Jp else None,
+        solver_parameters={
+            "ksp_type": "gmres",
+            "ksp_rtol": 1e-12,
+            "pc_type": "lu",
+            "ksp_error_if_not_converged": True,
+            "petsc_options_prefix": f"bilinear_{num_stages}_{use_Jp}_",
+        },
+        backend="dolfinx",
+    )
+    assert (stepper.solver.P_mat is not None) == use_Jp
+
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+    error = norm(u - u_ex, norm_type="L2", mesh=msh)
+    assert error < 1e-10, f"Error {error} exceeds tolerance"
+    num_steps, _, num_linear_iterations = stepper.solver_stats()
+    assert num_steps == 1
+    assert num_linear_iterations > 0
+
+
+@pytest.mark.parametrize("bilinear", [False, True])
+def test_form_compiler_parameters(bilinear):
+    """form_compiler_parameters reach FFCx as DOLFINx form_compiler_options."""
+    _msh, t, dt, u, F, _J, _u_ex = _manufactured_heat_problem()
+    if bilinear:
+        F = ufl.replace(F, {u: TrialFunction(u.function_space)})
+
+    # FFCx applies the "verbosity" option to its logger on every (cached) compilation
+    ffcx_logger = logging.getLogger("ffcx")
+    level = ffcx_logger.level
+    ffcx_logger.setLevel(logging.WARNING)
+    try:
+        StageDerivativeTimeStepper(
+            F,
+            GaussLegendre(1),
+            t,
+            dt,
+            u,
+            form_compiler_parameters={"verbosity": logging.ERROR},
+            solver_parameters={"petsc_options_prefix": f"fcp_{bilinear}_"},
+            backend="dolfinx",
+        )
+        assert ffcx_logger.level == logging.ERROR
+    finally:
+        ffcx_logger.setLevel(level)

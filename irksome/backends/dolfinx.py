@@ -240,6 +240,19 @@ class ListTensor(ufl.tensors.ListTensor):
         return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(self.ufl_shape[0])])
 
 
+class _KSPOnlySNES:
+    """SNES iteration counters for a linear solve, as reported by a ``ksponly`` SNES."""
+
+    def __init__(self, ksp: PETSc.KSP):  # type: ignore[name-defined]
+        self._ksp = ksp
+
+    def getIterationNumber(self) -> int:
+        return 1
+
+    def getLinearSolveIterations(self) -> int:
+        return self._ksp.getIterationNumber()
+
+
 class LinearProblem(dolfinx.fem.petsc.LinearProblem):
     """Overloaded linear problem that pack BCs before solving"""
 
@@ -248,6 +261,10 @@ class LinearProblem(dolfinx.fem.petsc.LinearProblem):
             raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
         [bc.pack() for bc in self._bcs]
         super().solve()
+
+    @property
+    def snes(self) -> _KSPOnlySNES:
+        return _KSPOnlySNES(self.solver)
 
 
 class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
@@ -568,20 +585,27 @@ def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
     """
     rank = len(np.unique([arg.number() for arg in F.arguments()]))
     prefix = kwargs.get("petsc_options_prefix", "IrkSomeSolver")
+    form_compiler_options = kwargs.get("form_compiler_parameters")
     if isinstance(u, ListTensor):
         u = u.subfunctions
     if rank == 2:
         a, L = ufl.system(F)
         a = ufl.extract_blocks(a)
         L = ufl.extract_blocks(L)
+        # As for Firedrake's LinearVariationalProblem, J is not used for a linear problem
+        Jp = None if Jp is None else ufl.extract_blocks(Jp)
+        if len(u) == 1:
+            # DOLFINx creates a non-blocked vector for a single block
+            a, L, u = a[0][0], L[0], u[0]
+            Jp = None if Jp is None else Jp[0][0]
         return LinearProblem(
             a,
             L,
-            u,
+            u=u,
             bcs=bcs,
             petsc_options_prefix=prefix,
             P=Jp,
-            **kwargs,
+            form_compiler_options=form_compiler_options,
         )
     elif rank == 1:
         F = ufl.extract_blocks(F)
@@ -595,6 +619,7 @@ def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
             J=J,
             P=Jp,
             petsc_options=kwargs.get("solver_parameters"),
+            form_compiler_options=form_compiler_options,
         )
     else:
         raise RuntimeError(f"Forms of rank {rank} are not supported in create_variational_problem")
