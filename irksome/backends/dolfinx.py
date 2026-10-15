@@ -659,9 +659,12 @@ def create_variational_solver(
         opts.delValue(f"{solver_prefix}{k}")
 
     nullspace = kwargs.get("nullspace", None)
+    transpose_nullspace = kwargs.get("transpose_nullspace", None)
     near_nullspace = kwargs.get("near_nullspace", None)
     if nullspace is not None:
         problem.A.setNullSpace(nullspace)
+    if transpose_nullspace is not None:
+        problem.A.setTransposeNullSpace(transpose_nullspace)
     if near_nullspace is not None:
         problem.A.setNearNullSpace(near_nullspace)
     return problem

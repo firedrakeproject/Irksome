@@ -33,6 +33,9 @@ from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestF
     TrialFunction,
 )
 
+
+from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions
+
 from irksome import GaussLegendre, Dt, MeshConstant
 from irksome.backends.dolfinx import assemble, dirichletbc, norm
 from irksome.stage_derivative import StageDerivativeTimeStepper
@@ -271,6 +274,10 @@ def test_assemble():
 @pytest.mark.parametrize("num_stages", [1, 2, 3])
 def test_constant_stage_nullspace(num_stages):
     """A constant nullspace becomes one constant per stage."""
+
+
+def test_transpose_nullspace():
+    """A transpose nullspace is attached to the stage operator."""
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
     V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
 
@@ -460,3 +467,30 @@ def test_form_compiler_parameters(bilinear):
         assert ffcx_logger.level == logging.ERROR
     finally:
         ffcx_logger.setLevel(level)
+
+
+    # Symmetric stage operator with constants in its kernel and in that of its transpose
+    F = inner(grad(Dt(u)), grad(v)) * dx + inner(grad(u), grad(v)) * dx
+
+    constant = dolfinx.fem.Function(V)
+    constant.x.array[:] = 1.0
+    constant.x.petsc_vec.normalize()
+    nullspace = PETSc.NullSpace().create(vectors=[constant.x.petsc_vec], comm=msh.comm)
+
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(1),
+        t,
+        dt,
+        u,
+        transpose_nullspace=nullspace,
+        solver_parameters={"petsc_options_prefix": "transpose_nsp_"},
+        backend="dolfinx",
+    )
+    problem = stepper.solver
+    problem.snes.computeJacobian(problem.x, problem.A, problem.A)
+
+    transpose_nullspace = problem.A.getTransposeNullSpace()
+    assert transpose_nullspace.handle != 0
+    assert len(transpose_nullspace.getVecs()) == 1
+    assert transpose_nullspace.test(problem.A.transpose())
