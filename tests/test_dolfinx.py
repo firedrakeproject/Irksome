@@ -21,20 +21,8 @@ from ufl import (
     SpatialCoordinate,
     TestFunction,
     TestFunctions,
-)
-
-
-from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunctions, TestFunction
-
-
-from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions
-
-
     TrialFunction,
 )
-
-
-from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions
 
 from irksome import GaussLegendre, Dt, MeshConstant
 from irksome.backends.dolfinx import assemble, dirichletbc, norm
@@ -161,35 +149,6 @@ def test_default_solver_parameters():
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, N, N)
     V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
 
-
-def _stage_jacobian(stepper):
-    """Assemble the stage Jacobian of a DOLFINx-backed stepper."""
-    problem = stepper.solver
-    A = problem.A
-    P = problem.P_mat if problem.P_mat is not None else A
-    problem.snes.computeJacobian(problem.x, A, P)
-    return A
-
-
-@pytest.mark.parametrize("num_stages", [1, 2, 3])
-def test_stokes_stage_nullspace(num_stages):
-    """A constant pressure in each stage spans the Stokes stage nullspace."""
-    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
-    el_u = basix.ufl.element("Lagrange", msh.basix_cell(), 2, shape=(msh.geometry.dim,))
-    el_p = basix.ufl.element("Lagrange", msh.basix_cell(), 1)
-    W = dolfinx.fem.functionspace(msh, basix.ufl.mixed_element([el_u, el_p]))
-
-
-
-def _manufactured_heat_problem():
-    """Heat equation with a manufactured solution, flux BCs and its exact Jacobian.
-
-    The solution is linear in time and quadratic in space, so Gauss-Legendre with P2
-    reproduces it up to round-off. Natural BCs keep the stage operators free of
-    Dirichlet rows.
-    """
-    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
-    V = dolfinx.fem.functionspace(msh, ("Lagrange", 2))
     MC = MeshConstant(msh, backend="dolfinx")
     t = MC.Constant(0.0)
     dt = MC.Constant(0.1)
@@ -228,6 +187,29 @@ def test_assemble():
 
     b = assemble(TestFunction(V) * dx)
     assert np.isclose(b.array.sum(), 1.0)
+
+
+def _stage_jacobian(stepper):
+    """Assemble the stage Jacobian of a DOLFINx-backed stepper."""
+    problem = stepper.solver
+    A = problem.A
+    P = problem.P_mat if problem.P_mat is not None else A
+    problem.snes.computeJacobian(problem.x, A, P)
+    return A
+
+
+@pytest.mark.parametrize("num_stages", [1, 2, 3])
+def test_stokes_stage_nullspace(num_stages):
+    """A constant pressure in each stage spans the Stokes stage nullspace."""
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    el_u = basix.ufl.element("Lagrange", msh.basix_cell(), 2, shape=(msh.geometry.dim,))
+    el_p = basix.ufl.element("Lagrange", msh.basix_cell(), 1)
+    W = dolfinx.fem.functionspace(msh, basix.ufl.mixed_element([el_u, el_p]))
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
 
     z = dolfinx.fem.Function(W)
     u, p = split(z)
@@ -274,10 +256,6 @@ def test_assemble():
 @pytest.mark.parametrize("num_stages", [1, 2, 3])
 def test_constant_stage_nullspace(num_stages):
     """A constant nullspace becomes one constant per stage."""
-
-
-def test_transpose_nullspace():
-    """A transpose nullspace is attached to the stage operator."""
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
     V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
 
@@ -290,8 +268,35 @@ def test_transpose_nullspace():
     F = inner(grad(Dt(u)), grad(v)) * dx + inner(grad(u), grad(v)) * dx
 
     nullspace = PETSc.NullSpace().create(constant=True, comm=msh.comm)
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        u,
+        nullspace=nullspace,
+        solver_parameters={"petsc_options_prefix": f"constant_nsp_{num_stages}_"},
+        backend="dolfinx",
+    )
+    A = _stage_jacobian(stepper)
+    stage_nullspace = A.getNullSpace()
+    assert len(stage_nullspace.getVecs()) == num_stages
+    assert stage_nullspace.test(A)
 
 
+def _manufactured_heat_problem():
+    """Heat equation with a manufactured solution, flux BCs and its exact Jacobian.
+
+    The solution is linear in time and quadratic in space, so Gauss-Legendre with P2
+    reproduces it up to round-off. Natural BCs keep the stage operators free of
+    Dirichlet rows.
+    """
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 2))
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
     n = ufl.FacetNormal(msh)
 
     # f is built from the stepper's t, so that stage times are substituted in it
@@ -333,16 +338,6 @@ def test_user_jacobian(num_stages):
         t,
         dt,
         u,
-        nullspace=nullspace,
-        solver_parameters={"petsc_options_prefix": f"constant_nsp_{num_stages}_"},
-        backend="dolfinx",
-    )
-    A = _stage_jacobian(stepper)
-    stage_nullspace = A.getNullSpace()
-    assert len(stage_nullspace.getVecs()) == num_stages
-    assert stage_nullspace.test(A)
-
-
         solver_parameters={**lu, "petsc_options_prefix": f"auto_J_{num_stages}_"},
         backend="dolfinx",
     )
@@ -469,6 +464,17 @@ def test_form_compiler_parameters(bilinear):
         ffcx_logger.setLevel(level)
 
 
+def test_transpose_nullspace():
+    """A transpose nullspace is attached to the stage operator."""
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+
+    u = dolfinx.fem.Function(V)
+    v = TestFunction(V)
     # Symmetric stage operator with constants in its kernel and in that of its transpose
     F = inner(grad(Dt(u)), grad(v)) * dx + inner(grad(u), grad(v)) * dx
 
