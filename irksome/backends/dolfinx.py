@@ -719,7 +719,7 @@ def norm(
 def assemble(expr: ufl.core.expr.Expr | float):
     """Assemble a UFL expression in the backend language."""
     if isinstance(expr, float):
-        return float
+        return expr
     else:
         form = dolfinx.fem.form(expr)
         if form.rank == 0:
