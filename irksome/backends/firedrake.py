@@ -148,6 +148,15 @@ def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=Non
     return BoundsConstrainedDirichletBC(V, g, sub_domain, bounds, solver_parameters=solver_parameters)
 
 
+def _stage_nullspace_basis(basis, V):
+    vecs = [Function(vec) for vec in basis._vecs]
+    if basis._constant:
+        vecs.insert(0, Function(V).assign(1))
+    stage_basis = firedrake.VectorSpaceBasis(vecs, comm=basis.comm)
+    stage_basis.orthonormalize()
+    return stage_basis
+
+
 def getNullspace(V, Vbig, num_stages, nullspace):
     """
     Computes the nullspace for a multi-stage method.
@@ -181,7 +190,9 @@ def getNullspace(V, Vbig, num_stages, nullspace):
             count = 0
             for j in range(num_fields):
                 if count < nsp_comp and j == nullspace[count][0]:
-                    nspnew.append(nullspace[count][1])
+                    basis = nullspace[count][1]
+                    nspnew.append(_stage_nullspace_basis(
+                        basis, Vbig.sub(j + num_fields * i)))
                     count += 1
                 else:
                     nspnew.append(Vbig.sub(j + num_fields * i))
