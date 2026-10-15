@@ -414,6 +414,10 @@ class DirichletBC(dolfinx.fem.DirichletBC):
         :param V: The space to construct the BC on.
         """
 
+        # Keep the dofs as given: for a blocked space, dof_indices() returns unrolled dofs,
+        # which cannot be passed back to this constructor
+        self._input_dofs = dofs
+
         # Store original UFL expression for time-varying BCs
         if not isinstance(g, (dolfinx.fem.Function, dolfinx.fem.Constant, int, float, complex)):
             self._ufl_expr = g  # Save the symbolic expression
@@ -541,7 +545,7 @@ class DirichletBC(dolfinx.fem.DirichletBC):
         return self._orig_g
 
     def reconstruct(self, V, g):
-        return DirichletBC(g, self.dof_indices()[0], V=V)
+        return DirichletBC(g, self._input_dofs, V=V)
 
 
 def dirichletbc(
@@ -611,6 +615,11 @@ def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
         F = ufl.extract_blocks(F)
         J = None if J is None else ufl.extract_blocks(J)
         Jp = None if Jp is None else ufl.extract_blocks(Jp)
+        if len(u) == 1:
+            # A single block gets non-blocked matrices and vectors, matching its assembly
+            F, u = F[0], u[0]
+            J = None if J is None else J[0][0]
+            Jp = None if Jp is None else Jp[0][0]
         return NonlinearProblem(
             F,
             u,
