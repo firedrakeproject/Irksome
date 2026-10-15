@@ -2,6 +2,7 @@ import pytest
 import gc
 
 from mpi4py import MPI
+from petsc4py import PETSc
 
 dolfinx = pytest.importorskip("dolfinx")
 
@@ -22,6 +23,9 @@ from ufl import (
 
 
 from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunctions, TestFunction
+
+
+from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions
 
 from irksome import GaussLegendre, Dt, MeshConstant
 from irksome.backends.dolfinx import assemble, dirichletbc, norm
@@ -146,6 +150,24 @@ def test_default_solver_parameters():
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, N, N)
     V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
 
+
+def _stage_jacobian(stepper):
+    """Assemble the stage Jacobian of a DOLFINx-backed stepper."""
+    problem = stepper.solver
+    A = problem.A
+    P = problem.P_mat if problem.P_mat is not None else A
+    problem.snes.computeJacobian(problem.x, A, P)
+    return A
+
+
+@pytest.mark.parametrize("num_stages", [1, 2, 3])
+def test_stokes_stage_nullspace(num_stages):
+    """A constant pressure in each stage spans the Stokes stage nullspace."""
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    el_u = basix.ufl.element("Lagrange", msh.basix_cell(), 2, shape=(msh.geometry.dim,))
+    el_p = basix.ufl.element("Lagrange", msh.basix_cell(), 1)
+    W = dolfinx.fem.functionspace(msh, basix.ufl.mixed_element([el_u, el_p]))
+
     MC = MeshConstant(msh, backend="dolfinx")
     t = MC.Constant(0.0)
     dt = MC.Constant(0.1)
@@ -184,3 +206,75 @@ def test_assemble():
 
     b = assemble(TestFunction(V) * dx)
     assert np.isclose(b.array.sum(), 1.0)
+
+    z = dolfinx.fem.Function(W)
+    u, p = split(z)
+    (v, q) = TestFunctions(W)
+    F = (
+        inner(Dt(u), v) * dx
+        + inner(grad(u), grad(v)) * dx
+        - inner(p, div(v)) * dx
+        - inner(div(u), q) * dx
+    )
+
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    boundary_dofs = dolfinx.fem.locate_dofs_topological(
+        W.sub(0),
+        msh.topology.dim - 1,
+        dolfinx.mesh.exterior_facet_indices(msh.topology),
+    )
+    bcs = [dirichletbc(as_vector([t * y, t * x]), boundary_dofs, W.sub(0))]
+
+    # Constant pressure, zero velocity
+    n = dolfinx.fem.Function(W)
+    _, p_to_mixed = W.sub(1).collapse()
+    n.x.array[p_to_mixed] = 1.0
+    n.x.petsc_vec.normalize()
+    nullspace = PETSc.NullSpace().create(vectors=[n.x.petsc_vec], comm=msh.comm)
+
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        z,
+        bcs=bcs,
+        nullspace=nullspace,
+        solver_parameters={"petsc_options_prefix": f"stokes_nsp_{num_stages}_"},
+        backend="dolfinx",
+    )
+    A = _stage_jacobian(stepper)
+    stage_nullspace = A.getNullSpace()
+    assert len(stage_nullspace.getVecs()) == num_stages
+    assert stage_nullspace.test(A)
+
+
+@pytest.mark.parametrize("num_stages", [1, 2, 3])
+def test_constant_stage_nullspace(num_stages):
+    """A constant nullspace becomes one constant per stage."""
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+
+    u = dolfinx.fem.Function(V)
+    v = TestFunction(V)
+    F = inner(grad(Dt(u)), grad(v)) * dx + inner(grad(u), grad(v)) * dx
+
+    nullspace = PETSc.NullSpace().create(constant=True, comm=msh.comm)
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        u,
+        nullspace=nullspace,
+        solver_parameters={"petsc_options_prefix": f"constant_nsp_{num_stages}_"},
+        backend="dolfinx",
+    )
+    A = _stage_jacobian(stepper)
+    stage_nullspace = A.getNullSpace()
+    assert len(stage_nullspace.getVecs()) == num_stages
+    assert stage_nullspace.test(A)

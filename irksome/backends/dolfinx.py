@@ -800,27 +800,34 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     :param nullspace: The nullspace for the original problem.
 
     On output, we produce a PETSc nullspace defining the nullspace for the multistage problem.
+    Each nullspace vector (and the constant, if present) is placed in each stage separately,
+    giving `num_stages` orthonormal vectors per original vector.
     """
     if nullspace is None:
-        nspnew = None
-    else:
-        old_vecs = nullspace.getVecs()
-        tmp_func = dolfinx.fem.Function(V)
-        new_vecs = [
-            dolfinx.fem.petsc.create_vector(Vbig.ufl_sub_spaces())
-            for _ in range(len(old_vecs))
-        ]
-        for i in range(len(old_vecs)):
-            # Copy the old nullspace vector into all stages of the new nullspace vector
-            old_vecs[i].copy(tmp_func.x.petsc_vec)
-            tmp_func.x.scatter_forward()
+        return None
+
+    stage_funcs = []
+    if nullspace.hasConstant():
+        constant = dolfinx.fem.Function(V)
+        constant.x.array[:] = 1.0
+        stage_funcs.append(constant)
+    for vec in nullspace.getVecs():
+        func = dolfinx.fem.Function(V)
+        vec.copy(func.x.petsc_vec)
+        func.x.scatter_forward()
+        stage_funcs.append(func)
+
+    zero = dolfinx.fem.Function(V)
+    new_vecs = []
+    for func in stage_funcs:
+        for i in range(num_stages):
+            new_vec = dolfinx.fem.petsc.create_vector(Vbig.ufl_sub_spaces())
             dolfinx.fem.petsc.assign(
-                [tmp_func for _ in range(num_stages)], new_vecs[i]
+                [func if j == i else zero for j in range(num_stages)], new_vec
             )
-        nspnew = PETSc.NullSpace().create(
-            vectors=new_vecs, comm=nullspace.getComm()
-        )
-    return nspnew
+            new_vec.normalize()
+            new_vecs.append(new_vec)
+    return PETSc.NullSpace().create(vectors=new_vecs, comm=nullspace.getComm())
 
 
 derivative = ufl.derivative
