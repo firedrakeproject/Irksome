@@ -8,7 +8,7 @@ dolfinx = pytest.importorskip("dolfinx")
 import basix.ufl
 import numpy as np
 
-from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunctions
+from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions
 
 from irksome import GaussLegendre, Dt, MeshConstant
 from irksome.backends.dolfinx import dirichletbc, norm
@@ -125,3 +125,45 @@ def test_stokes(num_stages):
     msh.comm.Barrier()
     gc.collect()
     msh.comm.Barrier()
+
+
+@pytest.mark.parametrize("num_stages", [1, 2])
+def test_vector_dirichlet_bc(num_stages):
+    """A Dirichlet BC on a vector-valued (blocked) space is reconstructed on its stage spaces."""
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1, (msh.geometry.dim,)))
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
+    uexact = as_vector([t + x, t + y])
+
+    u = dolfinx.fem.Function(V)
+    u.interpolate(dolfinx.fem.Expression(uexact, V.element.interpolation_points))
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(Dt(uexact), v) * dx
+
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    boundary_dofs = dolfinx.fem.locate_dofs_topological(
+        V, msh.topology.dim - 1, dolfinx.mesh.exterior_facet_indices(msh.topology)
+    )
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        u,
+        bcs=[dirichletbc(uexact, boundary_dofs, V)],
+        solver_parameters={
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "petsc_options_prefix": f"vector_bc_{num_stages}_",
+        },
+        backend="dolfinx",
+    )
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+
+    error = norm(u - uexact, norm_type="L2", mesh=msh)
+    assert error < 1e-10, f"Error {error} exceeds tolerance"
