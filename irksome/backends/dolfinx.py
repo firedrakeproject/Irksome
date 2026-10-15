@@ -596,7 +596,7 @@ def create_variational_solver(
     **kwargs,
 ):
     """Create a variational solver that uses PETSc SNES or KSP."""
-    solver_parameters = kwargs.get("solver_parameters", {})
+    solver_parameters = kwargs.get("solver_parameters") or {}
     solver = problem.solver
 
     # Update solver prefix
