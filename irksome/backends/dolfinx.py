@@ -274,12 +274,14 @@ class _SymbolicMixedSpace(ufl.MixedFunctionSpace):
 
     @classmethod
     def from_mixed_space(cls, W: ufl.MixedFunctionSpace) -> _SymbolicMixedSpace:
-        """Get the symbolic space of ``W``, the same object on every call."""
+        """Get the symbolic space of ``W``.
+
+        UFL compares mixed function spaces by their sub-spaces, so the symbolic spaces of the
+        same ``W`` compare equal.
+        """
         if isinstance(W, cls):
             return W
-        if not hasattr(W, "_irksome_symbolic_space"):
-            W._irksome_symbolic_space = cls(*W.ufl_sub_spaces())
-        return W._irksome_symbolic_space
+        return cls(*W.ufl_sub_spaces())
 
     def is_cellwise_constant(self) -> bool:
         return all(
@@ -300,10 +302,14 @@ class MixedFunction(ufl.Coefficient):
     def __init__(self, function_space: ufl.MixedFunctionSpace, name: str | None = None):
         space = _SymbolicMixedSpace.from_mixed_space(function_space)
         super().__init__(space)
-        self.subfunctions = [
+        self._subfunctions = [
             dolfinx.fem.Function(V, name=None if name is None else f"{name}_{j}")
             for j, V in enumerate(space.ufl_sub_spaces())
         ]
+
+    @property
+    def subfunctions(self) -> list[dolfinx.fem.Function]:
+        return self._subfunctions
 
     def is_cellwise_constant(self) -> bool:
         return self.ufl_function_space().is_cellwise_constant()
