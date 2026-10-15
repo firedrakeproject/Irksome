@@ -240,14 +240,227 @@ class ListTensor(ufl.tensors.ListTensor):
         return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(self.ufl_shape[0])])
 
 
+def _components(objs: Sequence[ufl.core.expr.Expr]) -> list[ufl.core.expr.Expr]:
+    """Scalar components of a sequence of UFL expressions, in order."""
+    components = []
+    for obj in objs:
+        if obj.ufl_shape == ():
+            components.append(obj)
+        else:
+            components.extend(obj[idx] for idx in np.ndindex(obj.ufl_shape))
+    return components
+
+
+def _flatten(objs: Sequence[ufl.core.expr.Expr]) -> ufl.core.expr.Expr:
+    """Stack the scalar components of a sequence of UFL expressions into one vector."""
+    return ufl.as_vector(_components(objs))
+
+
+class _SymbolicMixedSpace(ufl.MixedFunctionSpace):
+    """A :class:`ufl.MixedFunctionSpace` of independent DOLFINx spaces with a value shape.
+
+    The value shape is that of the stacked components of the sub-spaces. The space is
+    symbolic only: it has no element or dofmap, and coefficients and arguments on it are
+    replaced by the stacked components of per-space objects before assembly.
+    """
+
+    @property
+    def value_size(self) -> int:
+        return sum(V.value_size for V in self.ufl_sub_spaces())
+
+    @property
+    def value_shape(self) -> tuple[int]:
+        return (self.value_size,)
+
+    @classmethod
+    def from_mixed_space(cls, W: ufl.MixedFunctionSpace) -> _SymbolicMixedSpace:
+        """Get the symbolic space of ``W``.
+
+        UFL compares mixed function spaces by their sub-spaces, so the symbolic spaces of the
+        same ``W`` compare equal.
+        """
+        if isinstance(W, cls):
+            return W
+        return cls(*W.ufl_sub_spaces())
+
+    def is_cellwise_constant(self) -> bool:
+        return all(
+            V.ufl_element().is_cellwise_constant() for V in self.ufl_sub_spaces()
+        )
+
+
+class MixedFunction(ufl.Coefficient):
+    """A function on a :class:`ufl.MixedFunctionSpace` of independent DOLFINx spaces.
+
+    The values are stored in :attr:`subfunctions`, one :class:`dolfinx.fem.Function` per
+    sub-space. Use :func:`split` to get the components when writing forms.
+
+    :param function_space: The mixed function space.
+    :param name: Optional name, used as prefix for the sub-function names.
+    """
+
+    def __init__(self, function_space: ufl.MixedFunctionSpace, name: str | None = None):
+        space = _SymbolicMixedSpace.from_mixed_space(function_space)
+        super().__init__(space)
+        self._subfunctions = [
+            dolfinx.fem.Function(V, name=None if name is None else f"{name}_{j}")
+            for j, V in enumerate(space.ufl_sub_spaces())
+        ]
+
+    @property
+    def subfunctions(self) -> list[dolfinx.fem.Function]:
+        return self._subfunctions
+
+    def is_cellwise_constant(self) -> bool:
+        return self.ufl_function_space().is_cellwise_constant()
+
+
+class MixedArgument(ufl.Argument):
+    """An argument on a :class:`ufl.MixedFunctionSpace` of independent DOLFINx spaces.
+
+    Use :func:`TestFunctions` rather than creating it directly.
+    """
+
+    def __init__(self, function_space: ufl.MixedFunctionSpace, number: int):
+        super().__init__(_SymbolicMixedSpace.from_mixed_space(function_space), number)
+
+    def is_cellwise_constant(self) -> bool:
+        return self.ufl_function_space().is_cellwise_constant()
+
+
+def split(v: ufl.core.expr.Expr) -> tuple[ufl.core.expr.Expr, ...]:
+    """Split a function or argument into its components.
+
+    Extends :func:`ufl.split` to :class:`MixedFunction` and :class:`MixedArgument`, giving one
+    component per sub-space.
+    """
+    if not isinstance(v, (MixedFunction, MixedArgument)):
+        return ufl.split(v)
+    components = []
+    offset = 0
+    for V in v.ufl_function_space().ufl_sub_spaces():
+        values = [v[offset + k] for k in range(V.value_size)]
+        if V.value_shape == ():
+            components.append(values[0])
+        else:
+            components.append(ufl.as_tensor(np.reshape(values, V.value_shape)))
+        offset += V.value_size
+    return tuple(components)
+
+
+def TestFunctions(
+    function_space: ufl.MixedFunctionSpace,
+) -> tuple[ufl.core.expr.Expr, ...]:
+    """Create the test functions of a :class:`ufl.MixedFunctionSpace` for an Irksome form.
+
+    Unlike :func:`ufl.TestFunctions`, the components share a single argument, as the
+    time steppers require.
+    """
+    return split(MixedArgument(function_space, 0))
+
+
+class _StageSpace(ufl.MixedFunctionSpace):
+    """Stage space of a mixed problem, where part ``nf * i + j`` is field ``j`` of stage ``i``."""
+
+
+class MixedStages:
+    """Stage functions or arguments of a mixed problem, stacked into one vector.
+
+    The vector holds the scalar components of every part in order: stage by stage, and within
+    a stage field by field. Each stage is thus a contiguous block of ``value_size`` components,
+    laid out like a :class:`MixedFunction` of the single-stage problem.
+
+    :param function_space: The mixed function space of all stages, with one sub-space per
+        part, where part ``nf * i + j`` is field ``j`` of stage ``i``.
+    :param parts: One function or argument per sub-space of ``function_space``, in the same
+        order.
+    """
+
+    def __init__(
+        self, function_space: _StageSpace, parts: Sequence[ufl.core.expr.Expr]
+    ):
+        self._subfunctions = list(parts)
+        self._function_space = function_space
+        self._components = _components(self._subfunctions)
+        self.ufl_shape = (len(self._components),)
+
+    @property
+    def subfunctions(self) -> list[ufl.core.expr.Expr]:
+        return self._subfunctions
+
+    def __getitem__(self, index):
+        (k,) = index if isinstance(index, tuple) else (index,)
+        return self._components[k]
+
+    def function_space(self) -> _StageSpace:
+        return self._function_space
+
+
+def _stage_arguments(V: _StageSpace, number: int) -> MixedStages:
+    return MixedStages(
+        V, [ufl.Argument(Vk, number, part=k) for k, Vk in enumerate(V.ufl_sub_spaces())]
+    )
+
+
+def _expand_mixed_functions(form: ufl.Form | None) -> ufl.Form | None:
+    """Replace each :class:`MixedFunction` by the stacked components of its sub-functions."""
+    if form is None:
+        return form
+    mapping = {
+        c: _flatten(c.subfunctions)
+        for c in form.coefficients()
+        if isinstance(c, MixedFunction)
+    }
+    return ufl.replace(form, mapping) if mapping else form
+
+
+def _add_bc_diagonal_blocks(
+    F: ufl.Form, u: Sequence[dolfinx.fem.Function], bcs, rank: int
+) -> ufl.Form:
+    """Add a zero diagonal block for each block of a mixed stage problem with a Dirichlet BC.
+
+    A Dirichlet BC needs the diagonal of its block in the sparsity pattern. A field that does
+    not appear in its own equation, such as the pressure in Stokes, has no diagonal block, and
+    DOLFINx would then silently drop the BC's diagonal entries. Whether a block vanishes cannot
+    be decided reliably on the stacked stage expressions, so the zero block is always added.
+    """
+    for k, uk in enumerate(u):
+        V = uk.function_space
+        if not any(V.contains(bc.function_space) for bc in bcs):
+            continue
+        trial = uk if rank == 1 else ufl.Argument(V, 1, part=k)
+        zero = dolfinx.fem.Constant(V.mesh, uk.x.array.dtype.type(0))
+        F += zero * ufl.inner(trial, ufl.Argument(V, 0, part=k)) * ufl.dx(domain=V.mesh)
+    return F
+
+
+class _KSPOnlySNES:
+    """SNES iteration counters for a linear solve, as reported by a ``ksponly`` SNES."""
+
+    def __init__(self, ksp: PETSc.KSP):  # type: ignore[name-defined]
+        self._ksp = ksp
+
+    def getIterationNumber(self) -> int:
+        return 1
+
+    def getLinearSolveIterations(self) -> int:
+        return self._ksp.getIterationNumber()
+
+
 class LinearProblem(dolfinx.fem.petsc.LinearProblem):
     """Overloaded linear problem that pack BCs before solving"""
 
     def solve(self, bounds=None):
         if bounds is not None:
-            raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
+            raise NotImplementedError(
+                "Bounds-constrained solves are not implemented for DOLFINx"
+            )
         [bc.pack() for bc in self._bcs]
         super().solve()
+
+    @property
+    def snes(self) -> _KSPOnlySNES:
+        return _KSPOnlySNES(self.solver)
 
 
 class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
@@ -321,9 +534,9 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
             }
             if self._P_mat is not None:
                 assert (
-                    len(self._preconditioner) == 1
-                    and len(self._preconditioner[0]) == 1
+                    len(self._preconditioner) == 1 and len(self._preconditioner[0]) == 1
                 )
+                jac_kargs["preconditioner"] = self._preconditioner[0][0]
         else:
             kargs = {
                 "u": u,
@@ -357,13 +570,13 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
                 _snes, x, J, P_mat, u, jacobian, preconditioner, bcs
             )
 
-        self.solver.setJacobian(
-            assemble_jacobian, self.A, self.P_mat, kargs=jac_kargs
-        )
+        self.solver.setJacobian(assemble_jacobian, self.A, self.P_mat, kargs=jac_kargs)
 
     def solve(self, bounds=None):
         if bounds is not None:
-            raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
+            raise NotImplementedError(
+                "Bounds-constrained solves are not implemented for DOLFINx"
+            )
         super().solve()
 
     @property
@@ -383,7 +596,12 @@ class DirichletBC(dolfinx.fem.DirichletBC):
     _pack_expression: dolfinx.fem.Expression | None
     _ufl_expr: ufl.core.expr.Expr | None  # Store original UFL expression
 
-    def __init__(self, g: ufl.core.expr.Expr, dofs: npt.NDArray[np.int32], V: dolfinx.fem.FunctionSpace):
+    def __init__(
+        self,
+        g: ufl.core.expr.Expr,
+        dofs: npt.NDArray[np.int32],
+        V: dolfinx.fem.FunctionSpace,
+    ):
         """
         Create an Irksome compatible DirichletBC from an existing DOLFINx bc.
 
@@ -396,8 +614,14 @@ class DirichletBC(dolfinx.fem.DirichletBC):
         :param V: The space to construct the BC on.
         """
 
+        # Keep the dofs as given: for a blocked space, dof_indices() returns unrolled dofs,
+        # which cannot be passed back to this constructor
+        self._input_dofs = dofs
+
         # Store original UFL expression for time-varying BCs
-        if not isinstance(g, (dolfinx.fem.Function, dolfinx.fem.Constant, int, float, complex)):
+        if not isinstance(
+            g, (dolfinx.fem.Function, dolfinx.fem.Constant, int, float, complex)
+        ):
             self._ufl_expr = g  # Save the symbolic expression
         else:
             self._ufl_expr = None
@@ -436,7 +660,9 @@ class DirichletBC(dolfinx.fem.DirichletBC):
                 val = dolfinx.fem.Function(V_sub, name=f"bc_{str(g)}")._cpp_object
             else:
                 val = dolfinx.fem.Function(V, name=f"bc_{str(g)}")._cpp_object
-            self._pack_expression = dolfinx.fem.Expression(g, V.element.interpolation_points)
+            self._pack_expression = dolfinx.fem.Expression(
+                g, V.element.interpolation_points
+            )
 
         # Get correct C++ implementation based on dtype of expression
         dtype = extract_dtype(g)
@@ -507,7 +733,11 @@ class DirichletBC(dolfinx.fem.DirichletBC):
                 dolfinx.cpp.fem.Function_float64,
             ),
         ):
-            return dolfinx.fem.Function(self._ufl_space, dolfinx.la.Vector(self._orig_g.x), name=f"orig_{self._orig_g.name:s}")
+            return dolfinx.fem.Function(
+                self._ufl_space,
+                dolfinx.la.Vector(self._orig_g.x),
+                name=f"orig_{self._orig_g.name:s}",
+            )
         elif isinstance(
             self._orig_g,
             (
@@ -523,7 +753,7 @@ class DirichletBC(dolfinx.fem.DirichletBC):
         return self._orig_g
 
     def reconstruct(self, V, g):
-        return DirichletBC(g, self.dof_indices()[0], V=V)
+        return DirichletBC(g, self._input_dofs, V=V)
 
 
 def dirichletbc(
@@ -543,13 +773,32 @@ def dirichletbc(
     return DirichletBC(value, dofs, V)
 
 
+def _field_index(bc, V: _SymbolicMixedSpace) -> int:
+    """Index of the sub-space of ``V`` that the boundary condition is posed on."""
+    fields = [
+        j for j, Vj in enumerate(V.ufl_sub_spaces()) if Vj.contains(bc.function_space)
+    ]
+    if len(fields) != 1:
+        raise ValueError(
+            "The boundary condition space must belong to exactly one sub-space of the "
+            f"mixed function space, but belongs to {len(fields)}."
+        )
+    return fields[0]
+
+
 def bc2space(bc, V):
+    if isinstance(V, MixedFunction):
+        V = V.subfunctions[_field_index(bc, V.ufl_function_space())]
+    elif isinstance(V, _SymbolicMixedSpace):
+        V = V.ufl_sub_space(_field_index(bc, V))
     return get_sub(V, bc.function_space.component())
 
 
 def stage2spaces4bc(bc, V, Vbig, i):
     """used to figure out how to apply Dirichlet BC to each stage"""
     comp = bc.function_space.component()
+    if isinstance(V, _SymbolicMixedSpace):
+        i = len(V) * i + _field_index(bc, V)
     Vbig_i = Vbig.ufl_sub_spaces()[i]
     return get_sub(Vbig_i, comp)
 
@@ -559,44 +808,137 @@ def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
     return bcs
 
 
-def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
-    """Create a variational problem."""
+class _DeferredProblem:
+    """A stage problem whose DOLFINx problem is built once the solver parameters are known.
+
+    The matrix kind and the entity maps come from the solver parameters, which only reach
+    :func:`create_variational_solver`.
+
+    :param problem_type: The DOLFINx problem class to build.
+    :param args: Positional arguments of ``problem_type``.
+    :param kwargs: Keyword arguments of ``problem_type``, except ``kind`` and
+        ``entity_maps``.
+    :param blocked: Whether the problem has more than one block, so that a kind applies.
+    """
+
+    def __init__(self, problem_type: type, args: tuple, kwargs: dict, blocked: bool):
+        self._problem_type = problem_type
+        self._args = args
+        self._kwargs = kwargs
+        self._blocked = blocked
+
+    def build(
+        self, kind: str | None, entity_maps: Sequence[dolfinx.mesh.EntityMap] | None
+    ) -> LinearProblem | NonlinearProblem:
+        """Build the DOLFINx problem, with ``kind`` if the problem is blocked."""
+        return self._problem_type(
+            *self._args,
+            kind=kind if self._blocked else None,
+            entity_maps=entity_maps,
+            **self._kwargs,
+        )
+
+
+def _matrix_kind(mat_type: str | None) -> str | None:
+    """DOLFINx matrix kind for the Firedrake-style ``mat_type`` solver parameter."""
+    if mat_type in (None, "aij"):
+        return None
+    if mat_type == "nest":
+        return "nest"
+    raise ValueError(
+        f"mat_type '{mat_type}' is not supported by the DOLFINx backend, use 'aij' or 'nest'."
+    )
+
+
+def create_variational_problem(
+    F, u, bcs=None, J=None, Jp=None, **kwargs
+) -> _DeferredProblem:
+    """Create a variational problem.
+
+    The DOLFINx problem is built by :func:`create_variational_solver`, which knows the
+    matrix kind from the solver parameters.
+
+    :param J: Optional bilinear form for the Jacobian of the stage problem.
+    :param Jp: Optional bilinear form used to assemble the preconditioner.
+    """
     rank = len(np.unique([arg.number() for arg in F.arguments()]))
     prefix = kwargs.get("petsc_options_prefix", "IrkSomeSolver")
-    if isinstance(u, ListTensor):
+    form_compiler_options = kwargs.get("form_compiler_parameters")
+    mixed = isinstance(u, MixedStages)
+    if isinstance(u, (ListTensor, MixedStages)):
         u = u.subfunctions
+    F, J, Jp = (_expand_mixed_functions(form) for form in (F, J, Jp))
+    if mixed and bcs:
+        F = _add_bc_diagonal_blocks(F, u, bcs, rank)
     if rank == 2:
         a, L = ufl.system(F)
         a = ufl.extract_blocks(a)
         L = ufl.extract_blocks(L)
-        return LinearProblem(
-            a,
-            L,
-            u,
-            bcs=bcs,
-            petsc_options_prefix=prefix,
-            P=aP,
-            **kwargs,
+        # As for Firedrake's LinearVariationalProblem, J is not used for a linear problem
+        Jp = None if Jp is None else ufl.extract_blocks(Jp)
+        blocked = len(u) > 1
+        if not blocked:
+            # DOLFINx creates a non-blocked vector for a single block
+            a, L, u = a[0][0], L[0], u[0]
+            Jp = None if Jp is None else Jp[0][0]
+        return _DeferredProblem(
+            LinearProblem,
+            (a, L),
+            {
+                "u": u,
+                "bcs": bcs,
+                "petsc_options_prefix": prefix,
+                "P": Jp,
+                "form_compiler_options": form_compiler_options,
+            },
+            blocked,
         )
     elif rank == 1:
         F = ufl.extract_blocks(F)
-        return NonlinearProblem(
-            F,
-            u,
-            petsc_options_prefix=prefix,
-            bcs=bcs,
-            petsc_options=kwargs.get("solver_parameters"),
+        J = None if J is None else ufl.extract_blocks(J)
+        Jp = None if Jp is None else ufl.extract_blocks(Jp)
+        blocked = len(u) > 1
+        if not blocked:
+            # A single block gets non-blocked matrices and vectors, matching its assembly
+            F, u = F[0], u[0]
+            J = None if J is None else J[0][0]
+            Jp = None if Jp is None else Jp[0][0]
+        return _DeferredProblem(
+            NonlinearProblem,
+            (F, u),
+            {
+                "petsc_options_prefix": prefix,
+                "bcs": bcs,
+                "J": J,
+                "P": Jp,
+                "petsc_options": kwargs.get("solver_parameters"),
+                "form_compiler_options": form_compiler_options,
+            },
+            blocked,
         )
     else:
-        raise RuntimeError(f"Forms of rank {rank} are not supported in create_variational_problem")
+        raise RuntimeError(
+            f"Forms of rank {rank} are not supported in create_variational_problem"
+        )
 
 
 def create_variational_solver(
-    problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
-    **kwargs,
-):
-    """Create a variational solver that uses PETSc SNES or KSP."""
-    solver_parameters = kwargs.get("solver_parameters", {})
+    problem: _DeferredProblem, **kwargs
+) -> LinearProblem | NonlinearProblem:
+    """Create a variational solver that uses PETSc SNES or KSP.
+
+    Two solver parameters are used by the backend rather than passed to PETSc:
+
+    - ``mat_type`` selects the matrix of a blocked stage problem: ``"aij"`` (default) for a
+      monolithic matrix, ``"nest"`` for a ``MATNEST`` with one block per part.
+    - ``entity_maps`` is a list of :class:`dolfinx.mesh.EntityMap`, passed to the form
+      compiler for forms coupling functions on different meshes, e.g. on a submesh.
+    """
+    solver_parameters = kwargs.get("solver_parameters") or {}
+    problem = problem.build(
+        _matrix_kind(solver_parameters.get("mat_type")),
+        solver_parameters.get("entity_maps"),
+    )
     solver = problem.solver
 
     # Update solver prefix
@@ -612,7 +954,9 @@ def create_variational_solver(
         problem.P_mat.setOptionsPrefix(f"{solver_prefix}P_mat_")
     # Push new options with prefix, filtering out irksome-internal keys
     petsc_opts = {
-        k: v for k, v in solver_parameters.items() if k != "petsc_options_prefix"
+        k: v
+        for k, v in solver_parameters.items()
+        if k not in ("petsc_options_prefix", "mat_type", "entity_maps")
     }
     opts = PETSc.Options()
     opts.prefixPush(solver_prefix)
@@ -625,15 +969,30 @@ def create_variational_solver(
         opts.delValue(f"{solver_prefix}{k}")
 
     nullspace = kwargs.get("nullspace", None)
+    transpose_nullspace = kwargs.get("transpose_nullspace", None)
     near_nullspace = kwargs.get("near_nullspace", None)
+    has_nullspace = any(
+        n is not None for n in (nullspace, transpose_nullspace, near_nullspace)
+    )
+    if has_nullspace and problem.A.getType() == PETSc.Mat.Type.NEST:
+        raise NotImplementedError(
+            "Nullspaces are not yet supported with mat_type 'nest'"
+        )
     if nullspace is not None:
         problem.A.setNullSpace(nullspace)
+    if transpose_nullspace is not None:
+        problem.A.setTransposeNullSpace(transpose_nullspace)
     if near_nullspace is not None:
         problem.A.setNearNullSpace(near_nullspace)
     return problem
 
 
 def get_function_space(u: ufl.Coefficient | ufl.Argument) -> ufl.FunctionSpace:
+    if isinstance(u, ufl.Argument) and u.part() is not None:
+        raise ValueError(
+            "Forms on a ufl.MixedFunctionSpace need a single test function: use "
+            "irksome.backends.dolfinx.TestFunctions instead of ufl.TestFunctions."
+        )
     if isinstance(u, (ufl.Coefficient, ufl.Argument)):
         return u.ufl_function_space()
     else:
@@ -649,15 +1008,36 @@ def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ListTensor:
     :param num_stages: Number of stages
     :returns: A coefficient in the new function space
     """
+    if isinstance(V, _SymbolicMixedSpace):
+        num_fields = len(V)
+        Vbig = _StageSpace(
+            *[Vj.clone() for _ in range(num_stages) for Vj in V.ufl_sub_spaces()]
+        )
+        return MixedStages(
+            Vbig,
+            [
+                dolfinx.fem.Function(
+                    Vk, name=f"stage_{k // num_fields}_{k % num_fields}"
+                )
+                for k, Vk in enumerate(Vbig.ufl_sub_spaces())
+            ],
+        )
     _Vbig = [V.clone() for _ in range(num_stages)]
     Vbig = ufl.MixedFunctionSpace(*_Vbig)
-    return ListTensor(*[dolfinx.fem.Function(Vi, name=f"stage_{i}") for i, Vi in enumerate(Vbig.ufl_sub_spaces())])
+    return ListTensor(
+        *[
+            dolfinx.fem.Function(Vi, name=f"stage_{i}")
+            for i, Vi in enumerate(Vbig.ufl_sub_spaces())
+        ]
+    )
 
 
 class FloatConstantFunction(dolfinx.fem.Function):
     def __float__(self):
         if len(self.x.array) != 1:
-            raise ValueError("Can only convert a FloatConstantFunction to float if it has exactly one degree of freedom")
+            raise ValueError(
+                "Can only convert a FloatConstantFunction to float if it has exactly one degree of freedom"
+            )
         return float(self.x.array[0])
 
     def assign(self, value):
@@ -719,7 +1099,7 @@ def norm(
 def assemble(expr: ufl.core.expr.Expr | float):
     """Assemble a UFL expression in the backend language."""
     if isinstance(expr, float):
-        return float
+        return expr
     else:
         form = dolfinx.fem.form(expr)
         if form.rank == 0:
@@ -738,11 +1118,15 @@ def TrialFunction(function_space):
     This is required as :func:`ufl.TrialFunctions` returns a tuple of trial functions,
     which we need to convert to a tensor for consistency with the Firedrake backend.
     """
-    return ufl.as_tensor(ufl.TrialFunctions(function_space))
+    if isinstance(function_space, _StageSpace):
+        return _stage_arguments(function_space, 1)
+    return ListTensor(*ufl.TrialFunctions(function_space))
 
 
 def Function(V: ufl.FunctionSpace | ufl.MixedFunctionSpace, name=None):
     """Create a function in the backend language."""
+    if isinstance(V, _SymbolicMixedSpace):
+        return MixedFunction(V, name=name)
     if isinstance(V, ufl.MixedFunctionSpace):
         return ListTensor(
             *[
@@ -760,6 +1144,8 @@ def TestFunction(function_space):
     This is required as :func:`ufl.TestFunctions` returns a tuple of test functions,
     which we need to convert to a tensor for consistency with the Firedrake backend.
     """
+    if isinstance(function_space, _StageSpace):
+        return _stage_arguments(function_space, 0)
     return ufl.as_tensor(ufl.TestFunctions(function_space))
 
 
@@ -785,9 +1171,7 @@ def invalidate_jacobian(solver: dolfinx.fem.petsc.LinearProblem):
 
 
 def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None):
-    raise NotImplementedError(
-        "Bounds-constrained BCs are not implemented for DOLFINx"
-    )
+    raise NotImplementedError("Bounds-constrained BCs are not implemented for DOLFINx")
 
 
 def getNullspace(V, Vbig, num_stages, nullspace):
@@ -800,27 +1184,38 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     :param nullspace: The nullspace for the original problem.
 
     On output, we produce a PETSc nullspace defining the nullspace for the multistage problem.
+    Each nullspace vector (and the constant, if present) is placed in each stage separately,
+    giving `num_stages` orthonormal vectors per original vector.
     """
     if nullspace is None:
-        nspnew = None
-    else:
-        old_vecs = nullspace.getVecs()
-        tmp_func = dolfinx.fem.Function(V)
-        new_vecs = [
-            dolfinx.fem.petsc.create_vector(Vbig.ufl_sub_spaces())
-            for _ in range(len(old_vecs))
-        ]
-        for i in range(len(old_vecs)):
-            # Copy the old nullspace vector into all stages of the new nullspace vector
-            old_vecs[i].copy(tmp_func.x.petsc_vec)
-            tmp_func.x.scatter_forward()
-            dolfinx.fem.petsc.assign(
-                [tmp_func for _ in range(num_stages)], new_vecs[i]
-            )
-        nspnew = PETSc.NullSpace().create(
-            vectors=new_vecs, comm=nullspace.getComm()
+        return None
+    if isinstance(V, _SymbolicMixedSpace):
+        raise NotImplementedError(
+            "Nullspaces are not yet supported for mixed function spaces"
         )
-    return nspnew
+
+    stage_funcs = []
+    if nullspace.hasConstant():
+        constant = dolfinx.fem.Function(V)
+        constant.x.array[:] = 1.0
+        stage_funcs.append(constant)
+    for vec in nullspace.getVecs():
+        func = dolfinx.fem.Function(V)
+        vec.copy(func.x.petsc_vec)
+        func.x.scatter_forward()
+        stage_funcs.append(func)
+
+    zero = dolfinx.fem.Function(V)
+    new_vecs = []
+    for func in stage_funcs:
+        for i in range(num_stages):
+            new_vec = dolfinx.fem.petsc.create_vector(Vbig.ufl_sub_spaces())
+            dolfinx.fem.petsc.assign(
+                [func if j == i else zero for j in range(num_stages)], new_vec
+            )
+            new_vec.normalize()
+            new_vecs.append(new_vec)
+    return PETSc.NullSpace().create(vectors=new_vecs, comm=nullspace.getComm())
 
 
 derivative = ufl.derivative
