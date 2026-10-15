@@ -671,3 +671,97 @@ def test_mixed_function_space_ufl_test_functions():
     F = inner(Dt(u), v) * dx + inner(Dt(p), q) * dx
     with pytest.raises(ValueError, match="irksome.backends.dolfinx.TestFunctions"):
         StageDerivativeTimeStepper(F, GaussLegendre(1), t, dt, w, backend="dolfinx")
+
+
+@pytest.mark.parametrize("num_stages", [1, 2])
+def test_mixed_function_space_nest(num_stages):
+    """mat_type="nest" assembles a MATNEST with one block per stage and field."""
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    boundary_facets = dolfinx.mesh.exterior_facet_indices(msh.topology)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 2))
+    Q = dolfinx.fem.functionspace(msh, ("Lagrange", 2))
+    W = MixedFunctionSpace(V, Q)
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
+    n = ufl.FacetNormal(msh)
+    t_var = ufl.variable(t)
+    u_ex = (1 + t_var) * (x**2 + y)
+    v_ex = (1 + t_var) * (x * y)
+    f_u = ufl.diff(u_ex, t_var) - div(grad(u_ex)) + v_ex
+    f_v = ufl.diff(v_ex, t_var) - div(grad(v_ex)) - u_ex
+
+    def run(solver_parameters):
+        w = MixedFunction(W)
+        w_u, w_v = w.subfunctions
+        for f, expr in ((w_u, u_ex), (w_v, v_ex)):
+            f.interpolate(
+                dolfinx.fem.Expression(
+                    expr, f.function_space.element.interpolation_points
+                )
+            )
+        u, v = mixed_split(w)
+        phi, psi = mixed_test_functions(W)
+        F = (
+            inner(Dt(u), phi) * dx
+            + inner(grad(u), grad(phi)) * dx
+            + inner(v, phi) * dx
+            - inner(f_u, phi) * dx
+            + inner(Dt(v), psi) * dx
+            + inner(grad(v), grad(psi)) * dx
+            - inner(u, psi) * dx
+            - inner(f_v, psi) * dx
+            - inner(ufl.dot(grad(v_ex), n), psi) * ufl.ds
+        )
+        boundary_dofs = dolfinx.fem.locate_dofs_topological(
+            V, msh.topology.dim - 1, boundary_facets
+        )
+        stepper = StageDerivativeTimeStepper(
+            F,
+            GaussLegendre(num_stages),
+            t,
+            dt,
+            w,
+            bcs=[dirichletbc(u_ex, boundary_dofs, V)],
+            solver_parameters=solver_parameters,
+            backend="dolfinx",
+        )
+        return stepper, w_u, w_v
+
+    blocked = run(
+        {
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "ksp_error_if_not_converged": True,
+            "petsc_options_prefix": f"aij_{num_stages}_",
+        }
+    )
+    nested = run(
+        {
+            "mat_type": "nest",
+            "ksp_type": "gmres",
+            "ksp_gmres_restart": 200,
+            "ksp_rtol": 1e-13,
+            "ksp_max_it": 1000,
+            "pc_type": "fieldsplit",
+            "pc_fieldsplit_type": "additive",
+            "ksp_error_if_not_converged": True,
+            "petsc_options_prefix": f"nest_{num_stages}_",
+        }
+    )
+    A = nested[0].solver.A
+    assert A.getType() == PETSc.Mat.Type.NEST
+    assert A.getNestSize() == (2 * num_stages, 2 * num_stages)
+    assert blocked[0].solver.A.getType() != PETSc.Mat.Type.NEST
+
+    for _ in range(2):
+        blocked[0].advance()
+        nested[0].advance()
+        t.assign(float(t) + float(dt))
+        for _, w_u, w_v in (blocked, nested):
+            for f, f_ex in ((w_u, u_ex), (w_v, v_ex)):
+                error = norm(f - f_ex, norm_type="L2", mesh=msh)
+                assert error < 1e-9, f"Error {error} at t={float(t)}"

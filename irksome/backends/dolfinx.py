@@ -808,8 +808,49 @@ def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
     return bcs
 
 
-def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
+class _DeferredProblem:
+    """A stage problem whose DOLFINx problem is built once the matrix kind is known.
+
+    The kind follows from the solver parameters, which only reach
+    :func:`create_variational_solver`.
+
+    :param problem_type: The DOLFINx problem class to build.
+    :param args: Positional arguments of ``problem_type``.
+    :param kwargs: Keyword arguments of ``problem_type``, except ``kind``.
+    :param blocked: Whether the problem has more than one block, so that a kind applies.
+    """
+
+    def __init__(self, problem_type: type, args: tuple, kwargs: dict, blocked: bool):
+        self._problem_type = problem_type
+        self._args = args
+        self._kwargs = kwargs
+        self._blocked = blocked
+
+    def build(self, kind: str | None) -> LinearProblem | NonlinearProblem:
+        """Build the DOLFINx problem, with ``kind`` if the problem is blocked."""
+        return self._problem_type(
+            *self._args, kind=kind if self._blocked else None, **self._kwargs
+        )
+
+
+def _matrix_kind(mat_type: str | None) -> str | None:
+    """DOLFINx matrix kind for the Firedrake-style ``mat_type`` solver parameter."""
+    if mat_type in (None, "aij"):
+        return None
+    if mat_type == "nest":
+        return "nest"
+    raise ValueError(
+        f"mat_type '{mat_type}' is not supported by the DOLFINx backend, use 'aij' or 'nest'."
+    )
+
+
+def create_variational_problem(
+    F, u, bcs=None, J=None, Jp=None, **kwargs
+) -> _DeferredProblem:
     """Create a variational problem.
+
+    The DOLFINx problem is built by :func:`create_variational_solver`, which knows the
+    matrix kind from the solver parameters.
 
     :param J: Optional bilinear form for the Jacobian of the stage problem.
     :param Jp: Optional bilinear form used to assemble the preconditioner.
@@ -829,37 +870,45 @@ def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
         L = ufl.extract_blocks(L)
         # As for Firedrake's LinearVariationalProblem, J is not used for a linear problem
         Jp = None if Jp is None else ufl.extract_blocks(Jp)
-        if len(u) == 1:
+        blocked = len(u) > 1
+        if not blocked:
             # DOLFINx creates a non-blocked vector for a single block
             a, L, u = a[0][0], L[0], u[0]
             Jp = None if Jp is None else Jp[0][0]
-        return LinearProblem(
-            a,
-            L,
-            u=u,
-            bcs=bcs,
-            petsc_options_prefix=prefix,
-            P=Jp,
-            form_compiler_options=form_compiler_options,
+        return _DeferredProblem(
+            LinearProblem,
+            (a, L),
+            {
+                "u": u,
+                "bcs": bcs,
+                "petsc_options_prefix": prefix,
+                "P": Jp,
+                "form_compiler_options": form_compiler_options,
+            },
+            blocked,
         )
     elif rank == 1:
         F = ufl.extract_blocks(F)
         J = None if J is None else ufl.extract_blocks(J)
         Jp = None if Jp is None else ufl.extract_blocks(Jp)
-        if len(u) == 1:
+        blocked = len(u) > 1
+        if not blocked:
             # A single block gets non-blocked matrices and vectors, matching its assembly
             F, u = F[0], u[0]
             J = None if J is None else J[0][0]
             Jp = None if Jp is None else Jp[0][0]
-        return NonlinearProblem(
-            F,
-            u,
-            petsc_options_prefix=prefix,
-            bcs=bcs,
-            J=J,
-            P=Jp,
-            petsc_options=kwargs.get("solver_parameters"),
-            form_compiler_options=form_compiler_options,
+        return _DeferredProblem(
+            NonlinearProblem,
+            (F, u),
+            {
+                "petsc_options_prefix": prefix,
+                "bcs": bcs,
+                "J": J,
+                "P": Jp,
+                "petsc_options": kwargs.get("solver_parameters"),
+                "form_compiler_options": form_compiler_options,
+            },
+            blocked,
         )
     else:
         raise RuntimeError(
@@ -868,11 +917,16 @@ def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
 
 
 def create_variational_solver(
-    problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
-    **kwargs,
-):
-    """Create a variational solver that uses PETSc SNES or KSP."""
+    problem: _DeferredProblem, **kwargs
+) -> LinearProblem | NonlinearProblem:
+    """Create a variational solver that uses PETSc SNES or KSP.
+
+    The solver parameter ``mat_type`` selects the matrix of a blocked stage problem:
+    ``"aij"`` (default) for a monolithic matrix, ``"nest"`` for a ``MATNEST`` with one block
+    per part.
+    """
     solver_parameters = kwargs.get("solver_parameters") or {}
+    problem = problem.build(_matrix_kind(solver_parameters.get("mat_type")))
     solver = problem.solver
 
     # Update solver prefix
@@ -888,7 +942,9 @@ def create_variational_solver(
         problem.P_mat.setOptionsPrefix(f"{solver_prefix}P_mat_")
     # Push new options with prefix, filtering out irksome-internal keys
     petsc_opts = {
-        k: v for k, v in solver_parameters.items() if k != "petsc_options_prefix"
+        k: v
+        for k, v in solver_parameters.items()
+        if k not in ("petsc_options_prefix", "mat_type")
     }
     opts = PETSc.Options()
     opts.prefixPush(solver_prefix)
@@ -903,6 +959,13 @@ def create_variational_solver(
     nullspace = kwargs.get("nullspace", None)
     transpose_nullspace = kwargs.get("transpose_nullspace", None)
     near_nullspace = kwargs.get("near_nullspace", None)
+    has_nullspace = any(
+        n is not None for n in (nullspace, transpose_nullspace, near_nullspace)
+    )
+    if has_nullspace and problem.A.getType() == PETSc.Mat.Type.NEST:
+        raise NotImplementedError(
+            "Nullspaces are not yet supported with mat_type 'nest'"
+        )
     if nullspace is not None:
         problem.A.setNullSpace(nullspace)
     if transpose_nullspace is not None:
