@@ -68,9 +68,9 @@ class KronPC(PCBase):
 
             # Do not let the DM generate operators/RHS/initial guess,
             # because we already set the assembled operator below.
-            try:
+            if hasattr(PETSc.KSP, "DMActive"):
                 sub_ksp.setDMActive(PETSc.KSP.DMActive.ALL, False)
-            except TypeError:
+            else:
                 sub_ksp.setDMActive(False)
 
         # Operators and options
