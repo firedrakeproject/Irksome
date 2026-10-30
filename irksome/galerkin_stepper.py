@@ -1,4 +1,4 @@
-from FIAT import (Bernstein, DiscontinuousLagrange,
+from FIAT import (Bernstein, DiscontinuousLagrange, EnrichedElement,
                   GaussRadau, IntegratedLegendre, Lagrange,
                   NodalEnrichedElement, RestrictedElement)
 from ufl.classes import Zero
@@ -40,7 +40,15 @@ def getElements(basis_type, order):
         trial_type = basis_type
         test_type = basis_type
 
-    L_test = getTestElement(test_type, order-1)
+    if test_type == "david":
+        R = getTestElement("radau", order)
+        R = RestrictedElement(R, indices=[max(R.entity_dofs()[1][0])])
+
+        L_test = getTestElement("gl", order-2)
+        L_test = EnrichedElement(R, L_test)
+    else:
+        L_test = getTestElement(test_type, order-1)
+
     # Deal with GalerkinCollocationScheme
     if trial_type == "deriv":
         L_trial = IntegratedLagrange(L_test)
