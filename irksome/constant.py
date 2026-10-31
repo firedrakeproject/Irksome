@@ -3,7 +3,6 @@ from .backend import get_backend, Backend
 import ufl
 
 
-# A tableau coefficient smaller than this is dropped from the generated form.
 STRUCTURAL_ZERO = 1.0e-10
 
 
