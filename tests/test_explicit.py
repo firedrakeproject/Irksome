@@ -27,9 +27,6 @@ def run_1d_heat(butcher_tableau, V, nsteps_per_unit_time, t_end):
     u_0 = Constant(2.0)
     u_1 = Constant(3.0) + atan(t)
 
-    # Method of manufactured solutions.  Taking a solution that is linear in
-    # x makes it exactly representable in V, so that the error against it is
-    # purely temporal and reports the order of the time stepper.
     uexact = u_0 + (x / L) * (u_1 - u_0)
     rhs = Dt(uexact) - div(grad(uexact))
     u = Function(V)
@@ -57,7 +54,6 @@ def run_1d_heat(butcher_tableau, V, nsteps_per_unit_time, t_end):
     for _ in range(round(t_end * nsteps_per_unit_time)):
         stepper.advance()
         t.assign(float(t) + float(dt))
-        # The stage boundary data is imposed exactly at every step
         assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
     return errornorm(uexact, u)
 

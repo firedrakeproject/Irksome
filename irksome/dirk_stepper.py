@@ -21,10 +21,6 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
 
     num_stages = butch.num_stages
 
-    # Note: the Constant c is used for substitution in the variational
-    # form and the Constant c_bc in the BC's, and we update both for
-    # each stage in the loop over stages in the advance method.  The
-    # Constant a is used similarly in the variational form
     MC = MeshConstant(V.mesh(), backend=backend)
     if kgac is None:
         k0 = backend_cls.Function(V)
