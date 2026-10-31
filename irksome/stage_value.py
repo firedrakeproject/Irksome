@@ -88,9 +88,6 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
 
-    # The stage vector holds only the stages that are solved for.  A leading
-    # explicit stage takes u0, and is spliced back in so that the tableau is
-    # indexed by the stage it belongs to throughout.
     UU = to_value(u0, stages, vandermonde)
     num_solved = UU.shape[0]
     num_explicit = num_stages - num_solved
@@ -192,8 +189,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             vandermonde = self.tabulate_poly(pts).T
         self.vandermonde = vandermonde
 
-        # An explicit leading stage takes the value the step starts from, so
-        # it can be spliced into the stage vector rather than solved for.
         self.num_explicit = 0
         if (vandermonde is None and splitting is AI
                 and not use_collocation_update
