@@ -86,13 +86,11 @@ class DIRKTimeStepper:
         self.AAb = numpy.vstack((butcher_tableau.A, butcher_tableau.b))
         self.CCone = numpy.append(butcher_tableau.c, 1.0)
 
-        # A stage with a zero diagonal cannot move its own stage value, so it
-        # carries no boundary constraint and a later stage has to impose the
-        # data.  That holds when the last stage is implicit and its value is
-        # the solution, and not otherwise.
+        # A zero-diagonal stage takes no boundary constraint, so a later
+        # implicit stage must carry the data.
         explicit_stages = [i for i in range(num_stages)
                            if self.AAb[i, i] == 0]
-        if bcs and explicit_stages:
+        if bcs and explicit_stages and not butcher_tableau.is_explicit:
             stiffly_accurate = numpy.allclose(self.AAb[-1], self.AAb[-2])
             if not stiffly_accurate or explicit_stages[-1] == num_stages - 1:
                 raise NotImplementedError(
