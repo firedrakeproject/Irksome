@@ -86,8 +86,6 @@ class DIRKTimeStepper:
         self.AAb = numpy.vstack((butcher_tableau.A, butcher_tableau.b))
         self.CCone = numpy.append(butcher_tableau.c, 1.0)
 
-        # A zero-diagonal stage takes no boundary constraint, so a later
-        # implicit stage must carry the data.
         explicit_stages = [i for i in range(num_stages)
                            if self.AAb[i, i] == 0]
         if bcs and explicit_stages and not butcher_tableau.is_explicit:
@@ -183,8 +181,6 @@ class DIRKTimeStepper:
             a_vals[j].assign(AAb[i, j])
         for j in range(i, ns):
             a_vals[j].zero()
-        # A stage with a zero diagonal cannot move its own stage value, so it
-        # takes no boundary constraint.
         dinv_val.assign(0.0 if AAb[i, i] == 0 else 1.0 / AAb[i, i])
         c.assign(CCone[i])
 
