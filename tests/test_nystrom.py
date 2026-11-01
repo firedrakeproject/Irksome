@@ -280,3 +280,27 @@ def test_explicit_wave_eq():
     print(Erat, diff)
     assert abs(Erat - 1) < 1.e-6
     assert diff < 3.e-5
+
+
+@pytest.mark.parametrize("bc_type", [None, "dDAE"])
+def test_explicit_nystrom_bc_type(bc_type):
+    N = 8
+    msh = UnitIntervalMesh(N)
+    V = FunctionSpace(msh, "CG", 1)
+    x, = SpatialCoordinate(msh)
+
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.2 / N)
+
+    u = Function(V).interpolate(sin(pi * x))
+    ut = Function(V)
+    v = TestFunction(V)
+    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx
+    bc = DirichletBC(V, 0, "on_boundary")
+
+    stepper = ExplicitNystromTimeStepper(
+        F, ClassicNystrom4Tableau(), t, dt, u, ut, bcs=bc, bc_type=bc_type)
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+    assert norm(u - cos(pi * t) * sin(pi * x)) < 1.e-2

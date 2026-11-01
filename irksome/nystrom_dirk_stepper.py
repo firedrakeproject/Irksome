@@ -279,6 +279,6 @@ class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
             solver_parameters=solver_parameters, appctx=appctx,
             nullspace=None,
             transpose_nullspace=None, near_nullspace=None,
-            bc_type=None,
+            bc_type=bc_type,
             backend=backend,
             **kwargs)
