@@ -8,7 +8,7 @@ from irksome.labeling import explicit
 from irksome.tableaux.ButcherTableaux import ButcherTableau
 
 lu = {"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"}
-methods = ["ERK22a", "ERK33a", "ERK45a"]
+methods = ["ERK22a", "ERK22b", "ERK33a", "ERK45a"]
 
 
 @pytest.mark.parametrize("name", methods)
@@ -57,7 +57,7 @@ def test_no_fast_terms(name):
         else:
             slow = ButcherTableau(method.A, method.b, None, method.c, method.order, None, None)
             stepper = TimeStepper(inner(Dt(u), v) * dx + Fslow, slow, t, dt, u,
-                                  stage_type="explicit", solver_parameters=lu)
+                                  stage_type="explicit", solver_parameters=dict(lu))
         for _ in range(5):
             stepper.advance()
             t.assign(t + dt)
@@ -115,3 +115,12 @@ def test_slow_terms_not_defined_at_zero():
                                            "stepper_kwargs": {"solver_parameters": lu}})
     stepper.advance()
     assert np.isfinite(u.dat.data_ro).all()
+
+
+def test_mixed_time_derivative_raises():
+    t, dt, u, uexact, Ffast, Fslow, bc = heat(4)
+    v = TestFunction(u.function_space())
+    F = inner(Dt(u) + u, v) * dx + explicit(Fslow)
+    with pytest.raises(ValueError):
+        TimeStepper(F, MRIGARK("ERK22a"), t, dt, u,
+                    fast_parameters={"tableau": GaussLegendre(2)})

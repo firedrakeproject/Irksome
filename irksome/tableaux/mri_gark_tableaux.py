@@ -8,6 +8,11 @@ mri_gark_dict = {
         [[[1/2, 0],
           [-1/2, 1]]],
         2),
+    "ERK22b": (
+        [1, 0],
+        [[[1, 0],
+          [-1/2, 1/2]]],
+        2),
     "ERK33a": (
         [1/3, 1/3, 1/3],
         [[[1/3, 0, 0],
@@ -38,10 +43,11 @@ class MRIGARK(ButcherTableau):
 
     Each slow stage is followed by a fast integration over ``dc[i] * dt``
     driven by a polynomial-in-time combination of the slow tendencies.
+    A stage with ``dc[i]`` zero is a slow update alone.
     The inherited ``A``, ``b``, ``c`` describe the slow method obtained
     when the fast part vanishes.
 
-    :arg name: one of ``"ERK22a"``, ``"ERK33a"``, ``"ERK45a"``.
+    :arg name: one of ``"ERK22a"``, ``"ERK22b"``, ``"ERK33a"``, ``"ERK45a"``.
     """
     def __init__(self, name):
         try:
@@ -50,7 +56,6 @@ class MRIGARK(ButcherTableau):
             raise NotImplementedError(f"No MRI-GARK method named {name}")
         self.name = name
         self.dc = numpy.array(dc)
-        assert all(self.dc > 0)
         self.Gamma = [numpy.array(G) for G in Gamma]
         s = len(dc)
         gbar = sum(G / (k + 1) for k, G in enumerate(self.Gamma))
