@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
-from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, cos, dx, errornorm, grad, inner, pi, project)
+from firedrake import (DirichletBC, EquationBC, FunctionSpace, SpatialCoordinate,
+                       TestFunction, UnitIntervalMesh, cos, derivative, ds, dx, errornorm, grad,
+                       inner, pi, project)
 from irksome import Dt, GaussLegendre, MeshConstant, MRIGARK, TimeStepper
 from irksome.labeling import explicit
 from irksome.tableaux.ButcherTableaux import ButcherTableau
@@ -88,3 +89,16 @@ def test_convergence(name):
 @pytest.mark.parametrize("name", methods)
 def test_convergence_dirichlet(name):
     assert convergence(name, (8, 16), 2, True) > 1.8
+
+
+def test_unsupported_options_raise():
+    t, dt, u, uexact, Ffast, Fslow, bc = heat(4)
+    v = TestFunction(u.function_space())
+    F = Ffast + explicit(Fslow)
+    fast = {"tableau": GaussLegendre(2)}
+    with pytest.raises(NotImplementedError):
+        TimeStepper(F, MRIGARK("ERK22a"), t, dt, u, fast_parameters=fast,
+                    J=derivative(F.form, u))
+    with pytest.raises(NotImplementedError):
+        TimeStepper(F, MRIGARK("ERK22a"), t, dt, u, fast_parameters=fast,
+                    bcs=EquationBC(inner(u - 1, v) * ds(1) == 0, u, 1))
