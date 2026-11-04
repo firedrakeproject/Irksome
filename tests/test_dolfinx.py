@@ -223,8 +223,9 @@ def test_constant_stage_nullspace(num_stages):
     assert stage_nullspace.test(A)
 
 
-def test_transpose_nullspace():
-    """A transpose nullspace is attached to the stage operator."""
+@pytest.mark.parametrize("num_stages", [1, 2, 3])
+def test_transpose_nullspace(num_stages):
+    """A constant transpose nullspace becomes one constant per stage of the stage operator."""
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
     V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
 
@@ -234,7 +235,8 @@ def test_transpose_nullspace():
 
     u = dolfinx.fem.Function(V)
     v = TestFunction(V)
-    # Symmetric stage operator with constants in its kernel and in that of its transpose
+    # The stage operator is (I + dt A) ⊗ K, with K the stiffness matrix. As K is symmetric,
+    # a constant in each stage spans the kernel of its transpose.
     F = inner(grad(Dt(u)), grad(v)) * dx + inner(grad(u), grad(v)) * dx
 
     constant = dolfinx.fem.Function(V)
@@ -243,13 +245,9 @@ def test_transpose_nullspace():
     nullspace = PETSc.NullSpace().create(vectors=[constant.x.petsc_vec], comm=msh.comm)
 
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(1),
-        t,
-        dt,
-        u,
+        F, RadauIIA(num_stages), t, dt, u,
         transpose_nullspace=nullspace,
-        solver_parameters={"petsc_options_prefix": "transpose_nsp_"},
+        solver_parameters={"petsc_options_prefix": f"transpose_nsp_{num_stages}_"},
         backend="dolfinx",
     )
     problem = stepper.solver
@@ -257,5 +255,5 @@ def test_transpose_nullspace():
 
     transpose_nullspace = problem.A.getTransposeNullSpace()
     assert transpose_nullspace.handle != 0
-    assert len(transpose_nullspace.getVecs()) == 1
+    assert len(transpose_nullspace.getVecs()) == num_stages
     assert transpose_nullspace.test(problem.A.transpose())
