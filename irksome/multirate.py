@@ -1,26 +1,12 @@
-from ufl import Form, as_ufl, zero
-from ufl.corealg.traversal import unique_pre_traversal
+from ufl import as_ufl, zero
+from ufl.algorithms.analysis import extract_type
 
 from .base_time_stepper import BaseTimeStepper
 from .constant import MeshConstant
 from .tableaux.mri_gark_tableaux import MRIGARK
 from .tools import replace
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
-
-
-def split_time_derivative(F, t, u0):
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,))
-    Fdt = Form([])
-    Frest = Form([])
-    for integral in F.integrals():
-        term = Form([integral])
-        if any(isinstance(o, TimeDerivative) for o in unique_pre_traversal(integral.integrand())):
-            if not replace(term, {TimeDerivative(u0): zero(u0.ufl_shape)}).empty():
-                raise ValueError("MRI-GARK needs the time derivative in terms of its own")
-            Fdt += term
-        else:
-            Frest += term
-    return Fdt, Frest
+from .ufl.manipulation import split_time_derivative_terms
 
 
 class MRIGARKTimeStepper(BaseTimeStepper):
@@ -38,7 +24,7 @@ class MRIGARKTimeStepper(BaseTimeStepper):
     so ``J`` and ``Jp`` are not accepted.
 
     :arg Ffast: A :class:`ufl.Form` with the time derivative and fast terms.
-        The time derivative must appear in terms of its own.
+        Time derivative terms, such as ``Dt(g(u))``, must be summands of their own.
     :arg Fslow: A :class:`ufl.Form` with the slow terms.
     :arg method: A :class:`MRIGARK` instance.
     :arg t: a :class:`Constant` or :class:`Function` on the Real space
@@ -50,7 +36,9 @@ class MRIGARKTimeStepper(BaseTimeStepper):
     :arg fast_parameters: A :class:`dict` with keys ``"tableau"`` (the inner
         :class:`ButcherTableau`, required), ``"num_substeps"`` (fast steps per
         fast interval, default 1) and ``"stepper_kwargs"`` (passed to the
-        inner :func:`TimeStepper`).
+        inner :func:`TimeStepper`).  The fast step on stage ``i`` is
+        ``dc[i] * dt / num_substeps``.  The inner Jacobian is reassembled when
+        ``dc[i]`` changes, but a Jacobian lagged through PETSc options is not.
     """
     def __init__(self, Ffast, Fslow, method, t, dt, u0, bcs=None,
                  fast_parameters=None, appctx=None, nullspace=None,
@@ -77,13 +65,17 @@ class MRIGARKTimeStepper(BaseTimeStepper):
         self.u_slow = [self._backend.Function(self.V) for _ in range(s)]
 
         t_fast = self.t_stage + self.dc * self.theta
-        Fdt, Frest = split_time_derivative(Ffast, t, u0)
+        split = split_time_derivative_terms(Ffast, timedep_coeffs=(u0,))
+        Fdt = split.time
+        if not replace(Fdt, {o: zero(o.ufl_shape) for o in extract_type(Fdt, TimeDerivative)}).empty():
+            raise ValueError("MRI-GARK needs each time derivative term in a summand of its own")
+        Frest = expand_time_derivatives(split.remainder, t=t, timedep_coeffs=())
         Fslow = expand_time_derivatives(Fslow, t=t, timedep_coeffs=(u0,))
         tau = self.theta / dt
         forcing = sum(
             tau**k * self.weights[k][j] * replace(Fslow, {u0: self.u_slow[j], t: self.t_slow[j]})
             for j in range(s) for k in range(len(method.Gamma)))
-        F_inner = Fdt + self.dc * replace(Frest, {t: t_fast}) + forcing
+        F_inner = replace(Fdt, {t: t_fast}) + self.dc * replace(Frest, {t: t_fast}) + forcing
 
         bcs_inner = []
         for bc in self.orig_bcs:
@@ -120,9 +112,11 @@ class MRIGARKTimeStepper(BaseTimeStepper):
                 for j in range(method.num_stages):
                     self.weights[k][j].assign(G[i, j])
 
-            M = self.num_substeps if method.dc[i] > 0 else 1
+            M = self.num_substeps
             self.t_stage.assign(t0 + method.c[i] * dt)
-            self.dc.assign(method.dc[i])
+            if float(self.dc) != method.dc[i]:
+                self.dc.assign(method.dc[i])
+                self.fast_stepper.invalidate_jacobian()
             self.dtheta.assign(dt / M)
             for m in range(M):
                 self.theta.assign(m * dt / M)

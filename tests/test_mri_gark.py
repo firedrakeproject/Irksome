@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from firedrake import (DirichletBC, EquationBC, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, cos, derivative, ds, dx, errornorm, grad,
-                       inner, ln, pi, project)
+                       inner, ln, pi, project, sin)
 from irksome import Dt, GaussLegendre, MeshConstant, MRIGARK, TimeStepper
 from irksome.labeling import explicit
 from irksome.tableaux.ButcherTableaux import ButcherTableau
@@ -124,3 +124,40 @@ def test_mixed_time_derivative_raises():
     with pytest.raises(ValueError):
         TimeStepper(F, MRIGARK("ERK22a"), t, dt, u,
                     fast_parameters={"tableau": GaussLegendre(2)})
+
+
+@pytest.mark.parametrize("name", ["ERK22b", "ERK33a"])
+@pytest.mark.parametrize("inside", [True, False])
+def test_time_dependent_mass(name, inside):
+    def error(N):
+        t, dt, u, uexact, Ffast, Fslow, bc = heat(32, degree=4, dirichlet=False)
+        v = TestFunction(u.function_space())
+        m = 2 + sin(t)
+        mass = inner(Dt(m * u), v) if inside else m * inner(Dt(u), v) + inner(cos(t) * u, v)
+        F = (mass * dx + inner(grad(u), grad(v)) * dx
+             + explicit(inner(u, v) * dx - inner(Dt(m * uexact) - uexact.dx(0).dx(0) + uexact, v) * dx))
+        dt.assign(1 / N)
+        stepper = TimeStepper(F, MRIGARK(name), t, dt, u,
+                              fast_parameters={"tableau": GaussLegendre(2), "num_substeps": 2,
+                                               "stepper_kwargs": {"solver_parameters": lu}})
+        for _ in range(N):
+            stepper.advance()
+            t.assign(t + dt)
+        return errornorm(project(uexact, u.function_space()), u)
+    assert np.log2(error(4) / error(8)) > MRIGARK(name).order - 0.4
+
+
+def test_constant_jacobian_with_zero_length_stage():
+    sols = []
+    for constant_jacobian in (False, True):
+        t, dt, u, uexact, Ffast, Fslow, bc = heat(8)
+        dt.assign(0.1)
+        stepper = TimeStepper(Ffast + explicit(Fslow), MRIGARK("ERK22b"), t, dt, u, bcs=bc,
+                              fast_parameters={"tableau": GaussLegendre(2),
+                                               "stepper_kwargs": {"solver_parameters": lu,
+                                                                  "constant_jacobian": constant_jacobian}})
+        for _ in range(3):
+            stepper.advance()
+            t.assign(t + dt)
+        sols.append(u.dat.data_ro.copy())
+    assert np.allclose(sols[0], sols[1], rtol=0, atol=1e-12)
