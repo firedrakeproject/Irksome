@@ -14,6 +14,7 @@ from .tableaux.multistep_tableaux import (
     AdamsMoulton,
 )
 from .tableaux.pep_explicit_rk import PEPRK
+from .tableaux.mri_gark_tableaux import MRIGARK
 from .ufl.deriv import Dt, expand_time_derivatives, check_irksome_import_order
 from .ufl.lag import lag
 
@@ -41,6 +42,7 @@ from .nystrom_stepper import (
 from .stage_value import StageValueTimeStepper
 
 from .multistep import MultistepTimeStepper
+from .multirate import MRIGARKTimeStepper
 
 
 __all__ = [
@@ -64,6 +66,8 @@ __all__ = [
     "MultistepTableau",
     "PareschiRusso",
     "PEPRK",
+    "MRIGARK",
+    "MRIGARKTimeStepper",
     "QinZhang",
     "RadauIIA",
     "SSPButcherTableau",

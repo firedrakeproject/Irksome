@@ -10,6 +10,8 @@ from .stage_value import StageValueTimeStepper
 from .tools import AI
 from .multistep import MultistepTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
+from .tableaux.mri_gark_tableaux import MRIGARK
+from .multirate import MRIGARKTimeStepper
 
 valid_base_kwargs = ("bcs", "J", "Jp", "form_compiler_parameters",
                      "is_linear", "constant_jacobian",
@@ -34,6 +36,8 @@ valid_adapt_parameters = ["tol", "dtmin", "dtmax", "KI", "KP",
                           "safety_factor", "gamma0_params"]
 
 valid_multistep_kwargs = ("bounds", "startup_parameters")
+
+valid_mri_gark_kwargs = ("Fexp", "fast_parameters")
 
 
 def imex_separation(F, Fexp_kwarg, label):
@@ -116,6 +120,8 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         auxiliary, that is, discretized in the lower-order DG test space.
     :startup_parameters: An optional :class:`dict` containing parameters used to automatically
         find starting values for multistep methods.
+    :kwarg fast_parameters: A :class:`dict` describing the inner method for
+        :class:`MRIGARK` methods (see :class:`MRIGARKTimeStepper`).
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
         at additional points in time.
     """
@@ -144,6 +150,14 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         bounds = kwargs.pop('bounds', None)
         startup_parameters = kwargs.pop('startup_parameters', None)
         return MultistepTimeStepper(F, method, t, dt, u0, bcs=bcs, startup_parameters=startup_parameters, bounds=bounds, **base_kwargs)
+
+    if isinstance(method, MRIGARK):
+        for cur_kwarg in kwargs.keys():
+            if cur_kwarg not in valid_mri_gark_kwargs + valid_base_kwargs:
+                raise ValueError(f"kwarg {cur_kwarg} is not allowable for MRIGARKTimeStepper")
+        Ffast, Fslow = imex_separation(F, kwargs.pop("Fexp", None), "MRI-GARK")
+        bcs = kwargs.pop("bcs", None)
+        return MRIGARKTimeStepper(Ffast, Fslow, method, t, dt, u0, bcs=bcs, **kwargs)
 
     stage_type = kwargs.pop("stage_type", "deriv")
     adapt_params = kwargs.pop("adaptive_parameters", None)
