@@ -92,9 +92,11 @@ class MRIGARKTimeStepper(BaseTimeStepper):
         method = self.method
         t0 = float(self.t)
         dt = float(self.dt)
+        for j in range(method.num_stages):
+            self.u_slow[j].assign(self.u0)
+            self.t_slow[j].assign(t0 + method.c[j] * dt)
         for i in range(method.num_stages):
             self.u_slow[i].assign(self.u0)
-            self.t_slow[i].assign(t0 + method.c[i] * dt)
             for k, G in enumerate(method.Gamma):
                 for j in range(method.num_stages):
                     self.weights[k][j].assign(G[i, j] / method.dc[i])
