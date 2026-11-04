@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from firedrake import (DirichletBC, EquationBC, FunctionSpace, SpatialCoordinate,
                        TestFunction, UnitIntervalMesh, cos, derivative, ds, dx, errornorm, grad,
-                       inner, pi, project)
+                       inner, ln, pi, project)
 from irksome import Dt, GaussLegendre, MeshConstant, MRIGARK, TimeStepper
 from irksome.labeling import explicit
 from irksome.tableaux.ButcherTableaux import ButcherTableau
@@ -102,3 +102,16 @@ def test_unsupported_options_raise():
     with pytest.raises(NotImplementedError):
         TimeStepper(F, MRIGARK("ERK22a"), t, dt, u, fast_parameters=fast,
                     bcs=EquationBC(inner(u - 1, v) * ds(1) == 0, u, 1))
+
+
+def test_slow_terms_not_defined_at_zero():
+    t, dt, u, uexact, Ffast, Fslow, bc = heat(8)
+    v = TestFunction(u.function_space())
+    t.assign(1.0)
+    dt.assign(0.1)
+    F = Ffast + explicit(inner(ln(2 + u) + 1 / t, v) * dx)
+    stepper = TimeStepper(F, MRIGARK("ERK33a"), t, dt, u,
+                          fast_parameters={"tableau": GaussLegendre(2),
+                                           "stepper_kwargs": {"solver_parameters": lu}})
+    stepper.advance()
+    assert np.isfinite(u.dat.data_ro).all()
