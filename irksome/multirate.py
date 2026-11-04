@@ -17,6 +17,10 @@ class MRIGARKTimeStepper(BaseTimeStepper):
     time derivative, are integrated over each fast interval by an inner
     :func:`TimeStepper` with ``num_substeps`` steps.
 
+    The slow terms are explicit, so these methods lose order when the fast
+    part is stiff.  The Jacobian of the fast problem is built from its form,
+    so ``J`` and ``Jp`` are not accepted.
+
     :arg Ffast: A :class:`ufl.Form` with the time derivative and fast terms.
     :arg Fslow: A :class:`ufl.Form` with the slow terms.
     :arg method: A :class:`MRIGARK` instance.
@@ -37,6 +41,8 @@ class MRIGARKTimeStepper(BaseTimeStepper):
         assert isinstance(method, MRIGARK)
         super().__init__(Ffast + Fslow, t, dt, u0, bcs=bcs, appctx=appctx,
                          nullspace=nullspace, backend=backend)
+        if kwargs.get("J") is not None or kwargs.get("Jp") is not None:
+            raise NotImplementedError("MRI-GARK does not accept J or Jp")
         if fast_parameters is None or "tableau" not in fast_parameters:
             raise ValueError("MRI-GARK needs fast_parameters with an inner 'tableau'")
         self.method = method
@@ -62,6 +68,8 @@ class MRIGARKTimeStepper(BaseTimeStepper):
 
         bcs_inner = []
         for bc in self.orig_bcs:
+            if not hasattr(bc, "_original_arg"):
+                raise NotImplementedError("MRI-GARK only supports DirichletBC")
             g = bc._original_arg
             if g == 0:
                 bcs_inner.append(bc)
