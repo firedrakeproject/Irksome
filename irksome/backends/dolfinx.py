@@ -13,7 +13,6 @@ except ModuleNotFoundError:
     raise ImportError(
         "DOLFINx is not installed. Please install DOLFINx to use the DOLFINx backend of Irksome."
     )
-import basix.ufl
 import ufl
 import typing
 import numpy as np
@@ -669,6 +668,7 @@ class FloatConstantFunction(dolfinx.fem.Function):
 class MeshConstant:
     def __init__(self, msh):
         self.msh = msh
+        import basix.ufl
         r_el = basix.ufl.real_element(
             msh.basix_cell(), value_shape=(), dtype=dolfinx.default_scalar_type
         )
