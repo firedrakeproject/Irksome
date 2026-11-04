@@ -11,7 +11,7 @@ import numpy as np
 
 from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions
 
-from irksome import GaussLegendre, Dt, MeshConstant
+from irksome import GaussLegendre, RadauIIA, Dt, MeshConstant
 from irksome.backends.dolfinx import dirichletbc, norm
 from irksome.stage_derivative import StageDerivativeTimeStepper
 from irksome.tools import AI
@@ -177,7 +177,7 @@ def test_stokes_stage_nullspace(num_stages):
 
     stepper = StageDerivativeTimeStepper(
         F,
-        GaussLegendre(num_stages),
+        RadauIIA(num_stages),
         t,
         dt,
         z,
@@ -209,7 +209,7 @@ def test_constant_stage_nullspace(num_stages):
     nullspace = PETSc.NullSpace().create(constant=True, comm=msh.comm)
     stepper = StageDerivativeTimeStepper(
         F,
-        GaussLegendre(num_stages),
+        RadauIIA(num_stages),
         t,
         dt,
         u,
