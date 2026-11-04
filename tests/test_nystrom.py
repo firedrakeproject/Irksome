@@ -1,8 +1,9 @@
+import numpy as np
 import pytest
 from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, TrialFunction, UnitIntervalMesh, VectorFunctionSpace,
-                       assemble, cos, div, dx, norm, grad, inner, pi, project, sin, split)
-from irksome import Dt, ExplicitNystromTimeStepper, GaussLegendre, MeshConstant, DIRKNystromTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
+                       assemble, cos, div, dx, errornorm, norm, grad, inner, pi, project, sin, split)
+from irksome import Dt, expand_time_derivatives, ExplicitNystromTimeStepper, GaussLegendre, MeshConstant, DIRKNystromTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
 
 
 def wave(n, deg, time_stages, bc_type):
@@ -282,25 +283,35 @@ def test_explicit_wave_eq():
     assert diff < 3.e-5
 
 
-@pytest.mark.parametrize("bc_type", [None, "dDAE"])
-def test_explicit_nystrom_bc_type(bc_type):
-    N = 8
-    msh = UnitIntervalMesh(N)
-    V = FunctionSpace(msh, "CG", 1)
+def forced_wave_error(n, stepper, tableau, bc_type):
+    msh = UnitIntervalMesh(8)
+    V = FunctionSpace(msh, "CG", 2)
     x, = SpatialCoordinate(msh)
-
-    MC = MeshConstant(msh)
-    t = MC.Constant(0.0)
-    dt = MC.Constant(0.2 / N)
-
-    u = Function(V).interpolate(sin(pi * x))
-    ut = Function(V)
+    t = Constant(0.0)
+    dt = Constant(0.5 / n)
+    uexact = cos(2 * t) * x * (1 - x) + sin(t) * x
+    rhs = expand_time_derivatives(Dt(uexact, 2), t=t, timedep_coeffs=()) - div(grad(uexact))
+    u = Function(V).interpolate(uexact)
+    ut = Function(V).interpolate(expand_time_derivatives(Dt(uexact), t=t, timedep_coeffs=()))
     v = TestFunction(V)
-    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx
-    bc = DirichletBC(V, 0, "on_boundary")
+    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx - inner(rhs, v) * dx
+    bc = DirichletBC(V, uexact, "on_boundary")
+    stepper = stepper(F, tableau, t, dt, u, ut, bcs=bc, bc_type=bc_type)
+    for _ in range(n):
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+    return errornorm(Function(V).interpolate(uexact), u)
 
-    stepper = ExplicitNystromTimeStepper(
-        F, ClassicNystrom4Tableau(), t, dt, u, ut, bcs=bc, bc_type=bc_type)
-    stepper.advance()
-    t.assign(float(t) + float(dt))
-    assert norm(u - cos(pi * t) * sin(pi * x)) < 1.e-2
+
+@pytest.mark.parametrize("stepper,tableau,bc_type", [
+    (ExplicitNystromTimeStepper, ClassicNystrom4Tableau(), None),
+    (ExplicitNystromTimeStepper, ClassicNystrom4Tableau(), "dDAE"),
+    (DIRKNystromTimeStepper, WSODIRK(4, 3, 3), "DAE"),
+    (DIRKNystromTimeStepper, WSODIRK(4, 3, 3), "dDAE")])
+def test_nystrom_forced_dirichlet(stepper, tableau, bc_type):
+    """Explicit Nystrom methods only take bc_type="dDAE", their default: the
+    time derivative of the boundary data fixes each stage derivative on the
+    boundary, and the residual stays at its own stage time.  The exact
+    solution is quadratic in x, so the error is purely temporal."""
+    errs = [forced_wave_error(n, stepper, tableau, bc_type) for n in (20, 40)]
+    assert np.log2(errs[0] / errs[1]) > 2.6

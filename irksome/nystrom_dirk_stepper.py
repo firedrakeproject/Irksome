@@ -55,6 +55,7 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, k
     abar_vals = numpy.array([MC.Constant(0) for i in range(num_stages)],
                             dtype=object)
     d_val = MC.Constant(1.0)
+    c_bc = MC.Constant(1.0)
     if bc_type == "DAE":
         # Here, at each stage, abar_vals should include the
         # subdiagonal values from Abar in the Nystrom Tableau and
@@ -65,8 +66,8 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, k
                 # Homogeneous BC, just zero out stage dofs
                 bcnew.append(bc)
             else:
-                bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
-                gdat = bcarg_stage - backend_cls.bc2space(bc, u0) - c*dt*backend_cls.bc2space(bc, ut0)
+                bcarg_stage = replace(as_ufl(bcarg), {t: t+c_bc*dt})
+                gdat = bcarg_stage - backend_cls.bc2space(bc, u0) - c_bc*dt*backend_cls.bc2space(bc, ut0)
                 gdat -= sum(backend_cls.bc2space(bc, ks[i]) * (abar_vals[i] * dt**2) for i in range(num_stages))
                 gdat /= d_val * dt**2
                 bcnew.append(bc.reconstruct(g=gdat))
@@ -83,14 +84,14 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, k
                 # Homogeneous BC, just zero out stage dofs
                 bcnew.append(bc)
             else:
-                bcprime = expand_time_derivatives(Dt(as_ufl(bcarg)), t=t, timedep_coefs=(u0,))
-                bcprime_stage = replace(bcprime, {t: t+c*dt})
+                bcprime = expand_time_derivatives(Dt(as_ufl(bcarg)), t=t, timedep_coeffs=(u0,))
+                bcprime_stage = replace(bcprime, {t: t+c_bc*dt})
                 gdat = bcprime_stage - backend_cls.bc2space(bc, ut0)
                 gdat -= sum(backend_cls.bc2space(bc, ks[i]) * (abar_vals[i] * dt) for i in range(num_stages))
                 gdat /= d_val * dt
                 bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k0, g1, g2, a, abar, c), bcnew, (abar_vals, d_val)
+    return stage_F, (k0, g1, g2, a, abar, c), bcnew, (abar_vals, d_val, c_bc)
 
 
 class DIRKNystromTimeStepper:
@@ -110,6 +111,7 @@ class DIRKNystromTimeStepper:
         assert tableau.is_diagonally_implicit
         if bc_type is None:
             bc_type = "DAE"
+        self.bc_type = bc_type
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
@@ -151,8 +153,8 @@ class DIRKNystromTimeStepper:
         self.orig_bcs = bcs
         self.ks = [backend_cls.Function(V) for _ in range(num_stages)]
 
-        stage_F, self.kgac, bcnew, (abar_vals, d_val) = getFormDIRKNystrom(
-            F, self.ks, tableau, t, dt, u0, ut0, bcs=bcs, backend=backend)
+        stage_F, self.kgac, bcnew, (abar_vals, d_val, c_bc) = getFormDIRKNystrom(
+            F, self.ks, tableau, t, dt, u0, ut0, bcs=bcs, bc_type=bc_type, backend=backend)
 
         k = self.kgac[0]
         self.bcnew = bcnew
@@ -186,7 +188,7 @@ class DIRKNystromTimeStepper:
             **kwargs,
         )
 
-        self.bc_constants = abar_vals, d_val
+        self.bc_constants = abar_vals, d_val, c_bc
 
     def get_bilinear_form(self, form, stages, tableau=None):
         if form is None:
@@ -198,14 +200,15 @@ class DIRKNystromTimeStepper:
     def update_bc_constants(self, i, c):
         AAbar = self.AABbar
         CCone = self.CCone
-        abar_vals, d_val = self.bc_constants
+        abar_vals, d_val, c_bc = self.bc_constants
         ns = AAbar.shape[1]
         for j in range(i):
             abar_vals[j].assign(AAbar[i, j])
         for j in range(i, ns):
             abar_vals[j].assign(0)
         d_val.assign(AAbar[i, i])
-        c.assign(CCone[i])
+        c_bc.assign(CCone[i])
+        c.assign(self.CC[i])
 
     def advance(self):
         k, g1, g2, a, abar, c = self.kgac
@@ -242,7 +245,7 @@ class DIRKNystromTimeStepper:
                                   tableau or self.tableau,
                                   self.t, self.dt,
                                   self.u0, self.ut0,
-                                  bcs=bcs, kgac=self.kgac)
+                                  bcs=bcs, bc_type=self.bc_type, kgac=self.kgac)
 
     def invalidate_jacobian(self):
         """
@@ -253,7 +256,12 @@ class DIRKNystromTimeStepper:
 
 class ExplicitNystromTimeStepper(DIRKNystromTimeStepper):
     """Front-end class for advancing a second-order time-dependent PDE via an explicit
-    Runge-Kutta-Nystrom method formulated in terms of stage derivatives."""
+    Runge-Kutta-Nystrom method formulated in terms of stage derivatives.
+
+    Only ``bc_type="dDAE"`` is supported, and it is the default: an explicit
+    stage cannot move its own boundary values, so the time derivative of the
+    boundary data is imposed on the stage derivative that first moves them.
+    """
 
     def __init__(self, F, tableau, t, dt, u0, ut0, bcs=None,
                  solver_parameters=None,
