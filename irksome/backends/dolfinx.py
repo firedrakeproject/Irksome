@@ -666,7 +666,7 @@ class FloatConstantFunction(dolfinx.fem.Function):
         self.x.scatter_forward()
 
 
-class MeshConstant(object):
+class MeshConstant:
     def __init__(self, msh):
         self.msh = msh
         r_el = basix.ufl.real_element(
