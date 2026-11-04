@@ -34,7 +34,7 @@ def to_value(u0, stages, vandermonde):
     return dot(vandermonde[1:], u_np)
 
 
-def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None, backend: str = "firedrake"):
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None, num_explicit=0, backend: str = "firedrake"):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -62,6 +62,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
         to vary between the classical RK formulation and Butcher's reformulation
         that leads to a denser mass matrix with block-diagonal stiffness.
         Only `AI` and `IA` are currently supported.
+    :kwarg num_explicit: the number of leading explicit stages.  These take
+        the value ``u0`` and are left out of ``stages``.
     :kwarg vandermonde: a numpy array encoding a change of basis to the Lagrange
         polynomials associated with the collocation nodes from some other
         (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
@@ -88,18 +90,14 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
 
-    UU = to_value(u0, stages, vandermonde)
-    num_solved = UU.shape[0]
-    num_explicit = num_stages - num_solved
-    if num_explicit:
-        u0_np = reshape(u0, (1, *u0.ufl_shape))
-        w_np = numpy.concatenate([u0_np] * num_explicit + [UU])
-    else:
-        w_np = UU
-
+    num_solved = num_stages - num_explicit
+    w_np = to_value(u0, stages, vandermonde)
     bA1, bA2 = splitting(butch.A)
-    bA1 = bA1[num_explicit:, :]
-    bA2 = bA2[num_explicit:, num_explicit:]
+    if num_explicit > 0:
+        u0_np = reshape(u0, (1, *u0.ufl_shape))
+        w_np = numpy.concatenate([u0_np] * num_explicit + [w_np])
+        bA1 = bA1[num_explicit:, :]
+        bA2 = bA2[num_explicit:, num_explicit:]
     try:
         bA2inv = numpy.linalg.inv(bA2)
     except numpy.linalg.LinAlgError:
@@ -162,8 +160,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
             g_np = Vander_inv[1:, 1:] @ g_np
 
         for r in range(num_solved):
-            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, r)
-            bcsnew.extend(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[num_explicit + r])))
+            i = num_explicit + r
+            Vsub = backend_cls.stage2spaces4bc(bc, V, Vbig, r)
+            bcsnew.extend(bc.reconstruct(V=Vsub, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
 
@@ -189,20 +188,22 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             vandermonde = self.tabulate_poly(pts).T
         self.vandermonde = vandermonde
 
-        self.num_explicit = 0
+        self.num_explicit_stages = 0
+        num_explicit = butcher_tableau.num_explicit_first_stages
         if (vandermonde is None and splitting is AI
                 and not use_collocation_update
                 and butcher_tableau.is_stiffly_accurate
                 and not butcher_tableau.is_explicit
-                and kwargs.get("nullspace") is None):
-            self.num_explicit = butcher_tableau.num_explicit_first_stages
-        self.num_solved_stages = butcher_tableau.num_stages - self.num_explicit
+                and all(scheme is None or scheme.num_explicit_first_stages == num_explicit
+                        for scheme in (kwargs.get("scheme_J"), kwargs.get("scheme_Jp")))):
+            self.num_explicit_stages = num_explicit
 
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, scheme_F=butcher_tableau, bounds=bounds,
                          sample_points=sample_points, backend=backend,
+                         num_solved_stages=butcher_tableau.num_stages - self.num_explicit_stages,
                          **kwargs)
         self.num_fields = len(self._backend.get_function_space(u0))
 
@@ -334,10 +335,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                             self.t, self.dt, self.u0,
                             stages, bcs=bcs,
                             splitting=self.splitting,
-                            vandermonde=self.vandermonde)
-
-    def get_stages(self):
-        return self._backend.get_stages(self.V, self.num_solved_stages)
+                            vandermonde=self.vandermonde,
+                            num_explicit=self.num_explicit_stages)
 
     def set_initial_guess(self):
         """Set a constant-in-time initial guess"""
