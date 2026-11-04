@@ -240,33 +240,6 @@ class ListTensor(ufl.tensors.ListTensor):
         return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(self.ufl_shape[0])])
 
 
-class _KSPOnlySNES:
-    """SNES iteration counters for a linear solve, as reported by a ``ksponly`` SNES."""
-
-    def __init__(self, ksp: PETSc.KSP):  # type: ignore[name-defined]
-        self._ksp = ksp
-
-    def getIterationNumber(self) -> int:
-        return 1
-
-    def getLinearSolveIterations(self) -> int:
-        return self._ksp.getIterationNumber()
-
-
-class LinearProblem(dolfinx.fem.petsc.LinearProblem):
-    """Overloaded linear problem that pack BCs before solving"""
-
-    def solve(self, bounds=None):
-        if bounds is not None:
-            raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
-        [bc.pack() for bc in self._bcs]
-        super().solve()
-
-    @property
-    def snes(self) -> _KSPOnlySNES:
-        return _KSPOnlySNES(self.solver)
-
-
 class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
     """Overloaded nonlinear problem that pack BCs before solving.
 
@@ -588,48 +561,42 @@ def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
     form_compiler_options = kwargs.get("form_compiler_parameters")
     if isinstance(u, ListTensor):
         u = u.subfunctions
+    solver_parameters = kwargs.get("solver_parameters")
     if rank == 2:
-        a, L = ufl.system(F)
-        a = ufl.extract_blocks(a)
-        L = ufl.extract_blocks(L)
-        # As for Firedrake's LinearVariationalProblem, J is not used for a linear problem
-        Jp = None if Jp is None else ufl.extract_blocks(Jp)
-        if len(u) == 1:
-            # DOLFINx creates a non-blocked vector for a single block
-            a, L, u = a[0][0], L[0], u[0]
-            Jp = None if Jp is None else Jp[0][0]
-        return LinearProblem(
-            a,
-            L,
-            u=u,
-            bcs=bcs,
-            petsc_options_prefix=prefix,
-            P=Jp,
-            form_compiler_options=form_compiler_options,
+        # As Firedrake's LinearVariationalProblem: solve the residual ``F(u)`` with
+        # ``J = a`` (any user-supplied ``J`` is ignored) and ``snes_type: ksponly``.
+        a, _ = ufl.system(F)
+        us = u if isinstance(u, Sequence) else [u]
+        trial = sorted(
+            (arg for arg in F.arguments() if arg.number() == 1),
+            key=lambda arg: arg.part() or 0,
         )
-    elif rank == 1:
-        F = ufl.extract_blocks(F)
-        J = None if J is None else ufl.extract_blocks(J)
-        Jp = None if Jp is None else ufl.extract_blocks(Jp)
-        return NonlinearProblem(
-            F,
-            u,
-            petsc_options_prefix=prefix,
-            bcs=bcs,
-            J=J,
-            P=Jp,
-            petsc_options=kwargs.get("solver_parameters"),
-            form_compiler_options=form_compiler_options,
-        )
-    else:
+        assert len(trial) == len(us)
+        F = ufl.replace(F, dict(zip(trial, us)))
+        J = a
+        solver_parameters = {"snes_type": "ksponly", **(solver_parameters or {})}
+    elif rank != 1:
         raise RuntimeError(f"Forms of rank {rank} are not supported in create_variational_problem")
+    F = ufl.extract_blocks(F)
+    J = None if J is None else ufl.extract_blocks(J)
+    Jp = None if Jp is None else ufl.extract_blocks(Jp)
+    return NonlinearProblem(
+        F,
+        u,
+        petsc_options_prefix=prefix,
+        bcs=bcs,
+        J=J,
+        P=Jp,
+        petsc_options=solver_parameters,
+        form_compiler_options=form_compiler_options,
+    )
 
 
 def create_variational_solver(
-    problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
+    problem: dolfinx.fem.petsc.NonlinearProblem,
     **kwargs,
 ):
-    """Create a variational solver that uses PETSc SNES or KSP."""
+    """Create a variational solver that uses PETSc SNES."""
     solver_parameters = kwargs.get("solver_parameters", {})
     solver = problem.solver
 
@@ -813,7 +780,7 @@ class EquationBC:
         raise NotImplementedError("DOLFINx does not support EquationBC")
 
 
-def invalidate_jacobian(solver: dolfinx.fem.petsc.LinearProblem):
+def invalidate_jacobian(solver: dolfinx.fem.petsc.NonlinearProblem):
     """Invalidate the Jacobian matrix in the backend language."""
     pass
 

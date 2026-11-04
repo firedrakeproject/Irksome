@@ -3,6 +3,7 @@ import gc
 import logging
 
 from mpi4py import MPI
+from petsc4py import PETSc
 
 dolfinx = pytest.importorskip("dolfinx")
 
@@ -106,11 +107,7 @@ def test_stokes(num_stages):
         "petsc_options_prefix": f"IrkSomeStokesSolver{num_stages}",
     }
     linear_stepper = StageDerivativeTimeStepper(
-        F,
-        butcher_tableau,
-        t,
-        dt,
-        z,
+        F, butcher_tableau, t, dt, z,
         bcs=bcs,
         Fp=None,
         bc_type="DAE",
@@ -187,15 +184,12 @@ def _assemble_stage_operators(stepper):
 @pytest.mark.parametrize("num_stages", [1, 2])
 def test_user_jacobian(num_stages):
     """A user-supplied J replaces the automatically derived stage Jacobian."""
+    scheme = GaussLegendre(num_stages)
     lu = {"ksp_type": "preonly", "pc_type": "lu", "ksp_error_if_not_converged": True}
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         solver_parameters={**lu, "petsc_options_prefix": f"auto_J_{num_stages}_"},
         backend="dolfinx",
     )
@@ -203,11 +197,7 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         J=2 * J,
         solver_parameters={**lu, "petsc_options_prefix": f"user_J_{num_stages}_"},
         backend="dolfinx",
@@ -217,11 +207,7 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         J=J,
         solver_parameters={**lu, "petsc_options_prefix": f"exact_J_{num_stages}_"},
         backend="dolfinx",
@@ -235,13 +221,10 @@ def test_user_jacobian(num_stages):
 @pytest.mark.parametrize("num_stages", [1, 2])
 def test_user_preconditioner(num_stages):
     """A user-supplied Jp is assembled into a separate preconditioner matrix."""
+    scheme = GaussLegendre(num_stages)
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         Jp=2 * J,
         solver_parameters={
             "ksp_type": "gmres",
@@ -266,14 +249,11 @@ def test_user_preconditioner(num_stages):
 @pytest.mark.parametrize("use_Jp", [False, True])
 def test_bilinear_form(num_stages, use_Jp):
     """A bilinear F is solved as a linear stage problem."""
+    scheme = GaussLegendre(num_stages)
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     F = ufl.replace(F, {u: TrialFunction(u.function_space)})
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         Jp=2 * J if use_Jp else None,
         solver_parameters={
             "ksp_type": "gmres",
@@ -285,6 +265,7 @@ def test_bilinear_form(num_stages, use_Jp):
         backend="dolfinx",
     )
     assert (stepper.solver.P_mat is not None) == use_Jp
+    assert stepper.solver.snes.getType() == PETSc.SNES.Type.KSPONLY
 
     stepper.advance()
     t.assign(float(t) + float(dt))
@@ -298,6 +279,7 @@ def test_bilinear_form(num_stages, use_Jp):
 @pytest.mark.parametrize("bilinear", [False, True])
 def test_form_compiler_parameters(bilinear):
     """form_compiler_parameters reach FFCx as DOLFINx form_compiler_options."""
+    scheme = GaussLegendre(1)
     _msh, t, dt, u, F, _J, _u_ex = _manufactured_heat_problem()
     if bilinear:
         F = ufl.replace(F, {u: TrialFunction(u.function_space)})
@@ -308,11 +290,7 @@ def test_form_compiler_parameters(bilinear):
     ffcx_logger.setLevel(logging.WARNING)
     try:
         StageDerivativeTimeStepper(
-            F,
-            GaussLegendre(1),
-            t,
-            dt,
-            u,
+            F, scheme, t, dt, u,
             form_compiler_parameters={"verbosity": logging.ERROR},
             solver_parameters={"petsc_options_prefix": f"fcp_{bilinear}_"},
             backend="dolfinx",
