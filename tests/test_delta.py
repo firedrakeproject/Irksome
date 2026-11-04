@@ -35,7 +35,7 @@ def test_delta(msh, vom):
     assert d.arguments() == (v,)
 
     # Test domain
-    assert set(ufl.domain.extract_domains(d)) == {msh, vom}
+    assert ufl.domain.extract_domains(d) == (msh,)
 
     # Test assembly
     result = assemble(d)
@@ -45,7 +45,7 @@ def test_delta(msh, vom):
     assert np.allclose(result.dat.data_ro, expected)
 
     # Test steady RHS and Jacobian assembly
-    F = inner(grad(u), grad(v)) * dx + delta(-v * cos(t), vom)
+    F = inner(grad(u), grad(v)) * dx - d
     assemble(F)
     J = derivative(F, u)
     assemble(J)
@@ -82,9 +82,9 @@ def heat_delta(msh, vom, scheme, **kwargs):
     v = TestFunction(V)
 
     t = Constant(0)
-    d = delta(-v * sin(t*pi), vom)
+    d = delta(v * sin(t*pi), vom)
 
-    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx + d
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - d
     bcs = DirichletBC(V, 0, "on_boundary")
 
     dt = Constant(1/N)
@@ -103,9 +103,9 @@ def wave_delta(msh, vom, bt):
     v = TestFunction(V)
 
     t = Constant(0)
-    d = delta(-v * sin(t*pi), vom)
+    d = delta(v * sin(t*pi), vom)
 
-    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx + d
+    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx - d
     bcs = DirichletBC(V, 0, "on_boundary")
 
     dt = Constant(1/N)
