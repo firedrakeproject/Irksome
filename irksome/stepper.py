@@ -15,7 +15,8 @@ valid_base_kwargs = ("bcs", "J", "Jp", "form_compiler_parameters",
                      "is_linear", "constant_jacobian",
                      "restrict", "solver_parameters",
                      "nullspace", "transpose_nullspace", "near_nullspace",
-                     "appctx", "options_prefix", "pre_apply_bcs")
+                     "appctx", "options_prefix", "pre_apply_bcs",
+                     "marking_callback")
 
 valid_kwargs_per_stage_type = {
     "deriv": ["stage_type", "scheme_J", "scheme_Jp", "bc_type", "splitting", "adaptive_parameters", "aux_indices", "sample_points"],
@@ -118,6 +119,7 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         find starting values for multistep methods.
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
         at additional points in time.
+    :kwarg marking_callback: An optional callback for PETSc-driven mesh adaptation.
     """
     # first pluck out the cases for Galerkin in time...
 

@@ -43,3 +43,13 @@ def test_base_kwargs_adaptive(heat_problem):
         form_compiler_parameters={"quadrature_degree": 4},
     )
     assert stepper.solver.snes.getOptionsPrefix() == "test_adaptive_"
+
+
+def test_marking_callback_is_valid_base_kwarg(heat_problem):
+    """Test that marking callbacks reach the stage-coupled stepper."""
+    F, t, dt, u = heat_problem
+    stepper = TimeStepper(
+        F, GaussLegendre(1), t, dt, u,
+        marking_callback=lambda *_args: None,
+    )
+    assert stepper.marking_callback is not None
