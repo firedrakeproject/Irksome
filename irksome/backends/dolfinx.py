@@ -240,16 +240,6 @@ class ListTensor(ufl.tensors.ListTensor):
         return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(self.ufl_shape[0])])
 
 
-class LinearProblem(dolfinx.fem.petsc.LinearProblem):
-    """Overloaded linear problem that pack BCs before solving"""
-
-    def solve(self, bounds=None):
-        if bounds is not None:
-            raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
-        [bc.pack() for bc in self._bcs]
-        super().solve()
-
-
 class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
     """Overloaded nonlinear problem that pack BCs before solving.
 
@@ -324,6 +314,7 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
                     len(self._preconditioner) == 1
                     and len(self._preconditioner[0]) == 1
                 )
+                jac_kargs["preconditioner"] = self._preconditioner[0][0]
         else:
             kargs = {
                 "u": u,
@@ -559,43 +550,53 @@ def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
     return bcs
 
 
-def create_variational_problem(F, u, bcs=None, aP=None, **kwargs):
-    """Create a variational problem."""
+def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
+    """Create a variational problem.
+
+    :param J: Optional bilinear form for the Jacobian of the stage problem.
+    :param Jp: Optional bilinear form used to assemble the preconditioner.
+    """
     rank = len(np.unique([arg.number() for arg in F.arguments()]))
     prefix = kwargs.get("petsc_options_prefix", "IrkSomeSolver")
+    form_compiler_options = kwargs.get("form_compiler_parameters")
     if isinstance(u, ListTensor):
         u = u.subfunctions
+    solver_parameters = kwargs.get("solver_parameters")
     if rank == 2:
-        a, L = ufl.system(F)
-        a = ufl.extract_blocks(a)
-        L = ufl.extract_blocks(L)
-        return LinearProblem(
-            a,
-            L,
-            u,
-            bcs=bcs,
-            petsc_options_prefix=prefix,
-            P=aP,
-            **kwargs,
+        # As Firedrake's LinearVariationalProblem: solve the residual ``F(u)`` with
+        # ``J = a`` (any user-supplied ``J`` is ignored) and ``snes_type: ksponly``.
+        a, _ = ufl.system(F)
+        us = u if isinstance(u, Sequence) else [u]
+        trial = sorted(
+            (arg for arg in F.arguments() if arg.number() == 1),
+            key=lambda arg: arg.part() or 0,
         )
-    elif rank == 1:
-        F = ufl.extract_blocks(F)
-        return NonlinearProblem(
-            F,
-            u,
-            petsc_options_prefix=prefix,
-            bcs=bcs,
-            petsc_options=kwargs.get("solver_parameters"),
-        )
-    else:
+        assert len(trial) == len(us)
+        F = ufl.replace(F, dict(zip(trial, us)))
+        J = a
+        solver_parameters = {"snes_type": "ksponly", **(solver_parameters or {})}
+    elif rank != 1:
         raise RuntimeError(f"Forms of rank {rank} are not supported in create_variational_problem")
+    F = ufl.extract_blocks(F)
+    J = None if J is None else ufl.extract_blocks(J)
+    Jp = None if Jp is None else ufl.extract_blocks(Jp)
+    return NonlinearProblem(
+        F,
+        u,
+        petsc_options_prefix=prefix,
+        bcs=bcs,
+        J=J,
+        P=Jp,
+        petsc_options=solver_parameters,
+        form_compiler_options=form_compiler_options,
+    )
 
 
 def create_variational_solver(
-    problem: dolfinx.fem.petsc.LinearProblem | dolfinx.fem.petsc.NonlinearProblem,
+    problem: dolfinx.fem.petsc.NonlinearProblem,
     **kwargs,
 ):
-    """Create a variational solver that uses PETSc SNES or KSP."""
+    """Create a variational solver that uses PETSc SNES."""
     solver_parameters = kwargs.get("solver_parameters", {})
     solver = problem.solver
 
@@ -728,7 +729,7 @@ def TrialFunction(function_space):
     This is required as :func:`ufl.TrialFunctions` returns a tuple of trial functions,
     which we need to convert to a tensor for consistency with the Firedrake backend.
     """
-    return ufl.as_tensor(ufl.TrialFunctions(function_space))
+    return ListTensor(*ufl.TrialFunctions(function_space))
 
 
 def Function(V: ufl.FunctionSpace | ufl.MixedFunctionSpace, name=None):
@@ -769,7 +770,7 @@ class EquationBC:
         raise NotImplementedError("DOLFINx does not support EquationBC")
 
 
-def invalidate_jacobian(solver: dolfinx.fem.petsc.LinearProblem):
+def invalidate_jacobian(solver: dolfinx.fem.petsc.NonlinearProblem):
     """Invalidate the Jacobian matrix in the backend language."""
     pass
 
