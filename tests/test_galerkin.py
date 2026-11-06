@@ -369,3 +369,53 @@ def test_kepler(problem, order):
         Et = np.asarray(list(map(assemble, invariants)))
         print(float(t), Et)
         assert np.allclose(E0, Et, atol=1E-14)
+
+
+@pytest.mark.parametrize("test_basis", ["spectral", "bernstein", "integral"])
+@pytest.mark.parametrize("vector_auxiliary", [False, True])
+def test_auxiliary_samples_use_test_space(test_basis, vector_auxiliary):
+    mesh = UnitIntervalMesh(2)
+    V = FunctionSpace(mesh, "CG", 1)
+    W = VectorFunctionSpace(mesh, "CG", 1, dim=2) if vector_auxiliary else V
+    # Put the auxiliary field between physical fields to check component mapping.
+    Z = V * W * V
+    u = Function(Z)
+    a, auxiliary, b = split(u)
+    v, w, z = TestFunctions(Z)
+    t = Constant(0.2)
+    dt = Constant(0.125)
+
+    a_exact = 1 + t + t**2 + t**3
+    forcing = 1 + 2*t + 3*t**2
+
+    # a_t = f(t), b_t = -f(t), auxiliary = a_t (or (a_t, -a_t)).
+    # Cubic physical fields and a quadratic auxiliary are represented exactly.
+    auxiliary_exact = as_vector((Dt(a), -Dt(a))) if vector_auxiliary else Dt(a)
+    F = (inner(Dt(a) - forcing, v)
+         + inner(auxiliary - auxiliary_exact, w)
+         + inner(Dt(b) + forcing, z))*dx
+
+    u.subfunctions[0].interpolate(a_exact)
+    # Auxiliary initial values must not enter the reconstructed polynomial.
+    u.subfunctions[1].interpolate(as_vector((999, -999)) if vector_auxiliary else 999)
+    u.subfunctions[2].interpolate(-a_exact)
+    points = [0.0, 0.13, 0.5, 0.87, 1.0]
+    scheme = ContinuousPetrovGalerkinScheme(
+        3, basis_type=("spectral", test_basis)
+    )
+    stepper = TimeStepper(
+        F, scheme, t, dt, u, aux_indices=[1], sample_points=points,
+        solver_parameters={"snes_type": "ksponly", "ksp_type": "preonly", "pc_type": "lu"},
+    )
+    sample_time = Constant(float(t))
+    exact = (as_vector((a_exact, forcing, -forcing, -a_exact))
+             if vector_auxiliary else as_vector((a_exact, forcing, -a_exact)))
+    exact_at_sample = replace(exact, {t: sample_time})
+    for tau in (0.125, 0.2):
+        left = float(t)
+        dt.assign(tau)
+        stepper.advance()
+        for point, sample in zip(points, stepper.sample_values):
+            sample_time.assign(left + point*tau)
+            assert norm(sample - exact_at_sample) < 1e-11
+        t.assign(left + tau)
