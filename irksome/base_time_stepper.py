@@ -104,12 +104,14 @@ class StageCoupledTimeStepper(BaseTimeStepper):
                  splitting=None, bc_type=None,
                  scheme_F=None, scheme_J=None, scheme_Jp=None,
                  bounds=None, sample_points=None,
+                 num_solved_stages=None,
                  backend="firedrake", **kwargs):
 
         super().__init__(F, t, dt, u0,
                          bcs=bcs, J=J, Jp=Jp, appctx=appctx, nullspace=nullspace, backend=backend)
 
         self.num_stages = num_stages
+        self.num_solved_stages = num_stages if num_solved_stages is None else num_solved_stages
         if scheme_F:
             assert num_stages == scheme_F.num_stages
         if scheme_J:
@@ -146,9 +148,9 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         Jbig = self.get_bilinear_form(J, stages, tableau=scheme_J)
         Jpbig = self.get_bilinear_form(Jp, stages, tableau=scheme_Jp)
 
-        nullspace = self._backend.getNullspace(V, Vbig, num_stages, nullspace)
-        transpose_nullspace = self._backend.getNullspace(V, Vbig, num_stages, transpose_nullspace)
-        near_nullspace = self._backend.getNullspace(V, Vbig, num_stages, near_nullspace)
+        nullspace = self._backend.getNullspace(V, Vbig, self.num_solved_stages, nullspace)
+        transpose_nullspace = self._backend.getNullspace(V, Vbig, self.num_solved_stages, transpose_nullspace)
+        near_nullspace = self._backend.getNullspace(V, Vbig, self.num_solved_stages, near_nullspace)
 
         self.bigBCs = bigBCs
 
@@ -206,7 +208,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         return (self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations)
 
     def get_stages(self) -> ufl.Coefficient:
-        return self._backend.get_stages(self.V, self.num_stages)
+        return self._backend.get_stages(self.V, self.num_solved_stages)
 
     def get_stage_bounds(self, bounds=None):
         if bounds is None:
@@ -221,18 +223,18 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         if bounds_type == "stage":
             if lower is not None:
-                slb = mixed_function(Vbig, [lower] * self.num_stages, backend=self._backend)
+                slb = mixed_function(Vbig, [lower] * self.num_solved_stages, backend=self._backend)
             if upper is not None:
-                sub = mixed_function(Vbig, [upper] * self.num_stages, backend=self._backend)
+                sub = mixed_function(Vbig, [upper] * self.num_solved_stages, backend=self._backend)
 
         elif bounds_type == "last_stage":
             V = self._backend.get_function_space(self.u0)
             if lower is not None:
                 ninfty = self._backend.Function(V).assign(PETSc.NINFINITY)
-                slb = mixed_function(Vbig, [ninfty] * (self.num_stages-1) + [lower], backend=self._backend)
+                slb = mixed_function(Vbig, [ninfty] * (self.num_solved_stages-1) + [lower], backend=self._backend)
             if upper is not None:
                 infty = self._backend.Function(V).assign(PETSc.INFINITY)
-                sub = mixed_function(Vbig, [infty] * (self.num_stages-1) + [upper], backend=self._backend)
+                sub = mixed_function(Vbig, [infty] * (self.num_solved_stages-1) + [upper], backend=self._backend)
 
         else:
             raise ValueError("Unknown bounds type")
