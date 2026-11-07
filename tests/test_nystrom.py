@@ -290,7 +290,7 @@ def forced_wave_error(n, stepper, tableau, bc_type):
     t = Constant(0.0)
     dt = Constant(0.5 / n)
     uexact = cos(2 * t) * x * (1 - x) + sin(t) * x
-    rhs = expand_time_derivatives(Dt(uexact, 2), t=t, timedep_coeffs=()) - div(grad(uexact))
+    rhs = Dt(uexact, 2) - div(grad(uexact))
     u = Function(V).interpolate(uexact)
     ut = Function(V).interpolate(expand_time_derivatives(Dt(uexact), t=t, timedep_coeffs=()))
     v = TestFunction(V)
