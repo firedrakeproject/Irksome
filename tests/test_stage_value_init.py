@@ -124,3 +124,14 @@ def test_explicit_first_stage_with_solver_options(kwargs):
     stepper.advance()
     assert stepper.num_solved_stages == 2
     assert errornorm(uplain, u) < 1e-8
+
+
+def test_explicit_first_stage_scheme_J_mismatch_raises():
+    msh = UnitIntervalMesh(4)
+    V = FunctionSpace(msh, "CG", 1)
+    u = Function(V)
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    with pytest.raises(ValueError):
+        TimeStepper(F, LobattoIIIA(3), Constant(0.0), Constant(0.1), u,
+                    stage_type="value", scheme_J=RadauIIA(3))

@@ -34,7 +34,7 @@ def to_value(u0, stages, vandermonde):
     return dot(vandermonde[1:], u_np)
 
 
-def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None, num_explicit=0, backend: str = "firedrake"):
+def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermonde=None, aux_indices=None, backend: str = "firedrake"):
     """Given a time-dependent variational form and a
     :class:`ButcherTableau`, produce UFL for the s-stage RK method.
 
@@ -62,8 +62,6 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
         to vary between the classical RK formulation and Butcher's reformulation
         that leads to a denser mass matrix with block-diagonal stiffness.
         Only `AI` and `IA` are currently supported.
-    :kwarg num_explicit: the number of leading explicit stages.  These take
-        the value ``u0`` and are left out of ``stages``.
     :kwarg vandermonde: a numpy array encoding a change of basis to the Lagrange
         polynomials associated with the collocation nodes from some other
         (e.g. Bernstein or Chebyshev) basis.  This allows us to solve for the
@@ -90,8 +88,11 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
 
-    num_solved = num_stages - num_explicit
     w_np = to_value(u0, stages, vandermonde)
+    num_solved = w_np.shape[0]
+    num_explicit = num_stages - num_solved
+    if num_explicit > butch.num_explicit_first_stages:
+        raise ValueError(f"The first {num_explicit} stages of this tableau are not all explicit")
     bA1, bA2 = splitting(butch.A)
     if num_explicit > 0:
         u0_np = reshape(u0, (1, *u0.ufl_shape))
@@ -189,14 +190,15 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.vandermonde = vandermonde
 
         self.num_explicit_stages = 0
-        num_explicit = butcher_tableau.num_explicit_first_stages
         if (vandermonde is None and splitting is AI
                 and not use_collocation_update
                 and butcher_tableau.is_stiffly_accurate
-                and not butcher_tableau.is_explicit
-                and all(scheme is None or scheme.num_explicit_first_stages == num_explicit
-                        for scheme in (kwargs.get("scheme_J"), kwargs.get("scheme_Jp")))):
-            self.num_explicit_stages = num_explicit
+                and not butcher_tableau.is_explicit):
+            self.num_explicit_stages = butcher_tableau.num_explicit_first_stages
+        schemes = [kwargs.get("scheme_J"), kwargs.get("scheme_Jp")]
+        if self.num_explicit_stages and any(scheme is not None and scheme.num_explicit_first_stages != self.num_explicit_stages
+                                            for scheme in schemes):
+            raise ValueError("scheme_J and scheme_Jp must solve for the same stages as the tableau")
 
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
@@ -335,8 +337,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                             self.t, self.dt, self.u0,
                             stages, bcs=bcs,
                             splitting=self.splitting,
-                            vandermonde=self.vandermonde,
-                            num_explicit=self.num_explicit_stages)
+                            vandermonde=self.vandermonde)
 
     def set_initial_guess(self):
         """Set a constant-in-time initial guess"""
