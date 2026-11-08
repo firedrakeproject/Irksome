@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
 from firedrake import (DirichletBC, EquationBC, FunctionSpace, SpatialCoordinate,
-                       TestFunction, UnitIntervalMesh, cos, derivative, ds, dx, errornorm, grad,
-                       inner, ln, pi, project)
+                       TestFunction, TrialFunction, UnitIntervalMesh, cos, derivative, ds, dx,
+                       errornorm, grad, inner, ln, pi, project, sin)
+from ufl import replace
 from irksome import Dt, GaussLegendre, MeshConstant, MRIGARK, TimeStepper
 from irksome.labeling import explicit
 from irksome.tableaux.ButcherTableaux import ButcherTableau
@@ -22,6 +23,12 @@ def test_slow_tableau(name):
     if method.order >= 3:
         assert np.isclose(method.b @ method.c**2, 1/3)
         assert np.isclose(method.b @ method.A @ method.c, 1/6)
+    if method.order >= 4:
+        A, b, c = method.A, method.b, method.c
+        assert np.isclose(b @ c**3, 1/4)
+        assert np.isclose(b @ (c * (A @ c)), 1/8)
+        assert np.isclose(b @ A @ c**2, 1/12)
+        assert np.isclose(b @ A @ A @ c, 1/24)
 
 
 def heat(N, degree=2, dirichlet=True):
@@ -31,11 +38,12 @@ def heat(N, degree=2, dirichlet=True):
     MC = MeshConstant(msh)
     t = MC.Constant(0.0)
     dt = MC.Constant(0.0)
+    kappa = 1 + sin(t) / 2
     uexact = cos(t) * (1 + x - x**2) if dirichlet else cos(t) * cos(pi * x)
-    rhs = Dt(uexact) - uexact.dx(0).dx(0) + uexact
+    rhs = Dt(uexact) - kappa * uexact.dx(0).dx(0) + uexact
     u = project(uexact, V)
     v = TestFunction(V)
-    Ffast = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    Ffast = inner(Dt(u), v) * dx + kappa * inner(grad(u), grad(v)) * dx
     Fslow = inner(u, v) * dx - inner(rhs, v) * dx
     bc = DirichletBC(V, uexact, "on_boundary")
     return t, dt, u, uexact, Ffast, Fslow, bc
@@ -57,7 +65,7 @@ def test_no_fast_terms(name):
         else:
             slow = ButcherTableau(method.A, method.b, None, method.c, method.order, None, None)
             stepper = TimeStepper(inner(Dt(u), v) * dx + Fslow, slow, t, dt, u,
-                                  stage_type="explicit", solver_parameters=lu)
+                                  stage_type="explicit", solver_parameters=dict(lu))
         for _ in range(5):
             stepper.advance()
             t.assign(t + dt)
@@ -83,7 +91,30 @@ def convergence(name, Ns, degree, dirichlet):
 
 @pytest.mark.parametrize("name", methods)
 def test_convergence(name):
-    assert convergence(name, (4, 8), 4, False) > MRIGARK(name).order - 0.4
+    """Two modes, a nonlinear slow term and a time-dependent fast
+    coefficient, so the fast and slow parts do not commute."""
+    def error(N):
+        msh = UnitIntervalMesh(32)
+        V = FunctionSpace(msh, "CG", 4)
+        x, = SpatialCoordinate(msh)
+        MC = MeshConstant(msh)
+        t = MC.Constant(0.0)
+        dt = MC.Constant(1 / N)
+        kappa = (1 + sin(t) / 2) / 20
+        uexact = cos(t) * cos(pi * x) + sin(2 * t) * cos(2 * pi * x) / 2 + 0.3
+        rhs = Dt(uexact) - kappa * uexact.dx(0).dx(0) + uexact**2
+        u = project(uexact, V)
+        v = TestFunction(V)
+        F = (inner(Dt(u), v) * dx + kappa * inner(grad(u), grad(v)) * dx
+             + explicit(inner(u**2 - rhs, v) * dx))
+        stepper = TimeStepper(F, MRIGARK(name), t, dt, u,
+                              fast_parameters={"tableau": GaussLegendre(2), "num_substeps": 2,
+                                               "stepper_kwargs": {"solver_parameters": lu}})
+        for _ in range(N):
+            stepper.advance()
+            t.assign(t + dt)
+        return errornorm(project(uexact, V), u)
+    assert np.log2(error(4) / error(8)) > MRIGARK(name).order - 0.4
 
 
 @pytest.mark.parametrize("name", methods)
@@ -115,3 +146,32 @@ def test_slow_terms_not_defined_at_zero():
                                            "stepper_kwargs": {"solver_parameters": lu}})
     stepper.advance()
     assert np.isfinite(u.dat.data_ro).all()
+
+
+def test_linear_problem_with_trial_function():
+    sols = []
+    for trial in (False, True):
+        t, dt, u, uexact, Ffast, Fslow, bc = heat(8)
+        w = TrialFunction(u.function_space()) if trial else u
+        dt.assign(0.1)
+        F = replace(Ffast, {u: w}) + explicit(replace(Fslow, {u: w}))
+        stepper = TimeStepper(F, MRIGARK("ERK33a"), t, dt, u, bcs=bc,
+                              fast_parameters={"tableau": GaussLegendre(2),
+                                               "stepper_kwargs": {"solver_parameters": lu}})
+        for _ in range(3):
+            stepper.advance()
+            t.assign(t + dt)
+        sols.append(u.dat.data_ro.copy())
+    assert np.allclose(sols[0], sols[1], rtol=0, atol=1e-10)
+
+
+def test_time_derivative_in_the_wrong_part_raises():
+    t, dt, u, uexact, Ffast, Fslow, bc = heat(4)
+    v = TestFunction(u.function_space())
+    fast = {"tableau": GaussLegendre(2)}
+    with pytest.raises(ValueError):
+        TimeStepper(Ffast + explicit(inner(Dt(u), v) * dx + Fslow), MRIGARK("ERK22a"), t, dt, u,
+                    fast_parameters=fast)
+    with pytest.raises(ValueError):
+        TimeStepper(inner(grad(u), grad(v)) * dx + explicit(Fslow), MRIGARK("ERK22a"), t, dt, u,
+                    fast_parameters=fast)
