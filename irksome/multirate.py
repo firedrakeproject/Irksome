@@ -1,10 +1,11 @@
-from ufl import as_ufl
+from ufl import as_ufl, zero
+from ufl.algorithms.analysis import extract_type
 
 from .base_time_stepper import BaseTimeStepper
 from .constant import MeshConstant
 from .tableaux.mri_gark_tableaux import MRIGARK
 from .tools import extract_timedep_arguments, replace
-from .ufl.deriv import expand_time_derivatives
+from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms
 
 
@@ -25,6 +26,8 @@ class MRIGARKTimeStepper(BaseTimeStepper):
     the inner stepper; ``num_fast_steps`` counts the fast steps.
 
     :arg Ffast: A :class:`ufl.Form` with the time derivative and fast terms.
+        Time derivative terms, such as ``Dt(g(u))``, must be summands of their own.
+        A method with a zero ``dc[i]`` needs a time derivative in every equation.
     :arg Fslow: A :class:`ufl.Form` with the slow terms.
     :arg method: A :class:`MRIGARK` instance.
     :arg t: a :class:`Constant` or :class:`Function` on the Real space
@@ -36,7 +39,9 @@ class MRIGARKTimeStepper(BaseTimeStepper):
     :arg fast_parameters: A :class:`dict` with keys ``"tableau"`` (the inner
         :class:`ButcherTableau`, required), ``"num_substeps"`` (fast steps per
         fast interval, default 1) and ``"stepper_kwargs"`` (passed to the
-        inner :func:`TimeStepper`).
+        inner :func:`TimeStepper`).  The fast step on stage ``i`` is
+        ``dc[i] * dt / num_substeps``.  The inner Jacobian is reassembled when
+        ``dc[i]`` changes, but a Jacobian lagged through PETSc options is not.
     """
     def __init__(self, Ffast, Fslow, method, t, dt, u0, bcs=None,
                  fast_parameters=None, appctx=None, nullspace=None,
@@ -49,30 +54,36 @@ class MRIGARKTimeStepper(BaseTimeStepper):
         if fast_parameters is None or "tableau" not in fast_parameters:
             raise ValueError("MRI-GARK needs fast_parameters with an inner 'tableau'")
         v, u = extract_timedep_arguments(Ffast + Fslow, u0)
-        if split_time_derivative_terms(Ffast, timedep_coeffs=(u,)).time.empty():
+        split = split_time_derivative_terms(Ffast, timedep_coeffs=(u,))
+        Fdt = split.time
+        if Fdt.empty():
             raise ValueError("MRI-GARK needs the time derivative in the fast part")
         if not split_time_derivative_terms(Fslow, timedep_coeffs=(u,)).time.empty():
             raise ValueError("MRI-GARK needs a slow part without time derivatives")
+        if not replace(Fdt, {o: zero(o.ufl_shape) for o in extract_type(Fdt, TimeDerivative)}).empty():
+            raise ValueError("MRI-GARK needs each time derivative term in a summand of its own")
         self.method = method
         self.num_substeps = fast_parameters.get("num_substeps", 1)
         assert isinstance(self.num_substeps, int) and self.num_substeps > 0
 
         s = method.num_stages
         MC = MeshConstant(self.V.mesh(), backend=backend)
-        self.t_fast = MC.Constant(0.0)
-        self.dt_fast = MC.Constant(0.0)
+        self.theta = MC.Constant(0.0)
+        self.dtheta = MC.Constant(0.0)
         self.t_stage = MC.Constant(0.0)
-        self.dt_stage = MC.Constant(1.0)
+        self.dc = MC.Constant(0.0)
         self.t_slow = [MC.Constant(0.0) for _ in range(s)]
         self.weights = [[MC.Constant(0.0) for _ in range(s)] for _ in method.Gamma]
         self.u_slow = [self._backend.Function(self.V) for _ in range(s)]
 
+        t_fast = self.t_stage + self.dc * self.theta
+        Frest = expand_time_derivatives(split.remainder, t=t, timedep_coeffs=())
         Fslow = expand_time_derivatives(Fslow, t=t, timedep_coeffs=(u,))
-        tau = (self.t_fast - self.t_stage) / self.dt_stage
+        tau = self.theta / dt
         forcing = sum(
             tau**k * self.weights[k][j] * replace(Fslow, {u: self.u_slow[j], t: self.t_slow[j]})
             for j in range(s) for k in range(len(method.Gamma)))
-        F_inner = replace(Ffast, {t: self.t_fast}) + forcing
+        F_inner = replace(Fdt, {t: t_fast}) + self.dc * replace(Frest, {t: t_fast}) + forcing
 
         bcs_inner = []
         for bc in self.orig_bcs:
@@ -82,7 +93,7 @@ class MRIGARKTimeStepper(BaseTimeStepper):
             if g == 0:
                 bcs_inner.append(bc)
             else:
-                bcs_inner.append(bc.reconstruct(g=replace(as_ufl(g), {t: self.t_fast})))
+                bcs_inner.append(bc.reconstruct(g=replace(as_ufl(g), {t: t_fast})))
 
         stepper_kwargs = dict(fast_parameters.get("stepper_kwargs", {}))
         for key, val in kwargs.items():
@@ -90,7 +101,7 @@ class MRIGARKTimeStepper(BaseTimeStepper):
 
         from .stepper import TimeStepper
         self.fast_stepper = TimeStepper(
-            F_inner, fast_parameters["tableau"], self.t_fast, self.dt_fast, u0,
+            F_inner, fast_parameters["tableau"], self.theta, self.dtheta, u0,
             bcs=bcs_inner, appctx=self.appctx, nullspace=nullspace, **stepper_kwargs)
 
         self.num_steps = 0
@@ -107,16 +118,18 @@ class MRIGARKTimeStepper(BaseTimeStepper):
             self.u_slow[i].assign(self.u0)
             for k, G in enumerate(method.Gamma):
                 for j in range(method.num_stages):
-                    self.weights[k][j].assign(G[i, j] / method.dc[i])
+                    self.weights[k][j].assign(G[i, j])
 
-            H = method.dc[i] * dt
+            M = self.num_substeps
             self.t_stage.assign(t0 + method.c[i] * dt)
-            self.dt_stage.assign(H)
-            self.dt_fast.assign(H / self.num_substeps)
-            for m in range(self.num_substeps):
-                self.t_fast.assign(t0 + method.c[i] * dt + m * H / self.num_substeps)
+            if float(self.dc) != method.dc[i]:
+                self.dc.assign(method.dc[i])
+                self.fast_stepper.invalidate_jacobian()
+            self.dtheta.assign(dt / M)
+            for m in range(M):
+                self.theta.assign(m * dt / M)
                 self.fast_stepper.advance()
-            self.num_fast_steps += self.num_substeps
+            self.num_fast_steps += M
         self.num_steps += 1
 
     def solver_stats(self):
