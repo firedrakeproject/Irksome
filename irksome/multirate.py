@@ -3,8 +3,9 @@ from ufl import as_ufl
 from .base_time_stepper import BaseTimeStepper
 from .constant import MeshConstant
 from .tableaux.mri_gark_tableaux import MRIGARK
-from .tools import replace
+from .tools import extract_timedep_arguments, replace
 from .ufl.deriv import expand_time_derivatives
+from .ufl.manipulation import split_time_derivative_terms
 
 
 class MRIGARKTimeStepper(BaseTimeStepper):
@@ -19,7 +20,9 @@ class MRIGARKTimeStepper(BaseTimeStepper):
 
     The slow terms are explicit, so these methods lose order when the fast
     part is stiff.  The Jacobian of the fast problem is built from its form,
-    so ``J`` and ``Jp`` are not accepted.
+    so ``J`` and ``Jp`` are not accepted.  :meth:`solver_stats` returns the
+    number of macro steps and the nonlinear and linear iteration counts of
+    the inner stepper; ``num_fast_steps`` counts the fast steps.
 
     :arg Ffast: A :class:`ufl.Form` with the time derivative and fast terms.
     :arg Fslow: A :class:`ufl.Form` with the slow terms.
@@ -45,6 +48,11 @@ class MRIGARKTimeStepper(BaseTimeStepper):
             raise NotImplementedError("MRI-GARK does not accept J or Jp")
         if fast_parameters is None or "tableau" not in fast_parameters:
             raise ValueError("MRI-GARK needs fast_parameters with an inner 'tableau'")
+        v, u = extract_timedep_arguments(Ffast + Fslow, u0)
+        if split_time_derivative_terms(Ffast, timedep_coeffs=(u,)).time.empty():
+            raise ValueError("MRI-GARK needs the time derivative in the fast part")
+        if not split_time_derivative_terms(Fslow, timedep_coeffs=(u,)).time.empty():
+            raise ValueError("MRI-GARK needs a slow part without time derivatives")
         self.method = method
         self.num_substeps = fast_parameters.get("num_substeps", 1)
         assert isinstance(self.num_substeps, int) and self.num_substeps > 0
@@ -59,10 +67,10 @@ class MRIGARKTimeStepper(BaseTimeStepper):
         self.weights = [[MC.Constant(0.0) for _ in range(s)] for _ in method.Gamma]
         self.u_slow = [self._backend.Function(self.V) for _ in range(s)]
 
-        Fslow = expand_time_derivatives(Fslow, t=t, timedep_coeffs=(u0,))
+        Fslow = expand_time_derivatives(Fslow, t=t, timedep_coeffs=(u,))
         tau = (self.t_fast - self.t_stage) / self.dt_stage
         forcing = sum(
-            tau**k * self.weights[k][j] * replace(Fslow, {u0: self.u_slow[j], t: self.t_slow[j]})
+            tau**k * self.weights[k][j] * replace(Fslow, {u: self.u_slow[j], t: self.t_slow[j]})
             for j in range(s) for k in range(len(method.Gamma)))
         F_inner = replace(Ffast, {t: self.t_fast}) + forcing
 

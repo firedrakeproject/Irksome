@@ -52,6 +52,7 @@ class MRIGARK(ButcherTableau):
         self.dc = numpy.array(dc)
         assert all(self.dc > 0)
         self.Gamma = [numpy.array(G) for G in Gamma]
+        assert all(numpy.allclose(numpy.triu(G, 1), 0) for G in self.Gamma)
         s = len(dc)
         gbar = sum(G / (k + 1) for k, G in enumerate(self.Gamma))
         A = numpy.array([gbar[:i].sum(axis=0) for i in range(s)])
