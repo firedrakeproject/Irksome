@@ -1,7 +1,7 @@
 import numpy
 from ufl import as_ufl, lhs
 
-from .constant import vecconst, MeshConstant
+from .constant import STRUCTURAL_ZERO, vecconst, MeshConstant
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .tools import extract_timedep_arguments, replace
 from .backend import get_backend
@@ -86,15 +86,6 @@ class DIRKTimeStepper:
         self.AAb = numpy.vstack((butcher_tableau.A, butcher_tableau.b))
         self.CCone = numpy.append(butcher_tableau.c, 1.0)
 
-        explicit_stages = [i for i in range(num_stages)
-                           if self.AAb[i, i] == 0]
-        if bcs and explicit_stages and not butcher_tableau.is_explicit:
-            stiffly_accurate = numpy.allclose(self.AAb[-1], self.AAb[-2])
-            if not stiffly_accurate or explicit_stages[-1] == num_stages - 1:
-                raise NotImplementedError(
-                    "Cannot impose boundary conditions on an explicit stage "
-                    "unless a later implicit stage carries the data")
-
         # Need to be able to set BCs for either the DIRK or explicit cases.
 
         # For DIRK, we say that the stage i solution should match the
@@ -112,6 +103,13 @@ class DIRKTimeStepper:
         if butcher_tableau.is_explicit:
             self.AAb = self.AAb[1:]
             self.CCone = self.CCone[1:]
+
+        zero_diagonal = [i for i in range(num_stages) if abs(self.AAb[i, i]) < STRUCTURAL_ZERO]
+        if zero_diagonal and any(bc._original_arg != 0 for bc in bcs or ()):
+            if butcher_tableau.is_explicit or zero_diagonal != [0] or not butcher_tableau.is_stiffly_accurate:
+                raise NotImplementedError(
+                    "Boundary data can only be imposed through a zero diagonal "
+                    "on the first stage of a stiffly accurate method")
         self.AA = vecconst(butcher_tableau.A, backend=backend)
         self.BB = vecconst(butcher_tableau.b, backend=backend)
 
@@ -181,7 +179,7 @@ class DIRKTimeStepper:
             a_vals[j].assign(AAb[i, j])
         for j in range(i, ns):
             a_vals[j].zero()
-        dinv_val.assign(0.0 if AAb[i, i] == 0 else 1.0 / AAb[i, i])
+        dinv_val.assign(0.0 if abs(AAb[i, i]) < STRUCTURAL_ZERO else 1.0 / AAb[i, i])
         c.assign(CCone[i])
 
     def advance(self):
