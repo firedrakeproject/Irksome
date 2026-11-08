@@ -52,8 +52,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
         the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
         It lives in a :class:`FunctionSpace` corresponding to the
-        s-way tensor product of the space on which the semidiscrete
-        form lives.
+        tensor product of the space on which the semidiscrete form lives,
+        one copy per solved stage.  Leading stages whose row of the Butcher
+        matrix vanishes may be left out, in which case they take ``u0``.
     :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
         containing (possibly time-dependent) boundary conditions imposed
         on the system.

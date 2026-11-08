@@ -66,7 +66,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         The user may adjust this value between time steps.
     :arg u0: A :class:`Function` containing the current
         state of the problem to be solved.
-    :arg num_stages: The number of stages to solve for.  It could be the number of
+    :arg num_stages: The number of stages of the method.  It could be the number of
         RK stages or relate to the polynomial degree (Galerkin)
     :arg bcs: An iterable of :class:`DirichletBC` or :class:`EquationBC`
         containing the strongly-enforced boundary conditions.  Irksome will
@@ -92,6 +92,8 @@ class StageCoupledTimeStepper(BaseTimeStepper):
     :arg bounds: An optional kwarg used in certain bounds-constrained methods.
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods
             at additional points in time.
+    :kwarg num_solved_stages: The number of stages in the unknown, when leading
+            stages that take the value ``u0`` are left out.  Defaults to ``num_stages``.
     """
 
     def __init__(self, F, t, dt, u0, num_stages,

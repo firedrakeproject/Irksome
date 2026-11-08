@@ -47,12 +47,12 @@ class ButcherTableau(object):
 
     @property
     def num_explicit_first_stages(self):
-        """Return the number of leading stages that are explicit.
+        """Return the number of leading stages whose row of A vanishes.
 
-        Such a stage takes the value the method starts from, so the stage
-        system can be solved for the remaining ones.  The tolerance is the one
-        below which a coefficient is dropped from the generated form, so a row
-        counted here contributes nothing to it.
+        Such a stage is explicit and takes the value the method starts from,
+        so the stage system can be solved for the remaining ones.  The
+        tolerance is the one below which a coefficient is dropped from the
+        generated form, so a row counted here contributes nothing to it.
         """
         nonzero = numpy.abs(self.A) >= STRUCTURAL_ZERO
         explicit = ~nonzero.any(axis=1)
