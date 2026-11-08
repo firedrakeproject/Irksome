@@ -9,12 +9,10 @@ ssprks = [SSPButcherTableau(2, 2), SSPButcherTableau(2, 3), SSPButcherTableau(3,
 bt_list = peprks + ssprks
 id_list = ["PEP(4,2,5)", "PEP(5,2,6)", "SSP(2,2)", "SSP(2,3)", "SSP(3,3)"]
 
-L = 10.0
-
 
 @pytest.fixture
 def msh():
-    return IntervalMesh(10, L)
+    return IntervalMesh(10, 10.0)
 
 
 def run_1d_heat(butcher_tableau, V, nsteps_per_unit_time, t_end):
@@ -22,6 +20,7 @@ def run_1d_heat(butcher_tableau, V, nsteps_per_unit_time, t_end):
     dt = MC.Constant(1.0 / nsteps_per_unit_time)
     t = MC.Constant(0.0)
     (x,) = SpatialCoordinate(V.mesh())
+    L = assemble(Constant(1.0) * dx(domain=V.mesh()))
 
     # Boundary values
     u_0 = Constant(2.0)

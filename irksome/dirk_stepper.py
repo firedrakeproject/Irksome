@@ -160,7 +160,7 @@ class DIRKTimeStepper:
         is_bilinear = len(Fbig.arguments()) == 2
         return lhs(Fbig) if is_bilinear else self._backend.derivative(Fbig, stages)
 
-    def update_bc_constants(self, i, c):
+    def update_bc_constants(self, i):
         AAb = self.AAb
         CCone = self.CCone
         a_vals, d_val, c_bc = self.bc_constants
@@ -171,7 +171,6 @@ class DIRKTimeStepper:
             a_vals[j].zero()
         d_val.assign(AAb[i, i])
         c_bc.assign(CCone[i])
-        c.assign(self.butcher_tableau.c[i])
 
     def advance(self):
         k, g, a, c = self.kgac
@@ -184,8 +183,9 @@ class DIRKTimeStepper:
             g.assign(sum((ks[j] * (self.AA[i, j] * dt) for j in range(i)), u0))
 
             # update BC constants for the variational problem
-            self.update_bc_constants(i, c)
+            self.update_bc_constants(i)
             a.assign(self.AA[i, i])
+            c.assign(self.butcher_tableau.c[i])
 
             # solve new variational problem, stash the computed
             # stage value.
