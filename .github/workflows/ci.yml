@@ -16,6 +16,7 @@ concurrency:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         version: [latest, dev-release]
     runs-on: [self-hosted, Linux]
