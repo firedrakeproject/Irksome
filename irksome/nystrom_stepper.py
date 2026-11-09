@@ -2,10 +2,10 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
-from .tools import dot, extract_timedep_arguments, reshape, replace
+from .tools import dot, reshape, replace
 from .constant import vecconst
 import numpy
-from ufl import Form, as_ufl
+from ufl import as_ufl
 
 
 class NystromTableau:
@@ -77,12 +77,11 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     if bc_type is None:
         bc_type = "DAE"
 
-    v, u = extract_timedep_arguments(F, u0)
+    args = F.arguments()
+    v = args[0]
+    trial = args[1] if len(args) == 2 else None
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
-
-    # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u,))
 
     A = vecconst(tableau.A)
     Abar = vecconst(tableau.Abar)
@@ -92,24 +91,26 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     Vbig = stages.function_space()
     test = backend_cls.TestFunction(Vbig)
 
+    stage_funcs = {u0: stages}
+    if trial is not None:
+        stage_funcs[trial] = backend_cls.TrialFunction(Vbig)
+
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=tuple(stage_funcs))
+
     v_np = reshape(test, (num_stages, *u0.ufl_shape))
-    k_np = reshape(stages, (num_stages, *u0.ufl_shape))
 
-    Ak = dot(A, k_np)
-    Abark = dot(Abar, k_np)
+    repl = {i: {t: t + c[i] * dt, v: v_np[i]} for i in range(num_stages)}
+    for w, w_stages in stage_funcs.items():
+        k_np = reshape(w_stages, (num_stages, *w.ufl_shape))
+        Ak = dot(A, k_np)
+        Abark = dot(Abar, k_np)
+        dtw = TimeDerivative(w)
+        for i in range(num_stages):
+            repl[i][w] = u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2
+            repl[i][dtw] = ut0 + Ak[i] * dt
+            repl[i][TimeDerivative(dtw)] = k_np[i]
 
-    dtu = TimeDerivative(u)
-    dt2u = TimeDerivative(dtu)
-
-    Fnew = Form([])
-
-    for i in range(num_stages):
-        repl = {t: t + c[i] * dt,
-                v: v_np[i],
-                u: u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2,
-                dtu: ut0 + Ak[i] * dt,
-                dt2u: k_np[i]}
-        Fnew += replace(F, repl)
+    Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 
     if bcs is None:
         bcs = []
