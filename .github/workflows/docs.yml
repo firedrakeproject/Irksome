@@ -41,6 +41,8 @@ jobs:
           python3 -m venv --system-site-packages venv-irksome
           . venv-irksome/bin/activate
           pip install --verbose './irksome-repo[docs]'
+          : # DROP BEFORE MERGE
+          pip install -v --ignore-installed --no-deps git+https://github.com/firedrakeproject/ufl.git@pbrubeck/fix/replace-coefficient-derivative
 
       - name: Check documentation links
         if: github.ref == 'refs/heads/master'

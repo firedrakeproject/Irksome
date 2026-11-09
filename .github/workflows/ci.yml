@@ -50,6 +50,8 @@ jobs:
         run: |
           . venv-irksome/bin/activate
           pip install './irksome-repo[ci]'
+          : # DROP BEFORE MERGE
+          pip install -v --ignore-installed --no-deps git+https://github.com/firedrakeproject/ufl.git@pbrubeck/fix/replace-coefficient-derivative
           pip list
 
       - name: Run tests
@@ -87,6 +89,8 @@ jobs:
       working-directory: irksome-repo
       run: |
         python3 -m pip install .[dolfinx]  --no-build-isolation
+        : # DROP BEFORE MERGE
+        python3 -m pip install -v --ignore-installed --no-deps git+https://github.com/firedrakeproject/ufl.git@pbrubeck/fix/replace-coefficient-derivative
 
     - name: Install pyadjoint as it is used in conftest.py
       run: python3 -m pip install pyadjoint-ad
