@@ -2,23 +2,30 @@
 import numpy as np
 import pytest
 from firedrake import (Constant, Function, FunctionSpace, TestFunction,
-                       UnitIntervalMesh, assemble, dx, inner)
+                       UnitIntervalMesh, VectorFunctionSpace, assemble, dx, inner)
 from irksome import Dt, RadauIIA, TimeStepper
 
 stage_types = ("deriv", "value")
 tableau = RadauIIA(2)
 dt_value = 0.25
+# w on the space of u, or on a space of another element and shape
+w_spaces = ("same", "vector")
 
 
-def source_problem():
+def source_problem(w_space="same"):
     msh = UnitIntervalMesh(2)
     V = FunctionSpace(msh, "DG", 0)
     t = Constant(0.0)
     dt = Constant(dt_value)
     u = Function(V)
-    w = Function(V)
     v = TestFunction(V)
-    F = inner(Dt(u), v) * dx - inner(w, v) * dx
+    if w_space == "vector":
+        w = Function(VectorFunctionSpace(msh, "CG", 1, dim=2))
+        source = w[1]
+    else:
+        w = Function(V)
+        source = w
+    F = inner(Dt(u), v) * dx - inner(source, v) * dx
     return F, t, dt, u, w
 
 
@@ -31,13 +38,14 @@ def residual(stepper):
 
 def fill(W, values):
     for Wi, val in zip(W.subfunctions, values):
-        Wi.assign(Constant(val))
+        Wi.assign(val)
 
 
+@pytest.mark.parametrize("w_space", w_spaces)
 @pytest.mark.parametrize("stage_type", stage_types)
-def test_per_stage(stage_type):
+def test_per_stage(stage_type, w_space):
     """Each stage of w moves the residual, and differently from the others."""
-    F, t, dt, u, w = source_problem()
+    F, t, dt, u, w = source_problem(w_space)
     stepper = TimeStepper(F, tableau, t, dt, u,
                           stage_type=stage_type, stage_functions=[w])
 
@@ -60,13 +68,14 @@ def test_per_stage(stage_type):
             assert np.linalg.norm(columns[j] - columns[k]) > 1e-12
 
 
+@pytest.mark.parametrize("w_space", w_spaces)
 @pytest.mark.parametrize("stage_type", stage_types)
-def test_source(stage_type):
+def test_source(stage_type, w_space):
     """w(t) = t integrates du/dt = t exactly.
 
     Stage values take w(c_i*dt) = c_i*dt; stage derivatives take dw/dt = 1.
     """
-    F, t, dt, u, w = source_problem()
+    F, t, dt, u, w = source_problem(w_space)
     stepper = TimeStepper(F, tableau, t, dt, u,
                           stage_type=stage_type, stage_functions=[w])
 

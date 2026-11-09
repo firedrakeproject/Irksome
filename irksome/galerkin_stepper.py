@@ -115,8 +115,8 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
 
     # now loop over quadrature points
     repl = {q: {t: t + qpts[q] * dt, v: vsub[q] * dt} for q in range(len(qpts))}
-    for w, W in stage_funcs.items():
-        w_np = reshape(W, (-1, *u0.ufl_shape))
+    for w, w_stages in stage_funcs.items():
+        w_np = reshape(w_stages, (-1, *w.ufl_shape))
         # the trial space is continuous in time, so u0 is the initial node of each row
         u_np = np.insert(w_np, i0, reshape(u0, (1, *u0.ufl_shape)), axis=0)
         usub = dot(trial_vals.T, u_np)

@@ -100,8 +100,8 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     v_np = reshape(test, (num_stages, *u0.ufl_shape))
 
     repl = {i: {t: t + c[i] * dt, v: v_np[i]} for i in range(num_stages)}
-    for w, W in stage_funcs.items():
-        k_np = reshape(W, (num_stages, *u0.ufl_shape))
+    for w, w_stages in stage_funcs.items():
+        k_np = reshape(w_stages, (num_stages, *w.ufl_shape))
         Ak = dot(A, k_np)
         Abark = dot(Abar, k_np)
         dtw = TimeDerivative(w)

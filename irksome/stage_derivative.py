@@ -91,10 +91,9 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))
-    w_np = {w: reshape(W, (num_stages, *w.ufl_shape))
-            for w, W in stage_funcs.items()}
-    A1w = {w: dot(A1, ww_np) for w, ww_np in w_np.items()}
-    A2invw = {w: dot(A2inv, ww_np) for w, ww_np in w_np.items()}
+    w_np = {w: reshape(w_stages, (num_stages, *w.ufl_shape)) for w, w_stages in stage_funcs.items()}
+    A1w = {w: dot(A1, w_np[w]) for w in stage_funcs}
+    A2invw = {w: dot(A2inv, w_np[w]) for w in stage_funcs}
 
     aux_components = fields_to_components(V, aux_indices or [])
 

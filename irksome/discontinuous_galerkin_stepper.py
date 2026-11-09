@@ -82,10 +82,10 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (-1, *u0.ufl_shape))
-    dofs = {w: reshape(W, (-1, *u0.ufl_shape)) for w, W in stage_funcs.items()}
+    w_np = {w: reshape(w_stages, (-1, *w.ufl_shape)) for w, w_stages in stage_funcs.items()}
     vsub = dot(test_vals_w.T, v_np)
-    usub = {w: dot(trial_vals.T, w_np) for w, w_np in dofs.items()}
-    dtusub = {w: dot(trial_dvals.T, w_np) for w, w_np in dofs.items()}
+    usub = {w: dot(trial_vals.T, w_np[w]) for w in stage_funcs}
+    dtusub = {w: dot(trial_dvals.T, w_np[w]) for w in stage_funcs}
     timedep_coeffs = tuple(stage_funcs)
 
     # preprocess time derivatives
@@ -99,7 +99,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         # Jump terms: [(g(u), v)](t+) - [(g(u), v)](t-)
         ref_el = L.get_reference_element()
         L_at_0 = vecconst(L.tabulate(0, ref_el.vertices[0])[(0,)])
-        u_at_0 = {w: dot(L_at_0.T, w_np) for w, w_np in dofs.items()}
+        u_at_0 = {w: dot(L_at_0.T, w_np[w]) for w in stage_funcs}
         v_at_0 = dot(L_at_0.T, v_np)
 
         # at t- the state is still u0, so only the trial function stands in for it
@@ -116,7 +116,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         # Jump terms: [(g(u), v)](t+dt) - [(g(u), v)](t-)
         ref_el = L.get_reference_element()
         L_at_01 = vecconst(L.tabulate(0, ref_el.vertices)[(0,)])
-        u_at_01 = {w: dot(L_at_01.T, w_np) for w, w_np in dofs.items()}
+        u_at_01 = {w: dot(L_at_01.T, w_np[w]) for w in stage_funcs}
         v_at_01 = dot(L_at_01.T, v_np)
 
         repl_tminus = {v: v_at_01[0]}

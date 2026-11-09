@@ -109,8 +109,7 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
 
     # set up the pieces we need to work with to do our substitutions
     v_np = reshape(test, (num_stages, *v.ufl_shape))
-    w_np = {w: to_value(old_values[w], W, vandermonde)
-            for w, W in stage_funcs.items()}
+    w_np = {w: to_value(old_values[w], w_stages, vandermonde) for w, w_stages in stage_funcs.items()}
     A1Tv = dot(A1.T, v_np)
     A2invTv = dot(A2inv.T, v_np)
 
