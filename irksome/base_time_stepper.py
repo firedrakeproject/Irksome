@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 from petsc4py import PETSc
-from .tools import AI, flatten_dats, split_stages, get_stage_function
+from .tools import AI, get_stage_function, mixed_function, split_stages
 from .backend import get_backend
 import ufl
 import numpy
@@ -220,24 +220,18 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         if bounds_type == "stage":
             if lower is not None:
-                dats = [lower.dat] * (self.num_stages)
-                slb = self._backend.Function(Vbig, val=flatten_dats(dats))
+                slb = mixed_function(Vbig, [lower] * self.num_stages, backend=self._backend)
             if upper is not None:
-                dats = [upper.dat] * (self.num_stages)
-                sub = self._backend.Function(Vbig, val=flatten_dats(dats))
+                sub = mixed_function(Vbig, [upper] * self.num_stages, backend=self._backend)
 
         elif bounds_type == "last_stage":
             V = self._backend.get_function_space(self.u0)
             if lower is not None:
                 ninfty = self._backend.Function(V).assign(PETSc.NINFINITY)
-                dats = [ninfty.dat] * (self.num_stages-1)
-                dats.append(lower.dat)
-                slb = self._backend.Function(Vbig, val=flatten_dats(dats))
+                slb = mixed_function(Vbig, [ninfty] * (self.num_stages-1) + [lower], backend=self._backend)
             if upper is not None:
                 infty = self._backend.Function(V).assign(PETSc.INFINITY)
-                dats = [infty.dat] * (self.num_stages-1)
-                dats.append(upper.dat)
-                sub = self._backend.Function(Vbig, val=flatten_dats(dats))
+                sub = mixed_function(Vbig, [infty] * (self.num_stages-1) + [upper], backend=self._backend)
 
         else:
             raise ValueError("Unknown bounds type")

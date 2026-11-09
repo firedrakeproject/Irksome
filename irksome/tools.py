@@ -19,15 +19,14 @@ def reshape(expr, shape):
     return numpy.reshape([expr[i] for i in numpy.ndindex(expr.ufl_shape)], shape)
 
 
-def flatten_dats(dats):
-    from pyop2.types import MixedDat
-    flat_dat = []
-    for dat in dats:
-        if isinstance(dat, (tuple, list, MixedDat)):
-            flat_dat.extend(dat)
-        else:
-            flat_dat.append(dat)
-    return MixedDat(flat_dat)
+def mixed_function(V, functions, backend="firedrake"):
+    """Return a new Function on the mixed space ``V`` with a copy of the current values of ``functions``."""
+    backend_cls = get_backend(backend)
+    mixed = backend_cls.Function(V)
+    parts = [part for f in functions for part in f.subfunctions]
+    for target, part in zip(mixed.subfunctions, parts, strict=True):
+        target.assign(part)
+    return mixed
 
 
 def get_stage_space(V, num_stages, backend="firedrake"):

@@ -103,6 +103,7 @@ try:
         RanaLD,
         RanaLDScheme,
         IRKAuxiliaryOperatorPC,
+        IRKAuxiliaryOperatorSNES,
         as_butcher_tableau,
     )
     from .stepper import TimeStepper
@@ -118,6 +119,7 @@ try:
         "RanaDU",
         "RanaLD",
         "IRKAuxiliaryOperatorPC",
+        "IRKAuxiliaryOperatorSNES",
         "TimeStepper",
         "RanaDUScheme",
         "RanaLDScheme",

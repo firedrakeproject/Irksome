@@ -108,6 +108,7 @@ class BoundsConstrainedDirichletBC(firedrake.DirichletBC):
                 "ksp_type": "preonly",
                 "mat_type": "aij",
             }
+        self.F = F
         problem = create_variational_problem(F, self.gnew)
         self.solver = create_variational_solver(
             problem, solver_parameters=solver_parameters
@@ -125,6 +126,9 @@ class BoundsConstrainedDirichletBC(firedrake.DirichletBC):
         """Set the value of this boundary condition."""
         self.solver.solve(bounds=self.bounds)
         return self.gnew
+
+    def coefficients(self):
+        return self.F.coefficients()
 
     def reconstruct(self, V=None, g=None, sub_domain=None):
         V = V or self.function_space()
@@ -146,6 +150,15 @@ def stage2spaces4bc(bc, V, Vbig, i):
 
 def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None):
     return BoundsConstrainedDirichletBC(V, g, sub_domain, bounds, solver_parameters=solver_parameters)
+
+
+def _stage_nullspace_basis(basis, V):
+    vecs = [Function(vec) for vec in basis._vecs]
+    if basis._constant:
+        vecs.insert(0, Function(V).assign(1))
+    stage_basis = firedrake.VectorSpaceBasis(vecs, comm=basis.comm)
+    stage_basis.orthonormalize()
+    return stage_basis
 
 
 def getNullspace(V, Vbig, num_stages, nullspace):
@@ -181,7 +194,9 @@ def getNullspace(V, Vbig, num_stages, nullspace):
             count = 0
             for j in range(num_fields):
                 if count < nsp_comp and j == nullspace[count][0]:
-                    nspnew.append(nullspace[count][1])
+                    basis = nullspace[count][1]
+                    nspnew.append(_stage_nullspace_basis(
+                        basis, Vbig.sub(j + num_fields * i)))
                     count += 1
                 else:
                     nspnew.append(Vbig.sub(j + num_fields * i))

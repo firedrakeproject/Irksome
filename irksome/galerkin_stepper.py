@@ -455,3 +455,30 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
     def tabulate_poly(self, sample_points):
         vander = vecconst(self.trial_el.tabulate(0, sample_points)[(0,)])
         return vander
+
+    def build_poly(self):
+        """Sample fields in their temporal spaces.
+
+        Non-auxiliary fields use the trial basis and the initial value.
+        Auxiliary fields use the test basis.
+        """
+        super().build_poly()
+        if not self.aux_indices:
+            return
+
+        points = np.reshape(self.sample_points, (-1, 1))
+        test_vals = vecconst(self.test_el.tabulate(0, points)[(0,)])
+        stage_components = reshape(self.stages, (self.num_stages, -1))
+        samples = np.stack([reshape(sample, (-1,)) for sample in self.sample_values])
+
+        V = self._backend.get_function_space(self.u0)
+        aux_components = fields_to_components(V, self.aux_indices)
+        samples[:, aux_components] = dot(
+            test_vals.T, stage_components[:, aux_components]
+        )
+
+        shape = self.u0.ufl_shape
+        self.sample_values = [
+            as_tensor(sample.reshape(shape)) if shape else sample[0]
+            for sample in samples
+        ]

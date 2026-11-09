@@ -74,3 +74,19 @@ def test_1d_heat_dirichletbc(butcher_tableau):
         # Check solution and boundary values
         assert errornorm(uexact, u) / norm(uexact) < 1e-3
         assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
+
+
+def test_solver_parameters_unchanged():
+    msh = UnitIntervalMesh(4)
+    V = FunctionSpace(msh, "CG", 1)
+    t = Constant(0.0)
+    dt = Constant(0.01)
+    u = Function(V)
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    params = {"ksp_type": "preonly", "pc_type": "lu"}
+    stepper = TimeStepper(F, SSPButcherTableau(2, 2), t, dt, u,
+                          stage_type="explicit", solver_parameters=params)
+    assert params == {"ksp_type": "preonly", "pc_type": "lu"}
+    assert stepper.solver.parameters["snes_lag_jacobian"] == -2
+    assert stepper.solver.parameters["pc_type"] == "lu"
