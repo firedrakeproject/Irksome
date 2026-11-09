@@ -87,10 +87,9 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
     stage_funcs = {u0: stages}
     if trial is not None:
         stage_funcs[trial] = backend_cls.TrialFunction(stages.function_space())
-    timedep_coeffs = tuple(stage_funcs)
 
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=timedep_coeffs)
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=tuple(stage_funcs))
 
     qpts = Q.get_points()
     qwts = Q.get_weights()
@@ -111,6 +110,9 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
     v_np = reshape(test, (-1, *v.ufl_shape))
     vsub = dot(test_vals_w.T, v_np)
 
+    if aux_indices is not None:
+        aux_components = fields_to_components(V, aux_indices)
+
     # now loop over quadrature points
     repl = {q: {t: t + qpts[q] * dt, v: vsub[q] * dt} for q in range(len(qpts))}
     for w, W in stage_funcs.items():
@@ -122,13 +124,11 @@ def getTermGalerkin(F, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices,
 
         # discretize the auxiliary fields in the DG test space
         if aux_indices is not None:
-            aux_components = fields_to_components(V, aux_indices)
             usub[:, aux_components] = dot(test_vals.T, w_np[:, aux_components])
 
         for q in range(len(qpts)):
             repl[q][w] = usub[q]
-            if w in timedep_coeffs:
-                repl[q][TimeDerivative(w)] = dtusub[q] / dt
+            repl[q][TimeDerivative(w)] = dtusub[q] / dt
     Fnew = sum(replace(F, repl[q]) for q in repl)
     return Fnew
 

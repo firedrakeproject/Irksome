@@ -85,7 +85,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
 
-    stage_funcs = {u0: stages, **(stage_functions or {})}
+    stage_funcs = {u0: stages}
+    if stage_functions is not None:
+        stage_funcs.update(stage_functions)
     if trial is not None:
         stage_funcs[trial] = backend_cls.TrialFunction(stages.function_space())
     old_values = {w: u0 if w is trial else w for w in stage_funcs}
@@ -184,8 +186,6 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.butcher_tableau = butcher_tableau
         self.basis_type = basis_type
 
-        num_stages = butcher_tableau.num_stages
-
         if basis_type is None or basis_type == 'Lagrange':
             vandermonde = None
         else:
@@ -194,7 +194,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             vandermonde = self.tabulate_poly(pts).T
         self.vandermonde = vandermonde
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs,
+        super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, scheme_F=butcher_tableau, bounds=bounds,

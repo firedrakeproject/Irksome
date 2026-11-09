@@ -46,8 +46,6 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
     Vbig = UU.function_space()
     VV = backend_cls.TestFunction(Vbig)
 
-    collapse = {} if trial is None else {trial: u0}
-
     num_stages = butch.num_stages
 
     Aexp = riia_explicit_coeffs(num_stages)
@@ -67,7 +65,9 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
     if splitting == AI:
         for i in range(num_stages):
             # replace test function
-            repl = {v: v_np[i], **collapse}
+            repl = {v: v_np[i]}
+            if trial is not None:
+                repl[trial] = u0
             Ftmp = replace(Fexp, repl)
 
             # replace the solution with stage values
@@ -95,7 +95,9 @@ def getFormExplicit(Fexp, butch, u0, UU, t, dt, splitting=None, backend="firedra
 
         for i in range(num_stages):
             # replace test function
-            repl = {v: v_np[i], **collapse}
+            repl = {v: v_np[i]}
+            if trial is not None:
+                repl[trial] = u0
             Ftmp = replace(Fexp, repl)
 
             # replace the solution with stage values

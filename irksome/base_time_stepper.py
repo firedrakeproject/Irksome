@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 from petsc4py import PETSc
-from .tools import AI, get_stage_function, mixed_function, split_stages
+from .tools import AI, mixed_function, split_stages
 from .backend import get_backend
 import ufl
 import numpy
@@ -121,7 +121,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
         self.sample_points = sample_points
 
         if stage_functions is not None:
-            stage_functions = {w: get_stage_function(w, num_stages, backend=backend)
+            stage_functions = {w: self._backend.get_stages(self._backend.get_function_space(w), num_stages)
                                for w in stage_functions}
         self.stage_functions = stage_functions
 

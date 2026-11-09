@@ -64,7 +64,9 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
     V = backend_cls.get_function_space(v)
     assert V == backend_cls.get_function_space(u0)
 
-    stage_funcs = {u0: stages, **(stage_functions or {})}
+    stage_funcs = {u0: stages}
+    if stage_functions is not None:
+        stage_funcs.update(stage_functions)
     if trial is not None:
         stage_funcs[trial] = backend_cls.TrialFunction(stages.function_space())
     old_values = {w: u0 if w is trial else w for w in stage_funcs}
@@ -109,8 +111,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
                 usub[aux_components] = dtusub[aux_components] * dt
 
             repl[i][w] = usub
-            if w in timedep_coeffs:
-                repl[i][TimeDerivative(w)] = dtusub
+            repl[i][TimeDerivative(w)] = dtusub
 
     Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 
@@ -205,7 +206,6 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
                  appctx=None, bc_type="DAE", aux_indices=None, sample_points=None,
                  backend: str = "firedrake", **kwargs):
         self.butcher_tableau = butcher_tableau
-
         A1, A2 = splitting(butcher_tableau.A)
         try:
             self.updateb = vecconst(numpy.linalg.solve(A2.T, butcher_tableau.b), backend=backend)

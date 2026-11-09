@@ -107,8 +107,8 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         repl_tplus = {v: v_at_0}
         for w in stage_funcs:
             repl_tplus[w] = u_at_0[w]
-            if w is trial:
-                repl_tminus[w] = u0
+        if trial is not None:
+            repl_tminus[trial] = u0
         Fnew = replace(F_dtless, repl_tplus) - replace(F_dtless, repl_tminus)
         F_remainder = F
     elif deriv_type == "weak":
@@ -123,8 +123,8 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         repl_tnew = {v: v_at_01[1], t: t + dt}
         for w in stage_funcs:
             repl_tnew[w] = u_at_01[w][1]
-            if w is trial:
-                repl_tminus[w] = u0
+        if trial is not None:
+            repl_tminus[trial] = u0
         Fnew = replace(F_dtless, repl_tnew) - replace(F_dtless, repl_tminus)
 
         # Terms with time derivatives: -(g(u), Dt(v))
@@ -132,8 +132,9 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
         dtvsub = dot(test_dvals_w.T, v_np)
         for q in range(len(qpts)):
             repl = {t: t + qpts[q] * dt,
-                    v: dtvsub[q],
-                    **{w: usub[w][q] for w in stage_funcs}}
+                    v: dtvsub[q]}
+            for w in stage_funcs:
+                repl[w] = usub[w][q]
             Fnew -= replace(F_dtless, repl)
         F_remainder = split_form.remainder
     else:
@@ -146,8 +147,7 @@ def getTermDiscGalerkin(F, L, Q, t, dt, u0, stages, test, deriv_type="strong", b
                 v: vsub[q] * dt}
         for w in stage_funcs:
             repl[w] = usub[w][q]
-            if w in timedep_coeffs:
-                repl[TimeDerivative(w)] = dtusub[w][q] / dt
+            repl[TimeDerivative(w)] = dtusub[w][q] / dt
         Fnew += replace(F_remainder, repl)
     return Fnew
 

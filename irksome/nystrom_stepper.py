@@ -5,7 +5,7 @@ from .backend import get_backend
 from .tools import dot, reshape, replace
 from .constant import vecconst
 import numpy
-from ufl import Form, as_ufl
+from ufl import as_ufl
 
 
 class NystromTableau:
@@ -94,28 +94,23 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     stage_funcs = {u0: stages}
     if trial is not None:
         stage_funcs[trial] = backend_cls.TrialFunction(Vbig)
-    timedep_coeffs = tuple(stage_funcs)
 
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=timedep_coeffs)
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=tuple(stage_funcs))
 
     v_np = reshape(test, (num_stages, *u0.ufl_shape))
-
-    Fnew = Form([])
 
     repl = {i: {t: t + c[i] * dt, v: v_np[i]} for i in range(num_stages)}
     for w, W in stage_funcs.items():
         k_np = reshape(W, (num_stages, *u0.ufl_shape))
         Ak = dot(A, k_np)
         Abark = dot(Abar, k_np)
+        dtw = TimeDerivative(w)
         for i in range(num_stages):
             repl[i][w] = u0 + ut0 * (c[i] * dt) + Abark[i] * dt**2
-            if w in timedep_coeffs:
-                dtw = TimeDerivative(w)
-                repl[i][dtw] = ut0 + Ak[i] * dt
-                repl[i][TimeDerivative(dtw)] = k_np[i]
+            repl[i][dtw] = ut0 + Ak[i] * dt
+            repl[i][TimeDerivative(dtw)] = k_np[i]
 
-    for i in range(num_stages):
-        Fnew += replace(F, repl[i])
+    Fnew = sum(replace(F, repl[i]) for i in range(num_stages))
 
     if bcs is None:
         bcs = []

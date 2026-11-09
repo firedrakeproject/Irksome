@@ -12,12 +12,12 @@ from operator import or_
 from typing import NamedTuple, Sequence, FrozenSet
 
 from ufl import derivative
-from ufl.algorithms import expand_derivatives
+from ufl.algorithms import expand_coefficient_derivatives, expand_derivatives
 from ufl.algorithms.analysis import extract_coefficients, extract_type
 from ufl.corealg.traversal import traverse_unique_terminals
 from ufl.corealg.dag_traverser import DAGTraverser
 from ufl.classes import (
-    BaseForm, CellAvg, Coefficient, ComponentTensor,
+    BaseForm, CellAvg, Coefficient, CoefficientDerivative, ComponentTensor,
     Conj, Cross, Derivative, Division, Dot, Expr, FacetAvg,
     Form, FormSum, Indexed, IndexSum, Inner, Integral,
     ListTensor, MultiIndex, NegativeRestricted, Outer, PositiveRestricted,
@@ -217,6 +217,9 @@ def split_time_derivative_terms(form: BaseForm,
         remainder = sum(w*f for w, f in zip(weights, components) if not isinstance(f, Form))
         form = sum(w*f for w, f in zip(weights, components) if isinstance(f, Form))
 
+    if extract_type(form, CoefficientDerivative):
+        # a Gateaux derivative is a single integrand, so expand it into terms
+        form = expand_coefficient_derivatives(form)
     mapper = TimeDerivativeChecker(t, timedep_coeffs)
     rest_terms = []
     time_terms = []
