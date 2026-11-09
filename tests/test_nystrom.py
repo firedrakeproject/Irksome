@@ -159,7 +159,7 @@ def test_explicit_dirk_wave_eq():
     # number of refinements
     n = 5
     deg = 2
-    Erat, diff = explicit_wave(n, deg)
+    Erat, diff = explicit_dirk_wave(n, deg)
     print(Erat, diff)
     assert abs(Erat - 1) < 1.e-6
     assert diff < 3.e-5
@@ -300,7 +300,7 @@ def forced_wave_error(n, stepper, tableau, bc_type):
     for _ in range(n):
         stepper.advance()
         t.assign(float(t) + float(dt))
-    return errornorm(Function(V).interpolate(uexact), u)
+    return errornorm(uexact, u)
 
 
 @pytest.mark.parametrize("stepper,tableau,bc_type", [
