@@ -22,7 +22,7 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, k
     assert V == backend_cls.get_function_space(u0)
 
     # preprocess time derivatives
-    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0 if trial is None else trial,))
+    F = expand_time_derivatives(F, t=t, timedep_coeffs=(u0,) if trial is None else (u0, trial))
 
     num_stages = tableau.num_stages
 

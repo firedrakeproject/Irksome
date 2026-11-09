@@ -5,6 +5,7 @@ from .base_time_stepper import BaseTimeStepper
 from .tableaux.multistep_tableaux import MultistepTableau
 from .tools import replace
 from ufl import lhs, Form
+from ufl.algorithms import expand_coefficient_derivatives
 from ufl.constantvalue import as_ufl
 
 
@@ -133,6 +134,8 @@ class MultistepTimeStepper(BaseTimeStepper):
 
         assert V == u0.function_space()
 
+        # derivative(F, u0) is one integrand, so expand it into terms before splitting
+        F = expand_coefficient_derivatives(F)
         split_form = split_time_derivative_terms(F, t=t, timedep_coeffs=(u0 if trial is None else trial,))
         F_dtless = remove_time_derivatives(split_form.time)
         F_remainder = expand_time_derivatives(split_form.remainder, t=t, timedep_coeffs=())

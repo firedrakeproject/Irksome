@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import ufl
 from firedrake import (Function, FunctionSpace, SpatialCoordinate, TestFunction,
-                       TrialFunction, UnitIntervalMesh, assemble, cos, dx,
+                       TrialFunction, UnitIntervalMesh, assemble, cos, derivative, dx,
                        errornorm, grad, inner, pi)
 from irksome import (Alexander, BDF, ContinuousPetrovGalerkinScheme,
                      DIRKNystromTimeStepper, DiscontinuousGalerkinScheme, Dt,
@@ -199,6 +199,38 @@ def test_bilinear_jacobian_uses_stage_state_nystrom(method, stepper_type, dt_val
     F, Jhand, t, dt, u, ut, x = wave_reaction_problem(dt_value)
 
     auto = stepper_type(F, method, t, dt, u, ut)
+    hand = stepper_type(F, method, t, dt, u, ut, J=Jhand)
+
+    moved, diff = compare(auto.problem.J, hand.problem.J,
+                          nystrom_stage_unknown(auto),
+                          nystrom_stage_unknown(hand), x)
+
+    assert moved > 1e-3
+    assert diff < 1e-12
+
+
+@pytest.mark.parametrize("dt_value", dt_values)
+@pytest.mark.parametrize("method,kwargs", schemes)
+def test_derivative_jacobian(method, kwargs, dt_value):
+    F, Jhand, t, dt, u, x = heat_reaction_problem(dt_value)
+
+    auto = TimeStepper(F, method, t, dt, u, J=derivative(F, u), **kwargs)
+    hand = TimeStepper(F, method, t, dt, u, J=Jhand, **kwargs)
+
+    moved, diff = compare(auto.problem.J, hand.problem.J,
+                          stage_unknown(auto, method),
+                          stage_unknown(hand, method), x)
+
+    assert moved > 1e-3
+    assert diff < 1e-12
+
+
+@pytest.mark.parametrize("dt_value", nystrom_dt_values)
+@pytest.mark.parametrize("method,stepper_type", nystrom_schemes)
+def test_derivative_jacobian_nystrom(method, stepper_type, dt_value):
+    F, Jhand, t, dt, u, ut, x = wave_reaction_problem(dt_value)
+
+    auto = stepper_type(F, method, t, dt, u, ut, J=derivative(F, u))
     hand = stepper_type(F, method, t, dt, u, ut, J=Jhand)
 
     moved, diff = compare(auto.problem.J, hand.problem.J,
