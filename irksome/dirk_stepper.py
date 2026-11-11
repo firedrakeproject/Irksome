@@ -107,6 +107,7 @@ class DIRKTimeStepper:
         self.BB = vecconst(butcher_tableau.b, backend=backend)
 
         self.V = V = self._backend.get_function_space(u0)
+        self.F = F
         self.u0 = u0
         self.t = t
         self.dt = dt
