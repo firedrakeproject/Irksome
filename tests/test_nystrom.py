@@ -315,3 +315,19 @@ def test_nystrom_forced_dirichlet(stepper, tableau, bc_type):
     solution is quadratic in x, so the error is purely temporal."""
     errs = [forced_wave_error(n, stepper, tableau, bc_type) for n in (20, 40)]
     assert np.log2(errs[0] / errs[1]) > 2.6
+
+
+def test_dirk_nystrom_stepper_methods():
+    msh = UnitIntervalMesh(4)
+    V = FunctionSpace(msh, "CG", 1)
+    x, = SpatialCoordinate(msh)
+    t = Constant(0.0)
+    dt = Constant(0.1)
+    u = Function(V).interpolate(sin(pi * x))
+    ut = Function(V)
+    v = TestFunction(V)
+    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx
+    stepper = DIRKNystromTimeStepper(F, WSODIRK(4, 3, 3), t, dt, u, ut)
+    stepper.get_form_and_bcs(stepper.ks)
+    stepper.invalidate_jacobian()
+    stepper.advance()

@@ -315,3 +315,13 @@ def test_dirk_rejects_constant_jacobian():
     with pytest.raises(ValueError):
         TimeStepper(F, Alexander(), t, dt, u, stage_type="dirk",
                     constant_jacobian=True)
+
+
+def test_dirk_get_form_and_bcs():
+    msh = UnitIntervalMesh(4)
+    V = FunctionSpace(msh, "CG", 1)
+    u = Function(V)
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    stepper = TimeStepper(F, Alexander(), Constant(0.0), Constant(0.1), u, stage_type="dirk")
+    stepper.get_form_and_bcs(stepper.ks)

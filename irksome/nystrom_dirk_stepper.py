@@ -105,7 +105,7 @@ class DIRKNystromTimeStepper:
                  bc_type=None,
                  backend: str = "firedrake",
                  **kwargs):
-        backend_cls = get_backend(backend)
+        self._backend = backend_cls = get_backend(backend)
         if not isinstance(tableau, NystromTableau):
             tableau = butcher_to_nystrom(tableau)
         assert tableau.is_diagonally_implicit
@@ -145,6 +145,7 @@ class DIRKNystromTimeStepper:
 
         V = backend_cls.get_function_space(u0)
         self.V = V
+        self.F = F
         self.u0 = u0
         self.ut0 = ut0
         self.t = t
