@@ -111,9 +111,9 @@ def TimeStepper(F, method, t, dt, u0, **kwargs):
         enforcing bounds constraints with an RK method that is not stiffly
         accurate. Currently, only constant-in-time boundary conditions are
         supported.
-    :kwarg aux_indices: Only valid for continuous Petrov Galerkin time scheme.  It
-        specifies that some of the variables in `u0` are to be treated as
-        auxiliary, that is, discretized in the lower-order DG test space.
+    :kwarg aux_indices: Valid for continuous Petrov Galerkin schemes and
+        derivative-stage RK schemes. It specifies that some variables in `u0`
+        are treated as auxiliary algebraic fields.
     :startup_parameters: An optional :class:`dict` containing parameters used to automatically
         find starting values for multistep methods.
     :kwarg sample_points: An optional kwarg used to evaluate collocation methods

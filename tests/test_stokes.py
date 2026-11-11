@@ -1,6 +1,6 @@
 import pytest
 from firedrake import *
-from irksome import Dt, LobattoIIIC, RadauIIA, TimeStepper
+from irksome import Dt, GaussLegendre, LobattoIIIC, RadauIIA, TimeStepper
 from irksome import DiscontinuousGalerkinScheme
 from irksome.tools import AI, IA
 
@@ -53,7 +53,7 @@ def StokesTest(N, scheme, **kwargs):
         "ksp_type": "fgmres",
         "ksp_max_it": 200,
         "ksp_gmres_restart": 30,
-        "ksp_rtol": 1.e-8,
+        "ksp_rtol": 1.e-10,
         "ksp_atol": 1.e-13,
         "pc_type": "mg",
         "pc_mg_type": "multiplicative",
@@ -184,13 +184,21 @@ def NSETest(scheme, **kwargs):
     return norm(u)
 
 
-@pytest.mark.parametrize('stage_type', ("deriv", "value"))
 @pytest.mark.parametrize('splitting', (AI, IA))
 @pytest.mark.parametrize('N', [2**j for j in range(3, 4)])
 @pytest.mark.parametrize('time_stages', (2, 3))
-@pytest.mark.parametrize('scheme', (LobattoIIIC, RadauIIA))
-def test_stokes(N, scheme, time_stages, stage_type, splitting):
-    error = StokesTest(N, scheme(time_stages), stage_type=stage_type, splitting=splitting)
+@pytest.mark.parametrize('scheme, stage_type, aux_indices', (
+    (LobattoIIIC, "deriv", None),
+    (LobattoIIIC, "value", None),
+    (RadauIIA, "deriv", None),
+    (RadauIIA, "value", None),
+    (GaussLegendre, "deriv", [1]),
+))
+def test_stokes(N, scheme, time_stages, stage_type, splitting, aux_indices):
+    kwargs = {"stage_type": stage_type, "splitting": splitting}
+    if aux_indices is not None:
+        kwargs["aux_indices"] = aux_indices
+    error = StokesTest(N, scheme(time_stages), **kwargs)
     assert abs(error) < 3e-8
 
 
