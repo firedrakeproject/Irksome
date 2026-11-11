@@ -1,6 +1,8 @@
+import numpy as np
 import pytest
 from firedrake import *
-from irksome import WSODIRK, Alexander, Dt, MeshConstant, TimeStepper
+from irksome import WSODIRK, Alexander, Dt, LobattoIIIA, MeshConstant, TimeStepper
+from irksome.tableaux.ButcherTableaux import ButcherTableau
 from ufl import replace
 
 wsodirks = [WSODIRK(*x) for x in ((4, 3, 2), (4, 3, 3))]
@@ -315,3 +317,69 @@ def test_dirk_rejects_constant_jacobian():
     with pytest.raises(ValueError):
         TimeStepper(F, Alexander(), t, dt, u, stage_type="dirk",
                     constant_jacobian=True)
+
+
+def tr_bdf2():
+    gamma = 2 - np.sqrt(2)
+    w = np.sqrt(2) / 4
+    A = np.array([[0, 0, 0], [gamma / 2, gamma / 2, 0], [w, w, gamma / 2]])
+    return ButcherTableau(A, A[-1], None, np.array([0, gamma, 1]), 2, None, None)
+
+
+@pytest.mark.parametrize("butcher_tableau", [LobattoIIIA(2), tr_bdf2()], ids=["LobattoIIIA(2)", "TR-BDF2"])
+def test_explicit_first_stage_dirichletbc(butcher_tableau):
+    """A zero diagonal entry leaves its stage value unconstrained.
+
+    Stage 0 of these methods has A[0, 0] == 0, so it cannot move its own
+    stage value and its stage derivative is set to zero on the boundary.
+    The methods are stiffly accurate, so the last stage imposes the data.
+    """
+    msh = UnitIntervalMesh(8)
+    V = FunctionSpace(msh, "CG", 2)
+    (x,) = SpatialCoordinate(msh)
+    t_end = 1.0
+
+    def error(nsteps):
+        MC = MeshConstant(msh)
+        t = MC.Constant(0.0)
+        dt = MC.Constant(t_end / nsteps)
+        uexact = 2.0 + x * (1.0 + atan(t)) + cos(t) * x**2
+        rhs = Dt(uexact) - div(grad(uexact))
+        u = Function(V).interpolate(uexact)
+        v = TestFunction(V)
+        F = (inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+             - inner(rhs, v) * dx)
+        stepper = TimeStepper(F, butcher_tableau, t, dt, u,
+                              bcs=DirichletBC(V, uexact, "on_boundary"),
+                              stage_type="dirk")
+        for _ in range(nsteps):
+            stepper.advance()
+            t.assign(float(t) + float(dt))
+        return errornorm(uexact, u)
+
+    errors = np.array([error(10 * 2**r) for r in range(3)])
+    rates = np.diff(-np.log2(errors))
+    assert (rates > butcher_tableau.order - 0.25).all()
+
+
+@pytest.mark.parametrize("A,b,stage_type", [
+    ([[0, 0], [0.5, 0.5]], [0.25, 0.75], "dirk"),
+    ([[1/3, 0, 0], [2/3, 0, 0], [1, -0.5, 0.5]], [1, -0.5, 0.5], "dirk"),
+    ([[0, 0, 0], [1, 0, 0], [0.5, 0, 0]], [0, 0.5, 0.5], "explicit")],
+    ids=["not stiffly accurate", "zero diagonal after the first stage", "zero subdiagonal"])
+def test_zero_diagonal_boundary_data(A, b, stage_type):
+    A = np.array(A)
+    butcher_tableau = ButcherTableau(A, np.array(b), None, A.sum(axis=1), 1, None, None)
+    msh = UnitIntervalMesh(4)
+    V = FunctionSpace(msh, "CG", 1)
+    t = Constant(0.0)
+    dt = Constant(0.1)
+    u = Function(V)
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    stepper = TimeStepper(F, butcher_tableau, t, dt, u, stage_type=stage_type,
+                          bcs=DirichletBC(V, 0, "on_boundary"))
+    stepper.advance()
+    with pytest.raises(NotImplementedError):
+        TimeStepper(F, butcher_tableau, t, dt, u, stage_type=stage_type,
+                    bcs=DirichletBC(V, 1 + t, "on_boundary"))

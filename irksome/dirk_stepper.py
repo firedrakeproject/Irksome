@@ -1,7 +1,7 @@
 import numpy
 from ufl import as_ufl, lhs
 
-from .constant import vecconst, MeshConstant
+from .constant import STRUCTURAL_ZERO, vecconst, MeshConstant
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .tools import extract_timedep_arguments, replace
 from .backend import get_backend
@@ -48,7 +48,7 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
     # stage.
     a_vals = numpy.array([MC.Constant(0.0) for i in range(num_stages)],
                          dtype=object)
-    d_val = MC.Constant(1.0)
+    dinv_val = MC.Constant(1.0)
     for bc in bcs:
         bcarg = bc._original_arg
         if bcarg == 0:
@@ -58,10 +58,10 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
             bcarg_stage = replace(as_ufl(bcarg), {t: t+c*dt})
             gdat = bcarg_stage - backend_cls.bc2space(bc, u0)
             gdat -= sum(backend_cls.bc2space(bc, ks[i]) * (a_vals[i] * dt) for i in range(num_stages))
-            gdat /= d_val * dt
+            gdat *= dinv_val / dt
             bcnew.append(bc.reconstruct(g=gdat))
 
-    return stage_F, (k0, g, a, c), bcnew, (a_vals, d_val)
+    return stage_F, (k0, g, a, c), bcnew, (a_vals, dinv_val)
 
 
 class DIRKTimeStepper:
@@ -103,6 +103,13 @@ class DIRKTimeStepper:
         if butcher_tableau.is_explicit:
             self.AAb = self.AAb[1:]
             self.CCone = self.CCone[1:]
+
+        zero_diagonal = [i for i in range(num_stages) if abs(self.AAb[i, i]) < STRUCTURAL_ZERO]
+        if zero_diagonal and any(bc._original_arg != 0 for bc in bcs or ()):
+            if butcher_tableau.is_explicit or zero_diagonal != [0] or not butcher_tableau.is_stiffly_accurate:
+                raise NotImplementedError(
+                    "Boundary data can only be imposed through a zero diagonal "
+                    "on the first stage of a stiffly accurate method")
         self.AA = vecconst(butcher_tableau.A, backend=backend)
         self.BB = vecconst(butcher_tableau.b, backend=backend)
 
@@ -119,12 +126,12 @@ class DIRKTimeStepper:
         # "ks" is a list of functions for the stage values
         # that we update as we go.  We need to remember the
         # stage values we've computed earlier in the time step...
-        stage_F, kgac, bcnew, (a_vals, d_val) = getFormDIRK(
+        stage_F, kgac, bcnew, (a_vals, dinv_val) = getFormDIRK(
             F, self.ks, butcher_tableau, t, dt, u0, bcs=bcs, backend=backend)
         k, g, a, c = kgac
         self.kgac = kgac
         self.bcnew = bcnew
-        self.bc_constants = a_vals, d_val
+        self.bc_constants = a_vals, dinv_val
 
         stage_J = self.get_bilinear_form(J, k, tableau=butcher_tableau)
         stage_Jp = self.get_bilinear_form(Jp, k, tableau=butcher_tableau)
@@ -166,13 +173,13 @@ class DIRKTimeStepper:
     def update_bc_constants(self, i, c):
         AAb = self.AAb
         CCone = self.CCone
-        a_vals, d_val = self.bc_constants
+        a_vals, dinv_val = self.bc_constants
         ns = AAb.shape[1]
         for j in range(i):
             a_vals[j].assign(AAb[i, j])
         for j in range(i, ns):
             a_vals[j].zero()
-        d_val.assign(AAb[i, i])
+        dinv_val.assign(0.0 if abs(AAb[i, i]) < STRUCTURAL_ZERO else 1.0 / AAb[i, i])
         c.assign(CCone[i])
 
     def advance(self):
