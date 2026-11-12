@@ -79,6 +79,9 @@ def pytest_runtest_setup(item):
             from firedrake import parameters
             from functools import partial
 
+            if "pyop2_options" not in parameters:
+                return
+
             def _reset(check):
                 parameters["pyop2_options"]["check_src_hashes"] = check
 

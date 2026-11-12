@@ -8,8 +8,18 @@ from .scheme import GalerkinCollocationScheme, DiscontinuousGalerkinCollocationS
 from .discontinuous_galerkin_stepper import getElement
 from .galerkin_stepper import getTestElement
 
-from firedrake import AuxiliaryOperatorPC, derivative
-from firedrake.dmhooks import get_appctx
+from firedrake import AuxiliaryOperatorPC, Function, NonlinearVariationalProblem, PETSc, derivative
+from firedrake.dmhooks import get_appctx, pop_appctx, push_appctx
+
+try:
+    from firedrake import FieldsplitSNES
+except ImportError:
+    class FieldsplitSNES:
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError(
+                "StageSplitSNES requires firedrake.FieldsplitSNES,"
+                " which this version of Firedrake does not provide; please upgrade."
+            )
 
 try:
     from firedrake import AuxiliaryOperatorSNES
@@ -189,6 +199,80 @@ class IRKAuxiliaryOperatorSNES(AuxiliaryOperatorSNES):
         Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F, bcs=bcs)
 
         return Fnew, bcnew
+
+
+class StageSplitSNES(FieldsplitSNES):
+    """Apply a nonlinear solve to each stage of a coupled time step.
+
+    Each split contains all spatial fields of one stage. For two stages
+    with velocity and pressure, the splits are ``(0, 1)`` and ``(2, 3)``.
+    Set ``snes_fieldsplit_type`` to ``additive`` or ``multiplicative`` and
+    configure the stage solvers with the ``fieldsplit_`` prefix.
+
+    Supply an auxiliary semidiscrete residual as ``appctx["Fp"]`` and an
+    auxiliary time scheme as ``appctx["Fp_scheme"]`` when constructing the
+    time stepper. Both default to the original problem. For example, use
+    ``appctx={"Fp_scheme": RanaLDScheme(scheme)}`` for a lower triangular
+    approximation to the Butcher matrix. The original stage boundary
+    conditions are retained. The forcing computed by ``FieldsplitSNES``
+    makes solutions of the original residual fixed points of the iteration.
+
+    Notes
+    -----
+    This solver requires a mixed stage space, as does ``FieldsplitSNES``.
+    """
+
+    def initialize(self, snes: PETSc.SNES) -> None:
+        """Build the auxiliary problem and its stage solvers.
+
+        Parameters
+        ----------
+        snes : petsc4py.PETSc.SNES
+            The nonlinear solver for the coupled stages.
+        """
+        ctx = get_appctx(snes.getDM())
+        F, bcs = self.form(snes, ctx._x)
+        problem = NonlinearVariationalProblem(F, ctx._x, bcs=bcs, form_compiler_parameters=ctx.fcp)
+        auxiliary_ctx = ctx.reconstruct(problem=problem, options_prefix=snes.getOptionsPrefix() or "")
+        auxiliary_ctx._nullspace = ctx._nullspace
+        auxiliary_ctx._nullspace_T = ctx._nullspace_T
+        auxiliary_ctx._near_nullspace = ctx._near_nullspace
+
+        # Build the splits from the auxiliary context without changing the outer problem.
+        push_appctx(snes.getDM(), auxiliary_ctx)
+        try:
+            super().initialize(snes)
+        finally:
+            pop_appctx(snes.getDM(), auxiliary_ctx)
+        self._ctx = ctx
+
+    def form(self, snes: PETSc.SNES, stages: Function) -> tuple:
+        """Return the auxiliary stage residual and the original boundary conditions.
+
+        Parameters
+        ----------
+        snes : petsc4py.PETSc.SNES
+            The nonlinear solver whose application context contains the stepper.
+        stages : firedrake.Function
+            The coupled stage unknowns.
+
+        Returns
+        -------
+        F : ufl.Form
+            The stage residual built with ``Fp`` and ``Fp_scheme``.
+        bcs : sequence of firedrake.DirichletBC
+            The boundary conditions of the original stage problem.
+        """
+        appctx = self.get_appctx(snes)
+        stepper = appctx["stepper"]
+        F, _ = stepper.get_form_and_bcs(stages, F=appctx.get("Fp", stepper.F), tableau=appctx.get("Fp_scheme"), bcs=())
+        return F, stepper.bigBCs
+
+    def _get_splits(self, snes_options: PETSc.Options, nfields: int) -> list[list[int]]:
+        """Group the spatial fields of each stage into one split."""
+        stepper = self._ctx.appctx["stepper"]
+        nf = len(stepper.V)
+        return [list(range(i * nf, (i + 1) * nf)) for i in range(stepper.num_stages)]
 
 
 class RanaBase(IRKAuxiliaryOperatorPC):
