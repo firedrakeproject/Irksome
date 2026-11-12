@@ -52,8 +52,9 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
         the PDE system at time `t`
     :arg stages: a :class:`Function` representing the stages to be solved for.
         It lives in a :class:`FunctionSpace` corresponding to the
-        s-way tensor product of the space on which the semidiscrete
-        form lives.
+        tensor product of the space on which the semidiscrete form lives,
+        one copy per solved stage.  Leading stages whose row of the Butcher
+        matrix vanishes may be left out, in which case they take ``u0``.
     :kwarg bcs: optionally, a :class:`DirichletBC` object (or iterable thereof)
         containing (possibly time-dependent) boundary conditions imposed
         on the system.
@@ -84,7 +85,21 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     assert V == backend_cls.get_function_space(u0)
 
     c = vecconst(butch.c, backend=backend)
+    num_stages = butch.num_stages
+    Vbig = stages.function_space()
+    test = backend_cls.TestFunction(Vbig)
+
+    w_np = to_value(u0, stages, vandermonde)
+    num_solved = w_np.shape[0]
+    num_explicit = num_stages - num_solved
+    if num_explicit > butch.num_explicit_first_stages:
+        raise ValueError(f"The first {num_explicit} stages of this tableau are not all explicit")
     bA1, bA2 = splitting(butch.A)
+    if num_explicit > 0:
+        u0_np = reshape(u0, (1, *u0.ufl_shape))
+        w_np = numpy.concatenate([u0_np] * num_explicit + [w_np])
+        bA1 = bA1[num_explicit:, :]
+        bA2 = bA2[num_explicit:, num_explicit:]
     try:
         bA2inv = numpy.linalg.inv(bA2)
     except numpy.linalg.LinAlgError:
@@ -92,14 +107,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     A1 = vecconst(bA1, backend=backend)
     A2inv = vecconst(bA2inv, backend=backend)
 
-    # s-way product space for the stage variables
-    num_stages = butch.num_stages
-    Vbig = stages.function_space()
-    test = backend_cls.TestFunction(Vbig)
-
     # set up the pieces we need to work with to do our substitutions
-    v_np = reshape(test, (num_stages, *v.ufl_shape))
-    w_np = to_value(u0, stages, vandermonde)
+    v_np = reshape(test, (num_solved, *v.ufl_shape))
     A1Tv = dot(A1.T, v_np)
     A2invTv = dot(A2inv.T, v_np)
 
@@ -116,13 +125,14 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     # Dt(g(u)) is discretised as g(U_i) - g(u0), not g(U_i - u0).
     # These are identical for linear g but differ for nonlinear g,
     # and the two-evaluation form is what gives mass conservation.
-    for i in range(num_stages):
+    for r in range(num_solved):
+        i = num_explicit + r
         repl_new = {t: t + c[i] * dt,
-                    v: A2invTv[i],
+                    v: A2invTv[r],
                     u: w_np[i]}
         # Evaluate g at the old solution u0 (not substituted) and
         # old time t (not substituted).
-        repl_old = {v: A2invTv[i], u: u0}
+        repl_old = {v: A2invTv[r], u: u0}
         Fnew += replace(F_dtless, repl_new) - replace(F_dtless, repl_old)
 
     # Handle the rest of the terms
@@ -151,9 +161,10 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
             g_np -= vandermonde[1:, 0] * bcarg
             g_np = Vander_inv[1:, 1:] @ g_np
 
-        for i in range(num_stages):
-            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.extend(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
+        for r in range(num_solved):
+            i = num_explicit + r
+            Vsub = backend_cls.stage2spaces4bc(bc, V, Vbig, r)
+            bcsnew.extend(bc.reconstruct(V=Vsub, g=as_tensor(g_np[i])))
     return Fnew, bcsnew
 
 
@@ -179,11 +190,23 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             vandermonde = self.tabulate_poly(pts).T
         self.vandermonde = vandermonde
 
+        self.num_explicit_stages = 0
+        if (vandermonde is None and splitting is AI
+                and not use_collocation_update
+                and butcher_tableau.is_stiffly_accurate
+                and not butcher_tableau.is_explicit):
+            self.num_explicit_stages = butcher_tableau.num_explicit_first_stages
+        schemes = [kwargs.get("scheme_J"), kwargs.get("scheme_Jp")]
+        if self.num_explicit_stages and any(scheme is not None and scheme.num_explicit_first_stages != self.num_explicit_stages
+                                            for scheme in schemes):
+            raise ValueError("scheme_J and scheme_Jp must solve for the same stages as the tableau")
+
         super().__init__(F, t, dt, u0, butcher_tableau.num_stages, bcs=bcs,
                          solver_parameters=solver_parameters,
                          appctx=appctx,
                          splitting=splitting, scheme_F=butcher_tableau, bounds=bounds,
                          sample_points=sample_points, backend=backend,
+                         num_solved_stages=butcher_tableau.num_stages - self.num_explicit_stages,
                          **kwargs)
         self.num_fields = len(self._backend.get_function_space(u0))
 
@@ -233,7 +256,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
     def _update_stiff_acc(self):
         for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(self.stages.subfunctions[self.num_fields*(self.num_stages-1)+i])
+            u0bit.assign(self.stages.subfunctions[self.num_fields*(self.num_solved_stages-1)+i])
 
     def get_update_solver(self, update_solver_parameters):
         """Build a conservative variational update solve for u_new.
@@ -319,7 +342,7 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
 
     def set_initial_guess(self):
         """Set a constant-in-time initial guess"""
-        for k in range(self.num_stages):
+        for k in range(self.num_solved_stages):
             for i, u0bit in enumerate(self.u0.subfunctions):
                 sbit = self.stages.subfunctions[self.num_fields * k + i]
                 sbit.assign(u0bit)
