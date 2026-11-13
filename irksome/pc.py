@@ -140,6 +140,19 @@ class IRKAuxiliaryOperatorSNES(AuxiliaryOperatorSNES):
 
     Options for the inner solve are specified using the ``"aux_"`` prefix, as
     for the base auxiliary operator SNES.
+
+    Supply an auxiliary semidiscrete residual as ``appctx["Fp"]`` and an
+    auxiliary tableau as ``appctx["Fp_scheme"]``. Both default to the original
+    problem; subclass implementations of ``getNewForm`` and ``getAtilde``
+    override the corresponding defaults. With either application-context key,
+    retain the original stage boundary conditions. Without these keys, preserve
+    the subclass boundary conditions and rebuild them for the selected tableau.
+
+    For a native nonlinear stage sweep, set ``aux_snes_type`` to ``fieldsplit``
+    and supply ``aux_snes_fieldsplit_i_fields`` for each stage. Two stages of a
+    velocity-pressure problem use ``0,1`` and ``2,3``; further splits within a
+    stage use local field numbers ``0`` and ``1``. Configure individual stage
+    solvers under ``aux_fieldsplit_i_``.
     """
 
     def getNewForm(self, snes, u0, test):
@@ -176,7 +189,7 @@ class IRKAuxiliaryOperatorSNES(AuxiliaryOperatorSNES):
             # use new Form if provided
             F, bcs = self.getNewForm(snes, u0, v0)
         except NotImplementedError:
-            pass
+            F = as_form(appctx.get("Fp", stepper.F))
 
         try:
             # use new ButcherTableau if provided
@@ -184,9 +197,13 @@ class IRKAuxiliaryOperatorSNES(AuxiliaryOperatorSNES):
             butcher = copy.deepcopy(butcher)
             butcher.A = Atilde
         except NotImplementedError:
-            pass
+            butcher = appctx.get("Fp_scheme", butcher)
 
-        Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F, bcs=bcs)
+        if "Fp" in appctx or "Fp_scheme" in appctx:
+            Fnew, _ = stepper.get_form_and_bcs(w, tableau=butcher, F=F, bcs=())
+            bcnew = stepper.bigBCs
+        else:
+            Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F, bcs=bcs)
 
         return Fnew, bcnew
 
