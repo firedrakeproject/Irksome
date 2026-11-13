@@ -148,7 +148,7 @@ class IRKAuxiliaryOperatorSNES(AuxiliaryOperatorSNES):
     retain the original stage boundary conditions. Without these keys, preserve
     the subclass boundary conditions and rebuild them for the selected tableau.
 
-    For a native nonlinear stage sweep, set ``aux_snes_type`` to ``fieldsplit``
+    For a nonlinear stage sweep, set ``aux_snes_type`` to ``fieldsplit``
     and supply ``aux_snes_fieldsplit_i_fields`` for each stage. Two stages of a
     velocity-pressure problem use ``0,1`` and ``2,3``; further splits within a
     stage use local field numbers ``0`` and ``1``. Configure individual stage
