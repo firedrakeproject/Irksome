@@ -5,7 +5,7 @@ from ufl import Form, as_ufl, dx, inner
 from .backend import get_backend
 from .constant import MeshConstant, vecconst
 from .stage_value import getFormStage
-from .tools import (AI, IA, extract_timedep_arguments, reshape, replace,
+from .tools import (AI, IA, assign_stage_sum, assign_stages, extract_timedep_arguments, reshape, replace,
                     get_stage_space)
 from .tableaux.ButcherTableaux import RadauIIA
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
@@ -212,7 +212,7 @@ class RadauIIAIMEXMethod:
         self.bigBCs = bigBCs
 
         Fit, Fprop = getFormExplicit(
-            Fexp, butcher_tableau, u0, UU_old, t, dt, splitting)
+            Fexp, butcher_tableau, u0, UU_old, t, dt, splitting, backend=backend_cls)
 
         self.itprob = backend_cls.create_variational_problem(
             Fbig + Fit, UU, bcs=bigBCs,
@@ -247,12 +247,7 @@ class RadauIIAIMEXMethod:
             solver_parameters=prop_solver_parameters,
             nullspace=nsp, **kwargs)
 
-        num_fields = len(backend_cls.get_function_space(u0))
-        u0split = u0.subfunctions
-        for i, u0bit in enumerate(u0split):
-            for s in range(self.num_stages):
-                ii = s * num_fields + i
-                self.UU_old_split[ii].assign(u0bit)
+        assign_stages(UU_old, u0, [1] * self.num_stages, backend=backend_cls)
 
         for _ in range(num_its_initial):
             self.iterate()
@@ -271,11 +266,8 @@ class RadauIIAIMEXMethod:
         """Moves the solution forward in time, to be followed by 0 or
         more calls to `iterate`."""
 
-        ns = self.num_stages
-        nf = self.num_fields
-        u0split = self.u0.subfunctions
-        for i, u0bit in enumerate(u0split):
-            u0bit.assign(self.UU_old_split[(ns-1)*nf + i])
+        assign_stage_sum(self.u0, self.UU_old,
+                         [0] * (self.num_stages - 1) + [1], backend=self._backend)
 
         ps = self.prop_solver
         ps.solve()
@@ -302,7 +294,7 @@ class RadauIIAIMEXMethod:
                             tableau or self.butcher_tableau,
                             self.t, self.dt, self.u0,
                             stages, bcs=self.orig_bcs,
-                            splitting=self.splitting)
+                            splitting=self.splitting, backend=self._backend)
 
     def invalidate_jacobian(self):
         """
@@ -520,10 +512,9 @@ class DIRKIMEXMethod:
             g.assign(u0)
             # Update g with contributions from previous stages
             for j in range(i):
-                ksplit = ks[j].subfunctions
-                k_hat_split = k_hat_s[j].subfunctions
-                for gbit, kbit, k_hat_bit in zip(g.subfunctions, ksplit, k_hat_split):
-                    gbit += dtc * (float(AA[i, j]) * kbit + float(A_hat[i, j]) * k_hat_bit)
+                assign_stage_sum(g, [ks[j], k_hat_s[j]],
+                                 [dtc * float(AA[i, j]), dtc * float(A_hat[i, j])],
+                                 alpha=1, backend=self._backend)
 
             # Solve for current stage
             for j in range(i):
@@ -543,9 +534,7 @@ class DIRKIMEXMethod:
             ks[i].assign(k)
 
             # Update the solution for next stage
-            for ghatbit, gbit, kbit in zip(ghat.subfunctions, g.subfunctions, ks[i].subfunctions):
-                ghatbit.assign(gbit)
-                ghatbit += dtc * float(AA[i, i]) * kbit
+            assign_stage_sum(ghat, [g, ks[i]], [1, dtc * float(AA[i, i])], backend=self._backend)
 
         self._finalize()
         self.num_steps += 1
@@ -585,9 +574,7 @@ class DIRKIMEXMethod:
         ks[0].assign(k)
 
         # Update the solution for second stage
-        for ghatbit, gbit, kbit in zip(ghat.subfunctions, g.subfunctions, ks[0].subfunctions):
-            ghatbit.assign(gbit)
-            ghatbit += dtc * float(AA[0, 0]) * kbit
+        assign_stage_sum(ghat, [g, ks[0]], [1, dtc * float(AA[0, 0])], backend=self._backend)
 
     # Last part of advance for the general case, where last explicit stage is calculated and used
     def _finalize_general(self):
@@ -610,9 +597,9 @@ class DIRKIMEXMethod:
 
         # Final solution update
         for i in range(ns):
-            for u0bit, kbit, k_hat_bit in zip(u0.subfunctions, ks[i].subfunctions,
-                                              k_hat_s[i].subfunctions):
-                u0bit += dtc * (float(BB[i]) * kbit + float(B_hat[i]) * k_hat_bit)
+            assign_stage_sum(u0, [ks[i], k_hat_s[i]],
+                             [dtc * float(BB[i]), dtc * float(B_hat[i])],
+                             alpha=1, backend=self._backend)
 
     # Last part of advance for the case where last explicit stage is not used
     def _finalize_no_last_explicit(self):
@@ -627,16 +614,15 @@ class DIRKIMEXMethod:
 
         # Final solution update
         for i in range(ns):
-            for u0bit, kbit, k_hat_bit in zip(u0.subfunctions, ks[i].subfunctions,
-                                              k_hat_s[i].subfunctions):
-                u0bit += dtc * (BB[i] * kbit + B_hat[i] * k_hat_bit)
+            assign_stage_sum(u0, [ks[i], k_hat_s[i]],
+                             [dtc * float(BB[i]), dtc * float(B_hat[i])],
+                             alpha=1, backend=self._backend)
 
     # Last part of advance for the case where last implicit stage is new solution
     def _finalize_stiffly_accurate(self):
         khat, ghat, chat = self.kgchat
         u0 = self.u0
-        for u0bit, ghatbit in zip(u0.subfunctions, ghat.subfunctions):
-            u0bit.assign(ghatbit)
+        u0.assign(ghat)
 
     def solver_stats(self):
         return self.num_steps, self.num_nonlinear_iterations, self.num_linear_iterations, self.num_mass_nonlinear_iterations, self.num_mass_linear_iterations

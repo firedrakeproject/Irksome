@@ -107,10 +107,17 @@ class Backend(Protocol):
 
 
 def get_backend(backend: str | types.ModuleType) -> Backend:
-    """Get backend class from backend name.
+    """Get the backend module from its name.
 
-    :param backend: Name of the backend to get
-    :returns: Backend class
+    Parameters
+    ----------
+    backend : str or types.ModuleType
+        Name or module of the backend to get.
+
+    Returns
+    -------
+    types.ModuleType
+        Backend module implementing the backend protocol.
     """
     if isinstance(backend, types.ModuleType):
         return backend

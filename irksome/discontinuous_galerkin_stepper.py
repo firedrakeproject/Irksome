@@ -8,7 +8,7 @@ from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.manipulation import split_time_derivative_terms, remove_time_derivatives
 from .scheme import DiscontinuousGalerkinScheme, create_time_quadrature, ufc_line
-from .tools import IA, dot, extract_timedep_arguments, reshape, replace
+from .tools import IA, assign_stage_sum, assign_stages, dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
 from .tableaux.ButcherTableaux import ButcherTableau, CollocationButcherTableau
 from .stage_value import getFormStage
@@ -259,7 +259,8 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         except TypeError:
             self.butcher_tableau = None
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, scheme_F=scheme, **kwargs)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, scheme_F=scheme,
+                         backend=backend_cls, **kwargs)
         self.set_initial_guess()
 
     def get_form_and_bcs(self, stages, F=None, bcs=None,
@@ -310,12 +311,11 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
                                    quadrature or self.quadrature,
                                    self.t, self.dt, self.u0, stages,
                                    bcs=bcs, deriv_type=deriv_type,
-                                   max_quadrature_degree=max_quadrature_degree)
+                                   max_quadrature_degree=max_quadrature_degree,
+                                   backend=self._backend)
 
     def _update(self):
-        stages_np = np.array(self.stages.subfunctions, dtype=object)
-        for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(stages_np[i::self.num_fields] @ self.update_b)
+        assign_stage_sum(self.u0, self.stages, self.update_b, backend=self._backend)
 
     def set_initial_guess(self):
         """Set a constant-in-time initial guess."""
@@ -327,15 +327,7 @@ class DiscontinuousGalerkinTimeStepper(StageCoupledTimeStepper):
         trial_dual = self.el.get_dual_set()
         trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
 
-        dof = self._backend.Constant(0)
-        for k in range(self.num_stages):
-            for i, u0bit in enumerate(self.u0.subfunctions):
-                sbit = self.stages.subfunctions[self.num_fields*k+i]
-                dof.assign(trial_dofs[k])
-                if abs(float(dof)) < 1E-12:
-                    sbit.zero()
-                else:
-                    sbit.assign(u0bit * dof)
+        assign_stages(self.stages, self.u0, trial_dofs.ravel(), backend=self._backend)
 
     def tabulate_poly(self, sample_points):
         vander = vecconst(np.zeros((self.num_stages+1, len(sample_points))))

@@ -3,7 +3,7 @@ import numpy
 from petsc4py import PETSc
 from ufl import as_ufl, as_tensor, dx, inner
 from .constant import vecconst
-from .tools import AI, dot, extract_timedep_arguments, fields_to_components, replace, reshape
+from .tools import AI, assign_stage_sum, dot, extract_timedep_arguments, fields_to_components, replace, reshape
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
 
@@ -114,7 +114,7 @@ def getForm(F, butch, t, dt, u0, stages, bcs=None, bc_type=None, splitting=AI, a
             gorig = as_ufl(bc._original_arg)
             gfoo = expand_time_derivatives(Dt(gorig), t=t, timedep_coeffs=(u,))
             gcur = replace(gfoo, {t: t + c[i] * dt})
-            return BCStageData(bc, gcur, u0, stages, i)
+            return BCStageData(bc, gcur, u0, stages, i, backend=backend_cls)
 
     elif bc_type == "DAE":
         try:
@@ -217,12 +217,7 @@ class StageDerivativeTimeStepper(StageCoupledTimeStepper):
         called by an end user."""
         b = self.updateb
         dt = self.dt
-        ns = self.num_stages
-        nf = self.num_fields
-
-        # Note: this now catches the optimized/stiffly accurate case as b[s] == Zero() will get dropped
-        for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit += sum(self.stages.subfunctions[nf * s + i] * (b[s] * dt) for s in range(ns))
+        assign_stage_sum(self.u0, self.stages, b * dt, alpha=1, backend=self._backend)
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
@@ -341,7 +336,7 @@ class AdaptiveTimeStepper(StageDerivativeTimeStepper):
         embbc = []
         if self.gamma0 != 0:
             # Grab spaces for BCs
-            embbc = [EmbeddedBCData(bc, butcher_tableau, self.t, self.dt, self.u0, self.stages)
+            embbc = [EmbeddedBCData(bc, butcher_tableau, self.t, self.dt, self.u0, self.stages, backend=self._backend)
                      for bc in bcs]
         self.embbc = embbc
 

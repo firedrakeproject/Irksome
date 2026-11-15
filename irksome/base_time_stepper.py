@@ -256,7 +256,7 @@ class StageCoupledTimeStepper(BaseTimeStepper):
 
         self.u_old = self._backend.Function(self.u0)
         ks = [self.u_old]
-        ks.extend(split_stages(self.u0.function_space(), self.stages))
+        ks.extend(split_stages(self.u0.function_space(), self.stages, backend=self._backend))
         num_samples = vander.shape[1]
         self.sample_values = [sum(ks[j] * vander[j, i] for j in range(len(ks)))
                               for i in range(num_samples)]

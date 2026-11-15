@@ -12,7 +12,7 @@ from .ufl.manipulation import (has_nonlinear_time_derivative,
                                split_time_derivative_terms,
                                remove_time_derivatives)
 
-from .tools import AI, extract_timedep_arguments, dot, reshape, replace
+from .tools import AI, assign_stage_sum, assign_stages, extract_timedep_arguments, dot, reshape, replace
 from .constant import vecconst
 from .base_time_stepper import StageCoupledTimeStepper
 from .backend import get_backend
@@ -223,17 +223,12 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
             self._update = self._update_stiff_acc
 
     def _update_Ainv(self):
-        nf = self.num_fields
-        ns = self.num_stages
-        scale = self.update_scale
-        bAinv = self.bAinv
-        for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit *= scale
-            u0bit += sum(self.stages.subfunctions[nf * s + i] * bAinv[s] for s in range(ns))
+        assign_stage_sum(self.u0, self.stages, self.bAinv,
+                         alpha=self.update_scale, backend=self._backend)
 
     def _update_stiff_acc(self):
-        for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(self.stages.subfunctions[self.num_fields*(self.num_stages-1)+i])
+        assign_stage_sum(self.u0, self.stages,
+                         [0] * (self.num_stages - 1) + [1], backend=self._backend)
 
     def get_update_solver(self, update_solver_parameters):
         """Build a conservative variational update solve for u_new.
@@ -303,9 +298,8 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
         self.u0.assign(self.unew)
 
     def _update_collocation(self):
-        stage_vals = numpy.array(self.u0.subfunctions + self.stages.subfunctions, dtype=object)
-        for i, u0bit in enumerate(self.u0.subfunctions):
-            u0bit.assign(stage_vals[i::self.num_fields] @ self.collocation_vander)
+        weights = self.collocation_vander.ravel()
+        assign_stage_sum(self.u0, self.stages, weights[1:], alpha=weights[0], backend=self._backend)
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
@@ -315,14 +309,11 @@ class StageValueTimeStepper(StageCoupledTimeStepper):
                             self.t, self.dt, self.u0,
                             stages, bcs=bcs,
                             splitting=self.splitting,
-                            vandermonde=self.vandermonde)
+                            vandermonde=self.vandermonde, backend=self._backend)
 
     def set_initial_guess(self):
         """Set a constant-in-time initial guess"""
-        for k in range(self.num_stages):
-            for i, u0bit in enumerate(self.u0.subfunctions):
-                sbit = self.stages.subfunctions[self.num_fields * k + i]
-                sbit.assign(u0bit)
+        assign_stages(self.stages, self.u0, [1] * self.num_stages, backend=self._backend)
 
     def tabulate_poly(self, sample_points):
         if not isinstance(self.butcher_tableau, CollocationButcherTableau):
