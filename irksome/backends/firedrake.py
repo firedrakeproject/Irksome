@@ -6,6 +6,7 @@ import typing
 from functools import reduce
 from operator import mul
 from irksome.tools import get_sub
+from . import _legacy
 
 assemble = firedrake.assemble
 derivative = firedrake.derivative
@@ -45,6 +46,85 @@ def get_stages(V: firedrake.FunctionSpace, num_stages: int) -> firedrake.Functio
     """
     Vbig = get_stage_space(V, num_stages)
     return firedrake.Function(Vbig)
+
+
+def _stage_views(V, stages, indices=None):
+    """Return views of the stages on the subspaces corresponding to ``V``."""
+    num_fields = len(V)
+    indices = tuple(range(num_fields)) if indices is None else tuple(indices)
+    if not indices:
+        return ()
+    if isinstance(stages, (tuple, list)):
+        return tuple(stages) if indices == tuple(range(num_fields)) else tuple(k.sub(indices) for k in stages)
+    num_stages = len(stages.function_space()) // num_fields
+    if num_stages == 1 and indices == tuple(range(num_fields)):
+        return (stages,)
+    return tuple(stages.sub(tuple(num_fields * s + i for i in indices))
+                 for s in range(num_stages))
+
+
+def split_stages(V, stages):
+    """Return stage expressions with the value shape of ``V``."""
+    try:
+        return _stage_views(V, stages)
+    except TypeError:
+        return _legacy.split_stages(V, stages)
+
+
+def mixed_function(V, functions):
+    """Copy the functions into a function on the mixed space ``V``."""
+    functions = tuple(functions)
+    mixed = Function(V)
+    offset = 0
+    for f in functions:
+        indices = tuple(range(offset, offset + len(f.function_space())))
+        try:
+            target = mixed if len(indices) == len(V) else mixed.sub(indices)
+        except TypeError:
+            return _legacy.mixed_function(V, functions, Function)
+        target.assign(f)
+        offset += len(indices)
+    if offset != len(V):
+        raise ValueError("Functions do not fill the mixed space")
+    return mixed
+
+
+def stage_sum(u, stages, weights, alpha=0, indices=None):
+    """Return the targets and weighted stage sums for selected subfunctions."""
+    V = u.function_space()
+    try:
+        ks = _stage_views(V, stages, indices=indices)
+        if ks and indices is not None and tuple(indices) != tuple(range(len(V))):
+            u = u.sub(tuple(indices))
+    except TypeError:
+        return _legacy.stage_sum(u, stages, weights, alpha, indices)
+    if not ks:
+        return ()
+    return ((u, u * alpha + sum(k * w for w, k in zip(weights, ks, strict=True))),)
+
+
+def assign_stage_sum(u, stages, weights, alpha=0, indices=None):
+    """Assign a weighted stage sum plus ``alpha * u`` to selected subfunctions."""
+    for target, expr in stage_sum(u, stages, weights, alpha, indices):
+        target.assign(expr)
+
+
+def assign_stages(stages, u, weights, indices=None):
+    """Assign weighted copies of selected subfunctions to the stages."""
+    V = u.function_space()
+    try:
+        ks = _stage_views(V, stages, indices=indices)
+        if ks and indices is not None and tuple(indices) != tuple(range(len(V))):
+            u = u.sub(tuple(indices))
+    except TypeError:
+        return _legacy.assign_stages(stages, u, weights, indices)
+    if not ks:
+        return
+    for k, w in zip(ks, weights, strict=True):
+        if abs(float(w)) < 1.e-12:
+            k.zero()
+        else:
+            k.assign(u * w)
 
 
 class MeshConstant(object):

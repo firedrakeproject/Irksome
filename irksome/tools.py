@@ -21,12 +21,7 @@ def reshape(expr, shape):
 
 def mixed_function(V, functions, backend="firedrake"):
     """Return a new Function on the mixed space ``V`` with a copy of the current values of ``functions``."""
-    backend_cls = get_backend(backend)
-    mixed = backend_cls.Function(V)
-    parts = [part for f in functions for part in f.subfunctions]
-    for target, part in zip(mixed.subfunctions, parts, strict=True):
-        target.assign(part)
-    return mixed
+    return get_backend(backend).mixed_function(V, functions)
 
 
 def get_stage_space(V, num_stages, backend="firedrake"):
@@ -34,15 +29,24 @@ def get_stage_space(V, num_stages, backend="firedrake"):
     return backend_cls.get_stage_space(V, num_stages)
 
 
-def split_stages(V, stages):
-    """Reconstruct the stages as a list of Function(V)"""
-    num_fields = len(V)
-    if num_fields == 1:
-        return stages.subfunctions
+def split_stages(V, stages, backend="firedrake"):
+    """Return stage expressions with the value shape of ``V`` using the backend."""
+    return get_backend(backend).split_stages(V, stages)
 
-    stages_np = reshape(stages, (-1, *V.value_shape))
-    ks = [as_tensor(stages_np[i]) for i in range(stages_np.shape[0])]
-    return ks
+
+def stage_sum(u, stages, weights, alpha=0, indices=None, backend="firedrake"):
+    """Return the targets and weighted stage sums for selected subfunctions."""
+    return get_backend(backend).stage_sum(u, stages, weights, alpha, indices)
+
+
+def assign_stage_sum(u, stages, weights, alpha=0, indices=None, backend="firedrake"):
+    """Assign a weighted stage sum plus ``alpha * u`` to selected subfunctions."""
+    return get_backend(backend).assign_stage_sum(u, stages, weights, alpha, indices)
+
+
+def assign_stages(stages, u, weights, indices=None, backend="firedrake"):
+    """Assign weighted copies of selected subfunctions to the stages."""
+    return get_backend(backend).assign_stages(stages, u, weights, indices)
 
 
 def extract_timedep_arguments(F, u0):

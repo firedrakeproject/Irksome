@@ -8,6 +8,22 @@ from subprocess import check_call
 from mpi4py import MPI
 
 
+@pytest.fixture(params=[True, False], ids=["tuple-subfunctions", "fallback"])
+def tuple_subfunctions(request, monkeypatch):
+    """Reject tuple selections when exercising the subfunction fallback."""
+    if not request.param:
+        from firedrake import Function
+
+        sub = Function.sub
+
+        def integer_sub(self, indices, *args, **kwargs):
+            if isinstance(indices, tuple):
+                raise TypeError("Tuple subfunction selection is unsupported")
+            return sub(self, indices, *args, **kwargs)
+
+        monkeypatch.setattr(Function, "sub", integer_sub)
+
+
 @pytest.fixture(scope="module", autouse=True)
 def check_empty_tape(request):
     """Check that the tape is empty at the end of each module"""

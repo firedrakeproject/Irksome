@@ -1,6 +1,7 @@
 from firedrake import *
 from firedrake.adjoint import *
 from irksome import Alexander, Dt, RadauIIA, GaussLegendre, TimeStepper, WSODIRK
+from irksome.backend import get_backend
 import pytest
 
 
@@ -19,6 +20,23 @@ def handle_annotation():
     # Ensure annotation is paused when we finish.
     if annotate_tape():
         pause_annotation()
+
+
+@pytest.mark.parametrize("alpha", [0, 1])
+def test_adjoint_mixed_stage_operations(tuple_subfunctions, alpha):
+    backend = get_backend("firedrake")
+    mesh = UnitSquareMesh(1, 1)
+    V = VectorFunctionSpace(mesh, "CG", 1) * FunctionSpace(mesh, "DG", 0)
+    m = Function(V).assign(2)
+    control = Control(m)
+    stages = backend.get_stages(V, 3)
+    backend.assign_stages(stages, m, [1, -2, 3])
+    u = Function(V).assign(0.5 * m)
+    backend.assign_stage_sum(u, stages, [2, 0, -1], alpha=alpha)
+    J = assemble(inner(u, u) * dx)
+    rf = ReducedFunctional(J, control)
+    direction = Function(V).assign(0.5)
+    assert taylor_test(rf, m, direction) > 1.95
 
 
 @pytest.mark.parametrize("nt", (pytest.param(n, id=f"nt={n}") for n in (1, 4)))

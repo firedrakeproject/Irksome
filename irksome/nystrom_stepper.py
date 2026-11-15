@@ -2,7 +2,7 @@ from .base_time_stepper import StageCoupledTimeStepper
 from .bcs import BCStageData
 from .ufl.deriv import Dt, TimeDerivative, expand_time_derivatives
 from .backend import get_backend
-from .tools import dot, extract_timedep_arguments, reshape, replace
+from .tools import assign_stage_sum, dot, extract_timedep_arguments, reshape, replace
 from .constant import vecconst
 import numpy
 from ufl import Form, as_ufl
@@ -170,7 +170,7 @@ def getFormNystrom(F, tableau, t, dt, u0, ut0, stages,
     for bc in bcs:
         for i in range(num_stages):
             gcur = bc2gcur(bc, i)
-            bcnew.append(BCStageData(bc, gcur, u0, stages, i))
+            bcnew.append(BCStageData(bc, gcur, u0, stages, i, backend=backend_cls))
 
     return Fnew, bcnew
 
@@ -195,19 +195,13 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
     def _update(self):
         b = self.updateb
         bbar = self.updatebbar
-        ns = self.tableau.num_stages
         dt = self.dt
-        nf = self.num_fields
 
         # Note: order matters here.  derivative update doesn't
         # depend on old solution value.
-        kp = self.stages.subfunctions
-        for i, (u0bit, ut0bit) in enumerate(zip(self.u0.subfunctions,
-                                                self.ut0.subfunctions)):
-            u0bit += (ut0bit * dt
-                      + sum(kp[nf * s + i] * (bbar[s] * dt**2)
-                            for s in range(ns)))
-            ut0bit += sum(kp[nf * s + i] * (b[s] * dt) for s in range(ns))
+        self.u0 += self.ut0 * dt
+        assign_stage_sum(self.u0, self.stages, bbar * dt**2, alpha=1, backend=self._backend)
+        assign_stage_sum(self.ut0, self.stages, b * dt, alpha=1, backend=self._backend)
 
     def get_form_and_bcs(self, stages, F=None, bcs=None, tableau=None):
         if bcs is None:
@@ -216,7 +210,7 @@ class StageDerivativeNystromTimeStepper(StageCoupledTimeStepper):
                               tableau or self.tableau,
                               self.t, self.dt, self.u0, self.ut0,
                               stages,
-                              bcs=bcs, bc_type=self.bc_type)
+                              bcs=bcs, bc_type=self.bc_type, backend=self._backend)
 
     def tabulate_poly(self, sample_points):
         raise NotImplementedError("tabulate_poly not implemented")

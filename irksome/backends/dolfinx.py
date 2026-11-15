@@ -3,6 +3,10 @@
 from __future__ import annotations
 from collections.abc import Sequence
 from irksome.tools import get_sub
+from . import _legacy
+from ._legacy import (  # noqa: F401
+    assign_stage_sum, assign_stages, split_stages, stage_sum,
+)
 
 from mpi4py import MPI
 from petsc4py import PETSc
@@ -742,6 +746,11 @@ def Function(V: ufl.FunctionSpace | ufl.MixedFunctionSpace, name=None):
         )
     else:
         return dolfinx.fem.Function(V, name=name)
+
+
+def mixed_function(V, functions):
+    """Copy the functions into a function on the mixed space ``V``."""
+    return _legacy.mixed_function(V, functions, Function)
 
 
 def TestFunction(function_space):

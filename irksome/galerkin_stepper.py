@@ -9,7 +9,7 @@ from .ufl.deriv import TimeDerivative, expand_time_derivatives
 from .ufl.estimate_degrees import TimeDegreeEstimator, get_degree_mapping
 from .labeling import split_quadrature, as_form
 from .scheme import ContinuousPetrovGalerkinScheme, create_time_quadrature, ufc_line
-from .tools import AI, IA, dot, extract_timedep_arguments, fields_to_components, reshape, replace
+from .tools import AI, IA, assign_stages, stage_sum, dot, extract_timedep_arguments, fields_to_components, reshape, replace
 from .constant import vecconst
 from .discontinuous_galerkin_stepper import getElement as getTestElement
 from .integrated_lagrange import IntegratedLagrange
@@ -180,7 +180,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
 
     splitting = split_quadrature(F, degree_estimator=degree_estimator, Qdefault=Qdefault,
                                  max_quadrature_degree=max_quadrature_degree)
-    Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices)
+    Fnew = sum(getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0, stages, test, aux_indices, backend=backend_cls)
                for Q, Fcur in splitting.items())
 
     # Oh, honey, is it the boundary conditions?
@@ -255,7 +255,7 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     for bc in bcs:
         if isinstance(bc, backend_cls.EquationBCSplit):
             raise NotImplementedError("EquationBC not implemented for Galerkin-in-Time")
-        if aux_indices and bc.function_space().index in aux_indices:
+        if aux_indices and bc.function_space_index() in aux_indices:
             g_np = aux_bc_data(bc)
         else:
             g_np = bc_data(bc)
@@ -320,7 +320,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         except TypeError:
             self.butcher_tableau = None
 
-        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, scheme_F=scheme, **kwargs)
+        super().__init__(F, t, dt, u0, num_stages, bcs=bcs, bc_type=bc_type, scheme_F=scheme,
+                         backend=backend_cls, **kwargs)
         self.set_initial_guess()
         self.set_update_expressions()
 
@@ -360,7 +361,8 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
 
             F = as_form(F)
             Fnew, bcnew = get_irk_form(F, tableau, self.t, self.dt, self.u0, stages,
-                                       bcs=bcs, splitting=splitting, aux_indices=aux_indices)
+                                       bcs=bcs, splitting=splitting, aux_indices=aux_indices,
+                                       backend=self._backend)
 
             if trial_type == "deriv":
                 v0 = F.arguments()[0]
@@ -391,11 +393,12 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
                                self.t, self.dt, self.u0, stages,
                                bcs=bcs, bc_type=self.bc_type,
                                aux_indices=aux_indices,
-                               max_quadrature_degree=max_quadrature_degree)
+                               max_quadrature_degree=max_quadrature_degree,
+                               backend=self._backend)
 
     def _update(self):
-        for u0bit, expr in zip(self.u0.subfunctions, self.u_update):
-            u0bit.assign(expr)
+        for target, expr in self.u_update:
+            target.assign(expr)
 
     def set_update_expressions(self):
         """Set up symbolic expressions for the update."""
@@ -404,15 +407,12 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         update_test = vecconst(self.test_el.tabulate(0, (1.0,))[(0,)])
 
         i0, = self.trial_el.entity_dofs()[0][0]
-        self.u_update = []
-        for i in range(self.num_fields):
-            ks = list(self.stages.subfunctions[i::self.num_fields])
-            if self.aux_indices and i in self.aux_indices:
-                wts = update_test
-            else:
-                wts = update_trial
-                ks.insert(i0, self.u0.subfunctions[i])
-            self.u_update.append(sum(w * k for w, k in zip(wts, ks)))
+        indices = tuple(i for i in range(self.num_fields) if i not in (self.aux_indices or ()))
+        self.u_update = list(stage_sum(
+            self.u0, self.stages, np.delete(update_trial, i0),
+            alpha=update_trial[i0], indices=indices, backend=self._backend))
+        self.u_update.extend(stage_sum(
+            self.u0, self.stages, update_test, indices=self.aux_indices or (), backend=self._backend))
 
     def set_initial_guess(self):
         """Set a constant-in-time initial guess."""
@@ -429,18 +429,9 @@ class ContinuousPetrovGalerkinTimeStepper(StageCoupledTimeStepper):
         trial_dofs = np.dot(trial_dual.to_riesz(P0), B)
         trial_dofs = np.delete(trial_dofs, i0, axis=0)
 
-        dof = self._backend.Constant(0)
-        for k in range(self.num_stages):
-            for i, u0bit in enumerate(self.u0.subfunctions):
-                sbit = self.stages.subfunctions[self.num_fields*k+i]
-                if self.aux_indices and i in self.aux_indices:
-                    dof.assign(test_dofs[k])
-                else:
-                    dof.assign(trial_dofs[k])
-                if abs(float(dof)) < 1E-12:
-                    sbit.zero()
-                else:
-                    sbit.assign(u0bit * dof)
+        indices = tuple(i for i in range(self.num_fields) if i not in (self.aux_indices or ()))
+        assign_stages(self.stages, self.u0, trial_dofs.ravel(), indices=indices, backend=self._backend)
+        assign_stages(self.stages, self.u0, test_dofs.ravel(), indices=self.aux_indices or (), backend=self._backend)
 
     def tabulate_poly(self, sample_points):
         vander = vecconst(self.trial_el.tabulate(0, sample_points)[(0,)])
