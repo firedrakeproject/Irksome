@@ -4,6 +4,7 @@ import gc
 import os
 import pytest
 
+from functools import partial
 from subprocess import check_call
 from mpi4py import MPI
 
@@ -72,22 +73,45 @@ def pytest_configure(config):
         "parallel(nprocs): mark test to run in parallel on nprocs processors")
 
 
+def _src_hash_checking():
+    """Return a getter and a setter for the source hash check.
+
+    The option lives on ``pyop3.config`` in pyop3-based Firedrake and in
+    ``parameters["pyop2_options"]`` in PyOP2-based Firedrake.
+    """
+    try:
+        from pyop3 import config
+    except ImportError:
+        from firedrake import parameters
+        options = parameters["pyop2_options"]
+
+        def get_check():
+            return options["check_src_hashes"]
+
+        def set_check(check):
+            options["check_src_hashes"] = check
+    else:
+        def get_check():
+            return config.check_src_hashes
+
+        def set_check(check):
+            config.check_src_hashes = check
+    return get_check, set_check
+
+
+@pytest.fixture(autouse=True)
+def check_src_hashes(request):
+    """Turn on source hash checking for parallel tests run in parallel."""
+    if request.node.get_closest_marker("parallel") and MPI.COMM_WORLD.size > 1:
+        get_check, set_check = _src_hash_checking()
+        # Reset to current value when test is cleaned up
+        request.addfinalizer(partial(set_check, get_check()))
+        set_check(True)
+
+
 def pytest_runtest_setup(item):
     if item.get_closest_marker("parallel"):
-        if MPI.COMM_WORLD.size > 1:
-            # Turn on source hash checking
-            from firedrake import parameters
-            from functools import partial
-
-            def _reset(check):
-                parameters["pyop2_options"]["check_src_hashes"] = check
-
-            # Reset to current value when test is cleaned up
-            item.addfinalizer(partial(_reset,
-                                      parameters["pyop2_options"]["check_src_hashes"]))
-
-            parameters["pyop2_options"]["check_src_hashes"] = True
-        else:
+        if MPI.COMM_WORLD.size == 1:
             # Blow away function arg in "master" process, to ensure
             # this test isn't run on only one process.
             item.obj = lambda *args, **kwargs: True
