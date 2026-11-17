@@ -27,7 +27,7 @@ ci = [
   "pytest",
   "vtk",    # needed for demos
 ]
-dolfinx = ["scifem", "firedrake-fiat"]
+dolfinx = ["firedrake-fiat"]
 docs = ["sphinx", "sphinxcontrib-bibtex"]
 
 
