@@ -108,6 +108,7 @@ class BoundsConstrainedDirichletBC(firedrake.DirichletBC):
                 "ksp_type": "preonly",
                 "mat_type": "aij",
             }
+        self.F = F
         problem = create_variational_problem(F, self.gnew)
         self.solver = create_variational_solver(
             problem, solver_parameters=solver_parameters
@@ -125,6 +126,9 @@ class BoundsConstrainedDirichletBC(firedrake.DirichletBC):
         """Set the value of this boundary condition."""
         self.solver.solve(bounds=self.bounds)
         return self.gnew
+
+    def coefficients(self):
+        return self.F.coefficients()
 
     def reconstruct(self, V=None, g=None, sub_domain=None):
         V = V or self.function_space()
