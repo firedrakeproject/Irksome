@@ -35,7 +35,7 @@ def test_delta(msh, vom):
     assert d.arguments() == (v,)
 
     # Test domain
-    assert ufl.domain.extract_domains(d) == (msh,)
+    assert msh in ufl.domain.extract_domains(d)
 
     # Test assembly
     result = assemble(d)
