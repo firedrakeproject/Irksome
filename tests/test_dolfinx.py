@@ -7,8 +7,9 @@ dolfinx = pytest.importorskip("dolfinx")
 
 import basix.ufl
 import numpy as np
+import ufl
 
-from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunctions
+from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions, TrialFunction
 
 from irksome import GaussLegendre, Dt, MeshConstant
 from irksome.backends.dolfinx import dirichletbc, norm
@@ -125,3 +126,123 @@ def test_stokes(num_stages):
     msh.comm.Barrier()
     gc.collect()
     msh.comm.Barrier()
+
+
+def _manufactured_heat_problem():
+    """Heat equation with a manufactured solution, flux BCs and its exact Jacobian.
+
+    The solution is linear in time and quadratic in space, so Gauss-Legendre with P2
+    reproduces it up to round-off. Natural BCs keep the stage operators free of
+    Dirichlet rows.
+    """
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 2))
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
+    n = ufl.FacetNormal(msh)
+
+    # f is built from the stepper's t, so that stage times are substituted in it
+    t_var = ufl.variable(t)
+    u_ex = (1 + t_var) * (x**2 + x * y)
+    f = ufl.diff(u_ex, t_var) - div(grad(u_ex))
+
+    u = dolfinx.fem.Function(V)
+    u.interpolate(dolfinx.fem.Expression(u_ex, V.element.interpolation_points))
+    v = TestFunction(V)
+    w = TrialFunction(V)
+    F = (
+        inner(Dt(u), v) * dx
+        + inner(grad(u), grad(v)) * dx
+        - inner(f, v) * dx
+        - inner(ufl.dot(grad(u_ex), n), v) * ufl.ds
+    )
+    J = inner(Dt(w), v) * dx + inner(grad(w), grad(v)) * dx
+    return msh, t, dt, u, F, J, u_ex
+
+
+def _assemble_stage_operators(stepper):
+    """Assemble the stage Jacobian and preconditioner of a DOLFINx-backed stepper."""
+    problem = stepper.solver
+    P = problem.P_mat if problem.P_mat is not None else problem.A
+    problem.snes.computeJacobian(problem.x, problem.A, P)
+    return problem.A, problem.P_mat
+
+
+@pytest.mark.parametrize("num_stages", [1, 2])
+def test_user_jacobian(num_stages):
+    """A user-supplied J replaces the automatically derived stage Jacobian."""
+    lu = {"ksp_type": "preonly", "pc_type": "lu", "ksp_error_if_not_converged": True}
+
+    msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        u,
+        solver_parameters={**lu, "petsc_options_prefix": f"auto_J_{num_stages}_"},
+        backend="dolfinx",
+    )
+    A_auto, _ = _assemble_stage_operators(stepper)
+
+    msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        u,
+        J=2 * J,
+        solver_parameters={**lu, "petsc_options_prefix": f"user_J_{num_stages}_"},
+        backend="dolfinx",
+    )
+    A_user, _ = _assemble_stage_operators(stepper)
+    assert np.isclose(A_user.norm(), 2 * A_auto.norm())
+
+    msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        u,
+        J=J,
+        solver_parameters={**lu, "petsc_options_prefix": f"exact_J_{num_stages}_"},
+        backend="dolfinx",
+    )
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+    error = norm(u - u_ex, norm_type="L2", mesh=msh)
+    assert error < 1e-10, f"Error {error} exceeds tolerance"
+
+
+@pytest.mark.parametrize("num_stages", [1, 2])
+def test_user_preconditioner(num_stages):
+    """A user-supplied Jp is assembled into a separate preconditioner matrix."""
+    msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
+    stepper = StageDerivativeTimeStepper(
+        F,
+        GaussLegendre(num_stages),
+        t,
+        dt,
+        u,
+        Jp=2 * J,
+        solver_parameters={
+            "ksp_type": "gmres",
+            "ksp_rtol": 1e-12,
+            "pc_type": "lu",
+            "ksp_error_if_not_converged": True,
+            "petsc_options_prefix": f"user_Jp_{num_stages}_",
+        },
+        backend="dolfinx",
+    )
+    A, P = _assemble_stage_operators(stepper)
+    assert P is not None
+    assert np.isclose(P.norm(), 2 * A.norm())
+
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+    error = norm(u - u_ex, norm_type="L2", mesh=msh)
+    assert error < 1e-10, f"Error {error} exceeds tolerance"
