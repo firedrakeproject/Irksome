@@ -1,5 +1,6 @@
 import copy
 import numpy
+import ufl
 
 from .labeling import as_form
 from .nystrom_stepper import StageDerivativeNystromTimeStepper
@@ -23,6 +24,14 @@ except ImportError:
                 "IRKAuxiliaryOperatorSNES requires firedrake.AuxiliaryOperatorSNES,"
                 " which this version of Firedrake does not provide; please upgrade."
             )
+
+
+def as_bilinear(Fnew, w, trial):
+    """Return the operator of the stage form ``Fnew``, posed on ``trial``."""
+    args = Fnew.arguments()
+    if len(args) == 2:
+        return ufl.replace(ufl.lhs(Fnew), {args[1]: trial})
+    return derivative(Fnew, w, du=trial)
 
 
 # Oddly, we can't turn pivoting off in scipy?
@@ -128,7 +137,7 @@ class IRKAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         w = ctx._x
 
         Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=butcher, F=F)
-        Jnew = derivative(Fnew, w, du=trial)
+        Jnew = as_bilinear(Fnew, w, trial)
         return Jnew, bcnew
 
 
@@ -260,7 +269,7 @@ class NystromAuxiliaryOperatorPC(AuxiliaryOperatorPC):
         w = ctx._x
 
         Fnew, bcnew = stepper.get_form_and_bcs(w, tableau=tableau, F=F)
-        Jnew = derivative(Fnew, w, du=trial)
+        Jnew = as_bilinear(Fnew, w, trial)
         return Jnew, bcnew
 
 
