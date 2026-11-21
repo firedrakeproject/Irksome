@@ -165,6 +165,10 @@ def test_unsupported_options_raise():
     with pytest.raises(NotImplementedError):
         TimeStepper(F, MRIGARK("ERK22a"), t, dt, u, fast_parameters=fast,
                     bcs=EquationBC(inner(u - 1, v) * ds(1) == 0, u, 1))
+    with pytest.raises(NotImplementedError):
+        TimeStepper(F, MRIGARK("ERK22a"), t, dt, u,
+                    fast_parameters={"tableau": GaussLegendre(2),
+                                     "stepper_kwargs": {"adaptive_parameters": {"tol": 1e-3}}})
 
 
 def test_slow_terms_not_defined_at_zero():

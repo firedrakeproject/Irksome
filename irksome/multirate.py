@@ -98,6 +98,8 @@ class MRIGARKTimeStepper(BaseTimeStepper):
         stepper_kwargs = dict(fast_parameters.get("stepper_kwargs", {}))
         for key, val in kwargs.items():
             stepper_kwargs.setdefault(key, val)
+        if stepper_kwargs.get("adaptive_parameters") is not None:
+            raise NotImplementedError("MRI-GARK does not support an adaptive fast stepper")
 
         from .stepper import TimeStepper
         self.fast_stepper = TimeStepper(
