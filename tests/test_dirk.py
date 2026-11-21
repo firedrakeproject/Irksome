@@ -102,12 +102,14 @@ def test_1d_heat_neumannbc(butcher_tableau):
         Fdirk, butcher_tableau, t, dt, u_dirk, solver_parameters=luparams,
         stage_type="dirk"
     )
+    assert stepperdirk.get_form_and_bcs(stepperdirk.ks)[0].signature() == stepperdirk.problem.F.signature()
 
     t_end = 1.0
     while float(t) < t_end:
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
         stepper.advance()
+        stepperdirk.invalidate_jacobian()
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
         assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10
@@ -315,13 +317,3 @@ def test_dirk_rejects_constant_jacobian():
     with pytest.raises(ValueError):
         TimeStepper(F, Alexander(), t, dt, u, stage_type="dirk",
                     constant_jacobian=True)
-
-
-def test_dirk_get_form_and_bcs():
-    msh = UnitIntervalMesh(4)
-    V = FunctionSpace(msh, "CG", 1)
-    u = Function(V)
-    v = TestFunction(V)
-    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
-    stepper = TimeStepper(F, Alexander(), Constant(0.0), Constant(0.1), u, stage_type="dirk")
-    stepper.get_form_and_bcs(stepper.ks)
