@@ -3,6 +3,9 @@ from .backend import get_backend, Backend
 import ufl
 
 
+STRUCTURAL_ZERO = 1.0e-10
+
+
 def MeshConstant(msh, backend: str = "firedrake"):
     mc_backend = get_backend(backend)
     return mc_backend.MeshConstant(msh)
@@ -15,7 +18,7 @@ def ConstantOrZero(
 ) -> ufl.core.expr.Expr:
     backend_impl = get_backend(backend)
     const = backend_impl.get_mesh_constant(MC)
-    return ufl.zero() if abs(complex(x)) < 1.0e-10 else const(x)
+    return ufl.zero() if abs(complex(x)) < STRUCTURAL_ZERO else const(x)
 
 
 vecconst = np.vectorize(ConstantOrZero)
