@@ -135,3 +135,9 @@ class MRIGARKTimeStepper(BaseTimeStepper):
     def solver_stats(self):
         _, nonlinear_its, linear_its = self.fast_stepper.solver_stats()
         return self.num_steps, nonlinear_its, linear_its
+
+    def invalidate_jacobian(self):
+        """
+        Forces the matrix of the fast stepper to be reassembled next time it is required.
+        """
+        self.fast_stepper.invalidate_jacobian()

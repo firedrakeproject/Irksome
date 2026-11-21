@@ -249,7 +249,10 @@ def test_constant_jacobian_with_zero_length_stage():
                               fast_parameters={"tableau": GaussLegendre(2),
                                                "stepper_kwargs": {"solver_parameters": lu,
                                                                   "constant_jacobian": constant_jacobian}})
-        for _ in range(3):
+        for step in range(3):
+            if step == 2:
+                dt.assign(0.05)
+                stepper.invalidate_jacobian()
             stepper.advance()
             t.assign(t + dt)
         sols.append(u.dat.data_ro.copy())
