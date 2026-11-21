@@ -73,6 +73,7 @@ class DIRKTimeStepper:
                  **kwargs):
         self._backend = backend_cls = get_backend(backend)
         assert butcher_tableau.is_diagonally_implicit
+        bcs = tuple(bcs or ())
 
         self.num_steps = 0
         self.num_nonlinear_iterations = 0
@@ -102,7 +103,7 @@ class DIRKTimeStepper:
             self.CCone = self.CCone[1:]
 
         zero_diagonal = [i for i in range(num_stages) if abs(self.AAb[i, i]) < STRUCTURAL_ZERO]
-        if zero_diagonal and any(bc._original_arg != 0 for bc in bcs or ()):
+        if zero_diagonal and any(bc._original_arg != 0 for bc in bcs):
             if butcher_tableau.is_explicit or zero_diagonal != [0] or not butcher_tableau.is_stiffly_accurate:
                 raise NotImplementedError(
                     "Boundary data can only be imposed through a zero diagonal "

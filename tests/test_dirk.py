@@ -383,3 +383,26 @@ def test_zero_diagonal_boundary_data(A, b, stage_type):
     with pytest.raises(NotImplementedError):
         TimeStepper(F, butcher_tableau, t, dt, u, stage_type=stage_type,
                     bcs=DirichletBC(V, 1 + t, "on_boundary"))
+
+
+def test_dirk_generator_bcs():
+    msh = UnitIntervalMesh(4)
+    V = FunctionSpace(msh, "CG", 1)
+    t = Constant(0.0)
+    dt = Constant(0.1)
+    v = TestFunction(V)
+
+    def solve(make_bcs):
+        u = Function(V)
+        F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+        stepper = TimeStepper(F, LobattoIIIA(2), t, dt, u, stage_type="dirk",
+                              bcs=make_bcs())
+        stepper.advance()
+        return u
+
+    def make_bcs():
+        return [DirichletBC(V, 1 + t, 1), DirichletBC(V, 2 + t, 2)]
+
+    expected = solve(make_bcs)
+    actual = solve(lambda: (bc for bc in make_bcs()))
+    assert errornorm(expected, actual) < 1e-12
