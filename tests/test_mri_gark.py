@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
-from firedrake import (DirichletBC, EquationBC, FunctionSpace, SpatialCoordinate,
-                       TestFunction, TrialFunction, UnitIntervalMesh, cos, derivative, ds, dx,
-                       errornorm, grad, inner, ln, pi, project, sin)
+from firedrake import (DirichletBC, EquationBC, Function, FunctionSpace, SpatialCoordinate,
+                       TestFunction, TrialFunction, UnitIntervalMesh, as_vector, cos, derivative,
+                       ds, dx, errornorm, grad, inner, ln, pi, project, sin, split)
 from ufl import replace
 from irksome import Dt, GaussLegendre, MeshConstant, MRIGARK, TimeStepper
 from irksome.labeling import explicit
@@ -115,6 +115,38 @@ def test_convergence(name):
             t.assign(t + dt)
         return errornorm(project(uexact, V), u)
     assert np.log2(error(4) / error(8)) > MRIGARK(name).order - 0.4
+
+
+@pytest.mark.parametrize("name", methods)
+def test_convergence_mixed(name):
+    def error(N):
+        msh = UnitIntervalMesh(32)
+        V = FunctionSpace(msh, "CG", 4)
+        Z = V * V
+        x, = SpatialCoordinate(msh)
+        MC = MeshConstant(msh)
+        t = MC.Constant(0.0)
+        dt = MC.Constant(1 / N)
+        kappa = (1 + sin(t) / 2) / 20
+        uexact = as_vector([cos(t) * cos(pi * x) + 0.3, sin(2 * t) * cos(2 * pi * x) + 0.5])
+        rhs = as_vector([Dt(uexact[i]) - kappa * uexact[i].dx(0).dx(0) for i in range(2)])
+        rhs += as_vector([uexact[0] * uexact[1], uexact[1] - uexact[0]])
+        u = Function(Z)
+        for ui, ue in zip(u.subfunctions, uexact):
+            ui.project(ue)
+        u0, u1 = split(u)
+        v0, v1 = split(TestFunction(Z))
+        F = sum(inner(Dt(ui), vi) * dx + kappa * inner(grad(ui), grad(vi)) * dx
+                for ui, vi in zip((u0, u1), (v0, v1)))
+        F += explicit(inner(u0 * u1 - rhs[0], v0) * dx + inner(u1 - u0 - rhs[1], v1) * dx)
+        stepper = TimeStepper(F, MRIGARK(name), t, dt, u,
+                              fast_parameters={"tableau": GaussLegendre(2), "num_substeps": 2,
+                                               "stepper_kwargs": {"solver_parameters": lu}})
+        for _ in range(N):
+            stepper.advance()
+            t.assign(t + dt)
+        return sum(errornorm(ue, ui) ** 2 for ue, ui in zip(uexact, u.subfunctions)) ** 0.5
+    assert np.log2(error(8) / error(16)) > MRIGARK(name).order - 0.4
 
 
 @pytest.mark.parametrize("name", methods)
