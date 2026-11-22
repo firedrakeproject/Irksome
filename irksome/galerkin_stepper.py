@@ -188,7 +188,6 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     if bcs is None:
         bcs = []
     bcs = backend_cls.extract_bcs(bcs)
-    bcsnew = []
 
     # list of dictionaries mapping time coordinates to weights to evaluate DOFs
     test_dicts = [{Constant(c): Constant(sum(w for (w, *_) in wts))
@@ -202,6 +201,8 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     aux_bc_data = lambda bc: [evaluate_dof(dof, as_ufl(bc._original_arg)) for dof in test_dicts]
 
     i0, = L_trial.entity_dofs()[0][0]
+    num_stages = L_test.space_dimension()
+    Qformdefault = Qdefault
     if bc_type == "ODE" or len(bcs) == 0:
         nodes = list(L_trial.dual_basis())
         del nodes[i0]
@@ -222,7 +223,10 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     elif bc_type == "DAE":
         if Qdefault is None or isinstance(Qdefault, str):
             # create a quadrature for the boundary conditions
-            bc_degree = max(max(degree_estimator(as_ufl(bc._original_arg)) for bc in bcs), L_trial.degree())
+            dirichlet_bcs = (innerbc for bc in bcs for innerbc in bc.dirichlet_bcs())
+            bc_degree = max((degree_estimator(as_ufl(bc._original_arg))
+                             for bc in dirichlet_bcs), default=L_trial.degree())
+            bc_degree = max(bc_degree, L_trial.degree())
             Qdefault = create_time_quadrature(bc_degree + L_test.degree(), scheme=Qdefault)
 
         # mass-ish matrix for BC, based on default quadrature rule
@@ -235,6 +239,10 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
         mmat = test_vals_w @ np.delete(trial_vals, i0, axis=0).T
         try:
             trial_proj = vecconst(np.linalg.solve(mmat, test_vals_w))
+            # Express the weak temporal BC equations in the trial basis.  This
+            # is an equivalent row transformation, and gives identity stage
+            # coupling for a linear EquationBC of the form u - g == 0.
+            bc_test_transform = vecconst(np.linalg.solve(mmat, np.eye(num_stages)))
         except np.linalg.LinAlgError:
             raise NotImplementedError("Cannot have DAE BCs for this basis type")
         trial_vals0 = vecconst(trial_vals[i0])
@@ -251,17 +259,44 @@ def getFormGalerkin(F, L_trial, L_test, Qdefault, t, dt, u0, stages, bcs=None, b
     else:
         raise ValueError(f"Unrecognised bc_type: {bc_type}")
 
-    num_stages = L_test.space_dimension()
-    for bc in bcs:
+    def bc2stagebc(bc, i):
         if isinstance(bc, backend_cls.EquationBCSplit):
-            raise NotImplementedError("EquationBC not implemented for Galerkin-in-Time")
+            if bc_type != "DAE":
+                raise NotImplementedError("EquationBC not implemented for ODE formulation")
+
+            degree_mapping_bc = get_degree_mapping(
+                as_form(bc.f), L_test.degree(), L_trial.degree(),
+                t=t, timedep_coeffs=(u0,))
+            degree_estimator_bc = TimeDegreeEstimator(degree_mapping=degree_mapping_bc)
+            splitting_bc = split_quadrature(
+                bc.f, degree_estimator=degree_estimator_bc, Qdefault=Qformdefault,
+                max_quadrature_degree=max_quadrature_degree)
+            F_bc_new = sum(
+                getTermGalerkin(Fcur, L_trial, L_test, Q, t, dt, u0,
+                                stages, test, aux_indices, backend=backend)
+                for Q, Fcur in splitting_bc.items())
+
+            test_np = reshape(test, (num_stages, *bc.f.arguments()[0].ufl_shape))
+            test_i = np.multiply(
+                bc_test_transform[i].reshape(
+                    -1, *(1,) * len(bc.f.arguments()[0].ufl_shape)),
+                test_np[i])
+            F_bc_new = replace(
+                F_bc_new, {test: as_tensor(test_i.reshape(test.ufl_shape))})
+            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
+            return backend_cls.EquationBC(
+                F_bc_new == 0, stages, bc.sub_domain, V=Vbigi,
+                bcs=[bc2stagebc(innerbc, i)
+                     for innerbc in backend_cls.extract_bcs(bc.bcs)])
+
         if aux_indices and bc.function_space().index in aux_indices:
             g_np = aux_bc_data(bc)
         else:
             g_np = bc_data(bc)
-        for i in range(num_stages):
-            Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
-            bcsnew.append(bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i])))
+        Vbigi = backend_cls.stage2spaces4bc(bc, V, Vbig, i)
+        return bc.reconstruct(V=Vbigi, g=as_tensor(g_np[i]))
+
+    bcsnew = [bc2stagebc(bc, i) for i in range(num_stages) for bc in bcs]
     return Fnew, bcsnew
 
 

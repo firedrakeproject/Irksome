@@ -1,11 +1,119 @@
 import pytest
 from firedrake import *
-from irksome import GaussLegendre, RadauIIA, Dt, MeshConstant, TimeStepper
+from irksome import (ContinuousPetrovGalerkinScheme, Dt,
+                     GalerkinCollocationScheme, GaussLegendre,
+                     MeshConstant, RadauIIA, TimeStepper)
+
+# TODO: Should also test with aux_indices
+
+def galerkin_methods():
+    return [
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(
+                1, quadrature_degree=12, basis_type="integral"),
+            id="cpg1-integral"),
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(
+                2, quadrature_degree=12, basis_type="integral"),
+            id="cpg2-integral"),
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(
+                2, quadrature_degree=12, basis_type="Lagrange"),
+            id="cpg2-lagrange"),
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(
+                2, quadrature_degree=12, basis_type="Bernstein"),
+            id="cpg2-bernstein"),
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(
+                3, quadrature_degree=12, basis_type="integral"),
+            id="cpg3-integral"),
+        pytest.param(
+            GalerkinCollocationScheme(
+                1, stage_type="deriv", quadrature_degree=12),
+            id="collocation1-deriv"),
+        pytest.param(
+            GalerkinCollocationScheme(
+                2, stage_type="value", quadrature_degree=12),
+            id="collocation2-value"),
+        pytest.param(
+            GalerkinCollocationScheme(
+                2, stage_type="deriv", quadrature_degree=12,
+                quadrature_scheme="radau"),
+            id="collocation2-radau-deriv"),
+        pytest.param(
+            GalerkinCollocationScheme(
+                3, stage_type="value", quadrature_degree=12,
+                quadrature_scheme="lobatto"),
+            id="collocation3-lobatto-value"),
+    ]
 
 
-@pytest.mark.parametrize("stage_type", ["deriv"])
-@pytest.mark.parametrize("butcher_tableau", [GaussLegendre(3)])
-def test_1d_heat_equationbc(butcher_tableau, stage_type):
+def mixed_galerkin_methods():
+    return [
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(
+                2, quadrature_degree=12, basis_type="Lagrange"),
+            id="cpg2-lagrange"),
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(
+                2, quadrature_degree=12, basis_type="Bernstein"),
+            id="cpg2-bernstein"),
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(
+                3, quadrature_degree=12, basis_type="Lagrange"),
+            id="cpg3-lagrange"),
+        pytest.param(
+            GalerkinCollocationScheme(
+                2, stage_type="value", quadrature_degree=12),
+            id="collocation2-value"),
+        pytest.param(
+            GalerkinCollocationScheme(
+                2, stage_type="deriv", quadrature_degree=12,
+                quadrature_scheme="radau"),
+            id="collocation2-radau-deriv"),
+        pytest.param(
+            GalerkinCollocationScheme(
+                3, stage_type="value", quadrature_degree=12,
+                quadrature_scheme="lobatto"),
+            id="collocation3-lobatto-value"),
+    ]
+
+
+def nested_bc_galerkin_methods():
+    return [
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(1, basis_type="integral"),
+            id="cpg1-integral"),
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(2, basis_type="Lagrange"),
+            id="cpg2-lagrange"),
+        pytest.param(
+            ContinuousPetrovGalerkinScheme(3, basis_type="Lagrange"),
+            id="cpg3-lagrange"),
+        pytest.param(
+            GalerkinCollocationScheme(1, stage_type="deriv"),
+            id="collocation1-deriv"),
+        pytest.param(
+            GalerkinCollocationScheme(2, stage_type="value"),
+            id="collocation2-value"),
+        pytest.param(
+            GalerkinCollocationScheme(
+                2, stage_type="deriv", quadrature_scheme="radau"),
+            id="collocation2-radau-deriv"),
+        pytest.param(
+            GalerkinCollocationScheme(
+                3, stage_type="value", quadrature_degree=12,
+                quadrature_scheme="lobatto"),
+            id="collocation3-lobatto-value"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "method",
+    [pytest.param(GaussLegendre(3), id="gauss-legendre3")]
+    + galerkin_methods())
+def test_1d_heat_equationbc(method):
 
     # Boundary values
     u_0 = Constant(2.0)
@@ -50,8 +158,8 @@ def test_1d_heat_equationbc(butcher_tableau, stage_type):
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
     stepper = TimeStepper(
-        F, butcher_tableau, t, dt, u, bcs=bc, solver_parameters=luparams, bc_type="DAE"
-    )
+        F, method, t, dt, u, bcs=bc,
+        solver_parameters=luparams, bc_type="DAE")
 
     bnd_error = inner(u-uexact, u-uexact) * ds
     t_end = 2.0
@@ -65,9 +173,11 @@ def test_1d_heat_equationbc(butcher_tableau, stage_type):
         assert abs(assemble(bnd_error)) ** 0.5 < 1e-12
 
 
-@pytest.mark.parametrize("stage_type", ["deriv"])
-@pytest.mark.parametrize("butcher_tableau", [RadauIIA(2)])
-def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
+@pytest.mark.parametrize(
+    "method",
+    [pytest.param(RadauIIA(2), id="radau-iia2")]
+    + mixed_galerkin_methods())
+def test_2d_heat_mixed_robinbc_nonlinear(method):
 
     N = 10
 
@@ -103,7 +213,8 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
     luparams = {"mat_type": "aij", "ksp_type": "preonly", "pc_type": "lu"}
 
     stepper = TimeStepper(
-        F, butcher_tableau, t, dt, sln, bcs=bc, solver_parameters=luparams, bc_type="DAE"
+        F, method, t, dt, sln, bcs=bc,
+        solver_parameters=luparams, bc_type="DAE"
     )
 
     u, sigma = sln.subfunctions
@@ -119,9 +230,12 @@ def test_2d_heat_mixed_robinbc_nonlinear(butcher_tableau, stage_type):
         assert errornorm(sigmaexact, sigma) / norm(sigmaexact) < 1e-3
 
 
-@pytest.mark.parametrize("stage_type", ["deriv"])
-@pytest.mark.parametrize("butcher_tableau", [RadauIIA(2), GaussLegendre(3)])
-def test_2d_equation_and_dirichlet_bc(butcher_tableau, stage_type):
+@pytest.mark.parametrize(
+    "method",
+    [pytest.param(RadauIIA(2), id="radau-iia2"),
+     pytest.param(GaussLegendre(3), id="gauss-legendre3")]
+    + nested_bc_galerkin_methods())
+def test_2d_equation_and_dirichlet_bc(method):
 
     msh = UnitSquareMesh(5, 5)
     V = FunctionSpace(msh, "CG", 4)
@@ -146,22 +260,37 @@ def test_2d_equation_and_dirichlet_bc(butcher_tableau, stage_type):
 
     params = {"snes_rtol": 1e-12, "snes_atol": 1e-12, "ksp_type": "preonly", "pc_type": "lu"}
 
+    # Galerkin methods solve for stage values, so initialise the solution
+    # before constructing the stepper and its stage initial guess.
+    u.interpolate(uexact)
     stepper = TimeStepper(
-        F, butcher_tableau, t, dt, u, bcs=[bc1, bc2], solver_parameters=params, bc_type="DAE"
+        F, method, t, dt, u, bcs=[bc1, bc2],
+        solver_parameters=params, bc_type="DAE"
     )
 
     # Do a single timestep
-    u.interpolate(uexact)
     stepper.advance()
     t.assign(float(t) + float(dt))
 
     # Check that the BCs from bc0 are satisfied
-    diff = Function(V)
-    diff.interpolate(u - uexact)
-    assert diff.at([0, 0]) < 1e-10
-    assert diff.at([1, 0]) < 1e-10
-    assert diff.at([0, 1]) < 1e-10
-    assert diff.at([1, 1]) < 1e-10
+    if isinstance(method, ContinuousPetrovGalerkinScheme):
+        point_tol = 1e-4
+        diff = Function(V)
+        diff.interpolate(u - uexact)
+        assert abs(diff.at([0, 0])) < point_tol
+        assert abs(diff.at([1, 0])) < point_tol
+        assert abs(diff.at([0, 1])) < point_tol
+        assert abs(diff.at([1, 1])) < point_tol
+        boundary_tol = 1e-4
+    else:
+        diff = Function(V)
+        diff.interpolate(u - uexact)
+        assert diff.at([0, 0]) < 1e-10
+        assert diff.at([1, 0]) < 1e-10
+        assert diff.at([0, 1]) < 1e-10
+        assert diff.at([1, 1]) < 1e-10
+        boundary_tol = 1e-6
 
     # Check that the BCs from bc1, bc2 are satisfied
-    assert sqrt(assemble(((u - uexact) ** 2) * ds((1, 2, 3, 4), degree=10))) < 1e-6
+    assert sqrt(assemble(
+        ((u - uexact) ** 2) * ds((1, 2, 3, 4), degree=10))) < boundary_tol
