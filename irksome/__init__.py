@@ -107,6 +107,7 @@ try:
         as_butcher_tableau,
     )
     from .stepper import TimeStepper
+    from .kronpc import KronPC, MassKronPC, StiffnessKronPC, SIPGStiffnessKronPC
 
     __all__ += [
         "TimeQuadratureLabel",
@@ -124,6 +125,10 @@ try:
         "RanaDUScheme",
         "RanaLDScheme",
         "as_butcher_tableau",
+        "KronPC",
+        "MassKronPC",
+        "StiffnessKronPC",
+        "SIPGStiffnessKronPC",
     ]
 
 except ModuleNotFoundError:
