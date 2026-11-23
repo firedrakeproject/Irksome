@@ -61,6 +61,8 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, k
         # subdiagonal values from Abar in the Nystrom Tableau and
         # d_val should include the diagonal value from Abar
         for bc in bcs:
+            if not isinstance(bc, backend_cls.DirichletBC):
+                raise NotImplementedError("DIRKNystromTimeStepper only supports DirichletBC")
             bcarg = bc._original_arg
             if bcarg == 0:
                 # Homogeneous BC, just zero out stage dofs
@@ -79,6 +81,8 @@ def getFormDIRKNystrom(F, ks, tableau, t, dt, u0, ut0, bcs=None, bc_type=None, k
         # and augment with the final time reconstruction; this is
         # handled by AABbar and CCone in the later code
         for bc in bcs:
+            if not isinstance(bc, backend_cls.DirichletBC):
+                raise NotImplementedError("DIRKNystromTimeStepper only supports DirichletBC")
             bcarg = bc._original_arg
             if bcarg == 0:
                 # Homogeneous BC, just zero out stage dofs

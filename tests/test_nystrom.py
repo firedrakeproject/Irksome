@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
-from firedrake import (Constant, DirichletBC, Function, FunctionSpace, SpatialCoordinate,
+from firedrake import (Constant, DirichletBC, EquationBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, TrialFunction, UnitIntervalMesh, VectorFunctionSpace,
-                       assemble, cos, div, dx, errornorm, norm, grad, inner, pi, project, sin, split)
+                       assemble, cos, div, ds, dx, errornorm, norm, grad, inner, pi, project, sin, split)
 from irksome import Dt, expand_time_derivatives, ExplicitNystromTimeStepper, GaussLegendre, MeshConstant, DIRKNystromTimeStepper, StageDerivativeNystromTimeStepper, WSODIRK, ClassicNystrom4Tableau
 
 
@@ -315,3 +315,23 @@ def test_nystrom_forced_dirichlet(stepper, tableau, bc_type):
     solution is quadratic in x, so the error is purely temporal."""
     errs = [forced_wave_error(n, stepper, tableau, bc_type) for n in (20, 40)]
     assert np.log2(errs[0] / errs[1]) > 2.6
+
+
+@pytest.mark.parametrize("stepper,tableau,bc_type", [
+    (ExplicitNystromTimeStepper, ClassicNystrom4Tableau(), None),
+    (DIRKNystromTimeStepper, WSODIRK(4, 3, 3), "DAE"),
+    (DIRKNystromTimeStepper, WSODIRK(4, 3, 3), "dDAE")])
+def test_dirk_nystrom_rejects_equationbc(stepper, tableau, bc_type):
+    msh = UnitIntervalMesh(8)
+    V = FunctionSpace(msh, "CG", 1)
+    MC = MeshConstant(msh)
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    u = Function(V)
+    ut = Function(V)
+    v = TestFunction(V)
+    F = inner(Dt(u, 2), v) * dx + inner(grad(u), grad(v)) * dx
+    bc = EquationBC(inner(u - 1, v) * ds(1) == 0, u, 1)
+    kwargs = {} if bc_type is None else {"bc_type": bc_type}
+    with pytest.raises(NotImplementedError, match="only supports DirichletBC"):
+        stepper(F, tableau, t, dt, u, ut, bcs=[bc], **kwargs)

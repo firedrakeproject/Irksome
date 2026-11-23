@@ -1,6 +1,6 @@
 import pytest
 from firedrake import *
-from irksome import WSODIRK, Alexander, Dt, MeshConstant, TimeStepper
+from irksome import WSODIRK, Alexander, Dt, MeshConstant, SSPButcherTableau, TimeStepper
 from ufl import replace
 
 wsodirks = [WSODIRK(*x) for x in ((4, 3, 2), (4, 3, 3))]
@@ -315,3 +315,13 @@ def test_dirk_rejects_constant_jacobian():
     with pytest.raises(ValueError):
         TimeStepper(F, Alexander(), t, dt, u, stage_type="dirk",
                     constant_jacobian=True)
+
+
+@pytest.mark.parametrize("stage_type,butcher_tableau",
+                         [("dirk", Alexander()), ("explicit", SSPButcherTableau(3, 3))])
+def test_dirk_rejects_equationbc(stage_type, butcher_tableau):
+    F, t, dt, u = dirk_heat_problem()
+    v = TestFunction(u.function_space())
+    bc = EquationBC(inner(u - 1, v) * ds(1) == 0, u, 1)
+    with pytest.raises(NotImplementedError, match="only supports DirichletBC"):
+        TimeStepper(F, butcher_tableau, t, dt, u, bcs=bc, stage_type=stage_type)
