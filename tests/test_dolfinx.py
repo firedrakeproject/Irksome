@@ -188,7 +188,12 @@ def test_stokes_stage_nullspace(num_stages):
     )
     A = _stage_jacobian(stepper)
     stage_nullspace = A.getNullSpace()
-    assert len(stage_nullspace.getVecs()) == num_stages
+    vecs = stage_nullspace.getVecs()
+    assert len(vecs) == num_stages
+    gram = [[vec.dot(other) for other in vecs] for vec in vecs]
+    np.testing.assert_allclose(
+        gram, np.eye(num_stages), rtol=0, atol=100 * np.finfo(PETSc.RealType).eps
+    )
     assert stage_nullspace.test(A)
 
 
