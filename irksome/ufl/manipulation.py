@@ -11,7 +11,7 @@ from itertools import chain
 from operator import or_
 from typing import NamedTuple, Sequence, FrozenSet
 
-from ufl import derivative
+from ufl import derivative, replace
 from ufl.algorithms import expand_derivatives
 from ufl.algorithms.analysis import extract_coefficients, extract_type
 from ufl.corealg.traversal import traverse_unique_terminals
@@ -21,7 +21,7 @@ from ufl.classes import (
     Conj, Cross, Derivative, Division, Dot, Expr, FacetAvg,
     Form, FormSum, Indexed, IndexSum, Inner, Integral,
     ListTensor, MultiIndex, NegativeRestricted, Outer, PositiveRestricted,
-    Product, Sum, Variable,
+    Product, Sum, Variable, Zero,
 )
 
 from .deriv import TimeDerivative
@@ -207,7 +207,8 @@ def split_time_derivative_terms(form: BaseForm,
     :arg timedep_coeffs: The time-dependent coefficients.
     :returns: a :class:`~.SplitTimeForm` tuple.
     :raises ValueError: if the form does not apply anything other than
-        first-order time derivatives to a single coefficient.
+        first-order time derivatives to a single coefficient, or if a
+        summand contains terms without a time derivative.
     """
     remainder = Form([])
     if isinstance(form, FormSum):
@@ -228,6 +229,14 @@ def split_time_derivative_terms(form: BaseForm,
             if len(tcoeffs) == 0:
                 rest.append(term)
             else:
+                dts = extract_type(term, TimeDerivative)
+                zeros = {d: Zero(d.ufl_shape, d.ufl_free_indices, d.ufl_index_dimensions) for d in dts}
+                term_zero = replace(term, zeros)
+                while variables := extract_type(term_zero, Variable):
+                    term_zero = replace(term_zero, {w: w.ufl_operands[0] for w in variables})
+                if not isinstance(term_zero, Zero):
+                    raise ValueError("Time derivative terms must be summands of their own, "
+                                     "not combined with other terms in one summand")
                 time.append(term)
         if len(rest):
             rest_terms.append(integral.reconstruct(integrand=sum(rest)))
