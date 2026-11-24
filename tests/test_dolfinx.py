@@ -3,7 +3,6 @@ import gc
 
 from mpi4py import MPI
 from petsc4py import PETSc
-from tests.test_explicit import msh
 
 dolfinx = pytest.importorskip("dolfinx")
 
