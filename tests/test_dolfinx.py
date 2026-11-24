@@ -12,12 +12,17 @@ import numpy as np
 import ufl
 
 from ufl import (
+    as_vector,
+    diff,
     div,
+    dot,
+    ds,
+    dx,
     grad,
     inner,
-    dx,
-    as_vector,
     split,
+    variable,
+    FacetNormal,
     SpatialCoordinate,
     TestFunction,
     TestFunctions,
@@ -25,7 +30,7 @@ from ufl import (
 )
 
 from irksome import GaussLegendre, Dt, MeshConstant
-from irksome.backends.dolfinx import dirichletbc, norm
+from irksome.backends.dolfinx import assemble, dirichletbc, norm
 from irksome.stage_derivative import StageDerivativeTimeStepper
 from irksome.tools import AI
 
@@ -104,16 +109,20 @@ def test_stokes(num_stages):
         "snes_atol": 1e-8,
         "snes_rtol": 1e-8,
         "snes_monitor": None,
-        "petsc_options_prefix": f"IrkSomeStokesSolver{num_stages}",
     }
     linear_stepper = StageDerivativeTimeStepper(
-        F, butcher_tableau, t, dt, z,
+        F,
+        butcher_tableau,
+        t,
+        dt,
+        z,
         bcs=bcs,
         Fp=None,
         bc_type="DAE",
         splitting=AI,
         solver_parameters=solver_parameters,
         backend="dolfinx",
+        options_prefix=f"stokes_{num_stages}_",
     )
     z0 = z.sub(0).collapse()
 
@@ -139,6 +148,52 @@ def test_stokes(num_stages):
     msh.comm.Barrier()
 
 
+def test_assemble():
+    """Backend assemble returns floats unchanged and assembles forms by rank."""
+
+    assert assemble(1.5) == 1.5
+
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_SELF, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+    assert np.isclose(assemble(1.0 * dx(domain=msh)), 1.0)
+
+    b = assemble(TestFunction(V) * dx)
+    assert np.isclose(b.array.sum(), 1.0)
+
+
+def test_default_solver_parameters():
+    """Constructing a stepper without solver parameters uses PETSc defaults."""
+    N = 4
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, N, N)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
+    uexact = t + x + y
+
+    u = dolfinx.fem.Function(V)
+    u.interpolate(dolfinx.fem.Expression(uexact, V.element.interpolation_points))
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(Dt(uexact), v) * dx
+
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    boundary_dofs = dolfinx.fem.locate_dofs_topological(
+        V, msh.topology.dim - 1, dolfinx.mesh.exterior_facet_indices(msh.topology)
+    )
+    bcs = [dirichletbc(uexact, boundary_dofs, V)]
+
+    stepper = StageDerivativeTimeStepper(
+        F, GaussLegendre(1), t, dt, u, bcs=bcs, backend="dolfinx"
+    )
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+
+    error = norm(u - uexact, norm_type="L2", mesh=msh)
+    assert error < 1e-5, f"Error {error} exceeds tolerance"
+
+
 def _manufactured_heat_problem():
     """Heat equation with a manufactured solution, flux BCs and its exact Jacobian.
 
@@ -152,12 +207,12 @@ def _manufactured_heat_problem():
     t = MC.Constant(0.0)
     dt = MC.Constant(0.1)
     (x, y) = SpatialCoordinate(msh)
-    n = ufl.FacetNormal(msh)
+    n = FacetNormal(msh)
 
     # f is built from the stepper's t, so that stage times are substituted in it
-    t_var = ufl.variable(t)
+    t_var = variable(t)
     u_ex = (1 + t_var) * (x**2 + x * y)
-    f = ufl.diff(u_ex, t_var) - div(grad(u_ex))
+    f = diff(u_ex, t_var) - div(grad(u_ex))
 
     u = dolfinx.fem.Function(V)
     u.interpolate(dolfinx.fem.Expression(u_ex, V.element.interpolation_points))
@@ -167,7 +222,7 @@ def _manufactured_heat_problem():
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
         - inner(f, v) * dx
-        - inner(ufl.dot(grad(u_ex), n), v) * ufl.ds
+        - inner(dot(grad(u_ex), n), v) * ds
     )
     J = inner(Dt(w), v) * dx + inner(grad(w), grad(v)) * dx
     return msh, t, dt, u, F, J, u_ex
@@ -189,17 +244,27 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F, scheme, t, dt, u,
-        solver_parameters={**lu, "petsc_options_prefix": f"auto_J_{num_stages}_"},
+        F,
+        scheme,
+        t,
+        dt,
+        u,
+        solver_parameters=lu,
+        options_prefix=f"user_J_{num_stages}_",
         backend="dolfinx",
     )
     A_auto, _ = _assemble_stage_operators(stepper)
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F, scheme, t, dt, u,
+        F,
+        scheme,
+        t,
+        dt,
+        u,
         J=2 * J,
-        solver_parameters={**lu, "petsc_options_prefix": f"user_J_{num_stages}_"},
+        solver_parameters=lu,
+        options_prefix=f"user_J_{num_stages}_",
         backend="dolfinx",
     )
     A_user, _ = _assemble_stage_operators(stepper)
@@ -207,9 +272,14 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F, scheme, t, dt, u,
+        F,
+        scheme,
+        t,
+        dt,
+        u,
         J=J,
-        solver_parameters={**lu, "petsc_options_prefix": f"exact_J_{num_stages}_"},
+        solver_parameters=lu,
+        options_prefix=f"exact_J_{num_stages}_",
         backend="dolfinx",
     )
     stepper.advance()
@@ -224,15 +294,19 @@ def test_user_preconditioner(num_stages):
     scheme = GaussLegendre(num_stages)
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F, scheme, t, dt, u,
+        F,
+        scheme,
+        t,
+        dt,
+        u,
         Jp=2 * J,
         solver_parameters={
             "ksp_type": "gmres",
             "ksp_rtol": 1e-12,
             "pc_type": "lu",
             "ksp_error_if_not_converged": True,
-            "petsc_options_prefix": f"user_Jp_{num_stages}_",
         },
+        options_prefix=f"user_Jp_{num_stages}_",
         backend="dolfinx",
     )
     A, P = _assemble_stage_operators(stepper)
@@ -253,15 +327,19 @@ def test_bilinear_form(num_stages, use_Jp):
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     F = ufl.replace(F, {u: TrialFunction(u.function_space)})
     stepper = StageDerivativeTimeStepper(
-        F, scheme, t, dt, u,
+        F,
+        scheme,
+        t,
+        dt,
+        u,
         Jp=2 * J if use_Jp else None,
         solver_parameters={
             "ksp_type": "gmres",
             "ksp_rtol": 1e-12,
             "pc_type": "lu",
             "ksp_error_if_not_converged": True,
-            "petsc_options_prefix": f"bilinear_{num_stages}_{use_Jp}_",
         },
+        options_prefix=f"bilinear_{num_stages}_",
         backend="dolfinx",
     )
     assert (stepper.solver.P_mat is not None) == use_Jp
@@ -290,9 +368,13 @@ def test_form_compiler_parameters(bilinear):
     ffcx_logger.setLevel(logging.WARNING)
     try:
         StageDerivativeTimeStepper(
-            F, scheme, t, dt, u,
+            F,
+            scheme,
+            t,
+            dt,
+            u,
+            options_prefix=f"fcp_{bilinear}_",
             form_compiler_parameters={"verbosity": logging.ERROR},
-            solver_parameters={"petsc_options_prefix": f"fcp_{bilinear}_"},
             backend="dolfinx",
         )
         assert ffcx_logger.level == logging.ERROR
