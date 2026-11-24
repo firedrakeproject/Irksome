@@ -72,7 +72,7 @@ def StokesTest(N, scheme, **kwargs):
             "ksp_type": "preonly",
             "pc_type": "lu",
             "pc_factor_mat_solver_type": "mumps",
-            "mat_mumps_icntl_24": 1}
+        },
     }
 
     stepper = TimeStepper(F, scheme, t, dt, z,
@@ -159,7 +159,6 @@ def NSETest(scheme, **kwargs):
             "ksp_type": "preonly",
             "pc_type": "lu",
             "pc_factor_mat_solver_type": "mumps",
-            "mat_mumps_icntl_24": 1,
         },
     }
 
