@@ -12,7 +12,7 @@ import ufl
 from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions, TrialFunction
 
 from irksome import GaussLegendre, Dt, MeshConstant
-from irksome.backends.dolfinx import dirichletbc, norm
+from irksome.backends.dolfinx import assemble, dirichletbc, norm
 from irksome.stage_derivative import StageDerivativeTimeStepper
 from irksome.tools import AI
 
@@ -127,6 +127,48 @@ def test_stokes(num_stages):
     gc.collect()
     msh.comm.Barrier()
 
+
+
+def test_assemble():
+    """Backend assemble returns floats unchanged and assembles forms by rank."""
+
+    assert assemble(1.5) == 1.5
+
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_SELF, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+    assert np.isclose(assemble(1.0 * dx(domain=msh)), 1.0)
+
+    b = assemble(TestFunction(V) * dx)
+    assert np.isclose(b.array.sum(), 1.0)
+
+
+def test_default_solver_parameters():
+    """Constructing a stepper without solver parameters uses PETSc defaults."""
+    N = 4
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, N, N)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+
+    uexact = t + x + y
+
+    u = dolfinx.fem.Function(V)
+    u.interpolate(dolfinx.fem.Expression(uexact, V.element.interpolation_points))
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(Dt(uexact), v) * dx
+
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    boundary_dofs = dolfinx.fem.locate_dofs_topological(
+        V, msh.topology.dim - 1, dolfinx.mesh.exterior_facet_indices(msh.topology)
+    )
+    bcs = [dirichletbc(uexact, boundary_dofs, V)]
+
+    stepper = StageDerivativeTimeStepper(
+        F, GaussLegendre(1), t, dt, u, bcs=bcs, backend="dolfinx"
+    )
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+
+    error = norm(u - uexact, norm_type="L2", mesh=msh)
+    assert error < 1e-5, f"Error {error} exceeds tolerance"
 
 def _manufactured_heat_problem():
     """Heat equation with a manufactured solution, flux BCs and its exact Jacobian.
