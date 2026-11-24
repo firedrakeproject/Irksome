@@ -311,40 +311,19 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
                 _snes, x, b, u, residual, jacobian, bcs, _blocks
             )
 
-        if isinstance(u, Sequence) and len(u) == 1:
-            assert len(self.F) == 1 and len(self.J) == 1 and len(self.J[0]) == 1
-            kargs = {
-                "u": u[0],
-                "residual": self.F[0],
-                "jacobian": self.J[0][0],
-                "bcs": self._bcs,
-                "_blocks": self.b.getAttr("_blocks"),
-            }
-            jac_kargs = {
-                "u": u[0],
-                "jacobian": self.J[0][0],
-                "bcs": self._bcs,
-                "preconditioner": self._preconditioner,
-            }
-            if self._P_mat is not None:
-                assert (
-                    len(self._preconditioner) == 1 and len(self._preconditioner[0]) == 1
-                )
-                jac_kargs["preconditioner"] = self._preconditioner[0][0]
-        else:
-            kargs = {
-                "u": u,
-                "residual": self.F,
-                "jacobian": self.J,
-                "bcs": self._bcs,
-                "_blocks": self.b.getAttr("_blocks"),
-            }
-            jac_kargs = {
-                "u": u,
-                "jacobian": self.J,
-                "bcs": self._bcs,
-                "preconditioner": self._preconditioner,
-            }
+        kargs = {
+            "u": u,
+            "residual": self.F,
+            "jacobian": self.J,
+            "bcs": self._bcs,
+            "_blocks": self.b.getAttr("_blocks"),
+        }
+        jac_kargs = {
+            "u": u,
+            "jacobian": self.J,
+            "bcs": self._bcs,
+            "preconditioner": self._preconditioner,
+        }
         self.solver.setFunction(assemble_residual, self.b, kargs=kargs)
 
         def assemble_jacobian(
@@ -407,6 +386,10 @@ class DirichletBC(dolfinx.fem.DirichletBC):
         :param dofs: An array of degree-of-freedom indices in V
         :param V: The space to construct the BC on.
         """
+
+        # Keep the dofs as given: for a blocked space, dof_indices() returns unrolled dofs,
+        # which cannot be passed back to this constructor
+        self._input_dofs = dofs
 
         # Store original UFL expression for time-varying BCs
         if not isinstance(
@@ -543,7 +526,7 @@ class DirichletBC(dolfinx.fem.DirichletBC):
         return self._orig_g
 
     def reconstruct(self, V, g):
-        return DirichletBC(g, self.dof_indices()[0], V=V)
+        return DirichletBC(g, self._input_dofs, V=V)
 
 
 def dirichletbc(
@@ -579,6 +562,20 @@ def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
     return bcs
 
 
+def _extract_blocks(form: ufl.Form, num_blocks: int):
+    """Split a form into the blocks of a problem with ``num_blocks`` unknowns.
+
+    As Firedrake checks ``len(V)``, a problem with a single unknown is not split:
+    DOLFINx creates non-blocked matrices and vectors for a single form, which
+    must match how the form is assembled.
+    """
+    blocks = ufl.extract_blocks(form)
+    if num_blocks > 1:
+        return blocks
+    rank = len({arg.number() for arg in form.arguments()})
+    return blocks[0] if rank == 1 else blocks[0][0]
+
+
 def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
     """Create a variational problem.
 
@@ -610,9 +607,10 @@ def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
         raise RuntimeError(
             f"Forms of rank {rank} are not supported in create_variational_problem"
         )
-    F = ufl.extract_blocks(F)
-    J = None if J is None else ufl.extract_blocks(J)
-    Jp = None if Jp is None else ufl.extract_blocks(Jp)
+    F = _extract_blocks(F, len(u))
+    J = None if J is None else _extract_blocks(J, len(u))
+    Jp = None if Jp is None else _extract_blocks(Jp, len(u))
+    u = u[0] if len(u) == 1 else u
     return NonlinearProblem(
         F,
         u,

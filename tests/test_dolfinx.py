@@ -111,11 +111,7 @@ def test_stokes(num_stages):
         "snes_monitor": None,
     }
     linear_stepper = StageDerivativeTimeStepper(
-        F,
-        butcher_tableau,
-        t,
-        dt,
-        z,
+        F, butcher_tableau, t, dt, z,
         bcs=bcs,
         Fp=None,
         bc_type="DAE",
@@ -447,3 +443,41 @@ def test_form_compiler_parameters(bilinear):
         assert ffcx_logger.level == logging.ERROR
     finally:
         ffcx_logger.setLevel(level)
+
+
+@pytest.mark.parametrize("butcher_tableau", [RadauIIA(i) for i in (1, 2)])
+def test_vector_dirichlet_bc(butcher_tableau):
+    """A Dirichlet BC on a vector-valued (blocked) space is reconstructed on its stage spaces."""
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1, (msh.geometry.dim,)))
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
+    uexact = as_vector([t + x, t + y])
+
+    u = dolfinx.fem.Function(V)
+    u.interpolate(dolfinx.fem.Expression(uexact, V.element.interpolation_points))
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(Dt(uexact), v) * dx
+
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    boundary_dofs = dolfinx.fem.locate_dofs_topological(
+        V, msh.topology.dim - 1, dolfinx.mesh.exterior_facet_indices(msh.topology)
+    )
+    stepper = StageDerivativeTimeStepper(
+        F, butcher_tableau, t, dt, u,
+        bcs=[dirichletbc(uexact, boundary_dofs, V)],
+        solver_parameters={
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+        },
+        backend="dolfinx",
+        options_prefix=f"vector_bc_{butcher_tableau.num_stages}_"
+    )
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+
+    error = norm(u - uexact, norm_type="L2", mesh=msh)
+    assert error < 1e-10, f"Error {error} exceeds tolerance"
