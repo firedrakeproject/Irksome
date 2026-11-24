@@ -7,15 +7,19 @@ dolfinx = pytest.importorskip("dolfinx")
 
 import basix.ufl
 import numpy as np
-import ufl
 
 from ufl import (
+    as_vector,
+    diff,
     div,
+    dot,
+    ds,
+    dx,
     grad,
     inner,
-    dx,
-    as_vector,
     split,
+    variable,
+    FacetNormal,
     SpatialCoordinate,
     TestFunction,
     TestFunctions,
@@ -200,12 +204,12 @@ def _manufactured_heat_problem():
     t = MC.Constant(0.0)
     dt = MC.Constant(0.1)
     (x, y) = SpatialCoordinate(msh)
-    n = ufl.FacetNormal(msh)
+    n = FacetNormal(msh)
 
     # f is built from the stepper's t, so that stage times are substituted in it
-    t_var = ufl.variable(t)
+    t_var = variable(t)
     u_ex = (1 + t_var) * (x**2 + x * y)
-    f = ufl.diff(u_ex, t_var) - div(grad(u_ex))
+    f = diff(u_ex, t_var) - div(grad(u_ex))
 
     u = dolfinx.fem.Function(V)
     u.interpolate(dolfinx.fem.Expression(u_ex, V.element.interpolation_points))
@@ -215,7 +219,7 @@ def _manufactured_heat_problem():
         inner(Dt(u), v) * dx
         + inner(grad(u), grad(v)) * dx
         - inner(f, v) * dx
-        - inner(ufl.dot(grad(u_ex), n), v) * ufl.ds
+        - inner(dot(grad(u_ex), n), v) * ds
     )
     J = inner(Dt(w), v) * dx + inner(grad(w), grad(v)) * dx
     return msh, t, dt, u, F, J, u_ex
@@ -236,11 +240,7 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, GaussLegendre(num_stages), t, dt, u,
         solver_parameters={**lu, "petsc_options_prefix": f"auto_J_{num_stages}_"},
         backend="dolfinx",
     )
@@ -248,11 +248,7 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, GaussLegendre(num_stages), t, dt, u,
         J=2 * J,
         solver_parameters={**lu, "petsc_options_prefix": f"user_J_{num_stages}_"},
         backend="dolfinx",
@@ -262,11 +258,7 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, GaussLegendre(num_stages), t, dt, u,
         J=J,
         solver_parameters={**lu, "petsc_options_prefix": f"exact_J_{num_stages}_"},
         backend="dolfinx",
@@ -282,11 +274,7 @@ def test_user_preconditioner(num_stages):
     """A user-supplied Jp is assembled into a separate preconditioner matrix."""
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, GaussLegendre(num_stages), t, dt, u,
         Jp=2 * J,
         solver_parameters={
             "ksp_type": "gmres",
