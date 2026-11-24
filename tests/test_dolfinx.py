@@ -198,7 +198,6 @@ def test_constant_stage_nullspace(num_stages):
     """A constant nullspace becomes one constant per stage."""
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
     V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
-    
     MC = MeshConstant(msh, backend="dolfinx")
     t = MC.Constant(0.0)
     dt = MC.Constant(0.1)
