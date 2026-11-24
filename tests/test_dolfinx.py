@@ -348,7 +348,7 @@ def test_form_compiler_parameters(bilinear):
     ffcx_logger.setLevel(logging.WARNING)
     try:
         StageDerivativeTimeStepper(
-        F, scheme, t, dt, u,
+            F, scheme, t, dt, u,
             options_prefix=f"fcp_{bilinear}_",
             form_compiler_parameters={"verbosity": logging.ERROR},
             backend="dolfinx",
