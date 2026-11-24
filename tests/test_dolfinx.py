@@ -176,11 +176,7 @@ def test_stokes_stage_nullspace(num_stages):
     nullspace = PETSc.NullSpace().create(vectors=[n.x.petsc_vec], comm=msh.comm)
 
     stepper = StageDerivativeTimeStepper(
-        F,
-        RadauIIA(num_stages),
-        t,
-        dt,
-        z,
+        F, RadauIIA(num_stages), t, dt, z,
         bcs=bcs,
         nullspace=nullspace,
         solver_parameters={"petsc_options_prefix": f"stokes_nsp_{num_stages}_"},
@@ -213,11 +209,7 @@ def test_constant_stage_nullspace(num_stages):
 
     nullspace = PETSc.NullSpace().create(constant=True, comm=msh.comm)
     stepper = StageDerivativeTimeStepper(
-        F,
-        RadauIIA(num_stages),
-        t,
-        dt,
-        u,
+        F, RadauIIA(num_stages), t, dt, u,
         nullspace=nullspace,
         solver_parameters={"petsc_options_prefix": f"constant_nsp_{num_stages}_"},
         backend="dolfinx",
