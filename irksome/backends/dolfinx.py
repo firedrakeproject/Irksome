@@ -563,6 +563,9 @@ def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
 def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
     """Create a variational problem.
 
+    :param F: The variational form as a residual.
+    :param u: The unknown function.
+    :param bcs: List of Dirichlet boundary conditions.
     :param J: Optional bilinear form for the Jacobian of the stage problem.
     :param Jp: Optional bilinear form used to assemble the preconditioner.
     """
