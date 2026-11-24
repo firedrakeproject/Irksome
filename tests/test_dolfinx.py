@@ -201,7 +201,7 @@ def test_constant_stage_nullspace(num_stages):
     MC = MeshConstant(msh, backend="dolfinx")
     t = MC.Constant(0.0)
     dt = MC.Constant(0.1)
-    
+
     u = dolfinx.fem.Function(V)
     v = TestFunction(V)
     F = inner(grad(Dt(u)), grad(v)) * dx + inner(grad(u), grad(v)) * dx
@@ -217,6 +217,7 @@ def test_constant_stage_nullspace(num_stages):
     stage_nullspace = A.getNullSpace()
     assert len(stage_nullspace.getVecs()) == num_stages
     assert stage_nullspace.test(A)
+
 
 def test_default_solver_parameters():
     """Constructing a stepper without solver parameters uses PETSc defaults."""
