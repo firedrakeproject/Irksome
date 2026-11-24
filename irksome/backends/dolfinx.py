@@ -35,7 +35,9 @@ def extract_dtype(expr: ufl.core.expr.Expr) -> npt.DTypeLike:
     for c in coeffs:
         if hasattr(c, "dtype"):
             return c.dtype
-    raise ValueError("Could not extract dtype from expression, please ensure that all constants and coefficients have a dtype attribute")
+    raise ValueError(
+        "Could not extract dtype from expression, please ensure that all constants and coefficients have a dtype attribute"
+    )
 
 
 def extract_scalar_value(scalar_expr):
@@ -44,10 +46,15 @@ def extract_scalar_value(scalar_expr):
         return float(scalar_expr)
     elif isinstance(scalar_expr, dolfinx.fem.Function):
         # Check if it's a RealElement (constant stored as Function)
-        if scalar_expr.function_space.ufl_element().is_real and scalar_expr.ufl_shape == ():
+        if (
+            scalar_expr.function_space.ufl_element().is_real
+            and scalar_expr.ufl_shape == ()
+        ):
             return float(scalar_expr.x.array[0])
         else:
-            raise ValueError(f"Cannot extract scalar from spatial Function: {scalar_expr}")
+            raise ValueError(
+                f"Cannot extract scalar from spatial Function: {scalar_expr}"
+            )
     elif isinstance(scalar_expr, dolfinx.fem.Constant) and scalar_expr.ufl_shape == ():
         val = scalar_expr.value
         return float(val) if hasattr(val, "__float__") else float(val.item())
@@ -62,7 +69,9 @@ def extract_scalar_value(scalar_expr):
         num, den = scalar_expr.ufl_operands
         return extract_scalar_value(num) / extract_scalar_value(den)
     else:
-        raise ValueError(f"Cannot extract scalar from {type(scalar_expr)}: {scalar_expr}")
+        raise ValueError(
+            f"Cannot extract scalar from {type(scalar_expr)}: {scalar_expr}"
+        )
 
 
 def extract_function(expr) -> tuple[bool, dolfinx.fem.Function | None]:
@@ -137,7 +146,9 @@ def extract_term(term):
     return None
 
 
-def extract_linear_combination(expr: ufl.core.expr.Expr) -> list[tuple[float, "dolfinx.fem.Function"]]:
+def extract_linear_combination(
+    expr: ufl.core.expr.Expr,
+) -> list[tuple[float, "dolfinx.fem.Function"]]:
     """Extract (weight, function) pairs from a UFL linear combination.
 
     Analyzes expressions like: 0.5*u + 0.3*v + 0.2*w
@@ -183,6 +194,7 @@ def function_iadd(func: "dolfinx.fem.Function", expr: ufl.core.expr.Expr) -> Non
     # Add each term using array operations (works with mixed spaces when dofmaps match)
     for weight, term_func in terms:
         func.x.array[:] += weight * term_func.x.array[:]
+
 
 # Patching of DOLFINx objects to mimick firedrake naming and properties.
 
@@ -237,7 +249,12 @@ class ListTensor(ufl.tensors.ListTensor):
         return sub_funcs
 
     def function_space(self):
-        return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(self.ufl_shape[0])])
+        return ufl.MixedFunctionSpace(
+            *[
+                self.ufl_operands[i].ufl_function_space()
+                for i in range(self.ufl_shape[0])
+            ]
+        )
 
 
 class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
@@ -326,13 +343,13 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
                 _snes, x, J, P_mat, u, jacobian, preconditioner, bcs
             )
 
-        self.solver.setJacobian(
-            assemble_jacobian, self.A, self.P_mat, kargs=jac_kargs
-        )
+        self.solver.setJacobian(assemble_jacobian, self.A, self.P_mat, kargs=jac_kargs)
 
     def solve(self, bounds=None):
         if bounds is not None:
-            raise NotImplementedError("Bounds-constrained solves are not implemented for DOLFINx")
+            raise NotImplementedError(
+                "Bounds-constrained solves are not implemented for DOLFINx"
+            )
         super().solve()
 
     @property
@@ -352,7 +369,12 @@ class DirichletBC(dolfinx.fem.DirichletBC):
     _pack_expression: dolfinx.fem.Expression | None
     _ufl_expr: ufl.core.expr.Expr | None  # Store original UFL expression
 
-    def __init__(self, g: ufl.core.expr.Expr, dofs: npt.NDArray[np.int32], V: dolfinx.fem.FunctionSpace):
+    def __init__(
+        self,
+        g: ufl.core.expr.Expr,
+        dofs: npt.NDArray[np.int32],
+        V: dolfinx.fem.FunctionSpace,
+    ):
         """
         Create an Irksome compatible DirichletBC from an existing DOLFINx bc.
 
@@ -370,7 +392,9 @@ class DirichletBC(dolfinx.fem.DirichletBC):
         self._input_dofs = dofs
 
         # Store original UFL expression for time-varying BCs
-        if not isinstance(g, (dolfinx.fem.Function, dolfinx.fem.Constant, int, float, complex)):
+        if not isinstance(
+            g, (dolfinx.fem.Function, dolfinx.fem.Constant, int, float, complex)
+        ):
             self._ufl_expr = g  # Save the symbolic expression
         else:
             self._ufl_expr = None
@@ -409,7 +433,9 @@ class DirichletBC(dolfinx.fem.DirichletBC):
                 val = dolfinx.fem.Function(V_sub, name=f"bc_{str(g)}")._cpp_object
             else:
                 val = dolfinx.fem.Function(V, name=f"bc_{str(g)}")._cpp_object
-            self._pack_expression = dolfinx.fem.Expression(g, V.element.interpolation_points)
+            self._pack_expression = dolfinx.fem.Expression(
+                g, V.element.interpolation_points
+            )
 
         # Get correct C++ implementation based on dtype of expression
         dtype = extract_dtype(g)
@@ -480,7 +506,11 @@ class DirichletBC(dolfinx.fem.DirichletBC):
                 dolfinx.cpp.fem.Function_float64,
             ),
         ):
-            return dolfinx.fem.Function(self._ufl_space, dolfinx.la.Vector(self._orig_g.x), name=f"orig_{self._orig_g.name:s}")
+            return dolfinx.fem.Function(
+                self._ufl_space,
+                dolfinx.la.Vector(self._orig_g.x),
+                name=f"orig_{self._orig_g.name:s}",
+            )
         elif isinstance(
             self._orig_g,
             (
@@ -549,11 +579,13 @@ def _extract_blocks(form: ufl.Form, num_blocks: int):
 def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
     """Create a variational problem.
 
+    :param F: The variational form as a residual.
+    :param u: The unknown function.
+    :param bcs: List of Dirichlet boundary conditions.
     :param J: Optional bilinear form for the Jacobian of the stage problem.
     :param Jp: Optional bilinear form used to assemble the preconditioner.
     """
     rank = len(np.unique([arg.number() for arg in F.arguments()]))
-    prefix = kwargs.get("petsc_options_prefix", "IrkSomeSolver")
     form_compiler_options = kwargs.get("form_compiler_parameters")
     if isinstance(u, ListTensor):
         u = u.subfunctions
@@ -572,7 +604,9 @@ def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
         J = a
         solver_parameters = {"snes_type": "ksponly", **(solver_parameters or {})}
     elif rank != 1:
-        raise RuntimeError(f"Forms of rank {rank} are not supported in create_variational_problem")
+        raise RuntimeError(
+            f"Forms of rank {rank} are not supported in create_variational_problem"
+        )
     F = _extract_blocks(F, len(u))
     J = None if J is None else _extract_blocks(J, len(u))
     Jp = None if Jp is None else _extract_blocks(Jp, len(u))
@@ -580,7 +614,7 @@ def create_variational_problem(F, u, bcs=None, J=None, Jp=None, **kwargs):
     return NonlinearProblem(
         F,
         u,
-        petsc_options_prefix=prefix,
+        petsc_options_prefix="Irksome_",
         bcs=bcs,
         J=J,
         P=Jp,
@@ -593,14 +627,12 @@ def create_variational_solver(
     problem: dolfinx.fem.petsc.NonlinearProblem,
     **kwargs,
 ):
-    """Create a variational solver that uses PETSc SNES."""
-    solver_parameters = kwargs.get("solver_parameters", {})
+    """Create a variational solver that uses PETSc SNES or KSP."""
+    solver_parameters = kwargs.get("solver_parameters") or {}
     solver = problem.solver
 
     # Update solver prefix
-    solver_prefix = solver_parameters.get(
-        "petsc_options_prefix", problem.solver.getOptionsPrefix()
-    )
+    solver_prefix = kwargs.get("options_prefix", "IrkSomeSolver")
     problem._petsc_options_prefix = solver_prefix
     problem.solver.setOptionsPrefix(solver_prefix)
     problem.A.setOptionsPrefix(f"{solver_prefix}A_")
@@ -649,13 +681,20 @@ def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ListTensor:
     """
     _Vbig = [V.clone() for _ in range(num_stages)]
     Vbig = ufl.MixedFunctionSpace(*_Vbig)
-    return ListTensor(*[dolfinx.fem.Function(Vi, name=f"stage_{i}") for i, Vi in enumerate(Vbig.ufl_sub_spaces())])
+    return ListTensor(
+        *[
+            dolfinx.fem.Function(Vi, name=f"stage_{i}")
+            for i, Vi in enumerate(Vbig.ufl_sub_spaces())
+        ]
+    )
 
 
 class FloatConstantFunction(dolfinx.fem.Function):
     def __float__(self):
         if len(self.x.array) != 1:
-            raise ValueError("Can only convert a FloatConstantFunction to float if it has exactly one degree of freedom")
+            raise ValueError(
+                "Can only convert a FloatConstantFunction to float if it has exactly one degree of freedom"
+            )
         return float(self.x.array[0])
 
     def assign(self, value):
@@ -667,6 +706,7 @@ class MeshConstant:
     def __init__(self, msh):
         self.msh = msh
         import basix.ufl
+
         r_el = basix.ufl.real_element(
             msh.basix_cell(), value_shape=(), dtype=dolfinx.default_scalar_type
         )
@@ -707,7 +747,7 @@ def norm(
 def assemble(expr: ufl.core.expr.Expr | float):
     """Assemble a UFL expression in the backend language."""
     if isinstance(expr, float):
-        return float
+        return expr
     else:
         form = dolfinx.fem.form(expr)
         if form.rank == 0:
@@ -773,9 +813,7 @@ def invalidate_jacobian(solver: dolfinx.fem.petsc.NonlinearProblem):
 
 
 def create_bounds_constrained_bc(V, g, sub_domain, bounds, solver_parameters=None):
-    raise NotImplementedError(
-        "Bounds-constrained BCs are not implemented for DOLFINx"
-    )
+    raise NotImplementedError("Bounds-constrained BCs are not implemented for DOLFINx")
 
 
 def getNullspace(V, Vbig, num_stages, nullspace):
@@ -788,27 +826,34 @@ def getNullspace(V, Vbig, num_stages, nullspace):
     :param nullspace: The nullspace for the original problem.
 
     On output, we produce a PETSc nullspace defining the nullspace for the multistage problem.
+    Each nullspace vector (and the constant, if present) is placed in each stage separately,
+    giving `num_stages` orthonormal vectors per original vector.
     """
     if nullspace is None:
-        nspnew = None
-    else:
-        old_vecs = nullspace.getVecs()
-        tmp_func = dolfinx.fem.Function(V)
-        new_vecs = [
-            dolfinx.fem.petsc.create_vector(Vbig.ufl_sub_spaces())
-            for _ in range(len(old_vecs))
-        ]
-        for i in range(len(old_vecs)):
-            # Copy the old nullspace vector into all stages of the new nullspace vector
-            old_vecs[i].copy(tmp_func.x.petsc_vec)
-            tmp_func.x.scatter_forward()
+        return None
+
+    stage_funcs = []
+    if nullspace.hasConstant():
+        constant = dolfinx.fem.Function(V)
+        constant.x.array[:] = 1.0
+        stage_funcs.append(constant)
+    for vec in nullspace.getVecs():
+        func = dolfinx.fem.Function(V)
+        vec.copy(func.x.petsc_vec)
+        func.x.scatter_forward()
+        stage_funcs.append(func)
+
+    zero = dolfinx.fem.Function(V)
+    new_vecs = []
+    for func in stage_funcs:
+        for i in range(num_stages):
+            new_vec = dolfinx.fem.petsc.create_vector(Vbig.ufl_sub_spaces())
             dolfinx.fem.petsc.assign(
-                [tmp_func for _ in range(num_stages)], new_vecs[i]
+                [func if j == i else zero for j in range(num_stages)], new_vec
             )
-        nspnew = PETSc.NullSpace().create(
-            vectors=new_vecs, comm=nullspace.getComm()
-        )
-    return nspnew
+            new_vec.normalize()
+            new_vecs.append(new_vec)
+    return PETSc.NullSpace().create(vectors=new_vecs, comm=nullspace.getComm())
 
 
 derivative = ufl.derivative
