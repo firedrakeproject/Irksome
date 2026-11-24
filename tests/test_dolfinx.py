@@ -311,11 +311,7 @@ def test_bilinear_form(num_stages, use_Jp):
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     F = ufl.replace(F, {u: TrialFunction(u.function_space)})
     stepper = StageDerivativeTimeStepper(
-        F,
-        scheme,
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         Jp=2 * J if use_Jp else None,
         solver_parameters={
             "ksp_type": "gmres",
@@ -352,11 +348,7 @@ def test_form_compiler_parameters(bilinear):
     ffcx_logger.setLevel(logging.WARNING)
     try:
         StageDerivativeTimeStepper(
-            F,
-            scheme,
-            t,
-            dt,
-            u,
+        F, scheme, t, dt, u,
             options_prefix=f"fcp_{bilinear}_",
             form_compiler_parameters={"verbosity": logging.ERROR},
             backend="dolfinx",
