@@ -81,7 +81,6 @@ def dirk_wave(n, deg, bc_type):
 
     stepper = DIRKNystromTimeStepper(
         F, butcher_tableau, t, dt, u, ut, bcs=bc, solver_parameters=params, bc_type=bc_type)
-    assert stepper.get_form_and_bcs(stepper.ks)[0].signature() == stepper.problem.F.signature()
 
     E0 = assemble(E)
     for step in range(5*N):

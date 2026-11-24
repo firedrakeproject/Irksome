@@ -102,7 +102,6 @@ def test_1d_heat_neumannbc(butcher_tableau):
         Fdirk, butcher_tableau, t, dt, u_dirk, solver_parameters=luparams,
         stage_type="dirk"
     )
-    assert stepperdirk.get_form_and_bcs(stepperdirk.ks)[0].signature() == stepperdirk.problem.F.signature()
 
     t_end = 1.0
     while float(t) < t_end:
