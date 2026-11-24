@@ -8,20 +8,10 @@ dolfinx = pytest.importorskip("dolfinx")
 import basix.ufl
 import numpy as np
 
-from ufl import (
-    div,
-    grad,
-    inner,
-    dx,
-    as_vector,
-    split,
-    SpatialCoordinate,
-    TestFunction,
-    TestFunctions,
-)
+from ufl import div, grad, inner, dx, as_vector, split, SpatialCoordinate, TestFunction, TestFunctions
 
 from irksome import GaussLegendre, Dt, MeshConstant
-from irksome.backends.dolfinx import dirichletbc, norm
+from irksome.backends.dolfinx import assemble, dirichletbc, norm
 from irksome.stage_derivative import StageDerivativeTimeStepper
 from irksome.tools import AI
 
@@ -135,6 +125,19 @@ def test_stokes(num_stages):
     msh.comm.Barrier()
     gc.collect()
     msh.comm.Barrier()
+
+
+def test_assemble():
+    """Backend assemble returns floats unchanged and assembles forms by rank."""
+
+    assert assemble(1.5) == 1.5
+
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_SELF, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+    assert np.isclose(assemble(1.0 * dx(domain=msh)), 1.0)
+
+    b = assemble(TestFunction(V) * dx)
+    assert np.isclose(b.array.sum(), 1.0)
 
 
 def test_default_solver_parameters():
