@@ -3,6 +3,7 @@ import gc
 
 from mpi4py import MPI
 from petsc4py import PETSc
+from tests.test_explicit import msh
 
 dolfinx = pytest.importorskip("dolfinx")
 
@@ -198,11 +199,11 @@ def test_constant_stage_nullspace(num_stages):
     """A constant nullspace becomes one constant per stage."""
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
     V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
-
+    
     MC = MeshConstant(msh, backend="dolfinx")
     t = MC.Constant(0.0)
     dt = MC.Constant(0.1)
-
+    
     u = dolfinx.fem.Function(V)
     v = TestFunction(V)
     F = inner(grad(Dt(u)), grad(v)) * dx + inner(grad(u), grad(v)) * dx
@@ -218,3 +219,36 @@ def test_constant_stage_nullspace(num_stages):
     stage_nullspace = A.getNullSpace()
     assert len(stage_nullspace.getVecs()) == num_stages
     assert stage_nullspace.test(A)
+
+def test_default_solver_parameters():
+    """Constructing a stepper without solver parameters uses PETSc defaults."""
+    N = 4
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, N, N)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+
+    (x, y) = SpatialCoordinate(msh)
+    uexact = t + x + y
+
+    u = dolfinx.fem.Function(V)
+    u.interpolate(dolfinx.fem.Expression(uexact, V.element.interpolation_points))
+    v = TestFunction(V)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx - inner(Dt(uexact), v) * dx
+
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    boundary_dofs = dolfinx.fem.locate_dofs_topological(
+        V, msh.topology.dim - 1, dolfinx.mesh.exterior_facet_indices(msh.topology)
+    )
+    bcs = [dirichletbc(uexact, boundary_dofs, V)]
+
+    stepper = StageDerivativeTimeStepper(
+        F, GaussLegendre(1), t, dt, u, bcs=bcs, backend="dolfinx"
+    )
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+
+    error = norm(u - uexact, norm_type="L2", mesh=msh)
+    assert error < 1e-5, f"Error {error} exceeds tolerance"
