@@ -228,7 +228,6 @@ def test_default_solver_parameters():
     MC = MeshConstant(msh, backend="dolfinx")
     t = MC.Constant(0.0)
     dt = MC.Constant(0.1)
-
     (x, y) = SpatialCoordinate(msh)
     uexact = t + x + y
 
