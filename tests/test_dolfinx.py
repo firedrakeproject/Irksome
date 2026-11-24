@@ -217,6 +217,8 @@ def test_constant_stage_nullspace(num_stages):
     stage_nullspace = A.getNullSpace()
     assert len(stage_nullspace.getVecs()) == num_stages
     assert stage_nullspace.test(A)
+
+
 def test_assemble():
     """Backend assemble returns floats unchanged and assembles forms by rank."""
 
