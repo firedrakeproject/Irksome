@@ -154,12 +154,14 @@ def test_expecting_time_derivative(V):
         check_integrals(F.integrals(), timedep_coeffs=(u,), expect_time_derivative=False)
 
 
-def test_mixed_summand_raises(V):
+def test_mixed_summand_split(V):
     u = Coefficient(V)
     v = TestFunction(V)
     F = inner(Dt(u) + u, v)*dx + inner(grad(u), grad(v))*dx
-    with pytest.raises(ValueError, match="summands of their own"):
-        split_time_derivative_terms(F, timedep_coeffs=(u,))
+    split = split_time_derivative_terms(F, timedep_coeffs=(u,))
+    time_terms = split_time_derivative_terms(split.time, timedep_coeffs=(u,))
+    assert time_terms.remainder.empty()
+    assert len(split_time_derivative_terms(split.remainder, timedep_coeffs=(u,)).time.integrals()) == 0
 
 
 def test_indexed_and_variable_time_terms_split(V):
