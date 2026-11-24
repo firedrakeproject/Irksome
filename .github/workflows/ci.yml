@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: [latest, dev-release]
+        version: [latest, dev-main]
     runs-on: [self-hosted, Linux]
     container:
       image: firedrakeproject/firedrake-vanilla-default:${{ matrix.version }}
