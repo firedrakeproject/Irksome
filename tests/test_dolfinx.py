@@ -244,11 +244,7 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        scheme,
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         solver_parameters=lu,
         options_prefix=f"user_J_{num_stages}_",
         backend="dolfinx",
@@ -257,11 +253,7 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        scheme,
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         J=2 * J,
         solver_parameters=lu,
         options_prefix=f"user_J_{num_stages}_",
@@ -272,11 +264,7 @@ def test_user_jacobian(num_stages):
 
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        scheme,
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         J=J,
         solver_parameters=lu,
         options_prefix=f"exact_J_{num_stages}_",
@@ -294,11 +282,7 @@ def test_user_preconditioner(num_stages):
     scheme = GaussLegendre(num_stages)
     msh, t, dt, u, F, J, u_ex = _manufactured_heat_problem()
     stepper = StageDerivativeTimeStepper(
-        F,
-        scheme,
-        t,
-        dt,
-        u,
+        F, scheme, t, dt, u,
         Jp=2 * J,
         solver_parameters={
             "ksp_type": "gmres",
