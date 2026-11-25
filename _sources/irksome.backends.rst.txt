@@ -1,0 +1,29 @@
+irksome.backends package
+========================
+
+Submodules
+----------
+
+irksome.backends.dolfinx module
+-------------------------------
+
+.. automodule:: irksome.backends.dolfinx
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+irksome.backends.firedrake module
+---------------------------------
+
+.. automodule:: irksome.backends.firedrake
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: irksome.backends
+   :members:
+   :show-inheritance:
+   :undoc-members:
