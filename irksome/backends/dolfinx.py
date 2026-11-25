@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from collections.abc import Sequence
+import contextlib
 from irksome.tools import get_sub
 
 from mpi4py import MPI
@@ -451,6 +452,25 @@ def _add_bc_diagonal_blocks(
     return F
 
 
+@contextlib.contextmanager
+def _inserted_options(prefix: str, options: dict):
+    """Insert ``options`` with ``prefix`` into the PETSc options database for the duration
+    of the context.
+
+    Objects created while solving, such as the sub-solvers of a fieldsplit preconditioner,
+    read their options only then, so the options must stay in the database during a solve.
+    """
+    opts = PETSc.Options()
+    # Use the full option names, as delValue does not respect prefixPush
+    for k, v in options.items():
+        opts.setValue(f"{prefix}{k}", v)
+    try:
+        yield
+    finally:
+        for k in options:
+            opts.delValue(f"{prefix}{k}")
+
+
 class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
     """Overloaded nonlinear problem that pack BCs before solving.
 
@@ -487,6 +507,7 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
             entity_maps=entity_maps,
         )
         self._bcs = bcs
+        self._solver_options: tuple[str, dict] = (self.solver.getOptionsPrefix() or "", {})
 
         def assemble_residual(
             _snes: PETSc.SNES,  # type: ignore[name-defined]
@@ -539,12 +560,24 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
 
         self.solver.setJacobian(assemble_jacobian, self.A, self.P_mat, kargs=jac_kargs)
 
+    def set_options(self, prefix: str, options: dict):
+        """Set the options prefix and the PETSc options of the solver.
+
+        The options are applied now, and inserted again for every solve, so that objects
+        created while solving, such as fieldsplit sub-solvers, see them.
+        """
+        self._solver_options = (prefix, dict(options))
+        self.solver.setOptionsPrefix(prefix)
+        with _inserted_options(prefix, options):
+            self.solver.setFromOptions()
+
     def solve(self, bounds=None):
         if bounds is not None:
             raise NotImplementedError(
                 "Bounds-constrained solves are not implemented for DOLFINx"
             )
-        super().solve()
+        with _inserted_options(*self._solver_options):
+            super().solve()
 
     @property
     def snes(self) -> PETSc.SNES:  # type: ignore[name-defined]
@@ -795,13 +828,39 @@ class _DeferredProblem:
     def build(
         self, kind: str | None, entity_maps: Sequence[dolfinx.mesh.EntityMap] | None
     ) -> NonlinearProblem:
-        """Build the DOLFINx problem, with ``kind`` if the problem is blocked."""
-        return NonlinearProblem(
-            *self._args,
-            kind=kind if self._blocked else None,
-            entity_maps=entity_maps,
-            **self._kwargs,
-        )
+        """Build the DOLFINx problem, with ``kind`` if the problem is blocked.
+
+        DOLFINx names fieldsplit block ``k`` after its solution function as ``{name}_{k}``,
+        except for a function with the default name ``"f"``, which gives ``k`` alone. The
+        problem is built with default names and its field decomposition frozen, so that the
+        blocks have the options prefixes ``fieldsplit_0_``, ``fieldsplit_1_``, ... as in
+        Firedrake, and the functions then get their names back.
+        """
+        u = self._args[1]
+        functions = u if isinstance(u, Sequence) else [u]
+        names = [f.name for f in functions]
+        try:
+            for f in functions:
+                f.name = "f"
+            problem = NonlinearProblem(
+                *self._args,
+                kind=kind if self._blocked else None,
+                entity_maps=entity_maps,
+                **self._kwargs,
+            )
+            # DOLFINx gives the preconditioner a DM that computes the field decomposition,
+            # and so the block names, lazily on the first fieldsplit set-up, from the names
+            # the functions have then. This holds for ``nest`` matrices too: the index sets
+            # DOLFINx sets at construction are ignored, as the preconditioner is not yet a
+            # fieldsplit. Compute the decomposition now, while the functions have default
+            # names, and always return it, so that renaming them does not change the blocks.
+            dm = problem.solver.getKSP().getPC().getDM()
+            split_names, split_ises, _ = dm.createFieldDecomposition()
+            dm.setCreateFieldDecomposition(lambda _dm: (split_names, split_ises, None))
+        finally:
+            for f, name in zip(functions, names):
+                f.name = name
+        return problem
 
 
 def _matrix_kind(mat_type: str | None) -> str | None:
@@ -848,11 +907,11 @@ def create_variational_problem(
         )
         parts = {arg.part() or 0 for arg in trial}
         if len(trial) != len(u) or parts != set(range(len(u))):
-            missing = [u[k].name for k in range(len(u)) if k not in parts]
+            missing = [f"{k} ({u[k].name})" for k in range(len(u)) if k not in parts]
             raise ValueError(
-                f"A linear stage problem needs one trial function per unknown, but the "
-                f"bilinear form has {len(trial)} trial function(s) for {len(u)} unknown(s). "
-                f"Unknowns without a trial function: {', '.join(missing) or 'none'}."
+                f"A linear stage problem needs one trial function per block, but the "
+                f"bilinear form has {len(trial)} trial function(s) for {len(u)} block(s). "
+                f"Blocks without a trial function: {', '.join(missing) or 'none'}."
             )
         F = ufl.replace(F, dict(zip(trial, u)))
         J = a
@@ -908,32 +967,21 @@ def create_variational_solver(
         _matrix_kind(solver_parameters.get("mat_type")),
         solver_parameters.get("entity_maps"),
     )
-    solver = problem.solver
-
     # Update solver prefix
     solver_prefix = kwargs.get("options_prefix", "IrkSomeSolver")
     problem._petsc_options_prefix = solver_prefix
-    problem.solver.setOptionsPrefix(solver_prefix)
     problem.A.setOptionsPrefix(f"{solver_prefix}A_")
     problem.b.setOptionsPrefix(f"{solver_prefix}b_")
     problem.x.setOptionsPrefix(f"{solver_prefix}x_")
     if problem.P_mat is not None:
         problem.P_mat.setOptionsPrefix(f"{solver_prefix}P_mat_")
-    # Push new options with prefix, filtering out irksome-internal keys
+    # PETSc options, without the irksome-internal keys
     petsc_opts = {
         k: v
         for k, v in solver_parameters.items()
         if k not in ("mat_type", "entity_maps")
     }
-    opts = PETSc.Options()
-    opts.prefixPush(solver_prefix)
-    for k, v in petsc_opts.items():
-        opts.setValue(k, v)
-    solver.setFromOptions()
-    opts.prefixPop()
-    # For some strange reason delValue doesn't respect prefixes
-    for k in petsc_opts:
-        opts.delValue(f"{solver_prefix}{k}")
+    problem.set_options(solver_prefix, petsc_opts)
 
     nullspace = kwargs.get("nullspace", None)
     transpose_nullspace = kwargs.get("transpose_nullspace", None)
@@ -974,6 +1022,10 @@ def get_stages(V: dolfinx.fem.FunctionSpace, num_stages: int) -> ListTensor:
     :param V: Space for single step
     :param num_stages: Number of stages
     :returns: A coefficient in the new function space
+
+    The stage functions are named ``stage_{i}`` or, for a mixed space, ``stage_{i}_{j}`` for
+    field ``j`` of stage ``i``. The fieldsplit blocks of the stage problem are named by their
+    index alone, see :meth:`_DeferredProblem.build`.
     """
     if isinstance(V, _SymbolicMixedSpace):
         num_fields = len(V)

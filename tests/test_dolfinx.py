@@ -13,7 +13,6 @@ import ufl
 
 from ufl import (
     as_vector,
-    diff,
     div,
     dot,
     ds,
@@ -21,7 +20,6 @@ from ufl import (
     grad,
     inner,
     split,
-    variable,
     FacetNormal,
     SpatialCoordinate,
     TestFunction,
@@ -420,9 +418,8 @@ def _manufactured_heat_problem():
     n = FacetNormal(msh)
 
     # f is built from the stepper's t, so that stage times are substituted in it
-    t_var = variable(t)
-    u_ex = (1 + t_var) * (x**2 + x * y)
-    f = diff(u_ex, t_var) - div(grad(u_ex))
+    u_ex = (1 + t) * (x**2 + x * y)
+    f = Dt(u_ex) - div(grad(u_ex))
 
     u = dolfinx.fem.Function(V)
     u.interpolate(dolfinx.fem.Expression(u_ex, V.element.interpolation_points))
@@ -633,7 +630,7 @@ def test_mixed_function_space_ufl_test_functions():
 
 
 def test_linear_stage_problem_missing_trial_function():
-    """A linear stage problem without a trial function for an unknown names that unknown."""
+    """A linear stage problem without a trial function for a block names that block."""
     import irksome.backends.dolfinx as backend
 
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
@@ -645,7 +642,7 @@ def test_linear_stage_problem_missing_trial_function():
     du, _ = backend.TrialFunction(stages.function_space()).subfunctions
     v, q = backend.TestFunction(stages.function_space()).subfunctions
     F = inner(du, v) * dx + inner(du, q) * dx
-    with pytest.raises(ValueError, match="Unknowns without a trial function: stage_0_1"):
+    with pytest.raises(ValueError, match=r"Blocks without a trial function: 1 \(stage_0_1\)"):
         backend.create_variational_problem(F, stages)
 
 
@@ -676,11 +673,10 @@ def test_mixed_function_space_nest(num_stages):
     dt = MC.Constant(0.1)
     (x, y) = SpatialCoordinate(msh)
     n = ufl.FacetNormal(msh)
-    t_var = ufl.variable(t)
-    u_ex = (1 + t_var) * (x**2 + y)
-    v_ex = (1 + t_var) * (x * y)
-    f_u = ufl.diff(u_ex, t_var) - div(grad(u_ex)) + v_ex
-    f_v = ufl.diff(v_ex, t_var) - div(grad(v_ex)) - u_ex
+    u_ex = (1 + t) * (x**2 + y)
+    v_ex = (1 + t) * (x * y)
+    f_u = Dt(u_ex) - div(grad(u_ex)) + v_ex
+    f_v = Dt(v_ex) - div(grad(v_ex)) - u_ex
 
     def run(solver_parameters, options_prefix):
         w = MixedFunction(W)
@@ -752,6 +748,104 @@ def test_mixed_function_space_nest(num_stages):
                 assert error < 1e-9, f"Error {error} at t={float(t)}"
 
 
+@pytest.mark.parametrize("mat_type", ["aij", "nest"])
+@pytest.mark.parametrize("num_stages", [1, 2])
+def test_mixed_function_space_natural_fieldsplit(num_stages, mat_type):
+    """Fieldsplit without explicit fields splits the stage problem into one block per stage
+    and sub-space, including blocked (vector) sub-spaces. Block ``k``, which is field
+    ``k % num_fields`` of stage ``k // num_fields``, has the options prefix ``fieldsplit_k_``.
+
+    The problem is Stokes with a pressure penalty, so that every block, including the
+    pressure blocks, can be solved on its own.
+    """
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 2, (msh.geometry.dim,)))
+    Q = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+    W = MixedFunctionSpace(V, Q)
+    spaces = (V, Q)
+    num_fields = len(spaces)
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
+    epsilon = 1.0
+    u_ex = as_vector([x * t + y**2, -y * t + t * x**2])
+    p_ex = x + y * t
+    f_u = Dt(u_ex) - div(grad(u_ex)) + grad(p_ex)
+    g_p = -div(u_ex) - epsilon * p_ex
+
+    w = MixedFunction(W)
+    for f, expr in zip(w.subfunctions, (u_ex, p_ex)):
+        f.interpolate(
+            dolfinx.fem.Expression(expr, f.function_space.element.interpolation_points)
+        )
+    u, p = mixed_split(w)
+    v, q = mixed_test_functions(W)
+    F = (
+        inner(Dt(u), v) * dx
+        + inner(grad(u), grad(v)) * dx
+        - inner(p, div(v)) * dx
+        - inner(f_u, v) * dx
+        - inner(div(u), q) * dx
+        - epsilon * inner(p, q) * dx
+        - inner(g_p, q) * dx
+    )
+    boundary_dofs = dolfinx.fem.locate_dofs_topological(
+        V, msh.topology.dim - 1, dolfinx.mesh.exterior_facet_indices(msh.topology)
+    )
+
+    # Address each block by its natural name: a direct solver on the velocity blocks,
+    # Jacobi on the pressure blocks
+    sub_pc_types = ("lu", "jacobi")
+    solver_parameters = {
+        "mat_type": mat_type,
+        "ksp_type": "gmres",
+        "ksp_gmres_restart": 200,
+        "ksp_rtol": 1e-12,
+        "ksp_max_it": 1000,
+        "ksp_error_if_not_converged": True,
+        "pc_type": "fieldsplit",
+        "pc_fieldsplit_type": "multiplicative",
+    }
+    for k in range(num_stages * num_fields):
+        solver_parameters[f"fieldsplit_{k}_ksp_type"] = "preonly"
+        solver_parameters[f"fieldsplit_{k}_pc_type"] = sub_pc_types[k % num_fields]
+
+    options_prefix = f"natural_fieldsplit_{mat_type}_{num_stages}_"
+    stepper = StageDerivativeTimeStepper(
+        F, GaussLegendre(num_stages), t, dt, w,
+        bcs=[dirichletbc(u_ex, boundary_dofs, V)],
+        solver_parameters=solver_parameters,
+        options_prefix=options_prefix,
+        backend="dolfinx",
+    )
+    stepper.advance()
+    t.assign(float(t) + float(dt))
+
+    # The stage functions keep descriptive names, independent of the block names
+    assert [s.name for s in stepper.stages.subfunctions] == [
+        f"stage_{i}_{j}" for i in range(num_stages) for j in range(num_fields)
+    ]
+
+    pc = stepper.solver.snes.getKSP().getPC()
+    assert pc.getType() == PETSc.PC.Type.FIELDSPLIT
+    sub_ksps = pc.getFieldSplitSubKSP()
+    assert len(sub_ksps) == num_stages * num_fields
+    for k, sub_ksp in enumerate(sub_ksps):
+        assert sub_ksp.getOptionsPrefix() == f"{options_prefix}fieldsplit_{k}_"
+        # The block of a vector space holds all its components
+        dofmap = spaces[k % num_fields].dofmap
+        num_dofs = dofmap.index_map.size_global * dofmap.index_map_bs
+        assert sub_ksp.getOperators()[0].getSize() == (num_dofs, num_dofs)
+        assert sub_ksp.getPC().getType() == sub_pc_types[k % num_fields]
+
+    for f, f_ex in zip(w.subfunctions, (u_ex, p_ex)):
+        error = norm(f - f_ex, norm_type="L2", mesh=msh)
+        assert error < 1e-9, f"Error {error} exceeds tolerance"
+
+
 @pytest.mark.parametrize("num_stages", [1, 2])
 def test_mixed_function_space_codim1_submesh(num_stages):
     """A field on a codim-1 submesh, coupled through entity maps in the solver parameters.
@@ -775,12 +869,11 @@ def test_mixed_function_space_codim1_submesh(num_stages):
     dt = MC.Constant(0.1)
     (x, y) = SpatialCoordinate(msh)
     n = ufl.FacetNormal(msh)
-    t_var = ufl.variable(t)
-    u_ex = (1 + t_var) * (x**2 + y)
-    w_ex = (1 + t_var) * (x + y)
-    f = ufl.diff(u_ex, t_var) - div(grad(u_ex))
+    u_ex = (1 + t) * (x**2 + y)
+    w_ex = (1 + t) * (x + y)
+    f = Dt(u_ex) - div(grad(u_ex))
     h = ufl.dot(grad(u_ex), n) + u_ex - w_ex
-    g = ufl.diff(w_ex, t_var) + w_ex - u_ex
+    g = Dt(w_ex) + w_ex - u_ex
 
     def u_exact(x, t):
         return (1 + t) * (x[0] ** 2 + x[1])
