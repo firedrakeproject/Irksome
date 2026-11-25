@@ -117,11 +117,7 @@ def test_stokes(num_stages):
         "snes_monitor": None,
     }
     linear_stepper = StageDerivativeTimeStepper(
-        F,
-        butcher_tableau,
-        t,
-        dt,
-        z,
+        F, butcher_tableau, t, dt, z,
         bcs=bcs,
         Fp=None,
         bc_type="DAE",
@@ -565,8 +561,8 @@ def test_form_compiler_parameters(bilinear):
         ffcx_logger.setLevel(level)
 
 
-@pytest.mark.parametrize("num_stages", [1, 2])
-def test_vector_dirichlet_bc(num_stages):
+@pytest.mark.parametrize("butcher_tableau", [RadauIIA(i) for i in (1, 2)])
+def test_vector_dirichlet_bc(butcher_tableau):
     """A Dirichlet BC on a vector-valued (blocked) space is reconstructed on its stage spaces."""
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
     V = dolfinx.fem.functionspace(msh, ("Lagrange", 1, (msh.geometry.dim,)))
@@ -587,18 +583,14 @@ def test_vector_dirichlet_bc(num_stages):
         V, msh.topology.dim - 1, dolfinx.mesh.exterior_facet_indices(msh.topology)
     )
     stepper = StageDerivativeTimeStepper(
-        F,
-        GaussLegendre(num_stages),
-        t,
-        dt,
-        u,
+        F, butcher_tableau, t, dt, u,
         bcs=[dirichletbc(uexact, boundary_dofs, V)],
         solver_parameters={
             "ksp_type": "preonly",
             "pc_type": "lu",
         },
-        options_prefix=f"vector_bc_{num_stages}_",
         backend="dolfinx",
+        options_prefix=f"vector_bc_{butcher_tableau.num_stages}_"
     )
     stepper.advance()
     t.assign(float(t) + float(dt))

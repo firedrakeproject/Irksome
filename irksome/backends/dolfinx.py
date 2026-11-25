@@ -808,6 +808,20 @@ def extract_bcs(bcs: typing.Any) -> tuple[typing.Any]:
     return bcs
 
 
+def _extract_blocks(form: ufl.Form, num_blocks: int):
+    """Split a form into the blocks of a problem with ``num_blocks`` unknowns.
+
+    As Firedrake checks ``len(V)``, a problem with a single unknown is not split:
+    DOLFINx creates non-blocked matrices and vectors for a single form, which
+    must match how the form is assembled.
+    """
+    blocks = ufl.extract_blocks(form)
+    if num_blocks > 1:
+        return blocks
+    rank = len({arg.number() for arg in form.arguments()})
+    return blocks[0] if rank == 1 else blocks[0][0]
+
+
 class _DeferredProblem:
     """A stage problem whose DOLFINx problem is built once the solver parameters are known.
 
@@ -920,15 +934,11 @@ def create_variational_problem(
         raise RuntimeError(
             f"Forms of rank {rank} are not supported in create_variational_problem"
         )
-    F = ufl.extract_blocks(F)
-    J = None if J is None else ufl.extract_blocks(J)
-    Jp = None if Jp is None else ufl.extract_blocks(Jp)
     blocked = len(u) > 1
-    if not blocked:
-        # A single block gets non-blocked matrices and vectors, matching its assembly
-        F, u = F[0], u[0]
-        J = None if J is None else J[0][0]
-        Jp = None if Jp is None else Jp[0][0]
+    F = _extract_blocks(F, len(u))
+    J = None if J is None else _extract_blocks(J, len(u))
+    Jp = None if Jp is None else _extract_blocks(Jp, len(u))
+    u = u if blocked else u[0]
     return _DeferredProblem(
         (F, u),
         {
