@@ -41,6 +41,9 @@ from irksome.stage_derivative import StageDerivativeTimeStepper
 from irksome.tools import AI
 
 
+_dolfinx_011 = tuple(int(v) for v in dolfinx.__version__.split(".")[:2]) < (0, 12)
+
+
 @pytest.mark.parametrize("num_stages", [1, 2, 3, 4])
 def test_stokes(num_stages):
     butcher_tableau = GaussLegendre(num_stages=num_stages)
@@ -740,7 +743,19 @@ def test_mixed_function_space_nest(num_stages):
                 assert error < 1e-9, f"Error {error} at t={float(t)}"
 
 
-@pytest.mark.parametrize("mat_type", ["aij", "nest"])
+@pytest.mark.parametrize(
+    "mat_type",
+    [
+        pytest.param(
+            "aij",
+            marks=pytest.mark.skipif(
+                _dolfinx_011,
+                reason="DOLFINx 0.11 gives a monolithic matrix no field decomposition",
+            ),
+        ),
+        "nest",
+    ],
+)
 @pytest.mark.parametrize("num_stages", [1, 2])
 def test_mixed_function_space_natural_fieldsplit(num_stages, mat_type):
     """Fieldsplit without explicit fields splits the stage problem into one block per stage
@@ -838,6 +853,7 @@ def test_mixed_function_space_natural_fieldsplit(num_stages, mat_type):
         assert error < 1e-9, f"Error {error} exceeds tolerance"
 
 
+@pytest.mark.skipif(_dolfinx_011, reason="FFCx 0.11 fails on this mixed-dimensional form")
 @pytest.mark.parametrize("num_stages", [1, 2])
 def test_mixed_function_space_codim1_submesh(num_stages):
     """A field on a codim-1 submesh, coupled through entity maps in the solver parameters.

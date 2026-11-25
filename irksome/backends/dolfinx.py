@@ -432,6 +432,13 @@ def _expand_mixed_functions(form: ufl.Form | None) -> ufl.Form | None:
     return ufl.replace(form, mapping) if mapping else form
 
 
+def _contains_bc_space(V: dolfinx.fem.FunctionSpace, bc) -> bool:
+    """Whether the space of the boundary condition ``bc`` is contained in ``V``."""
+    # DOLFINx 0.11 gives the boundary condition space as a C++ object
+    W = getattr(bc.function_space, "_cpp_object", bc.function_space)
+    return V._cpp_object.contains(W)
+
+
 def _add_bc_diagonal_blocks(
     F: ufl.Form, u: Sequence[dolfinx.fem.Function], bcs, rank: int
 ) -> ufl.Form:
@@ -444,7 +451,7 @@ def _add_bc_diagonal_blocks(
     """
     for k, uk in enumerate(u):
         V = uk.function_space
-        if not any(V.contains(bc.function_space) for bc in bcs):
+        if not any(_contains_bc_space(V, bc) for bc in bcs):
             continue
         trial = uk if rank == 1 else ufl.Argument(V, 1, part=k)
         zero = dolfinx.fem.Constant(V.mesh, uk.x.array.dtype.type(0))
@@ -507,7 +514,10 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
             entity_maps=entity_maps,
         )
         self._bcs = bcs
-        self._solver_options: tuple[str, dict] = (self.solver.getOptionsPrefix() or "", {})
+        # DOLFINx removes the options from the database after construction. They are
+        # inserted again for every solve, so that objects created while solving, such as
+        # fieldsplit sub-solvers, see them.
+        self._solver_options = (petsc_options_prefix, dict(petsc_options or {}))
 
         def assemble_residual(
             _snes: PETSc.SNES,  # type: ignore[name-defined]
@@ -559,17 +569,6 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
             )
 
         self.solver.setJacobian(assemble_jacobian, self.A, self.P_mat, kargs=jac_kargs)
-
-    def set_options(self, prefix: str, options: dict):
-        """Set the options prefix and the PETSc options of the solver.
-
-        The options are applied now, and inserted again for every solve, so that objects
-        created while solving, such as fieldsplit sub-solvers, see them.
-        """
-        self._solver_options = (prefix, dict(options))
-        self.solver.setOptionsPrefix(prefix)
-        with _inserted_options(prefix, options):
-            self.solver.setFromOptions()
 
     def solve(self, bounds=None):
         if bounds is not None:
@@ -775,9 +774,7 @@ def dirichletbc(
 
 def _field_index(bc, V: _SymbolicMixedSpace) -> int:
     """Index of the sub-space of ``V`` that the boundary condition is posed on."""
-    fields = [
-        j for j, Vj in enumerate(V.ufl_sub_spaces()) if Vj.contains(bc.function_space)
-    ]
+    fields = [j for j, Vj in enumerate(V.ufl_sub_spaces()) if _contains_bc_space(Vj, bc)]
     if len(fields) != 1:
         raise ValueError(
             "The boundary condition space must belong to exactly one sub-space of the "
@@ -825,24 +822,36 @@ def _extract_blocks(form: ufl.Form, num_blocks: int):
 class _DeferredProblem:
     """A stage problem whose DOLFINx problem is built once the solver parameters are known.
 
-    The matrix kind and the entity maps come from the solver parameters, which only reach
+    The options prefix, the PETSc options, the matrix kind and the entity maps only reach
     :func:`create_variational_solver`.
 
     :param args: Positional arguments of :class:`NonlinearProblem`.
-    :param kwargs: Keyword arguments of :class:`NonlinearProblem`, except ``kind`` and
-        ``entity_maps``.
+    :param kwargs: Keyword arguments of :class:`NonlinearProblem`, except
+        ``petsc_options_prefix``, ``petsc_options``, ``kind`` and ``entity_maps``.
     :param blocked: Whether the problem has more than one block, so that a kind applies.
+    :param petsc_defaults: PETSc options of the problem, which the solver parameters
+        override, e.g. ``snes_type: ksponly`` for a linear problem.
     """
 
-    def __init__(self, args: tuple, kwargs: dict, blocked: bool):
+    def __init__(self, args: tuple, kwargs: dict, blocked: bool, petsc_defaults: dict):
         self._args = args
         self._kwargs = kwargs
         self._blocked = blocked
+        self._petsc_defaults = petsc_defaults
 
     def build(
-        self, kind: str | None, entity_maps: Sequence[dolfinx.mesh.EntityMap] | None
+        self,
+        options_prefix: str,
+        petsc_options: dict,
+        kind: str | None,
+        entity_maps: Sequence[dolfinx.mesh.EntityMap] | None,
     ) -> NonlinearProblem:
         """Build the DOLFINx problem, with ``kind`` if the problem is blocked.
+
+        :param options_prefix: Options prefix of the solver.
+        :param petsc_options: PETSc options, applied on top of the problem's defaults.
+        :param kind: Matrix kind of a blocked problem.
+        :param entity_maps: Entity maps for forms coupling functions on different meshes.
 
         DOLFINx names fieldsplit block ``k`` after its solution function as ``{name}_{k}``,
         except for a function with the default name ``"f"``, which gives ``k`` alone. The
@@ -858,6 +867,8 @@ class _DeferredProblem:
                 f.name = "f"
             problem = NonlinearProblem(
                 *self._args,
+                petsc_options_prefix=options_prefix,
+                petsc_options={**self._petsc_defaults, **petsc_options},
                 kind=kind if self._blocked else None,
                 entity_maps=entity_maps,
                 **self._kwargs,
@@ -868,9 +879,12 @@ class _DeferredProblem:
             # DOLFINx sets at construction are ignored, as the preconditioner is not yet a
             # fieldsplit. Compute the decomposition now, while the functions have default
             # names, and always return it, so that renaming them does not change the blocks.
+            # DOLFINx 0.11 attaches no DM (a null DM is falsy), and names the blocks of a
+            # ``nest`` matrix at construction instead.
             dm = problem.solver.getKSP().getPC().getDM()
-            split_names, split_ises, _ = dm.createFieldDecomposition()
-            dm.setCreateFieldDecomposition(lambda _dm: (split_names, split_ises, None))
+            if dm:
+                split_names, split_ises, _ = dm.createFieldDecomposition()
+                dm.setCreateFieldDecomposition(lambda _dm: (split_names, split_ises, None))
         finally:
             for f, name in zip(functions, names):
                 f.name = name
@@ -910,7 +924,7 @@ def create_variational_problem(
     F, J, Jp = (_expand_mixed_functions(form) for form in (F, J, Jp))
     if mixed and bcs:
         F = _add_bc_diagonal_blocks(F, u, bcs, rank)
-    solver_parameters = kwargs.get("solver_parameters")
+    petsc_defaults = {}
     if rank == 2:
         # As Firedrake's LinearVariationalProblem: solve the residual ``F(u)`` with
         # ``J = a`` (any user-supplied ``J`` is ignored) and ``snes_type: ksponly``.
@@ -929,7 +943,7 @@ def create_variational_problem(
             )
         F = ufl.replace(F, dict(zip(trial, u)))
         J = a
-        solver_parameters = {"snes_type": "ksponly", **(solver_parameters or {})}
+        petsc_defaults = {"snes_type": "ksponly"}
     elif rank != 1:
         raise RuntimeError(
             f"Forms of rank {rank} are not supported in create_variational_problem"
@@ -942,14 +956,13 @@ def create_variational_problem(
     return _DeferredProblem(
         (F, u),
         {
-            "petsc_options_prefix": "Irksome_",
             "bcs": bcs,
             "J": J,
             "P": Jp,
-            "petsc_options": solver_parameters,
             "form_compiler_options": form_compiler_options,
         },
         blocked,
+        petsc_defaults,
     )
 
 
@@ -958,14 +971,21 @@ def create_variational_solver(
 ) -> NonlinearProblem:
     """Create a variational solver that uses PETSc SNES (``ksponly`` for linear problems).
 
-    Two solver parameters are used by the backend rather than passed to PETSc:
+    :param problem: The stage problem from :func:`create_variational_problem`.
+    :param solver_parameters: A flat :class:`dict` of PETSc options, set under
+        ``options_prefix``. They override the problem's defaults, e.g. ``snes_type:
+        ksponly`` for a linear problem. Two keys are used by the backend rather than passed
+        to PETSc:
 
-    - ``mat_type`` selects the matrix of a blocked stage problem: ``"aij"`` (default) for a
-      monolithic matrix, ``"nest"`` for a ``MATNEST`` with one block per part.
-    - ``entity_maps`` is a list of :class:`dolfinx.mesh.EntityMap`, passed to the form
-      compiler for forms coupling functions on different meshes, e.g. on a submesh.
-
-    The PETSc options prefix is set with the ``options_prefix`` keyword argument.
+        - ``mat_type`` selects the matrix of a blocked stage problem: ``"aij"`` (default)
+          for a monolithic matrix, ``"nest"`` for a ``MATNEST`` with one block per part.
+        - ``entity_maps`` is a list of :class:`dolfinx.mesh.EntityMap`, passed to the form
+          compiler for forms coupling functions on different meshes, e.g. on a submesh.
+    :param options_prefix: The PETSc options prefix of the solver (default
+        ``"IrkSomeSolver"``).
+    :param nullspace: Optional :class:`petsc4py.PETSc.NullSpace` of the stage operator.
+    :param transpose_nullspace: Optional nullspace of the transposed stage operator.
+    :param near_nullspace: Optional near nullspace of the stage operator, e.g. for AMG.
     """
     solver_parameters = kwargs.get("solver_parameters") or {}
     if "petsc_options_prefix" in solver_parameters:
@@ -974,24 +994,12 @@ def create_variational_solver(
             "'options_prefix' keyword argument of the time stepper instead."
         )
     problem = problem.build(
+        kwargs.get("options_prefix", "IrkSomeSolver"),
+        # PETSc options, without the backend's own keys
+        {k: v for k, v in solver_parameters.items() if k not in ("mat_type", "entity_maps")},
         _matrix_kind(solver_parameters.get("mat_type")),
         solver_parameters.get("entity_maps"),
     )
-    # Update solver prefix
-    solver_prefix = kwargs.get("options_prefix", "IrkSomeSolver")
-    problem._petsc_options_prefix = solver_prefix
-    problem.A.setOptionsPrefix(f"{solver_prefix}A_")
-    problem.b.setOptionsPrefix(f"{solver_prefix}b_")
-    problem.x.setOptionsPrefix(f"{solver_prefix}x_")
-    if problem.P_mat is not None:
-        problem.P_mat.setOptionsPrefix(f"{solver_prefix}P_mat_")
-    # PETSc options, without the irksome-internal keys
-    petsc_opts = {
-        k: v
-        for k, v in solver_parameters.items()
-        if k not in ("mat_type", "entity_maps")
-    }
-    problem.set_options(solver_prefix, petsc_opts)
 
     nullspace = kwargs.get("nullspace", None)
     transpose_nullspace = kwargs.get("transpose_nullspace", None)
