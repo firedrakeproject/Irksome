@@ -862,32 +862,26 @@ class _DeferredProblem:
         u = self._args[1]
         functions = u if isinstance(u, Sequence) else [u]
         names = [f.name for f in functions]
-        try:
-            for f in functions:
-                f.name = "f"
-            problem = NonlinearProblem(
-                *self._args,
-                petsc_options_prefix=options_prefix,
-                petsc_options={**self._petsc_defaults, **petsc_options},
-                kind=kind if self._blocked else None,
-                entity_maps=entity_maps,
-                **self._kwargs,
-            )
-            # DOLFINx gives the preconditioner a DM that computes the field decomposition,
-            # and so the block names, lazily on the first fieldsplit set-up, from the names
-            # the functions have then. This holds for ``nest`` matrices too: the index sets
-            # DOLFINx sets at construction are ignored, as the preconditioner is not yet a
-            # fieldsplit. Compute the decomposition now, while the functions have default
-            # names, and always return it, so that renaming them does not change the blocks.
-            # DOLFINx 0.11 attaches no DM (a null DM is falsy), and names the blocks of a
-            # ``nest`` matrix at construction instead.
-            dm = problem.solver.getKSP().getPC().getDM()
-            if dm:
-                split_names, split_ises, _ = dm.createFieldDecomposition()
-                dm.setCreateFieldDecomposition(lambda _dm: (split_names, split_ises, None))
-        finally:
-            for f, name in zip(functions, names):
-                f.name = name
+        for f in functions:
+            f.name = "f"
+        problem = NonlinearProblem(
+            *self._args,
+            petsc_options_prefix=options_prefix,
+            petsc_options={**self._petsc_defaults, **petsc_options},
+            kind=kind if self._blocked else None,
+            entity_maps=entity_maps,
+            **self._kwargs,
+        )
+        # Newer DOLFINx gives the preconditioner a DM that computes the field decomposition,
+        # and so the block names, lazily on the first fieldsplit set-up. Compute it now,
+        # while the functions have default names, and always return it, so that renaming
+        # them does not change the blocks. DOLFINx 0.11 attaches no DM (a null DM is falsy).
+        dm = problem.solver.getKSP().getPC().getDM()
+        if dm:
+            split_names, split_ises, _ = dm.createFieldDecomposition()
+            dm.setCreateFieldDecomposition(lambda _dm: (split_names, split_ises, None))
+        for f, name in zip(functions, names):
+            f.name = name
         return problem
 
 
