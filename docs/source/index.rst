@@ -95,6 +95,7 @@ to deploy more efficient methods:
    demos/demo_heat_mg_dg.py
    demos/demo_heat_rana.py
    demos/demo_dirk_parameters.py
+   demos/demo_allen_cahn_sdc.py
 
 We now have support for DIRKs:
 

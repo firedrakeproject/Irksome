@@ -320,4 +320,4 @@ intersphinx_mapping = {
 }
 
 #  -- Options for sphinxcontrib.bibtex ------------------------------------
-bibtex_bibfiles = []
+bibtex_bibfiles = ["demos/demo_references.bib"]
