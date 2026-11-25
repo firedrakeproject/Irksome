@@ -161,16 +161,17 @@ def wave_H1(butcher_tableau):
     u_init = sin(5*pi*x)*sin(5*pi*y)
 
     uv = Function(Z)
+    u_projected = Function(W)
 
     phi0 = TestFunction(W)
 
     bc = DirichletBC(W, 0, "on_boundary")
     projection_problem = NonlinearVariationalProblem(
-        inner(uv.subfunctions[0] - u_init, phi0) * dx,
-        uv.subfunctions[0], bcs=bc)
+        inner(u_projected - u_init, phi0) * dx, u_projected, bcs=bc)
 
     projection_solver = NonlinearVariationalSolver(projection_problem, solver_parameters=lu_params)
     projection_solver.solve()
+    uv.subfunctions[0].assign(u_projected)
 
     u, v = split(uv)
     phi, psi = TestFunctions(Z)
@@ -279,14 +280,14 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
     }
 
     uv = Function(Z, name='uv')
+    u_projected = Function(W)
 
     phi0 = TestFunction(W)
 
     bc = DirichletBC(W, 0, "on_boundary")
 
     projection_problem = NonlinearVariationalProblem(
-        inner(uv.subfunctions[0] - u_init, phi0) * dx,
-        uv.subfunctions[0], bcs=bc)
+        inner(u_projected - u_init, phi0) * dx, u_projected, bcs=bc)
 
     projection_solver = NonlinearVariationalSolver(
         projection_problem, solver_parameters=vi_opts)
@@ -297,10 +298,13 @@ def wave_H1_bounded(butcher_tableau, spatial_basis, temporal_basis, bounds_type)
     upper.subfunctions[1].assign(np.inf)
     lower.subfunctions[1].assign(-np.inf)
 
-    upper.subfunctions[0].assign(1.0)
-    lower.subfunctions[0].assign(-1.0)
+    upper_u = Function(W).assign(1.0)
+    lower_u = Function(W).assign(-1.0)
+    upper.subfunctions[0].assign(upper_u)
+    lower.subfunctions[0].assign(lower_u)
 
-    projection_solver.solve(bounds=(lower.subfunctions[0], upper.subfunctions[0]))
+    projection_solver.solve(bounds=(lower_u, upper_u))
+    uv.subfunctions[0].assign(u_projected)
     u, v = split(uv)
 
     phi, psi = TestFunctions(Z)

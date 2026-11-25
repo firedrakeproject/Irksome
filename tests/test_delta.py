@@ -72,7 +72,7 @@ def test_delta(msh, vom):
 
     # Test replacement assembly
     result1 = assemble(d1)
-    assert np.allclose(result1.dat[1].data_ro, result.dat.data_ro)
+    assert np.allclose(result1.subfunctions[1].dat.data_ro, result.dat.data_ro)
     assert result1.function_space() == Vbig.dual()
 
 

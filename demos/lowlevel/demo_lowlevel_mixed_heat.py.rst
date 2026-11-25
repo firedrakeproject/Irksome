@@ -82,8 +82,9 @@ Advancing the solution in time is a bit more complicated now::
       solver.solve()
 
       for s in range(butcher_tableau.num_stages):
-          for i in range(num_fields):
-	      sigu.dat.data[i][:] += float(dt) * b[s] * k.dat.data[num_fields * s + i][:]
+          for i, field in enumerate(sigu.subfunctions):
+              stage_field = k.subfunctions[num_fields * s + i]
+              field.dat.data[:] += float(dt) * b[s] * stage_field.dat.data_ro
   
       print(float(t))
       t.assign(float(t) + float(dt))
