@@ -201,6 +201,7 @@ def _stage_jacobian(stepper):
 def test_stokes_mixed_function_space(num_stages):
     """A ufl.MixedFunctionSpace gives the same solution as the equivalent mixed element."""
     N = 8
+    scheme = GaussLegendre(num_stages)
     msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, N, N)
     msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
     msh.topology.create_connectivity(0, msh.topology.dim)
@@ -251,11 +252,7 @@ def test_stokes_mixed_function_space(num_stages):
             "snes_rtol": 1e-10,
         }
         return StageDerivativeTimeStepper(
-            F,
-            GaussLegendre(num_stages),
-            t,
-            dt,
-            u0,
+            F, scheme, t, dt, u0,
             bcs=bcs,
             solver_parameters=solver_parameters,
             options_prefix=f"stokes_{name}_{num_stages}_",
@@ -284,13 +281,8 @@ def test_stokes_mixed_function_space(num_stages):
     w_u, w_p = w.subfunctions
     interpolate(w_u, uexact)
     interpolate(w_p, pexact)
-    stepper_w = stepper(
-        residual(*mixed_split(w), *mixed_test_functions(w.ufl_function_space())),
-        w,
-        V,
-        Q,
-        "space",
-    )
+    F = residual(*mixed_split(w), *mixed_test_functions(w.ufl_function_space()))
+    stepper_w = stepper(F, w, V, Q, "space")
 
     for _ in range(3):
         stepper_z.advance()
