@@ -30,7 +30,14 @@ from ufl import (
     MixedFunctionSpace,
 )
 from irksome import GaussLegendre, RadauIIA, Dt, MeshConstant
-from irksome.backends.dolfinx import assemble, dirichletbc, norm, split as mixed_split, MixedFunction, TestFunctions as mixed_test_functions
+from irksome.backends.dolfinx import (
+    MixedFunction,
+    assemble,
+    dirichletbc,
+    norm,
+    split as mixed_split,
+    TestFunctions as mixed_test_functions,
+)
 
 from irksome.stage_derivative import StageDerivativeTimeStepper
 from irksome.tools import AI
@@ -173,7 +180,9 @@ def test_default_solver_parameters():
     bcs = [dirichletbc(uexact, boundary_dofs, V)]
 
     stepper = StageDerivativeTimeStepper(
-        F, GaussLegendre(1), t, dt, u, bcs=bcs, backend="dolfinx"
+        F, GaussLegendre(1), t, dt, u, bcs=bcs,
+        options_prefix="default_solver_parameters_",
+        backend="dolfinx",
     )
     stepper.advance()
     t.assign(float(t) + float(dt))
@@ -243,7 +252,6 @@ def test_stokes_mixed_function_space(num_stages):
             "snes_linesearch_type": "none",
             "snes_atol": 1e-10,
             "snes_rtol": 1e-10,
-            "petsc_options_prefix": f"stokes_{name}_{num_stages}_",
         }
         return StageDerivativeTimeStepper(
             F,
@@ -253,6 +261,7 @@ def test_stokes_mixed_function_space(num_stages):
             u0,
             bcs=bcs,
             solver_parameters=solver_parameters,
+            options_prefix=f"stokes_{name}_{num_stages}_",
             backend="dolfinx",
         )
 
@@ -342,7 +351,7 @@ def test_stokes_stage_nullspace(num_stages):
         F, RadauIIA(num_stages), t, dt, z,
         bcs=bcs,
         nullspace=nullspace,
-        solver_parameters={"petsc_options_prefix": f"stokes_nsp_{num_stages}_"},
+        options_prefix=f"stokes_nsp_{num_stages}_",
         backend="dolfinx",
     )
     A = _stage_jacobian(stepper)
@@ -373,7 +382,7 @@ def test_constant_stage_nullspace(num_stages):
     stepper = StageDerivativeTimeStepper(
         F, RadauIIA(num_stages), t, dt, u,
         nullspace=nullspace,
-        solver_parameters={"petsc_options_prefix": f"constant_nsp_{num_stages}_"},
+        options_prefix=f"constant_nsp_{num_stages}_",
         backend="dolfinx",
     )
     A = _stage_jacobian(stepper)
@@ -590,8 +599,8 @@ def test_vector_dirichlet_bc(num_stages):
         solver_parameters={
             "ksp_type": "preonly",
             "pc_type": "lu",
-            "petsc_options_prefix": f"vector_bc_{num_stages}_",
         },
+        options_prefix=f"vector_bc_{num_stages}_",
         backend="dolfinx",
     )
     stepper.advance()
@@ -616,7 +625,40 @@ def test_mixed_function_space_ufl_test_functions():
     v, q = TestFunctions(W)
     F = inner(Dt(u), v) * dx + inner(Dt(p), q) * dx
     with pytest.raises(ValueError, match="irksome.backends.dolfinx.TestFunctions"):
-        StageDerivativeTimeStepper(F, GaussLegendre(1), t, dt, w, backend="dolfinx")
+        StageDerivativeTimeStepper(
+            F, GaussLegendre(1), t, dt, w,
+            options_prefix="ufl_test_functions_",
+            backend="dolfinx",
+        )
+
+
+def test_linear_stage_problem_missing_trial_function():
+    """A linear stage problem without a trial function for an unknown names that unknown."""
+    import irksome.backends.dolfinx as backend
+
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+    Q = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+    W = MixedFunction(MixedFunctionSpace(V, Q)).ufl_function_space()
+
+    stages = backend.get_stages(W, 1)
+    du, _ = backend.TrialFunction(stages.function_space()).subfunctions
+    v, q = backend.TestFunction(stages.function_space()).subfunctions
+    F = inner(du, v) * dx + inner(du, q) * dx
+    with pytest.raises(ValueError, match="Unknowns without a trial function: stage_0_1"):
+        backend.create_variational_problem(F, stages)
+
+
+def test_petsc_options_prefix_in_solver_parameters():
+    """The options prefix is a keyword argument, not a solver parameter."""
+    _, t, dt, u, F, _, _ = _manufactured_heat_problem()
+    with pytest.raises(ValueError, match="'options_prefix' keyword argument"):
+        StageDerivativeTimeStepper(
+            F, GaussLegendre(1), t, dt, u,
+            solver_parameters={"petsc_options_prefix": "petsc_prefix_"},
+            options_prefix="petsc_options_prefix_",
+            backend="dolfinx",
+        )
 
 
 @pytest.mark.parametrize("num_stages", [1, 2])

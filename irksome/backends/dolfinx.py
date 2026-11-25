@@ -249,7 +249,12 @@ class ListTensor(ufl.tensors.ListTensor):
         return sub_funcs
 
     def function_space(self):
-        return ufl.MixedFunctionSpace(*[self.ufl_operands[i].ufl_function_space() for i in range(self.ufl_shape[0])])
+        return ufl.MixedFunctionSpace(
+            *[
+                self.ufl_operands[i].ufl_function_space()
+                for i in range(self.ufl_shape[0])
+            ]
+        )
 
 
 def _components(objs: Sequence[ufl.core.expr.Expr]) -> list[ufl.core.expr.Expr]:
@@ -500,40 +505,19 @@ class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
                 _snes, x, b, u, residual, jacobian, bcs, _blocks
             )
 
-        if isinstance(u, Sequence) and len(u) == 1:
-            assert len(self.F) == 1 and len(self.J) == 1 and len(self.J[0]) == 1
-            kargs = {
-                "u": u[0],
-                "residual": self.F[0],
-                "jacobian": self.J[0][0],
-                "bcs": self._bcs,
-                "_blocks": self.b.getAttr("_blocks"),
-            }
-            jac_kargs = {
-                "u": u[0],
-                "jacobian": self.J[0][0],
-                "bcs": self._bcs,
-                "preconditioner": self._preconditioner,
-            }
-            if self._P_mat is not None:
-                assert (
-                    len(self._preconditioner) == 1 and len(self._preconditioner[0]) == 1
-                )
-                jac_kargs["preconditioner"] = self._preconditioner[0][0]
-        else:
-            kargs = {
-                "u": u,
-                "residual": self.F,
-                "jacobian": self.J,
-                "bcs": self._bcs,
-                "_blocks": self.b.getAttr("_blocks"),
-            }
-            jac_kargs = {
-                "u": u,
-                "jacobian": self.J,
-                "bcs": self._bcs,
-                "preconditioner": self._preconditioner,
-            }
+        kargs = {
+            "u": u,
+            "residual": self.F,
+            "jacobian": self.J,
+            "bcs": self._bcs,
+            "_blocks": self.b.getAttr("_blocks"),
+        }
+        jac_kargs = {
+            "u": u,
+            "jacobian": self.J,
+            "bcs": self._bcs,
+            "preconditioner": self._preconditioner,
+        }
         self.solver.setFunction(assemble_residual, self.b, kargs=kargs)
 
         def assemble_jacobian(
@@ -797,15 +781,13 @@ class _DeferredProblem:
     The matrix kind and the entity maps come from the solver parameters, which only reach
     :func:`create_variational_solver`.
 
-    :param problem_type: The DOLFINx problem class to build.
-    :param args: Positional arguments of ``problem_type``.
-    :param kwargs: Keyword arguments of ``problem_type``, except ``kind`` and
+    :param args: Positional arguments of :class:`NonlinearProblem`.
+    :param kwargs: Keyword arguments of :class:`NonlinearProblem`, except ``kind`` and
         ``entity_maps``.
     :param blocked: Whether the problem has more than one block, so that a kind applies.
     """
 
-    def __init__(self, problem_type: type, args: tuple, kwargs: dict, blocked: bool):
-        self._problem_type = problem_type
+    def __init__(self, args: tuple, kwargs: dict, blocked: bool):
         self._args = args
         self._kwargs = kwargs
         self._blocked = blocked
@@ -814,7 +796,7 @@ class _DeferredProblem:
         self, kind: str | None, entity_maps: Sequence[dolfinx.mesh.EntityMap] | None
     ) -> NonlinearProblem:
         """Build the DOLFINx problem, with ``kind`` if the problem is blocked."""
-        return self._problem_type(
+        return NonlinearProblem(
             *self._args,
             kind=kind if self._blocked else None,
             entity_maps=entity_maps,
@@ -841,11 +823,13 @@ def create_variational_problem(
     The DOLFINx problem is built by :func:`create_variational_solver`, which knows the
     matrix kind from the solver parameters.
 
+    :param F: The variational form as a residual.
+    :param u: The unknown function.
+    :param bcs: List of Dirichlet boundary conditions.
     :param J: Optional bilinear form for the Jacobian of the stage problem.
     :param Jp: Optional bilinear form used to assemble the preconditioner.
     """
     rank = len(np.unique([arg.number() for arg in F.arguments()]))
-    prefix = kwargs.get("petsc_options_prefix", "IrkSomeSolver")
     form_compiler_options = kwargs.get("form_compiler_parameters")
     mixed = isinstance(u, MixedStages)
     if isinstance(u, (ListTensor, MixedStages)):
@@ -862,7 +846,14 @@ def create_variational_problem(
             (arg for arg in F.arguments() if arg.number() == 1),
             key=lambda arg: arg.part() or 0,
         )
-        assert len(trial) == len(u)
+        parts = {arg.part() or 0 for arg in trial}
+        if len(trial) != len(u) or parts != set(range(len(u))):
+            missing = [u[k].name for k in range(len(u)) if k not in parts]
+            raise ValueError(
+                f"A linear stage problem needs one trial function per unknown, but the "
+                f"bilinear form has {len(trial)} trial function(s) for {len(u)} unknown(s). "
+                f"Unknowns without a trial function: {', '.join(missing) or 'none'}."
+            )
         F = ufl.replace(F, dict(zip(trial, u)))
         J = a
         solver_parameters = {"snes_type": "ksponly", **(solver_parameters or {})}
@@ -880,10 +871,9 @@ def create_variational_problem(
         J = None if J is None else J[0][0]
         Jp = None if Jp is None else Jp[0][0]
     return _DeferredProblem(
-        NonlinearProblem,
         (F, u),
         {
-            "petsc_options_prefix": prefix,
+            "petsc_options_prefix": "Irksome_",
             "bcs": bcs,
             "J": J,
             "P": Jp,
@@ -905,8 +895,15 @@ def create_variational_solver(
       monolithic matrix, ``"nest"`` for a ``MATNEST`` with one block per part.
     - ``entity_maps`` is a list of :class:`dolfinx.mesh.EntityMap`, passed to the form
       compiler for forms coupling functions on different meshes, e.g. on a submesh.
+
+    The PETSc options prefix is set with the ``options_prefix`` keyword argument.
     """
     solver_parameters = kwargs.get("solver_parameters") or {}
+    if "petsc_options_prefix" in solver_parameters:
+        raise ValueError(
+            "'petsc_options_prefix' is not a solver parameter: pass the prefix as the "
+            "'options_prefix' keyword argument of the time stepper instead."
+        )
     problem = problem.build(
         _matrix_kind(solver_parameters.get("mat_type")),
         solver_parameters.get("entity_maps"),
@@ -926,7 +923,7 @@ def create_variational_solver(
     petsc_opts = {
         k: v
         for k, v in solver_parameters.items()
-        if k not in ("petsc_options_prefix", "mat_type", "entity_maps")
+        if k not in ("mat_type", "entity_maps")
     }
     opts = PETSc.Options()
     opts.prefixPush(solver_prefix)
