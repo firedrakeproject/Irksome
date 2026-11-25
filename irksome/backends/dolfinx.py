@@ -35,7 +35,9 @@ def extract_dtype(expr: ufl.core.expr.Expr) -> npt.DTypeLike:
     for c in coeffs:
         if hasattr(c, "dtype"):
             return c.dtype
-    raise ValueError("Could not extract dtype from expression, please ensure that all constants and coefficients have a dtype attribute")
+    raise ValueError(
+        "Could not extract dtype from expression, please ensure that all constants and coefficients have a dtype attribute"
+    )
 
 
 def extract_scalar_value(scalar_expr):
@@ -44,10 +46,15 @@ def extract_scalar_value(scalar_expr):
         return float(scalar_expr)
     elif isinstance(scalar_expr, dolfinx.fem.Function):
         # Check if it's a RealElement (constant stored as Function)
-        if scalar_expr.function_space.ufl_element().is_real and scalar_expr.ufl_shape == ():
+        if (
+            scalar_expr.function_space.ufl_element().is_real
+            and scalar_expr.ufl_shape == ()
+        ):
             return float(scalar_expr.x.array[0])
         else:
-            raise ValueError(f"Cannot extract scalar from spatial Function: {scalar_expr}")
+            raise ValueError(
+                f"Cannot extract scalar from spatial Function: {scalar_expr}"
+            )
     elif isinstance(scalar_expr, dolfinx.fem.Constant) and scalar_expr.ufl_shape == ():
         val = scalar_expr.value
         return float(val) if hasattr(val, "__float__") else float(val.item())
@@ -62,7 +69,9 @@ def extract_scalar_value(scalar_expr):
         num, den = scalar_expr.ufl_operands
         return extract_scalar_value(num) / extract_scalar_value(den)
     else:
-        raise ValueError(f"Cannot extract scalar from {type(scalar_expr)}: {scalar_expr}")
+        raise ValueError(
+            f"Cannot extract scalar from {type(scalar_expr)}: {scalar_expr}"
+        )
 
 
 def extract_function(expr) -> tuple[bool, dolfinx.fem.Function | None]:
@@ -137,7 +146,9 @@ def extract_term(term):
     return None
 
 
-def extract_linear_combination(expr: ufl.core.expr.Expr) -> list[tuple[float, "dolfinx.fem.Function"]]:
+def extract_linear_combination(
+    expr: ufl.core.expr.Expr,
+) -> list[tuple[float, "dolfinx.fem.Function"]]:
     """Extract (weight, function) pairs from a UFL linear combination.
 
     Analyzes expressions like: 0.5*u + 0.3*v + 0.2*w
@@ -183,6 +194,7 @@ def function_iadd(func: "dolfinx.fem.Function", expr: ufl.core.expr.Expr) -> Non
     # Add each term using array operations (works with mixed spaces when dofmaps match)
     for weight, term_func in terms:
         func.x.array[:] += weight * term_func.x.array[:]
+
 
 # Patching of DOLFINx objects to mimick firedrake naming and properties.
 
@@ -432,35 +444,6 @@ def _add_bc_diagonal_blocks(
         zero = dolfinx.fem.Constant(V.mesh, uk.x.array.dtype.type(0))
         F += zero * ufl.inner(trial, ufl.Argument(V, 0, part=k)) * ufl.dx(domain=V.mesh)
     return F
-
-
-class _KSPOnlySNES:
-    """SNES iteration counters for a linear solve, as reported by a ``ksponly`` SNES."""
-
-    def __init__(self, ksp: PETSc.KSP):  # type: ignore[name-defined]
-        self._ksp = ksp
-
-    def getIterationNumber(self) -> int:
-        return 1
-
-    def getLinearSolveIterations(self) -> int:
-        return self._ksp.getIterationNumber()
-
-
-class LinearProblem(dolfinx.fem.petsc.LinearProblem):
-    """Overloaded linear problem that pack BCs before solving"""
-
-    def solve(self, bounds=None):
-        if bounds is not None:
-            raise NotImplementedError(
-                "Bounds-constrained solves are not implemented for DOLFINx"
-            )
-        [bc.pack() for bc in self._bcs]
-        super().solve()
-
-    @property
-    def snes(self) -> _KSPOnlySNES:
-        return _KSPOnlySNES(self.solver)
 
 
 class NonlinearProblem(dolfinx.fem.petsc.NonlinearProblem):
@@ -829,7 +812,7 @@ class _DeferredProblem:
 
     def build(
         self, kind: str | None, entity_maps: Sequence[dolfinx.mesh.EntityMap] | None
-    ) -> LinearProblem | NonlinearProblem:
+    ) -> NonlinearProblem:
         """Build the DOLFINx problem, with ``kind`` if the problem is blocked."""
         return self._problem_type(
             *self._args,
@@ -870,62 +853,51 @@ def create_variational_problem(
     F, J, Jp = (_expand_mixed_functions(form) for form in (F, J, Jp))
     if mixed and bcs:
         F = _add_bc_diagonal_blocks(F, u, bcs, rank)
+    solver_parameters = kwargs.get("solver_parameters")
     if rank == 2:
-        a, L = ufl.system(F)
-        a = ufl.extract_blocks(a)
-        L = ufl.extract_blocks(L)
-        # As for Firedrake's LinearVariationalProblem, J is not used for a linear problem
-        Jp = None if Jp is None else ufl.extract_blocks(Jp)
-        blocked = len(u) > 1
-        if not blocked:
-            # DOLFINx creates a non-blocked vector for a single block
-            a, L, u = a[0][0], L[0], u[0]
-            Jp = None if Jp is None else Jp[0][0]
-        return _DeferredProblem(
-            LinearProblem,
-            (a, L),
-            {
-                "u": u,
-                "bcs": bcs,
-                "petsc_options_prefix": prefix,
-                "P": Jp,
-                "form_compiler_options": form_compiler_options,
-            },
-            blocked,
+        # As Firedrake's LinearVariationalProblem: solve the residual ``F(u)`` with
+        # ``J = a`` (any user-supplied ``J`` is ignored) and ``snes_type: ksponly``.
+        a, _ = ufl.system(F)
+        trial = sorted(
+            (arg for arg in F.arguments() if arg.number() == 1),
+            key=lambda arg: arg.part() or 0,
         )
-    elif rank == 1:
-        F = ufl.extract_blocks(F)
-        J = None if J is None else ufl.extract_blocks(J)
-        Jp = None if Jp is None else ufl.extract_blocks(Jp)
-        blocked = len(u) > 1
-        if not blocked:
-            # A single block gets non-blocked matrices and vectors, matching its assembly
-            F, u = F[0], u[0]
-            J = None if J is None else J[0][0]
-            Jp = None if Jp is None else Jp[0][0]
-        return _DeferredProblem(
-            NonlinearProblem,
-            (F, u),
-            {
-                "petsc_options_prefix": prefix,
-                "bcs": bcs,
-                "J": J,
-                "P": Jp,
-                "petsc_options": kwargs.get("solver_parameters"),
-                "form_compiler_options": form_compiler_options,
-            },
-            blocked,
-        )
-    else:
+        assert len(trial) == len(u)
+        F = ufl.replace(F, dict(zip(trial, u)))
+        J = a
+        solver_parameters = {"snes_type": "ksponly", **(solver_parameters or {})}
+    elif rank != 1:
         raise RuntimeError(
             f"Forms of rank {rank} are not supported in create_variational_problem"
         )
+    F = ufl.extract_blocks(F)
+    J = None if J is None else ufl.extract_blocks(J)
+    Jp = None if Jp is None else ufl.extract_blocks(Jp)
+    blocked = len(u) > 1
+    if not blocked:
+        # A single block gets non-blocked matrices and vectors, matching its assembly
+        F, u = F[0], u[0]
+        J = None if J is None else J[0][0]
+        Jp = None if Jp is None else Jp[0][0]
+    return _DeferredProblem(
+        NonlinearProblem,
+        (F, u),
+        {
+            "petsc_options_prefix": prefix,
+            "bcs": bcs,
+            "J": J,
+            "P": Jp,
+            "petsc_options": solver_parameters,
+            "form_compiler_options": form_compiler_options,
+        },
+        blocked,
+    )
 
 
 def create_variational_solver(
     problem: _DeferredProblem, **kwargs
-) -> LinearProblem | NonlinearProblem:
-    """Create a variational solver that uses PETSc SNES or KSP.
+) -> NonlinearProblem:
+    """Create a variational solver that uses PETSc SNES (``ksponly`` for linear problems).
 
     Two solver parameters are used by the backend rather than passed to PETSc:
 
@@ -942,9 +914,7 @@ def create_variational_solver(
     solver = problem.solver
 
     # Update solver prefix
-    solver_prefix = solver_parameters.get(
-        "petsc_options_prefix", problem.solver.getOptionsPrefix()
-    )
+    solver_prefix = kwargs.get("options_prefix", "IrkSomeSolver")
     problem._petsc_options_prefix = solver_prefix
     problem.solver.setOptionsPrefix(solver_prefix)
     problem.A.setOptionsPrefix(f"{solver_prefix}A_")
@@ -1049,6 +1019,7 @@ class MeshConstant:
     def __init__(self, msh):
         self.msh = msh
         import basix.ufl
+
         r_el = basix.ufl.real_element(
             msh.basix_cell(), value_shape=(), dtype=dolfinx.default_scalar_type
         )
@@ -1155,7 +1126,7 @@ class EquationBC:
         raise NotImplementedError("DOLFINx does not support EquationBC")
 
 
-def invalidate_jacobian(solver: dolfinx.fem.petsc.LinearProblem):
+def invalidate_jacobian(solver: dolfinx.fem.petsc.NonlinearProblem):
     """Invalidate the Jacobian matrix in the backend language."""
     pass
 

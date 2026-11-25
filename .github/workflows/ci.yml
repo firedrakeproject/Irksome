@@ -91,6 +91,12 @@ jobs:
     - name: Install pyadjoint as it is used in conftest.py
       run: python3 -m pip install pyadjoint-ad
 
+    - name: Run linting
+      working-directory: irksome-repo
+      run: |
+        python3 -m pip install flake8
+        make lint
+
     - name: Run dolfinx tests
       working-directory: irksome-repo/tests
       run: python3 -m pytest -xvs test_dolfinx.py
