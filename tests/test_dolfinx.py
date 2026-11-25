@@ -175,9 +175,9 @@ def test_default_solver_parameters():
         V, msh.topology.dim - 1, dolfinx.mesh.exterior_facet_indices(msh.topology)
     )
     bcs = [dirichletbc(uexact, boundary_dofs, V)]
-
+    scheme = GaussLegendre(1)
     stepper = StageDerivativeTimeStepper(
-        F, GaussLegendre(1), t, dt, u, bcs=bcs,
+        F, scheme, t, dt, u, bcs=bcs,
         options_prefix="default_solver_parameters_",
         backend="dolfinx",
     )
@@ -335,9 +335,9 @@ def test_stokes_stage_nullspace(num_stages):
     n.x.array[p_to_mixed] = 1.0
     n.x.petsc_vec.normalize()
     nullspace = PETSc.NullSpace().create(vectors=[n.x.petsc_vec], comm=msh.comm)
-
+    scheme = RadauIIA(num_stages)
     stepper = StageDerivativeTimeStepper(
-        F, RadauIIA(num_stages), t, dt, z,
+        F, scheme, t, dt, z,
         bcs=bcs,
         nullspace=nullspace,
         options_prefix=f"stokes_nsp_{num_stages}_",
@@ -354,6 +354,103 @@ def test_stokes_stage_nullspace(num_stages):
     assert stage_nullspace.test(A)
 
 
+@pytest.mark.parametrize("num_stages", [1, 2])
+def test_stokes_nullspace_solve(num_stages):
+    """Stokes with the pressure nullspace attached rather than a pinned pressure.
+
+    GMRES solves the singular stage problem, preconditioned by an exact factorization of a
+    nonsingular ``Jp``: the Stokes operator with a small pressure mass penalty. The pressure
+    is recovered up to a constant, and the constant is left untouched.
+    """
+    N = 8
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, N, N)
+    el_u = basix.ufl.element("Lagrange", msh.basix_cell(), 2, shape=(msh.geometry.dim,))
+    el_p = basix.ufl.element("Lagrange", msh.basix_cell(), 1)
+    W = dolfinx.fem.functionspace(msh, basix.ufl.mixed_element([el_u, el_p]))
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+    (x, y) = SpatialCoordinate(msh)
+
+    u_ex = as_vector([x * t + y**2, -y * t + t * x**2])
+    p_ex = x + y * t
+    f_u = Dt(u_ex) - div(grad(u_ex)) + grad(p_ex)
+    f_p = -div(u_ex)
+
+    z = dolfinx.fem.Function(W)
+    u, p = split(z)
+    (v, q) = TestFunctions(W)
+    F = (
+        inner(Dt(u), v) * dx
+        + inner(grad(u), grad(v)) * dx
+        - inner(p, div(v)) * dx
+        - inner(div(u), q) * dx
+        - inner(f_u, v) * dx
+        - inner(f_p, q) * dx
+    )
+    w_u, w_p = split(TrialFunction(W))
+    epsilon = 1e-2
+    Jp = (
+        inner(Dt(w_u), v) * dx
+        + inner(grad(w_u), grad(v)) * dx
+        - inner(w_p, div(v)) * dx
+        - inner(div(w_u), q) * dx
+        - epsilon * inner(w_p, q) * dx
+    )
+
+    msh.topology.create_connectivity(msh.topology.dim - 1, msh.topology.dim)
+    boundary_dofs = dolfinx.fem.locate_dofs_topological(
+        W.sub(0),
+        msh.topology.dim - 1,
+        dolfinx.mesh.exterior_facet_indices(msh.topology),
+    )
+    bcs = [dirichletbc(u_ex, boundary_dofs, W.sub(0))]
+
+    z.sub(0).interpolate(dolfinx.fem.Expression(u_ex, W.sub(0).element.interpolation_points))
+    z.sub(1).interpolate(dolfinx.fem.Expression(p_ex, W.sub(1).element.interpolation_points))
+
+    # Constant pressure, zero velocity
+    n = dolfinx.fem.Function(W)
+    _, p_to_mixed = W.sub(1).collapse()
+    n.x.array[p_to_mixed] = 1.0
+    n.x.petsc_vec.normalize()
+    nullspace = PETSc.NullSpace().create(vectors=[n.x.petsc_vec], comm=msh.comm)
+    pressure_constant = n.x.petsc_vec.dot(z.x.petsc_vec)
+    scheme = RadauIIA(num_stages)
+    stepper = StageDerivativeTimeStepper(
+        F, scheme, t, dt, z,
+        bcs=bcs,
+        Jp=Jp,
+        nullspace=nullspace,
+        solver_parameters={
+            "ksp_type": "gmres",
+            "ksp_max_it": 30,
+            "ksp_rtol": 1e-12,
+            "ksp_atol": 1e-14,
+            "pc_type": "lu",
+            "pc_factor_mat_solver_type": "petsc",
+            "ksp_error_if_not_converged": True,
+        },
+        options_prefix=f"stokes_nsp_solve_{num_stages}_",
+        backend="dolfinx",
+    )
+    assert stepper.solver.A.getNullSpace().handle != 0
+
+    for _ in range(3):
+        stepper.advance()
+        t.assign(float(t) + float(dt))
+
+        u_h, p_h = z.sub(0).collapse(), z.sub(1).collapse()
+        u_err = norm(u_h - u_ex, norm_type="L2", mesh=msh)
+        p_diff = p_h - p_ex
+        p_mean = assemble(p_diff * dx) / assemble(1.0 * dx(domain=msh))
+        p_err = norm(p_diff - p_mean, norm_type="L2", mesh=msh)
+        assert u_err < 1e-8, f"Velocity error {u_err} at t={float(t)}"
+        assert p_err < 1e-8, f"Pressure error {p_err} (up to a constant) at t={float(t)}"
+        assert np.isclose(n.x.petsc_vec.dot(z.x.petsc_vec), pressure_constant)
+
+
 @pytest.mark.parametrize("num_stages", [1, 2, 3])
 def test_constant_stage_nullspace(num_stages):
     """A constant nullspace becomes one constant per stage."""
@@ -366,10 +463,10 @@ def test_constant_stage_nullspace(num_stages):
     u = dolfinx.fem.Function(V)
     v = TestFunction(V)
     F = inner(grad(Dt(u)), grad(v)) * dx + inner(grad(u), grad(v)) * dx
-
+    scheme = RadauIIA(num_stages)
     nullspace = PETSc.NullSpace().create(constant=True, comm=msh.comm)
     stepper = StageDerivativeTimeStepper(
-        F, RadauIIA(num_stages), t, dt, u,
+        F, scheme, t, dt, u,
         nullspace=nullspace,
         options_prefix=f"constant_nsp_{num_stages}_",
         backend="dolfinx",
@@ -413,9 +510,10 @@ def test_transpose_nullspace(num_stages):
     constant.x.array[:] = 1.0
     constant.x.petsc_vec.normalize()
     nullspace = PETSc.NullSpace().create(vectors=[constant.x.petsc_vec], comm=msh.comm)
+    scheme = RadauIIA(num_stages)
 
     stepper = StageDerivativeTimeStepper(
-        F, RadauIIA(num_stages), t, dt, u,
+        F, scheme, t, dt, u,
         transpose_nullspace=nullspace,
         options_prefix=f"transpose_nsp_{num_stages}_",
         backend="dolfinx",
@@ -644,9 +742,10 @@ def test_mixed_function_space_ufl_test_functions():
     u, p = mixed_split(w)
     v, q = TestFunctions(W)
     F = inner(Dt(u), v) * dx + inner(Dt(p), q) * dx
+    scheme = GaussLegendre(1)
     with pytest.raises(ValueError, match="irksome.backends.dolfinx.TestFunctions"):
         StageDerivativeTimeStepper(
-            F, GaussLegendre(1), t, dt, w,
+            F, scheme, t, dt, w,
             options_prefix="ufl_test_functions_",
             backend="dolfinx",
         )
@@ -672,9 +771,10 @@ def test_linear_stage_problem_missing_trial_function():
 def test_petsc_options_prefix_in_solver_parameters():
     """The options prefix is a keyword argument, not a solver parameter."""
     _, t, dt, u, F, _, _ = _manufactured_heat_problem()
+    scheme = GaussLegendre(1)
     with pytest.raises(ValueError, match="'options_prefix' keyword argument"):
         StageDerivativeTimeStepper(
-            F, GaussLegendre(1), t, dt, u,
+            F, scheme, t, dt, u,
             solver_parameters={"petsc_options_prefix": "petsc_prefix_"},
             options_prefix="petsc_options_prefix_",
             backend="dolfinx",
@@ -700,6 +800,7 @@ def test_mixed_function_space_nest(num_stages):
     v_ex = (1 + t) * (x * y)
     f_u = Dt(u_ex) - div(grad(u_ex)) + v_ex
     f_v = Dt(v_ex) - div(grad(v_ex)) - u_ex
+    scheme = GaussLegendre(num_stages)
 
     def run(solver_parameters, options_prefix):
         w = MixedFunction(W)
@@ -727,7 +828,7 @@ def test_mixed_function_space_nest(num_stages):
             V, msh.topology.dim - 1, boundary_facets
         )
         stepper = StageDerivativeTimeStepper(
-            F, GaussLegendre(num_stages), t, dt, w,
+            F, scheme, t, dt, w,
             bcs=[dirichletbc(u_ex, boundary_dofs, V)],
             solver_parameters=solver_parameters,
             backend="dolfinx",
@@ -847,10 +948,10 @@ def test_mixed_function_space_natural_fieldsplit(num_stages, mat_type):
     for k in range(num_stages * num_fields):
         solver_parameters[f"fieldsplit_{k}_ksp_type"] = "preonly"
         solver_parameters[f"fieldsplit_{k}_pc_type"] = sub_pc_types[k % num_fields]
-
+    scheme = GaussLegendre(num_stages)
     options_prefix = f"natural_fieldsplit_{mat_type}_{num_stages}_"
     stepper = StageDerivativeTimeStepper(
-        F, GaussLegendre(num_stages), t, dt, w,
+        F, scheme, t, dt, w,
         bcs=[dirichletbc(u_ex, boundary_dofs, V)],
         solver_parameters=solver_parameters,
         options_prefix=options_prefix,
@@ -936,8 +1037,9 @@ def test_mixed_function_space_codim1_submesh(num_stages):
         + inner(w - u, q) * ds_
         - inner(g, q) * ds_
     )
+    scheme = GaussLegendre(num_stages)
     stepper = StageDerivativeTimeStepper(
-        F, GaussLegendre(num_stages), t, dt, z,
+        F, scheme, t, dt, z,
         solver_parameters={
             "ksp_type": "preonly",
             "pc_type": "lu",
