@@ -276,7 +276,7 @@ def test_transpose_nullspace(num_stages):
     stepper = StageDerivativeTimeStepper(
         F, RadauIIA(num_stages), t, dt, u,
         transpose_nullspace=nullspace,
-        solver_parameters={"petsc_options_prefix": f"transpose_nsp_{num_stages}_"},
+        options_prefix=f"transpose_nsp_{num_stages}_",
         backend="dolfinx",
     )
     problem = stepper.solver
