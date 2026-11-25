@@ -401,6 +401,42 @@ def test_assemble():
     assert np.isclose(b.array.sum(), 1.0)
 
 
+@pytest.mark.parametrize("num_stages", [1, 2, 3])
+def test_transpose_nullspace(num_stages):
+    """A constant transpose nullspace becomes one constant per stage of the stage operator."""
+    msh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, 4, 4)
+    V = dolfinx.fem.functionspace(msh, ("Lagrange", 1))
+
+    MC = MeshConstant(msh, backend="dolfinx")
+    t = MC.Constant(0.0)
+    dt = MC.Constant(0.1)
+
+    u = dolfinx.fem.Function(V)
+    v = TestFunction(V)
+    # The stage operator is (I + dt A) ⊗ K, with K the stiffness matrix. As K is symmetric,
+    # a constant in each stage spans the kernel of its transpose.
+    F = inner(grad(Dt(u)), grad(v)) * dx + inner(grad(u), grad(v)) * dx
+
+    constant = dolfinx.fem.Function(V)
+    constant.x.array[:] = 1.0
+    constant.x.petsc_vec.normalize()
+    nullspace = PETSc.NullSpace().create(vectors=[constant.x.petsc_vec], comm=msh.comm)
+
+    stepper = StageDerivativeTimeStepper(
+        F, RadauIIA(num_stages), t, dt, u,
+        transpose_nullspace=nullspace,
+        options_prefix=f"transpose_nsp_{num_stages}_",
+        backend="dolfinx",
+    )
+    problem = stepper.solver
+    problem.snes.computeJacobian(problem.x, problem.A, problem.A)
+
+    transpose_nullspace = problem.A.getTransposeNullSpace()
+    assert transpose_nullspace.handle != 0
+    assert len(transpose_nullspace.getVecs()) == num_stages
+    assert transpose_nullspace.test(problem.A.transpose())
+
+
 def _manufactured_heat_problem():
     """Heat equation with a manufactured solution, flux BCs and its exact Jacobian.
 
