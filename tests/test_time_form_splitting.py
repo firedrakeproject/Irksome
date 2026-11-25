@@ -2,7 +2,7 @@ import pytest
 from irksome import Dt
 from irksome.ufl.manipulation import check_integrals, split_time_derivative_terms
 from ufl import (Coefficient, FunctionSpace, Mesh,
-                 TestFunction, dx, grad, inner, sin, triangle)
+                 TestFunction, as_tensor, dx, grad, indices, inner, sin, triangle, variable)
 from finat.ufl import FiniteElement, MixedElement, VectorElement
 from ufl.algorithms.domain_analysis import group_form_integrals
 try:
@@ -152,3 +152,23 @@ def test_expecting_time_derivative(V):
     F += inner(Dt(u), v)*dx
     with pytest.raises(ValueError):
         check_integrals(F.integrals(), timedep_coeffs=(u,), expect_time_derivative=False)
+
+
+def test_mixed_summand_split(V):
+    u = Coefficient(V)
+    v = TestFunction(V)
+    F = inner(Dt(u) + u, v)*dx + inner(grad(u), grad(v))*dx
+    split = split_time_derivative_terms(F, timedep_coeffs=(u,))
+    time_terms = split_time_derivative_terms(split.time, timedep_coeffs=(u,))
+    assert time_terms.remainder.empty()
+    assert len(split_time_derivative_terms(split.remainder, timedep_coeffs=(u,)).time.integrals()) == 0
+
+
+def test_indexed_and_variable_time_terms_split(V):
+    u = Coefficient(V)
+    v = TestFunction(V)
+    i, = indices(1)
+    F = inner(as_tensor(Dt(u[i]), (i,)), v)*dx + inner(variable(Dt(u)), v)*dx + inner(grad(u), grad(v))*dx
+    split = split_time_derivative_terms(F, timedep_coeffs=(u,))
+    assert len(split.time.integrals()) == 2
+    assert len(split.remainder.integrals()) == 1

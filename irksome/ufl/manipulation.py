@@ -11,7 +11,7 @@ from itertools import chain
 from operator import or_
 from typing import NamedTuple, Sequence, FrozenSet
 
-from ufl import derivative
+from ufl import derivative, replace
 from ufl.algorithms import expand_derivatives
 from ufl.algorithms.analysis import extract_coefficients, extract_type
 from ufl.corealg.traversal import traverse_unique_terminals
@@ -21,7 +21,7 @@ from ufl.classes import (
     Conj, Cross, Derivative, Division, Dot, Expr, FacetAvg,
     Form, FormSum, Indexed, IndexSum, Inner, Integral,
     ListTensor, MultiIndex, NegativeRestricted, Outer, PositiveRestricted,
-    Product, Sum, Variable,
+    Product, Sum, Variable, Zero,
 )
 
 from .deriv import TimeDerivative
@@ -193,6 +193,44 @@ def summands(o: Expr) -> FrozenSet[Expr]:
         return frozenset([o])
 
 
+class TimeDerivativePart(DAGTraverser):
+    """Return the part of an expression that is linear in its time derivatives,
+       or None if the expression has no time derivative.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    # Work around singledispatchmethod inheritance issue;
+    # see https://bugs.python.org/issue36457.
+    @singledispatchmethod
+    def process(self, o):
+        return super().process(o)
+
+    @process.register(Expr)
+    def generic(self, o):
+        parts = [self(op) for op in o.ufl_operands]
+        if all(p is None for p in parts):
+            return None
+        return o._ufl_expr_reconstruct_(*(op if p is None else p for op, p in zip(o.ufl_operands, parts)))
+
+    @process.register(Sum)
+    def sum_(self, o):
+        parts = [p for p in map(self, o.ufl_operands) if p is not None]
+        return sum(parts[1:], parts[0]) if parts else None
+
+    @process.register(ListTensor)
+    def list_tensor(self, o):
+        parts = [self(op) for op in o.ufl_operands]
+        if all(p is None for p in parts):
+            return None
+        return o._ufl_expr_reconstruct_(*(Zero(op.ufl_shape, op.ufl_free_indices, op.ufl_index_dimensions) if p is None else p
+                                          for op, p in zip(o.ufl_operands, parts)))
+
+    @process.register(TimeDerivative)
+    def time_derivative(self, o):
+        return o
+
+
 def split_time_derivative_terms(form: BaseForm,
                                 t: Expr = None,
                                 timedep_coeffs: Sequence[Coefficient] = ()
@@ -218,6 +256,7 @@ def split_time_derivative_terms(form: BaseForm,
         form = sum(w*f for w, f in zip(weights, components) if isinstance(f, Form))
 
     mapper = TimeDerivativeChecker(t, timedep_coeffs)
+    time_extractor = TimeDerivativePart()
     rest_terms = []
     time_terms = []
     for integral in form.integrals():
@@ -228,7 +267,11 @@ def split_time_derivative_terms(form: BaseForm,
             if len(tcoeffs) == 0:
                 rest.append(term)
             else:
-                time.append(term)
+                time_part = time_extractor(term)
+                time.append(time_part)
+                if time_part != term:
+                    dts = extract_type(term, TimeDerivative)
+                    rest.append(replace(term, {d: Zero(d.ufl_shape, d.ufl_free_indices, d.ufl_index_dimensions) for d in dts}))
         if len(rest):
             rest_terms.append(integral.reconstruct(integrand=sum(rest)))
         if len(time):

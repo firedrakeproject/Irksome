@@ -3,12 +3,12 @@ import pytest
 from firedrake import (DirichletBC, Function, FunctionSpace, SpatialCoordinate,
                        TestFunction, TrialFunction, UnitIntervalMesh, cos, diff, div, dx,
                        errornorm, exp, grad, inner, norm, pi, solve)
-from irksome import Dt, GalerkinCollocationScheme, MeshConstant, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
+from irksome import BDF, Dt, DiscontinuousGalerkinScheme, GalerkinCollocationScheme, MeshConstant, RadauIIA, TimeStepper, StageDerivativeNystromTimeStepper
 
 
 # test the accuracy of the 1d heat equation using CG elements
 # and RadauIIA time integration
-def heat(n, deg, scheme, **kwargs):
+def heat(n, deg, scheme, reaction=None, constant_jacobian=True, **kwargs):
     N = 2**n
     msh = UnitIntervalMesh(N)
 
@@ -35,6 +35,11 @@ def heat(n, deg, scheme, **kwargs):
 
     F = (inner(Dt(w), v) * dx + inner(grad(w), grad(v)) * dx
          - inner(rhs, v) * dx)
+    if reaction == "split":
+        F += inner(w - uexact, v) * dx
+    elif reaction == "mixed":
+        F = (inner(Dt(w) + w, v) * dx + inner(grad(w), grad(v)) * dx
+             - inner(rhs + uexact, v) * dx)
 
     # Ritz projection is crucial to observe the right order of convergence
     solve(inner(grad(u - uexact), grad(v)) * dx == 0, u, bcs=bcs,
@@ -44,7 +49,7 @@ def heat(n, deg, scheme, **kwargs):
     # NOTE dt must be constant
     stepper = TimeStepper(F, scheme, t, dt, u, bcs=bcs,
                           solver_parameters=params,
-                          constant_jacobian=True,
+                          **({"constant_jacobian": True} if constant_jacobian else {}),
                           **kwargs)
 
     nsteps = int(np.ceil(1.0/float(dt)))
@@ -73,6 +78,15 @@ def test_heat_galerkin_collocation(deg, convrate, time_stages, stage_type):
     diff = np.array([heat(i, deg, GalerkinCollocationScheme(time_stages, quadrature_scheme="radau", stage_type=stage_type)) for i in range(3, 6)])
     conv = np.log2(diff[:-1] / diff[1:])
     assert (conv > convrate).all()
+
+
+@pytest.mark.parametrize("scheme,kwargs", [(RadauIIA(2), {"stage_type": "value"}),
+                                           (BDF(2), {"constant_jacobian": False}),
+                                           (DiscontinuousGalerkinScheme(1), {})])
+def test_heat_mixed_time_summand(scheme, kwargs):
+    split = heat(4, 2, scheme, reaction="split", **kwargs)
+    mixed = heat(4, 2, scheme, reaction="mixed", **kwargs)
+    assert abs(mixed - split) < 1e-10 * split
 
 
 @pytest.mark.parametrize(('deg', 'convrate', 'time_stages'),
