@@ -47,6 +47,8 @@ def getFormDIRK(F, ks, butch, t, dt, u0, bcs=None, kgac=None, backend="firedrake
     d_val = MC.Constant(1.0)
     c_bc = MC.Constant(1.0)
     for bc in bcs:
+        if not isinstance(bc, backend_cls.DirichletBC):
+            raise NotImplementedError("DIRKTimeStepper only supports DirichletBC")
         bcarg = bc._original_arg
         if bcarg == 0:
             # Homogeneous BC, just zero out stage dofs
