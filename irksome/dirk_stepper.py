@@ -105,7 +105,7 @@ class DIRKTimeStepper:
             self.CCone = self.CCone[1:]
 
         zero_diagonal = [i for i in range(num_stages) if abs(self.AAb[i, i]) < STRUCTURAL_ZERO]
-        if zero_diagonal and any(bc._original_arg != 0 for bc in bcs):
+        if zero_diagonal and any(isinstance(bc, backend_cls.DirichletBC) and bc._original_arg != 0 for bc in bcs):
             if butcher_tableau.is_explicit or zero_diagonal != [0] or not butcher_tableau.is_stiffly_accurate:
                 raise NotImplementedError(
                     "Boundary data can only be imposed through a zero diagonal "
