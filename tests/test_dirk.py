@@ -108,6 +108,7 @@ def test_1d_heat_neumannbc(butcher_tableau):
         if float(t) + float(dt) > t_end:
             dt.assign(t_end - float(t))
         stepper.advance()
+        stepperdirk.invalidate_jacobian()
         stepperdirk.advance()
         t.assign(float(t) + float(dt))
         assert (errornorm(u_dirk, u) / norm(u)) < 1.e-10

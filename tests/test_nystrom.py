@@ -84,6 +84,7 @@ def dirk_wave(n, deg, bc_type):
 
     E0 = assemble(E)
     for step in range(5*N):
+        stepper.invalidate_jacobian()
         stepper.advance()
         t.assign(float(t) + float(dt))
 
