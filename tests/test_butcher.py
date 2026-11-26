@@ -83,3 +83,13 @@ def test_PEPRK_order_conditions(key):
         assert allclose(b @ (c * (A @ c)), 1/8)
         assert allclose(b @ (A @ c**2), 1/12)
         assert allclose(b @ (A @ (A @ c)), 1/24)
+
+
+@pytest.mark.parametrize('bt,expected', [(LobattoIIIA(2), 1),
+                                         (LobattoIIIA(3), 1),
+                                         (LobattoIIIA(4), 1),
+                                         (RadauIIA(2), 0),
+                                         (GaussLegendre(2), 0),
+                                         (QinZhang(), 0)])
+def test_num_explicit_first_stages(bt, expected):
+    assert bt.num_explicit_first_stages == expected
