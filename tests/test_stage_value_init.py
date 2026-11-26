@@ -2,6 +2,8 @@ from firedrake import *
 import numpy as np
 from irksome import (Dt, TimeStepper, BackwardEuler, LobattoIIIA,
                      MeshConstant, RadauIIA)
+from irksome.stage_value import getFormStage
+from irksome.tools import IA
 import pytest
 
 
@@ -135,3 +137,16 @@ def test_explicit_first_stage_scheme_J_mismatch_raises():
     with pytest.raises(ValueError):
         TimeStepper(F, LobattoIIIA(3), Constant(0.0), Constant(0.1), u,
                     stage_type="value", scheme_J=RadauIIA(3))
+
+
+def test_explicit_first_stage_requires_AI_splitting():
+    msh = UnitIntervalMesh(4)
+    V = FunctionSpace(msh, "CG", 1)
+    u = Function(V)
+    v = TestFunction(V)
+    t = Constant(0.0)
+    dt = Constant(0.1)
+    F = inner(Dt(u), v) * dx + inner(grad(u), grad(v)) * dx
+    stages = TimeStepper(F, LobattoIIIA(2), t, dt, u, stage_type="value").stages
+    with pytest.raises(ValueError):
+        getFormStage(F, LobattoIIIA(2), t, dt, u, stages, splitting=IA)

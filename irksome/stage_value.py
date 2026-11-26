@@ -94,6 +94,8 @@ def getFormStage(F, butch, t, dt, u0, stages, bcs=None, splitting=AI, vandermond
     num_explicit = num_stages - num_solved
     if num_explicit > butch.num_explicit_first_stages:
         raise ValueError(f"The first {num_explicit} stages of this tableau are not all explicit")
+    if num_explicit > 0 and splitting is not AI:
+        raise ValueError("Leaving out explicit stages is only supported with the AI splitting")
     bA1, bA2 = splitting(butch.A)
     if num_explicit > 0:
         u0_np = reshape(u0, (1, *u0.ufl_shape))
