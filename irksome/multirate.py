@@ -49,8 +49,6 @@ class MRIGARKTimeStepper(BaseTimeStepper):
         assert isinstance(method, MRIGARK)
         super().__init__(Ffast + Fslow, t, dt, u0, bcs=bcs, appctx=appctx,
                          nullspace=nullspace, backend=backend)
-        if kwargs.get("J") is not None or kwargs.get("Jp") is not None:
-            raise NotImplementedError("MRI-GARK does not accept J or Jp")
         if fast_parameters is None or "tableau" not in fast_parameters:
             raise ValueError("MRI-GARK needs fast_parameters with an inner 'tableau'")
         v, u = extract_timedep_arguments(Ffast + Fslow, u0)
@@ -98,6 +96,8 @@ class MRIGARKTimeStepper(BaseTimeStepper):
         stepper_kwargs = dict(fast_parameters.get("stepper_kwargs", {}))
         for key, val in kwargs.items():
             stepper_kwargs.setdefault(key, val)
+        if stepper_kwargs.get("J") is not None or stepper_kwargs.get("Jp") is not None:
+            raise NotImplementedError("MRI-GARK does not accept J or Jp")
         if stepper_kwargs.get("adaptive_parameters") is not None:
             raise NotImplementedError("MRI-GARK does not support an adaptive fast stepper")
 
@@ -115,9 +115,10 @@ class MRIGARKTimeStepper(BaseTimeStepper):
         dt = float(self.dt)
         for j in range(method.num_stages):
             self.u_slow[j].assign(self.u0)
-            self.t_slow[j].assign(t0 + method.c[j] * dt)
+            self.t_slow[j].assign(t0)
         for i in range(method.num_stages):
             self.u_slow[i].assign(self.u0)
+            self.t_slow[i].assign(t0 + method.c[i] * dt)
             for k, G in enumerate(method.Gamma):
                 for j in range(method.num_stages):
                     self.weights[k][j].assign(G[i, j])

@@ -163,6 +163,14 @@ def test_unsupported_options_raise():
         TimeStepper(F, MRIGARK("ERK22a"), t, dt, u, fast_parameters=fast,
                     J=derivative(F.form, u))
     with pytest.raises(NotImplementedError):
+        TimeStepper(F, MRIGARK("ERK22a"), t, dt, u,
+                    fast_parameters={"tableau": GaussLegendre(2),
+                                     "stepper_kwargs": {"J": derivative(F.form, u)}})
+    with pytest.raises(NotImplementedError):
+        TimeStepper(F, MRIGARK("ERK22a"), t, dt, u,
+                    fast_parameters={"tableau": GaussLegendre(2),
+                                     "stepper_kwargs": {"Jp": derivative(F.form, u)}})
+    with pytest.raises(NotImplementedError):
         TimeStepper(F, MRIGARK("ERK22a"), t, dt, u, fast_parameters=fast,
                     bcs=EquationBC(inner(u - 1, v) * ds(1) == 0, u, 1))
     with pytest.raises(NotImplementedError):
@@ -178,6 +186,20 @@ def test_slow_terms_not_defined_at_zero():
     dt.assign(0.1)
     F = Ffast + explicit(inner(ln(2 + u) + 1 / t, v) * dx)
     stepper = TimeStepper(F, MRIGARK("ERK33a"), t, dt, u,
+                          fast_parameters={"tableau": GaussLegendre(2),
+                                           "stepper_kwargs": {"solver_parameters": lu}})
+    stepper.advance()
+    assert np.isfinite(u.dat.data_ro).all()
+
+
+@pytest.mark.parametrize("name", methods)
+def test_slow_terms_not_defined_at_later_stage_times(name):
+    t, dt, u, uexact, Ffast, Fslow, bc = heat(8)
+    v = TestFunction(u.function_space())
+    u.assign(1.0)
+    dt.assign(1.0)
+    F = inner(Dt(u), v) * dx + explicit(inner(ln(u - t) - 1, v) * dx)
+    stepper = TimeStepper(F, MRIGARK(name), t, dt, u,
                           fast_parameters={"tableau": GaussLegendre(2),
                                            "stepper_kwargs": {"solver_parameters": lu}})
     stepper.advance()
