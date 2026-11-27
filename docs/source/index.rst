@@ -94,6 +94,8 @@ to deploy more efficient methods:
    demos/demo_heat_mg.py
    demos/demo_heat_mg_dg.py
    demos/demo_heat_rana.py
+   demos/demo_heat_sylvester.py
+   demos/demo_nse_sylvester.py
    demos/demo_dirk_parameters.py
 
 We now have support for DIRKs:
